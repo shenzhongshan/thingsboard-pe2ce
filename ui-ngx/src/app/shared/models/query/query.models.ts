@@ -577,6 +577,12 @@ export function keyFilterPredicateInfoToKeyFilterPredicate(keyFilterPredicateInf
       predicates
     } as ComplexFilterPredicate;
   }
+  // Strip ignoreCase for non-STRING types (backend Boolean/Numeric predicates don't accept this field)
+  if (keyFilterPredicate.type !== FilterPredicateType.STRING && 'ignoreCase' in keyFilterPredicate) {
+      const cleaned = { ...keyFilterPredicate };
+      delete (cleaned as any).ignoreCase;
+      return cleaned;
+    }
   return keyFilterPredicate;
 }
 
