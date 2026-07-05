@@ -20,6 +20,8 @@ import { NgModule } from '@angular/core';
 import { otaUpdatesRoutes } from '@home/pages/ota-update/ota-update-routing.module';
 import { vcRoutes } from '@home/pages/vc/vc-routing.module';
 import { MenuId } from '@core/services/menu.models';
+import { SchedulerEventsComponent } from '@home/pages/features/scheduler/scheduler-events.component';
+import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.component';
 
 const routes: Routes = [
   {
@@ -40,7 +42,29 @@ const routes: Routes = [
         }
       },
       ...otaUpdatesRoutes,
-      ...vcRoutes
+      ...vcRoutes,
+      {
+        path: 'scheduler',
+        component: SchedulerEventsComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          title: 'scheduler.scheduler',
+          breadcrumb: {
+            menuId: MenuId.scheduler
+          }
+        }
+      },
+      {
+        path: 'tasks',
+        component: TaskManagerComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          title: 'task.task-manager',
+          breadcrumb: {
+            menuId: MenuId.task_manager
+          }
+        }
+      }
     ]
   }
 ];

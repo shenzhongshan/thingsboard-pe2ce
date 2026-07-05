@@ -23,6 +23,7 @@ import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.dao.model.BaseVersionedEntity;
@@ -77,6 +78,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
     @Column(name = ModelConstants.EXTERNAL_ID_PROPERTY)
     private UUID externalId;
 
+    @Column(name = ModelConstants.CUSTOM_MENU_ID_PROPERTY)
+    private UUID customMenuId;
+
     public CustomerEntity() {
         super();
     }
@@ -98,6 +102,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
         if (customer.getExternalId() != null) {
             this.externalId = customer.getExternalId().getId();
         }
+        if (customer.getCustomMenuId() != null) {
+            this.customMenuId = customer.getCustomMenuId().getId();
+        }
     }
 
     @Override
@@ -118,6 +125,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
         customer.setAdditionalInfo(additionalInfo);
         if (externalId != null) {
             customer.setExternalId(new CustomerId(externalId));
+        }
+        if (customMenuId != null) {
+            customer.setCustomMenuId(new CustomMenuId(customMenuId));
         }
         return customer;
     }

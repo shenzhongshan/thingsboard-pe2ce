@@ -1,0 +1,95 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div>
+  <mat-card appearance="outlined" class="settings-card">
+    <mat-card-header>
+      <mat-card-title>
+        <span class="mat-headline-5" translate>white-labeling.login-white-labeling</span>
+      </mat-card-title>
+    </mat-card-header>
+    @if (isLoading$ | async) {
+      <mat-progress-bar color="warn" mode="indeterminate"></mat-progress-bar>
+    }
+    @if ((isLoading$ | async) === false) {
+      <div style="height: 4px;"></div>
+    }
+    <mat-card-content style="padding-top: 16px;">
+      <form [formGroup]="loginWhiteLabelingForm" (ngSubmit)="save()">
+        <fieldset [disabled]="isLoading$ | async" class="flex flex-col">
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.base-url</mat-label>
+            <input matInput formControlName="baseUrl" required>
+            @if (loginWhiteLabelingForm.get('baseUrl').hasError('required')) {
+              <mat-error>{{ 'white-labeling.base-url-required' | translate }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-checkbox formControlName="prohibitDifferentUrl">
+            {{ 'white-labeling.prohibit-different-url' | translate }}
+          </mat-checkbox>
+          <div class="tb-hint-row">{{ 'white-labeling.prohibit-different-url-hint' | translate }}</div>
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.app-title</mat-label>
+            <input matInput formControlName="appTitle">
+          </mat-form-field>
+          <div class="tb-wl-image-label" translate>white-labeling.favicon</div>
+          <tb-gallery-image-input class="tb-wl-image-input"
+                                  formControlName="favicon">
+          </tb-gallery-image-input>
+          <div class="tb-wl-image-label" translate>white-labeling.logo</div>
+          <tb-gallery-image-input class="tb-wl-image-input"
+                                  formControlName="logo">
+          </tb-gallery-image-input>
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.logo-image-height</mat-label>
+            <input matInput type="number" min="0" formControlName="logoImageHeight">
+          </mat-form-field>
+          <tb-wl-palette-select formControlName="primaryPalette"
+                                [label]="'white-labeling.primary-palette' | translate">
+          </tb-wl-palette-select>
+          <tb-wl-palette-select formControlName="accentPalette"
+                                [label]="'white-labeling.accent-palette' | translate">
+          </tb-wl-palette-select>
+          <div>
+            <button mat-flat-button color="primary" type="button" (click)="openCustomCss()">
+              {{ 'white-labeling.advanced-css' | translate }}
+            </button>
+          </div>
+          <mat-checkbox formControlName="darkForeground">
+            {{ 'white-labeling.dark-foreground' | translate }}
+          </mat-checkbox>
+          <tb-color-input formControlName="pageBackgroundColor" colorClearButton
+                          [label]="'white-labeling.page-background-color' | translate">
+          </tb-color-input>
+          <mat-checkbox formControlName="showNameBottom">
+            {{ 'white-labeling.show-name-bottom' | translate }}
+          </mat-checkbox>
+          <div class="flex w-full flex-row flex-wrap items-center gap-2" style="margin-top: 16px;">
+            <button mat-raised-button color="warn" type="button" (click)="reset()">
+              <mat-icon>restart_alt</mat-icon>{{ 'white-labeling.reset-to-default' | translate }}
+            </button>
+            <span class="flex-1"></span>
+            <button mat-raised-button color="primary"
+                    [disabled]="(isLoading$ | async) || loginWhiteLabelingForm.invalid || !loginWhiteLabelingForm.dirty"
+                    type="submit">{{ 'action.save' | translate }}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

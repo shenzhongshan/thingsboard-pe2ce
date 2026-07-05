@@ -36,6 +36,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     UserEntity findByTenantIdAndEmail(UUID tenantId, String email);
 
+    List<UserEntity> findByTenantIdAndCustomMenuId(UUID tenantId, UUID customMenuId);
+
     @Query("SELECT u FROM UserEntity u WHERE u.tenantId = :tenantId " +
             "AND u.customerId = :customerId AND u.authority = :authority " +
             "AND (:searchText IS NULL OR ilike(u.email, CONCAT('%', :searchText, '%')) = true)")

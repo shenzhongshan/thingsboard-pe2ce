@@ -25,6 +25,7 @@ import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
@@ -67,6 +68,9 @@ public class UserEntity extends BaseVersionedEntity<User> {
     @Column(name = ModelConstants.USER_ADDITIONAL_INFO_PROPERTY)
     private JsonNode additionalInfo;
 
+    @Column(name = ModelConstants.CUSTOM_MENU_ID_PROPERTY)
+    private UUID customMenuId;
+
     public UserEntity() {
     }
 
@@ -84,6 +88,9 @@ public class UserEntity extends BaseVersionedEntity<User> {
         this.lastName = user.getLastName();
         this.phone = user.getPhone();
         this.additionalInfo = user.getAdditionalInfo();
+        if (user.getCustomMenuId() != null) {
+            this.customMenuId = user.getCustomMenuId().getId();
+        }
     }
 
     @Override
@@ -103,6 +110,9 @@ public class UserEntity extends BaseVersionedEntity<User> {
         user.setLastName(lastName);
         user.setPhone(phone);
         user.setAdditionalInfo(additionalInfo);
+        if (customMenuId != null) {
+            user.setCustomMenuId(new CustomMenuId(customMenuId));
+        }
         return user;
     }
 

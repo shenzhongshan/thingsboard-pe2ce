@@ -54,7 +54,14 @@ public enum Resource {
     MOBILE_APP_SETTINGS,
     JOB(EntityType.JOB),
     AI_MODEL(EntityType.AI_MODEL),
-    API_KEY(EntityType.API_KEY);
+    API_KEY(EntityType.API_KEY),
+    WHITE_LABELING,
+    SCHEDULER_EVENT,
+    CONVERTER(EntityType.CONVERTER),
+    INTEGRATION(EntityType.INTEGRATION),
+    ENTITY_GROUP(EntityType.ENTITY_GROUP),
+    ROLE(EntityType.ROLE),
+    GROUP_PERMISSION(EntityType.GROUP_PERMISSION);
 
     private final Set<EntityType> entityTypes;
 

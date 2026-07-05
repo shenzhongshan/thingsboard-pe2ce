@@ -119,7 +119,7 @@ export class RouterTabsComponent extends PageComponent implements OnInit {
     const sectionPath = this.getSectionPath(activatedRoute);
     const authority = getCurrentAuthUser(this.store).authority;
     const children = activatedRoute.routeConfig.children.filter(page => {
-      if (page.path !== '') {
+      if (page.path !== '' && !page.path.includes(':')) {
         if (page.data?.auth) {
           return page.data?.auth.includes(authority);
         } else {
@@ -131,7 +131,7 @@ export class RouterTabsComponent extends PageComponent implements OnInit {
     });
     if (children.length) {
       return children.map(tab => ({
-        id: tab.component.name,
+        id: tab.component ? tab.component.name : tab.path,
         type: 'link',
         name: tab.data?.breadcrumb?.label ?? '',
         icon: tab.data?.breadcrumb?.icon ?? '',

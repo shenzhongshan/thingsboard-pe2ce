@@ -22,36 +22,142 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { BreadCrumbConfig } from '@shared/components/breadcrumb';
+import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntitiesTableComponent } from '@home/components/entity/entities-table.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  AllUsersTableConfigResolver,
+  UserGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 const routes: Routes = [
   {
     path: 'users',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
-        skip: true
+        menuId: MenuId.users
       }
     },
     children: [
       {
         path: '',
-        redirectTo: '/',
-        pathMatch: 'full'
+        children: [],
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          redirectTo: '/users/all'
+        }
+      },
+      {
+        path: 'all',
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'account_circle'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'user.users'
+            },
+            resolve: {
+              entitiesTableConfig: AllUsersTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'account_circle'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'user.user'
+            },
+            resolve: {
+              entitiesTableConfig: AllUsersTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.user-groups',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.user-groups',
+              groupType: EntityType.USER
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                label: 'entity-group.group',
+                icon: 'view_list'
+              }
+            },
+            children: [
+              {
+                path: '',
+                component: EntitiesTableComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.user-groups',
+                  groupType: EntityType.USER
+                },
+                resolve: {
+                  entitiesTableConfig: UserGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'account_circle'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'user.user',
+                  groupType: EntityType.USER
+                },
+                resolve: {
+                  entitiesTableConfig: UserGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
       },
       {
         path: ':entityId',
-        component: EntityDetailsPageComponent,
-        canDeactivate: [ConfirmOnExitGuard],
-        data: {
-          breadcrumb: {
-            labelFunction: entityDetailsPageBreadcrumbLabelFunction,
-            icon: 'account_circle'
-          } as BreadCrumbConfig<EntityDetailsPageComponent>,
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
-          title: 'user.user',
-        },
-        resolve: {
-          entitiesTableConfig: UsersTableConfigResolver
-        }
+        pathMatch: 'full',
+        redirectTo: 'all/:entityId'
       }
     ]
   }
@@ -61,7 +167,9 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    UsersTableConfigResolver
+    UsersTableConfigResolver,
+    AllUsersTableConfigResolver,
+    UserGroupEntitiesTableConfigResolver
   ]
 })
 export class UserRoutingModule { }

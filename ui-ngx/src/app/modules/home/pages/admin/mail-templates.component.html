@@ -1,0 +1,63 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div>
+  <mat-card appearance="outlined" class="settings-card">
+    <mat-card-header>
+      <mat-card-title>
+        <span class="mat-headline-5" translate>white-labeling.mail-templates-settings</span>
+      </mat-card-title>
+    </mat-card-header>
+    @if (isLoading$ | async) {
+      <mat-progress-bar color="warn" mode="indeterminate"></mat-progress-bar>
+    }
+    @if ((isLoading$ | async) === false) {
+      <div style="height: 4px;"></div>
+    }
+    <mat-card-content style="padding-top: 16px;">
+      <form [formGroup]="mailTemplatesForm" (ngSubmit)="save()">
+        <fieldset [disabled]="isLoading$ | async" class="flex flex-col">
+          @if (isTenantAdmin) {
+            <mat-checkbox formControlName="useSystemMailSettings" style="margin-bottom: 8px;">
+              {{ 'white-labeling.use-system-mail-templates' | translate }}
+            </mat-checkbox>
+          }
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.mail-template</mat-label>
+            <mat-select [value]="selectedTemplate" (selectionChange)="templateChanged($event.value)">
+              @for (key of templateKeys; track key) {
+                <mat-option [value]="key">{{ 'white-labeling.mail-template-' + key | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.mail-subject</mat-label>
+            <input matInput formControlName="subject">
+          </mat-form-field>
+          <div class="tb-wl-image-label" translate>white-labeling.mail-body</div>
+          <editor [init]="tinyMceOptions" formControlName="body"></editor>
+          <div class="flex w-full flex-row flex-wrap items-center justify-end gap-2" style="margin-top: 16px;">
+            <button mat-raised-button color="primary"
+                    [disabled]="(isLoading$ | async) || !mailTemplatesForm.dirty"
+                    type="submit">{{ 'action.save' | translate }}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

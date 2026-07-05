@@ -26,6 +26,8 @@ import { CreatePasswordComponent } from '@modules/login/pages/login/create-passw
 import { TwoFactorAuthLoginComponent } from '@modules/login/pages/login/two-factor-auth-login.component';
 import { LinkExpiredComponent } from '@modules/login/pages/login/link-expired.component';
 import { ForceTwoFactorAuthLoginComponent } from '@modules/login/pages/login/force-two-factor-auth-login.component';
+import { SignUpComponent } from '@modules/login/pages/login/sign-up.component';
+import { SignUpEmailVerifiedComponent } from '@modules/login/pages/login/sign-up-email-verified.component';
 
 @NgModule({
   declarations: [
@@ -36,6 +38,8 @@ import { ForceTwoFactorAuthLoginComponent } from '@modules/login/pages/login/for
     TwoFactorAuthLoginComponent,
     LinkExpiredComponent,
     ForceTwoFactorAuthLoginComponent,
+    SignUpComponent,
+    SignUpEmailVerifiedComponent,
   ],
   imports: [
     CommonModule,

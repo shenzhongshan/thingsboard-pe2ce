@@ -31,6 +31,8 @@ export interface MenuSection {
   opened?: boolean;
   rootOnly?: boolean;
   customTranslate?: boolean;
+  href?: string;
+  openInNewTab?: boolean;
 }
 
 export interface MenuReference {
@@ -74,6 +76,12 @@ export enum MenuId {
   general = 'general',
   mail_server = 'mail_server',
   home_settings = 'home_settings',
+  white_labeling = 'white_labeling',
+  white_labeling_general = 'white_labeling_general',
+  white_labeling_login = 'white_labeling_login',
+  mail_templates = 'mail_templates',
+  self_registration = 'self_registration',
+  custom_menu = 'custom_menu',
   notification_settings = 'notification_settings',
   repository_settings = 'repository_settings',
   auto_commit_settings = 'auto_commit_settings',
@@ -107,6 +115,17 @@ export enum MenuId {
   features = 'features',
   otaUpdates = 'otaUpdates',
   version_control = 'version_control',
+  scheduler = 'scheduler',
+  task_manager = 'task_manager',
+  integration_center = 'integration_center',
+  integrations = 'integrations',
+  converters = 'converters',
+  entity_groups = 'entity_groups',
+  device_groups = 'device_groups',
+  asset_groups = 'asset_groups',
+  customer_groups = 'customer_groups',
+  user_groups = 'user_groups',
+  roles = 'roles',
   api_usage = 'api_usage',
   trendz_settings = 'trendz_settings',
   ai_models = 'ai_models'
@@ -381,6 +400,72 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       type: 'link',
       path: '/settings/home',
       icon: 'settings_applications'
+    }
+  ],
+  [
+    MenuId.white_labeling,
+    {
+      id: MenuId.white_labeling,
+      name: 'white-labeling.white-labeling',
+      fullName: 'white-labeling.white-labeling',
+      type: 'toggle',
+      path: '/white-labeling',
+      icon: 'format_paint'
+    }
+  ],
+  [
+    MenuId.white_labeling_general,
+    {
+      id: MenuId.white_labeling_general,
+      name: 'white-labeling.general',
+      fullName: 'white-labeling.white-labeling',
+      type: 'link',
+      path: '/white-labeling/general',
+      icon: 'format_paint'
+    }
+  ],
+  [
+    MenuId.white_labeling_login,
+    {
+      id: MenuId.white_labeling_login,
+      name: 'white-labeling.login',
+      fullName: 'white-labeling.login-white-labeling',
+      type: 'link',
+      path: '/white-labeling/login',
+      icon: 'format_paint'
+    }
+  ],
+  [
+    MenuId.mail_templates,
+    {
+      id: MenuId.mail_templates,
+      name: 'white-labeling.mail-templates',
+      fullName: 'white-labeling.mail-templates-settings',
+      type: 'link',
+      path: '/white-labeling/mail-templates',
+      icon: 'format_shapes'
+    }
+  ],
+  [
+    MenuId.self_registration,
+    {
+      id: MenuId.self_registration,
+      name: 'self-registration.self-registration',
+      fullName: 'self-registration.self-registration',
+      type: 'link',
+      path: '/security-settings/self-registration',
+      icon: 'how_to_reg'
+    }
+  ],
+  [
+    MenuId.custom_menu,
+    {
+      id: MenuId.custom_menu,
+      name: 'custom-menu.custom-menu',
+      fullName: 'custom-menu.custom-menu',
+      type: 'link',
+      path: '/white-labeling/custom-menu',
+      icon: 'list'
     }
   ],
   [
@@ -721,6 +806,116 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
+    MenuId.entity_groups,
+    {
+      id: MenuId.entity_groups,
+      name: 'entity-group.entity-groups',
+      type: 'toggle',
+      path: '/entity-groups',
+      icon: 'workspaces'
+    }
+  ],
+  [
+    MenuId.device_groups,
+    {
+      id: MenuId.device_groups,
+      name: 'entity-group.group-type-device',
+      type: 'link',
+      path: '/entity-groups/DEVICE',
+      icon: 'devices_other'
+    }
+  ],
+  [
+    MenuId.asset_groups,
+    {
+      id: MenuId.asset_groups,
+      name: 'entity-group.group-type-asset',
+      type: 'link',
+      path: '/entity-groups/ASSET',
+      icon: 'domain'
+    }
+  ],
+  [
+    MenuId.customer_groups,
+    {
+      id: MenuId.customer_groups,
+      name: 'entity-group.group-type-customer',
+      type: 'link',
+      path: '/entity-groups/CUSTOMER',
+      icon: 'supervisor_account'
+    }
+  ],
+  [
+    MenuId.user_groups,
+    {
+      id: MenuId.user_groups,
+      name: 'entity-group.group-type-user',
+      type: 'link',
+      path: '/entity-groups/USER',
+      icon: 'account_circle'
+    }
+  ],
+  [
+    MenuId.roles,
+    {
+      id: MenuId.roles,
+      name: 'role.roles',
+      type: 'link',
+      path: '/security-settings/roles',
+      icon: 'security'
+    }
+  ],
+  [
+    MenuId.integration_center,
+    {
+      id: MenuId.integration_center,
+      name: 'integration.integration-center',
+      type: 'toggle',
+      path: '/integrations-center',
+      icon: 'input'
+    }
+  ],
+  [
+    MenuId.integrations,
+    {
+      id: MenuId.integrations,
+      name: 'integration.integrations',
+      type: 'link',
+      path: '/integrations-center/integrations',
+      icon: 'input'
+    }
+  ],
+  [
+    MenuId.converters,
+    {
+      id: MenuId.converters,
+      name: 'converter.data-converters',
+      type: 'link',
+      path: '/integrations-center/converters',
+      icon: 'transform'
+    }
+  ],
+  [
+    MenuId.scheduler,
+    {
+      id: MenuId.scheduler,
+      name: 'scheduler.scheduler',
+      type: 'link',
+      path: '/features/scheduler',
+      icon: 'schedule'
+    }
+  ],
+  [
+    MenuId.task_manager,
+    {
+      id: MenuId.task_manager,
+      name: 'task.task-manager',
+      type: 'link',
+      path: '/features/tasks',
+      icon: 'pending_actions'
+    }
+  ],
+  [
     MenuId.api_usage,
     {
       id: MenuId.api_usage,
@@ -753,9 +948,8 @@ const menuFilters = new Map<MenuId, MenuFilter>([
   [
     MenuId.rulechain_templates, (authState) => authState.edgesSupportEnabled
   ],
-  [
-    MenuId.features, () => false
-  ],
+  // CE upstream hides the whole Advanced features group; re-enabled for the PE feature port
+  // (OTA updates / version control / scheduler / task manager live under it, per PE navigation).
   [
     MenuId.mobile_center, () => false
   ]
@@ -800,6 +994,15 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.mobile_bundles},
           {id: MenuId.mobile_apps},
           {id: MenuId.mobile_qr_code_widget}
+        ]
+      },
+      {
+        id: MenuId.white_labeling,
+        pages: [
+          {id: MenuId.white_labeling_general},
+          {id: MenuId.white_labeling_login},
+          {id: MenuId.mail_templates},
+          {id: MenuId.custom_menu}
         ]
       },
       {
@@ -857,8 +1060,24 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         ]
       },
       {id: MenuId.customers},
+      {
+        id: MenuId.entity_groups,
+        pages: [
+          {id: MenuId.device_groups},
+          {id: MenuId.asset_groups},
+          {id: MenuId.customer_groups},
+          {id: MenuId.user_groups}
+        ]
+      },
       {id: MenuId.calculated_fields},
       {id: MenuId.rule_chains},
+      {
+        id: MenuId.integration_center,
+        pages: [
+          {id: MenuId.integrations},
+          {id: MenuId.converters}
+        ]
+      },
       {
         id: MenuId.edge_management,
         pages: [
@@ -870,7 +1089,9 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.features,
         pages: [
           {id: MenuId.otaUpdates},
-          {id: MenuId.version_control}
+          {id: MenuId.version_control},
+          {id: MenuId.scheduler},
+          {id: MenuId.task_manager}
         ]
       },
       {
@@ -908,6 +1129,15 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
       },
       {id: MenuId.api_usage},
       {
+        id: MenuId.white_labeling,
+        pages: [
+          {id: MenuId.white_labeling_general},
+          {id: MenuId.white_labeling_login},
+          {id: MenuId.mail_templates},
+          {id: MenuId.custom_menu}
+        ]
+      },
+      {
         id: MenuId.settings,
         pages: [
           {id: MenuId.home_settings},
@@ -921,6 +1151,8 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
       {
         id: MenuId.security_settings,
         pages: [
+          {id: MenuId.roles},
+          {id: MenuId.self_registration},
           {id: MenuId.audit_log},
           {
             id: MenuId.oauth2,
@@ -951,6 +1183,13 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.notifications_center,
         pages: [
           {id: MenuId.notification_inbox}
+        ]
+      },
+      {
+        id: MenuId.white_labeling,
+        pages: [
+          {id: MenuId.white_labeling_general},
+          {id: MenuId.white_labeling_login}
         ]
       }
     ]

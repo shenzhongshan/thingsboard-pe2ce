@@ -25,11 +25,21 @@ import { BreadCrumbConfig } from '@shared/components/breadcrumb';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  AssetGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 export const assetRoutes: Routes = [
   {
     path: 'assets',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
         menuId: MenuId.assets
       }
@@ -37,32 +47,121 @@ export const assetRoutes: Routes = [
     children: [
       {
         path: '',
-        component: EntitiesTableComponent,
+        children: [],
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'asset.assets',
-          assetsType: 'tenant'
-        },
-        resolve: {
-          entitiesTableConfig: AssetsTableConfigResolver
+          redirectTo: '/entities/assets/all'
         }
       },
       {
-        path: ':entityId',
-        component: EntityDetailsPageComponent,
-        canDeactivate: [ConfirmOnExitGuard],
+        path: 'all',
         data: {
-          breadcrumb: {
-            labelFunction: entityDetailsPageBreadcrumbLabelFunction,
-            icon: 'domain'
-          } as BreadCrumbConfig<EntityDetailsPageComponent>,
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'asset.assets',
-          assetsType: 'tenant'
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'domain'
+          }
         },
-        resolve: {
-          entitiesTableConfig: AssetsTableConfigResolver
-        }
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'asset.assets',
+              assetsType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: AssetsTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'domain'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'asset.assets',
+              assetsType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: AssetsTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.asset-groups',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.asset-groups',
+              groupType: EntityType.ASSET
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                label: 'entity-group.group',
+                icon: 'view_list'
+              }
+            },
+            children: [
+              {
+                path: '',
+                component: EntitiesTableComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.asset-groups',
+                  assetsType: 'tenant',
+                  groupType: EntityType.ASSET
+                },
+                resolve: {
+                  entitiesTableConfig: AssetGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'domain'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'asset.assets',
+                  assetsType: 'tenant',
+                  groupType: EntityType.ASSET
+                },
+                resolve: {
+                  entitiesTableConfig: AssetGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        path: ':entityId',
+        pathMatch: 'full',
+        redirectTo: 'all/:entityId'
       }
     ]
   }
@@ -76,7 +175,7 @@ const routes: Routes = [
   },
   {
     path: 'assets/:entityId',
-    redirectTo: '/entities/assets/:entityId'
+    redirectTo: '/entities/assets/all/:entityId'
   }
 ];
 
@@ -84,7 +183,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    AssetsTableConfigResolver
+    AssetsTableConfigResolver,
+    AssetGroupEntitiesTableConfigResolver
   ]
 })
 export class AssetRoutingModule { }

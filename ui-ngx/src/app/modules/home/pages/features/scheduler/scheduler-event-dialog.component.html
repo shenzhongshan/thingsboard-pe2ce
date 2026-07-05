@@ -1,0 +1,205 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-scheduler-event-dialog">
+  <mat-toolbar color="primary">
+    <h2>{{ (isEdit ? 'scheduler.edit-scheduler-event' : 'scheduler.add-scheduler-event') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  @if (loaded) {
+    <div mat-dialog-content>
+      <form [formGroup]="form" class="flex flex-col" style="padding-top: 8px;">
+        <mat-form-field class="w-full">
+          <mat-label translate>scheduler.name</mat-label>
+          <input matInput formControlName="name" required>
+          @if (form.get('name').hasError('required')) {
+            <mat-error>{{ 'scheduler.name-required' | translate }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-tab-group>
+          <mat-tab label="{{ 'scheduler.configuration' | translate }}">
+            <div class="flex flex-col gap-2" style="padding-top: 16px;">
+              <mat-form-field class="w-full">
+                <mat-label translate>scheduler.event-type</mat-label>
+                <mat-select formControlName="type" required>
+                  @for (type of eventTypes; track type) {
+                    <mat-option [value]="type">{{ eventTypeNames.get(type) }}</mat-option>
+                  }
+                </mat-select>
+                @if (form.get('type').hasError('required')) {
+                  <mat-error>{{ 'scheduler.event-type-required' | translate }}</mat-error>
+                }
+              </mat-form-field>
+              @if (eventType) {
+                <mat-slide-toggle formControlName="enabled">
+                  {{ 'scheduler.enable-scheduler-event' | translate }}
+                </mat-slide-toggle>
+                <fieldset class="tb-se-fieldset">
+                  <legend translate>scheduler.target</legend>
+                  <tb-entity-select
+                    formControlName="originatorId"
+                    required
+                    [allowedEntityTypes]="allowedOriginatorEntityTypes">
+                  </tb-entity-select>
+                </fieldset>
+                @if (eventType === SchedulerEventType.UPDATE_ATTRIBUTES) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.attributes</legend>
+                    <mat-form-field class="w-full">
+                      <mat-label translate>scheduler.attributes-scope</mat-label>
+                      <mat-select formControlName="attributesScope">
+                        <mat-option [value]="AttributeScope.SERVER_SCOPE">{{ 'attribute.scope-server' | translate }}</mat-option>
+                        <mat-option [value]="AttributeScope.SHARED_SCOPE">{{ 'attribute.scope-shared' | translate }}</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                    <div formArrayName="attributes" class="flex flex-col gap-1">
+                      @for (row of attributesArray.controls; track row; let i = $index) {
+                        <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
+                          <mat-form-field class="flex-1">
+                            <mat-label translate>scheduler.attribute-key</mat-label>
+                            <input matInput formControlName="key" required>
+                          </mat-form-field>
+                          <mat-form-field class="flex-1">
+                            <mat-label translate>scheduler.attribute-value</mat-label>
+                            <input matInput formControlName="value" required>
+                          </mat-form-field>
+                          <button mat-icon-button type="button" (click)="removeAttribute(i)"
+                                  matTooltip="{{ 'action.remove' | translate }}">
+                            <mat-icon>delete</mat-icon>
+                          </button>
+                        </div>
+                      }
+                      @if (!attributesArray.length) {
+                        <div class="tb-se-no-attributes" translate>scheduler.add-attributes-prompt</div>
+                      }
+                      <div>
+                        <button mat-raised-button color="primary" type="button" (click)="addAttribute()">
+                          {{ 'action.add' | translate }}
+                        </button>
+                      </div>
+                    </div>
+                  </fieldset>
+                }
+                @if (eventType === SchedulerEventType.SEND_RPC_REQUEST) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.rpc-request</legend>
+                    <mat-form-field class="w-full">
+                      <mat-label translate>scheduler.rpc-method</mat-label>
+                      <input matInput formControlName="rpcMethod" required>
+                    </mat-form-field>
+                    <mat-form-field class="w-full">
+                      <mat-label translate>scheduler.rpc-params</mat-label>
+                      <textarea matInput formControlName="rpcParams" rows="3"></textarea>
+                    </mat-form-field>
+                    <mat-checkbox formControlName="rpcOneway">
+                      {{ 'scheduler.rpc-oneway' | translate }}
+                    </mat-checkbox>
+                  </fieldset>
+                }
+                @if (isOtaType(eventType)) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.ota-package</legend>
+                    <tb-ota-package-autocomplete
+                      formControlName="otaPackageId"
+                      required
+                      [type]="eventType === SchedulerEventType.UPDATE_FIRMWARE ? OtaUpdateType.FIRMWARE : OtaUpdateType.SOFTWARE"
+                      [deviceProfileId]="targetDeviceProfileId">
+                    </tb-ota-package-autocomplete>
+                  </fieldset>
+                }
+              }
+            </div>
+          </mat-tab>
+          <mat-tab label="{{ 'scheduler.schedule' | translate }}">
+            <div class="flex flex-col gap-2" style="padding-top: 16px;">
+              <tb-timezone-select formControlName="timezone" required>
+              </tb-timezone-select>
+              <tb-datetime formControlName="startTime" required
+                           dateText="{{ 'scheduler.start-time' | translate }}">
+              </tb-datetime>
+              <mat-slide-toggle formControlName="repeatEnabled">
+                {{ 'scheduler.repeat' | translate }}
+              </mat-slide-toggle>
+              @if (form.get('repeatEnabled').value) {
+                <mat-form-field class="w-full">
+                  <mat-label translate>scheduler.repeat-type</mat-label>
+                  <mat-select formControlName="repeatType">
+                    @for (type of repeatTypes; track type) {
+                      <mat-option [value]="type">{{ repeatTypeTranslations.get(type) | translate }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                @if (form.get('repeatType').value === SchedulerRepeatType.WEEKLY) {
+                  <div class="flex flex-row flex-wrap gap-2">
+                    @for (day of weekDays; track day) {
+                      <mat-checkbox [checked]="isWeekDayChecked(day)"
+                                    (change)="weekDayToggled(day, $event.checked)">
+                        {{ weekDayNames[day] | translate }}
+                      </mat-checkbox>
+                    }
+                  </div>
+                }
+                @if (form.get('repeatType').value === SchedulerRepeatType.EVERY_N_DAYS) {
+                  <mat-form-field>
+                    <mat-label translate>scheduler.repeat-every-n-days</mat-label>
+                    <input matInput type="number" min="1" formControlName="repeatDays">
+                  </mat-form-field>
+                }
+                @if (form.get('repeatType').value === SchedulerRepeatType.EVERY_N_WEEKS) {
+                  <mat-form-field>
+                    <mat-label translate>scheduler.repeat-every-n-weeks</mat-label>
+                    <input matInput type="number" min="1" formControlName="repeatWeeks">
+                  </mat-form-field>
+                }
+                @if (form.get('repeatType').value === SchedulerRepeatType.TIMER) {
+                  <div class="flex flex-row gap-2">
+                    <mat-form-field class="flex-1">
+                      <mat-label translate>scheduler.repeat-interval</mat-label>
+                      <input matInput type="number" min="1" formControlName="repeatInterval">
+                    </mat-form-field>
+                    <mat-form-field class="flex-1">
+                      <mat-label translate>scheduler.time-unit</mat-label>
+                      <mat-select formControlName="repeatTimeUnit">
+                        @for (unit of timeUnits; track unit) {
+                          <mat-option [value]="unit">{{ timeUnitTranslations.get(unit) | translate }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+                }
+                <tb-datetime formControlName="endsOn"
+                             dateText="{{ 'scheduler.ends-on' | translate }}">
+                </tb-datetime>
+              }
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+      </form>
+    </div>
+    <div mat-dialog-actions class="flex items-center justify-end">
+      <button mat-button type="button" (click)="cancel()">
+        {{ 'action.cancel' | translate }}
+      </button>
+      <button mat-raised-button color="primary" type="button" (click)="save()">
+        {{ (isEdit ? 'action.save' : 'action.create') | translate }}
+      </button>
+    </div>
+  }
+</div>

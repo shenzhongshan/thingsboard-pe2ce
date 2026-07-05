@@ -38,6 +38,17 @@ import { JsResourceComponent } from '@home/pages/admin/resource/js-resource.comp
 import { NgxFlowModule } from '@flowjs/ngx-flow';
 import { TrendzSettingsComponent } from '@home/pages/admin/trendz-settings.component';
 import { ResourceLibraryTabsComponent } from '@home/pages/admin/resource/resource-library-tabs.component';
+import { WhiteLabelingComponent } from '@home/pages/admin/white-labeling.component';
+import { LoginWhiteLabelingComponent } from '@home/pages/admin/login-white-labeling.component';
+import { MailTemplatesComponent } from '@home/pages/admin/mail-templates.component';
+import { PaletteDialogComponent } from '@home/pages/admin/palette-dialog.component';
+import { WlPaletteSelectComponent } from '@home/pages/admin/wl-palette-select.component';
+import { CustomCssDialogComponent } from '@home/pages/admin/custom-css-dialog.component';
+import { CustomMenuItemDialogComponent } from '@home/pages/admin/custom-menu-item-dialog.component';
+import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
+import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
+import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
+import { CustomMenuInfoDialogComponent } from '@home/pages/admin/custom-menu-info-dialog.component';
 
 @NgModule({
   declarations:
@@ -57,7 +68,18 @@ import { ResourceLibraryTabsComponent } from '@home/pages/admin/resource/resourc
       RepositoryAdminSettingsComponent,
       AutoCommitAdminSettingsComponent,
       TwoFactorAuthSettingsComponent,
-      TrendzSettingsComponent
+      TrendzSettingsComponent,
+      WhiteLabelingComponent,
+      LoginWhiteLabelingComponent,
+      MailTemplatesComponent,
+      PaletteDialogComponent,
+      WlPaletteSelectComponent,
+      CustomCssDialogComponent,
+      CustomMenuItemDialogComponent,
+      SelfRegistrationComponent,
+      CustomMenuComponent,
+      CustomMenuListComponent,
+      CustomMenuInfoDialogComponent
     ],
   imports: [
     CommonModule,

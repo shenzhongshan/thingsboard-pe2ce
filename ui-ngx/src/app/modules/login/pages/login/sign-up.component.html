@@ -1,0 +1,110 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-password-content mat-app-background tb-dark flex flex-row items-center justify-center"
+     style="width: 100%;">
+  <mat-card appearance="raised" class="tb-password-card flex flex-initial" style="max-width: 480px;">
+    <mat-card-header class="px-6 pt-6">
+      <mat-card-title class="text-xl font-normal">
+        {{ params?.title || ('signup.sign-up' | translate) }}
+      </mat-card-title>
+    </mat-card-header>
+    <div class="h-3 px-4"><div tb-toast></div></div>
+    @if (isLoading$ | async) {
+      <mat-progress-bar color="warn" mode="indeterminate"></mat-progress-bar>
+    }
+    @if (!(isLoading$ | async)) {
+      <span style="height: 4px;"></span>
+    }
+    <mat-card-content class="!p-6">
+      @if (emailSent) {
+        <div class="flex flex-col items-center justify-center gap-4">
+          <mat-icon color="primary" style="font-size: 48px; width: 48px; height: 48px;">mark_email_read</mat-icon>
+          <span class="text-center">{{ 'signup.email-verification-sent' | translate }}</span>
+          <button mat-flat-button color="primary" type="button" (click)="gotoLogin()">
+            {{ 'action.close' | translate }}
+          </button>
+        </div>
+      } @else {
+        <form [formGroup]="signUpForm" (ngSubmit)="signUp()">
+          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
+            <mat-label translate>signup.field-email</mat-label>
+            <input matInput type="email" formControlName="email" autocomplete="email"/>
+            <mat-icon class="material-icons" matPrefix>email</mat-icon>
+          </mat-form-field>
+          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
+            <mat-label translate>signup.field-first-name</mat-label>
+            <input matInput formControlName="firstName"/>
+          </mat-form-field>
+          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
+            <mat-label translate>signup.field-last-name</mat-label>
+            <input matInput formControlName="lastName"/>
+          </mat-form-field>
+          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
+            <mat-label translate>signup.field-password</mat-label>
+            <input matInput type="password" formControlName="password" autocomplete="new-password"/>
+            <mat-icon class="material-icons" matPrefix>lock</mat-icon>
+          </mat-form-field>
+          @if (!isV3) {
+            <div #recaptchaContainer class="flex justify-center" style="margin-bottom: 8px;"></div>
+          }
+          @if (captchaError) {
+            <div class="tb-captcha-error" style="color: #d32f2f; font-size: 12px; text-align: center; margin-bottom: 8px;">
+              {{ captchaError }}
+            </div>
+          }
+          @if (params?.showPrivacyPolicy) {
+            <div style="margin-bottom: 4px;">
+              <mat-checkbox formControlName="acceptPrivacyPolicy">
+                {{ 'signup.accept-privacy-policy' | translate }}
+              </mat-checkbox>
+              <button mat-icon-button type="button" (click)="showPrivacyPolicyText = !showPrivacyPolicyText">
+                <mat-icon>{{ showPrivacyPolicyText ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (showPrivacyPolicyText && privacyPolicyText) {
+                <div class="tb-policy-text" [innerHTML]="privacyPolicyText"
+                     style="max-height: 160px; overflow: auto; border: 1px solid rgba(0,0,0,0.12); border-radius: 4px; padding: 8px; font-size: 12px;"></div>
+              }
+            </div>
+          }
+          @if (params?.showTermsOfUse) {
+            <div style="margin-bottom: 8px;">
+              <mat-checkbox formControlName="acceptTermsOfUse">
+                {{ 'signup.accept-terms-of-use' | translate }}
+              </mat-checkbox>
+              <button mat-icon-button type="button" (click)="showTermsOfUseText = !showTermsOfUseText">
+                <mat-icon>{{ showTermsOfUseText ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (showTermsOfUseText && termsOfUseText) {
+                <div class="tb-policy-text" [innerHTML]="termsOfUseText"
+                     style="max-height: 160px; overflow: auto; border: 1px solid rgba(0,0,0,0.12); border-radius: 4px; padding: 8px; font-size: 12px;"></div>
+              }
+            </div>
+          }
+          <div class="flex flex-col items-center justify-start gap-4 gt-xs:flex-row gt-xs:justify-center">
+            <button mat-flat-button color="accent" type="submit" [disabled]="(isLoading$ | async)">
+              {{ 'signup.sign-up' | translate }}
+            </button>
+            <button mat-button type="button" routerLink="/login">
+              {{ 'action.cancel' | translate }}
+            </button>
+          </div>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

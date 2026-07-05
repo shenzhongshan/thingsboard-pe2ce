@@ -1,0 +1,41 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+:host {
+  .tb-scheduler-event-dialog {
+    min-width: 560px;
+
+    div[mat-dialog-content] {
+      max-height: 70vh;
+    }
+
+    .tb-se-fieldset {
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
+      padding: 8px 12px 12px;
+
+      legend {
+        padding: 0 4px;
+        color: rgba(0, 0, 0, 0.7);
+      }
+    }
+
+    .tb-se-no-attributes {
+      color: #d32f2f;
+      text-align: center;
+      padding: 12px;
+    }
+  }
+}

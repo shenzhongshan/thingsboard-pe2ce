@@ -1,0 +1,49 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-entity-group-dialog" style="min-width: 460px;">
+  <mat-toolbar color="primary">
+    <h2>{{ (isEdit ? 'entity-group.edit' : 'entity-group.add') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  @if (loaded) {
+    <div mat-dialog-content>
+      <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+        <mat-form-field class="w-full">
+          <mat-label translate>entity-group.name</mat-label>
+          <input matInput formControlName="name" required>
+          @if (form.get('name').hasError('required')) {
+            <mat-error>{{ 'entity-group.name-required' | translate }}</mat-error>
+          }
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>entity-group.description</mat-label>
+          <textarea matInput formControlName="description" rows="2"></textarea>
+        </mat-form-field>
+      </form>
+    </div>
+    <div mat-dialog-actions class="flex items-center justify-end">
+      <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+      <button mat-raised-button color="primary" type="button" (click)="save()">
+        {{ (isEdit ? 'action.save' : 'action.add') | translate }}
+      </button>
+    </div>
+  }
+</div>

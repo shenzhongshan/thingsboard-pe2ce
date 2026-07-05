@@ -32,11 +32,21 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  CustomerGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 const routes: Routes = [
   {
     path: 'customers',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.TENANT_ADMIN],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
         menuId: MenuId.customers
       }
@@ -44,30 +54,117 @@ const routes: Routes = [
     children: [
       {
         path: '',
-        component: EntitiesTableComponent,
+        children: [],
         data: {
           auth: [Authority.TENANT_ADMIN],
-          title: 'customer.customers'
-        },
-        resolve: {
-          entitiesTableConfig: CustomersTableConfigResolver
+          redirectTo: '/customers/all'
         }
       },
       {
-        path: ':entityId',
-        component: EntityDetailsPageComponent,
-        canDeactivate: [ConfirmOnExitGuard],
+        path: 'all',
         data: {
-          breadcrumb: {
-            labelFunction: entityDetailsPageBreadcrumbLabelFunction,
-            icon: 'supervisor_account'
-          } as BreadCrumbConfig<EntityDetailsPageComponent>,
           auth: [Authority.TENANT_ADMIN],
-          title: 'customer.customers'
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'supervisor_account'
+          }
         },
-        resolve: {
-          entitiesTableConfig: CustomersTableConfigResolver
-        }
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'customer.customers'
+            },
+            resolve: {
+              entitiesTableConfig: CustomersTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'supervisor_account'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN],
+              title: 'customer.customers'
+            },
+            resolve: {
+              entitiesTableConfig: CustomersTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.customer-groups',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.customer-groups',
+              groupType: EntityType.CUSTOMER
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                label: 'entity-group.group',
+                icon: 'view_list'
+              }
+            },
+            children: [
+              {
+                path: '',
+                component: EntitiesTableComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.customer-groups',
+                  groupType: EntityType.CUSTOMER
+                },
+                resolve: {
+                  entitiesTableConfig: CustomerGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'supervisor_account'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'customer.customers',
+                  groupType: EntityType.CUSTOMER
+                },
+                resolve: {
+                  entitiesTableConfig: CustomerGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        path: ':entityId',
+        pathMatch: 'full',
+        redirectTo: 'all/:entityId'
       },
       {
         path: ':customerId/users',
@@ -275,7 +372,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    CustomersTableConfigResolver
+    CustomersTableConfigResolver,
+    CustomerGroupEntitiesTableConfigResolver
   ]
 })
 export class CustomerRoutingModule { }

@@ -34,6 +34,7 @@ import { RouterTabsComponent } from '@home/components/router-tabs.component';
 import { FormBuilder } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { isDefined, isDefinedAndNotNull } from '@core/utils';
+import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
 @Component({
     selector: 'tb-home',
@@ -74,11 +75,18 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
               @Inject(WINDOW) private window: Window,
               private activeComponentService: ActiveComponentService,
               private fb: FormBuilder,
+              private whiteLabelingApplyService: WhiteLabelingApplyService,
               public breakpointObserver: BreakpointObserver) {
     super(store);
   }
 
   ngOnInit() {
+
+    const defaultLogo = this.logo;
+    this.logo = this.whiteLabelingApplyService.logo || defaultLogo;
+    this.whiteLabelingApplyService.logo$.pipe(takeUntil(this.destroy$))
+      .subscribe((logo) => this.logo = logo || defaultLogo);
+    this.whiteLabelingApplyService.loadAndApply().subscribe();
 
     const isGtSm = this.breakpointObserver.isMatched(MediaBreakpoints['gt-sm']);
     this.sidenavMode = isGtSm ? 'side' : 'over';

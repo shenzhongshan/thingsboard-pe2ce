@@ -72,7 +72,14 @@ public enum EntityType {
             return "AI model";
         }
     },
-    API_KEY(44);
+    API_KEY(44),
+    // PE feature ports. Proto numbers match PE's enum (100-106) so payloads stay compatible
+    // with PE exports; all are above CE's contiguous range on purpose.
+    ENTITY_GROUP(100),
+    CONVERTER(101),
+    INTEGRATION(102),
+    ROLE(105),
+    GROUP_PERMISSION(106);
 
     @Getter
     private final int protoNumber; // Corresponds to EntityTypeProto

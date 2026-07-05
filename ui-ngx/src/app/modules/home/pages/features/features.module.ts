@@ -18,9 +18,16 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '@shared/shared.module';
 import { FeaturesRoutingModule } from '@home/pages/features/features-routing.module';
+import { SchedulerEventsComponent } from '@home/pages/features/scheduler/scheduler-events.component';
+import { SchedulerEventDialogComponent } from '@home/pages/features/scheduler/scheduler-event-dialog.component';
+import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.component';
 
 @NgModule({
-  declarations: [],
+  declarations: [
+    SchedulerEventsComponent,
+    SchedulerEventDialogComponent,
+    TaskManagerComponent
+  ],
   imports: [
     CommonModule,
     SharedModule,

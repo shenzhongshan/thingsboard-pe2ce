@@ -25,6 +25,13 @@ import { SecuritySettingsComponent } from '@modules/home/pages/admin/security-se
 import { forkJoin, of } from 'rxjs';
 import { SmsProviderComponent } from '@home/pages/admin/sms-provider.component';
 import { HomeSettingsComponent } from '@home/pages/admin/home-settings.component';
+import { WhiteLabelingComponent } from '@home/pages/admin/white-labeling.component';
+import { LoginWhiteLabelingComponent } from '@home/pages/admin/login-white-labeling.component';
+import { MailTemplatesComponent } from '@home/pages/admin/mail-templates.component';
+import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
+import { RolesComponent } from '@home/pages/entity-group/roles.component';
+import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
+import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
 import { EntitiesTableComponent } from '@home/components/entity/entities-table.component';
 import { ResourcesLibraryTableConfigResolver } from '@home/pages/admin/resource/resources-library-table-config.resolve';
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
@@ -435,8 +442,120 @@ const routes: Routes = [
           }
         }
       },
+      {
+        path: 'self-registration',
+        component: SelfRegistrationComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          title: 'self-registration.self-registration',
+          breadcrumb: {
+            menuId: MenuId.self_registration
+          }
+        }
+      },
+      {
+        path: 'roles',
+        component: RolesComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          title: 'role.roles',
+          breadcrumb: {
+            menuId: MenuId.roles
+          }
+        }
+      },
       ...oAuth2Routes,
       ...auditLogsRoutes
+    ]
+  },
+  {
+    path: 'white-labeling',
+    component: RouterTabsComponent,
+    data: {
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      showMainLoadingBar: false,
+      breadcrumb: {
+        menuId: MenuId.white_labeling
+      }
+    },
+    children: [
+      {
+        path: '',
+        children: [],
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          redirectTo: '/white-labeling/general'
+        }
+      },
+      {
+        path: 'general',
+        component: WhiteLabelingComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: 'white-labeling.white-labeling',
+          breadcrumb: {
+            menuId: MenuId.white_labeling_general
+          }
+        }
+      },
+      {
+        path: 'login',
+        component: LoginWhiteLabelingComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: 'white-labeling.login-white-labeling',
+          breadcrumb: {
+            menuId: MenuId.white_labeling_login
+          }
+        }
+      },
+      {
+        path: 'mail-templates',
+        component: MailTemplatesComponent,
+        canDeactivate: [ConfirmOnExitGuard],
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          title: 'white-labeling.mail-templates-settings',
+          breadcrumb: {
+            menuId: MenuId.mail_templates
+          }
+        }
+      },
+      {
+        path: 'custom-menu',
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          breadcrumb: {
+            menuId: MenuId.custom_menu
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: CustomMenuListComponent,
+            data: {
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'custom-menu.custom-menu'
+            }
+          },
+          {
+            path: ':customMenuId',
+            component: CustomMenuComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'custom-menu.custom-menu',
+              breadcrumb: {
+                label: 'custom-menu.edit-menu-items',
+                icon: 'edit'
+              }
+            }
+          }
+        ]
+      }
     ]
   }
 ];

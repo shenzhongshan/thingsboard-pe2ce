@@ -22,6 +22,8 @@ public enum RelationTypeGroup {
     RULE_CHAIN,
     RULE_NODE,
     EDGE,
-    EDGE_AUTO_ASSIGN_RULE_CHAIN
+    EDGE_AUTO_ASSIGN_RULE_CHAIN,
+    // PE entity-group port: relations FROM an entity group TO its member entities.
+    FROM_ENTITY_GROUP
 
 }

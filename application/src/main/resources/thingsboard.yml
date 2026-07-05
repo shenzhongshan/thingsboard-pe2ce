@@ -676,6 +676,9 @@ cache:
     relations:
       timeToLiveInMinutes: "${CACHE_SPECS_RELATIONS_TTL:1440}" # Relations cache TTL
       maxSize: "${CACHE_SPECS_RELATIONS_MAX_SIZE:10000}" # 0 means the cache is disabled
+    whiteLabeling:
+      timeToLiveInMinutes: "${CACHE_SPECS_WHITE_LABELING_TTL:1440}" # White labeling cache TTL
+      maxSize: "${CACHE_SPECS_WHITE_LABELING_MAX_SIZE:10000}" # 0 means the cache is disabled
     deviceCredentials:
       timeToLiveInMinutes: "${CACHE_SPECS_DEVICE_CREDENTIALS_TTL:1440}" # Device credentials cache TTL
       maxSize: "${CACHE_SPECS_DEVICE_CREDENTIALS_MAX_SIZE:10000}" # 0 means the cache is disabled

@@ -980,3 +980,103 @@ CREATE TABLE IF NOT EXISTS ai_model (
     CONSTRAINT ai_model_name_unq_key        UNIQUE (tenant_id, name),
     CONSTRAINT ai_model_external_id_unq_key UNIQUE (tenant_id, external_id)
 );
+
+CREATE TABLE IF NOT EXISTS white_labeling (
+    tenant_id UUID NOT NULL,
+    customer_id UUID NOT NULL default '13814000-1dd2-11b2-8080-808080808080',
+    type VARCHAR(30),
+    settings VARCHAR(10000000),
+    domain_id UUID,
+    CONSTRAINT white_labeling_pkey PRIMARY KEY (tenant_id, customer_id, type),
+    CONSTRAINT white_labeling_domain_id_type_key UNIQUE (type, domain_id),
+    CONSTRAINT fk_white_labeling_domain_id FOREIGN KEY (domain_id) REFERENCES domain(id)
+);
+
+CREATE TABLE IF NOT EXISTS custom_menu (
+    id UUID NOT NULL CONSTRAINT custom_menu_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    scope VARCHAR(16) NOT NULL,
+    assignee_type VARCHAR(16) NOT NULL,
+    config VARCHAR(10000000)
+);
+
+ALTER TABLE customer ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
+ALTER TABLE tb_user ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
+
+CREATE TABLE IF NOT EXISTS converter (
+    id UUID NOT NULL CONSTRAINT converter_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    name VARCHAR(255),
+    type VARCHAR(255),
+    integration_type VARCHAR(255),
+    debug_mode BOOLEAN DEFAULT false,
+    configuration VARCHAR(10000000),
+    additional_info VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS integration (
+    id UUID NOT NULL CONSTRAINT integration_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    name VARCHAR(255),
+    type VARCHAR(255),
+    converter_id UUID,
+    downlink_converter_id UUID,
+    routing_key VARCHAR(255),
+    secret VARCHAR(255),
+    enabled BOOLEAN,
+    allow_create_devices_or_assets BOOLEAN,
+    debug_mode BOOLEAN DEFAULT false,
+    configuration VARCHAR(10000000),
+    additional_info VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS entity_group (
+    id UUID NOT NULL CONSTRAINT entity_group_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    type VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    tenant_id UUID,
+    additional_info VARCHAR,
+    configuration VARCHAR(10000000),
+    CONSTRAINT group_name_per_owner_unq_key UNIQUE (tenant_id, type, name)
+);
+
+CREATE TABLE IF NOT EXISTS role (
+    id UUID NOT NULL CONSTRAINT role_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    name VARCHAR(255),
+    type VARCHAR(255),
+    permissions VARCHAR(10000000),
+    additional_info VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS group_permission (
+    id UUID NOT NULL CONSTRAINT group_permission_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    role_id UUID,
+    user_group_id UUID,
+    entity_group_id UUID,
+    entity_group_type VARCHAR(255),
+    is_public BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS scheduler_event (
+    id UUID NOT NULL CONSTRAINT scheduler_event_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    customer_id UUID,
+    originator_id UUID,
+    originator_type VARCHAR(255),
+    name VARCHAR(255),
+    type VARCHAR(255),
+    schedule VARCHAR,
+    configuration VARCHAR(10000000),
+    additional_info VARCHAR,
+    enabled BOOLEAN
+);

@@ -17,6 +17,7 @@ package org.thingsboard.server.common.data;
 
 public class DataConstants {
 
+    public static final String ALSUN_BASE_URL = "https://allshen.org";
     public static final String TENANT = "TENANT";
     public static final String CUSTOMER = "CUSTOMER";
     public static final String DEVICE = "DEVICE";

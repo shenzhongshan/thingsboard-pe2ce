@@ -35,6 +35,8 @@ public class CustomerUserPermissions extends AbstractPermissions {
 
     public CustomerUserPermissions() {
         super();
+        put(Resource.WHITE_LABELING, PermissionChecker.allowAllPermissionChecker);
+        put(Resource.SCHEDULER_EVENT, PermissionChecker.allowAllPermissionChecker);
         put(Resource.ALARM, customerAlarmPermissionChecker);
         put(Resource.ASSET, customerEntityPermissionChecker);
         put(Resource.DEVICE, customerEntityPermissionChecker);

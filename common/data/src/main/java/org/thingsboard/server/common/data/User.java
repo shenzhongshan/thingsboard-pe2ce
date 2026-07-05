@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
+import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -55,6 +56,10 @@ public class User extends BaseDataWithAdditionalInfo<UserId> implements HasName,
     @Getter @Setter
     private Long version;
 
+    @Getter @Setter
+    @Schema(description = "JSON object with the Custom Menu Id assigned directly to this user (CMAssigneeType.USERS)")
+    private CustomMenuId customMenuId;
+
     public User() {
         super();
     }
@@ -73,6 +78,7 @@ public class User extends BaseDataWithAdditionalInfo<UserId> implements HasName,
         this.lastName = user.getLastName();
         this.phone = user.getPhone();
         this.version = user.getVersion();
+        this.customMenuId = user.getCustomMenuId();
     }
 
 

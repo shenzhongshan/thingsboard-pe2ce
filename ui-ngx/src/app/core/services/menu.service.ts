@@ -23,6 +23,15 @@ import { buildUserHome, buildUserMenu, HomeSection, MenuId, MenuSection } from '
 import { Observable, ReplaySubject, Subject } from 'rxjs';
 import { AuthState } from '@core/auth/auth.models';
 import { NavigationEnd, Router } from '@angular/router';
+import { CustomMenuService } from '@core/http/custom-menu.service';
+import {
+  CMItemLinkType,
+  CMItemType,
+  CustomMenuItem,
+  DefaultMenuItem,
+  MenuItem,
+  MenuItemType
+} from '@shared/models/custom-menu.models';
 
 @Injectable({
   providedIn: 'root'
@@ -38,6 +47,7 @@ export class MenuService {
   );
 
   constructor(private store: Store<AppState>,
+              private customMenuService: CustomMenuService,
               private router: Router) {
     this.store.pipe(select(selectIsAuthenticated)).subscribe(
       (authenticated: boolean) => {
@@ -58,15 +68,114 @@ export class MenuService {
       (authState: AuthState) => {
         if (authState.authUser) {
           this.currentMenuSections = buildUserMenu(authState);
-          this.updateOpenedMenuSections();
-          this.menuSections$.next(this.currentMenuSections);
-          const availableMenuSections = this.allMenuSections(this.currentMenuSections);
-          this.availableMenuSections$.next(availableMenuSections);
-          const homeSections = buildUserHome(authState, availableMenuSections);
-          this.homeSections$.next(homeSections);
+          this.publishMenu(authState);
+          // Apply the custom menu configuration (system/tenant white-labeling): reorder,
+          // hide and rename built-in entries and append custom links/sections.
+          this.customMenuService.getCustomMenu({ ignoreErrors: true, ignoreLoading: true }).subscribe({
+            next: (customMenu) => {
+              if (customMenu?.items?.length) {
+                this.currentMenuSections = this.overlaySections(buildUserMenu(authState), customMenu.items);
+                this.publishMenu(authState);
+              }
+            },
+            error: () => { /* no custom menu configured */ }
+          });
         }
       }
     );
+  }
+
+  public reloadMenu() {
+    this.buildMenu();
+  }
+
+  private publishMenu(authState: AuthState) {
+    this.updateOpenedMenuSections();
+    this.menuSections$.next(this.currentMenuSections);
+    const availableMenuSections = this.allMenuSections(this.currentMenuSections);
+    this.availableMenuSections$.next(availableMenuSections);
+    const homeSections = buildUserHome(authState, availableMenuSections);
+    this.homeSections$.next(homeSections);
+  }
+
+  private overlaySections(base: Array<MenuSection>, items: MenuItem[]): Array<MenuSection> {
+    const remaining = [...base];
+    const result: Array<MenuSection> = [];
+    let customIdx = 0;
+    for (const item of items) {
+      if (item.type === MenuItemType.CUSTOM) {
+        const custom = item as CustomMenuItem;
+        if (custom.visible !== false) {
+          result.push(this.mapCustomItem(custom, customIdx++));
+        }
+      } else {
+        const def = item as DefaultMenuItem;
+        const idx = remaining.findIndex((b) => b.id === def.id);
+        if (idx >= 0) {
+          // Clone: menuSectionMap entries may be shared by reference.
+          const section: MenuSection = { ...remaining.splice(idx, 1)[0] };
+          if (def.visible === false) {
+            continue;
+          }
+          if (def.name) {
+            section.name = def.name;
+            section.customTranslate = true;
+          }
+          if (def.pages?.length && section.pages?.length) {
+            section.pages = this.overlaySections(section.pages, def.pages);
+          }
+          result.push(section);
+        }
+      }
+    }
+    // Built-in entries not mentioned in the config (e.g. platform features added AFTER the
+    // config was saved) are inserted at their natural default-menu position — right after the
+    // nearest preceding base sibling already in the result — instead of being dumped at the end.
+    for (const missing of remaining) {
+      const baseIdx = base.indexOf(missing);
+      let insertAt = result.length;
+      for (let i = baseIdx - 1; i >= 0; i--) {
+        const pos = result.findIndex((s) => s.id === base[i].id);
+        if (pos >= 0) {
+          insertAt = pos + 1;
+          break;
+        }
+      }
+      result.splice(insertAt, 0, missing);
+    }
+    return result;
+  }
+
+  private mapCustomItem(item: CustomMenuItem, idx: number): MenuSection {
+    // Every MenuSection needs a real, unique, non-empty path: RouterTabsComponent.findRootSection
+    // matches routes via `sectionPath.endsWith(section.path)`, and an empty string is a suffix of
+    // ANY string in JS — an href-only link left with path:'' would then be (mis)matched as the
+    // "root section" for every route, and since it has no `.pages`, that crashes tab rendering
+    // for unrelated pages (e.g. Alarms, OAuth2). This synthetic path is never a real app route,
+    // so it can never accidentally match one.
+    const uniquePath = `/custom-menu-item/${idx}`;
+    const base: MenuSection = {
+      id: `custom_menu_${idx}_${item.name}`,
+      name: item.name,
+      type: 'link',
+      path: uniquePath,
+      icon: item.icon || 'link',
+      customTranslate: true
+    };
+    if (item.menuItemType === CMItemType.SECTION) {
+      base.type = 'toggle';
+      base.pages = (item.pages || [])
+        .filter((child) => child.visible !== false)
+        .map((child, childIdx) => this.mapCustomItem(child, idx * 100 + childIdx + 1));
+      return base;
+    }
+    if (item.linkType === CMItemLinkType.DASHBOARD && item.dashboardId) {
+      base.path = `/dashboards/${item.dashboardId}`;
+    } else if (item.url) {
+      base.href = item.url;
+      base.openInNewTab = true;
+    }
+    return base;
   }
 
   private updateOpenedMenuSections() {

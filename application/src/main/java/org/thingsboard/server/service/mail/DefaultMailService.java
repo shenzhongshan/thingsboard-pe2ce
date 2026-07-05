@@ -85,6 +85,8 @@ public class DefaultMailService implements MailService {
     private final PasswordResetExecutorService passwordResetExecutorService;
     private final TbMailContextComponent ctx;
     private final RateLimitService rateLimitService;
+    @Lazy
+    private final org.thingsboard.server.dao.wl.WhiteLabelingService whiteLabelingService;
 
     @Value("${mail.per_tenant_rate_limits:}")
     private String perTenantRateLimitConfig;
@@ -140,14 +142,13 @@ public class DefaultMailService implements MailService {
 
     @Override
     public void sendActivationEmail(String activationLink, long ttlMs, String email) throws ThingsboardException {
-        String subject = messages.getMessage("activation.subject", null, Locale.US);
-
         Map<String, Object> model = new HashMap<>();
         model.put("activationLink", activationLink);
         model.put("activationLinkTtlInHours", (int) Math.ceil(ttlMs / 3600000.0));
         model.put(TARGET_EMAIL, email);
 
-        String message = mergeTemplateIntoString("activation.ftl", model);
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.ACTIVATION, messages.getMessage("activation.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.ACTIVATION, "activation.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }
@@ -155,13 +156,12 @@ public class DefaultMailService implements MailService {
     @Override
     public void sendAccountActivatedEmail(String loginLink, String email) throws ThingsboardException {
 
-        String subject = messages.getMessage("account.activated.subject", null, Locale.US);
-
         Map<String, Object> model = new HashMap<>();
         model.put("loginLink", loginLink);
         model.put(TARGET_EMAIL, email);
 
-        String message = mergeTemplateIntoString("account.activated.ftl", model);
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_ACTIVATED, messages.getMessage("account.activated.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_ACTIVATED, "account.activated.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }
@@ -169,14 +169,13 @@ public class DefaultMailService implements MailService {
     @Override
     public void sendResetPasswordEmail(String passwordResetLink, long ttlMs, String email) throws ThingsboardException {
 
-        String subject = messages.getMessage("reset.password.subject", null, Locale.US);
-
         Map<String, Object> model = new HashMap<>();
         model.put("passwordResetLink", passwordResetLink);
         model.put("passwordResetLinkTtlInHours", (int) Math.ceil(ttlMs / 3600000.0));
         model.put(TARGET_EMAIL, email);
 
-        String message = mergeTemplateIntoString("reset.password.ftl", model);
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.RESET_PASSWORD, messages.getMessage("reset.password.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.RESET_PASSWORD, "reset.password.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }
@@ -195,13 +194,12 @@ public class DefaultMailService implements MailService {
     @Override
     public void sendPasswordWasResetEmail(String loginLink, String email) throws ThingsboardException {
 
-        String subject = messages.getMessage("password.was.reset.subject", null, Locale.US);
-
         Map<String, Object> model = new HashMap<>();
         model.put("loginLink", loginLink);
         model.put(TARGET_EMAIL, email);
 
-        String message = mergeTemplateIntoString("password.was.reset.ftl", model);
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.PASSWORD_WAS_RESET, messages.getMessage("password.was.reset.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.PASSWORD_WAS_RESET, "password.was.reset.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }
@@ -409,6 +407,42 @@ public class DefaultMailService implements MailService {
             log.warn("Failed to process mail template: {}", ExceptionUtils.getRootCauseMessage(e));
             throw new ThingsboardException("Failed to process mail template: " + e.getMessage(), e, ThingsboardErrorCode.GENERAL);
         }
+    }
+
+    // White labeling mail templates: use the tenant/system MAIL_TEMPLATES white-labeling
+    // configuration when present, otherwise fall back to the built-in .ftl / message-source defaults.
+    private JsonNode wlMailTemplates(TenantId tenantId) {
+        try {
+            return whiteLabelingService.getMergedTenantMailTemplates(tenantId == null ? TenantId.SYS_TENANT_ID : tenantId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String wlSubject(TenantId tenantId, String templateKey, String defaultSubject) {
+        JsonNode templates = wlMailTemplates(tenantId);
+        try {
+            JsonNode node = templates == null ? null : MailTemplates.getTemplate(templates, templateKey);
+            if (node != null && node.hasNonNull(MailTemplates.SUBJECT)) {
+                return MailTemplates.subject(templates, templateKey);
+            }
+        } catch (Exception e) {
+            log.debug("Failed to resolve white-labeling subject for '{}': {}", templateKey, e.getMessage());
+        }
+        return defaultSubject;
+    }
+
+    private String wlBody(TenantId tenantId, String templateKey, String ftlFallback, Map<String, Object> model) throws ThingsboardException {
+        JsonNode templates = wlMailTemplates(tenantId);
+        try {
+            JsonNode node = templates == null ? null : MailTemplates.getTemplate(templates, templateKey);
+            if (node != null && node.hasNonNull(MailTemplates.BODY)) {
+                return MailTemplates.body(templates, templateKey, model);
+            }
+        } catch (Exception e) {
+            log.debug("Failed to resolve white-labeling body for '{}': {}", templateKey, e.getMessage());
+        }
+        return mergeTemplateIntoString(ftlFallback, model);
     }
 
     protected ThingsboardException handleException(Throwable exception) {

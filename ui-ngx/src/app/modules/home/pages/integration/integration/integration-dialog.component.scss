@@ -1,0 +1,104 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+:host {
+  .tb-integration-dialog {
+    min-width: 720px;
+
+    div[mat-dialog-content] {
+      max-height: 72vh;
+    }
+
+    .tb-int-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .tb-int-type-card {
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      padding: 12px 16px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.03);
+      }
+
+      &.tb-int-type-selected {
+        border-color: #305680;
+        background: rgba(48, 86, 128, 0.06);
+      }
+
+      .tb-int-type-name {
+        font-weight: 500;
+      }
+
+      .tb-int-type-desc {
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.54);
+      }
+    }
+
+    .tb-int-step-actions {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 16px;
+    }
+
+    .tb-int-fieldset {
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
+      padding: 8px 12px 12px;
+
+      legend {
+        padding: 0 4px;
+        color: rgba(0, 0, 0, 0.7);
+      }
+    }
+
+    .tb-int-endpoint-block {
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
+      padding: 12px;
+
+      .tb-int-endpoint-label {
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+
+      .tb-int-endpoint-url {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+
+        code {
+          word-break: break-all;
+        }
+      }
+
+      .tb-int-endpoint-pending {
+        color: rgba(0, 0, 0, 0.54);
+        font-style: italic;
+      }
+    }
+  }
+}

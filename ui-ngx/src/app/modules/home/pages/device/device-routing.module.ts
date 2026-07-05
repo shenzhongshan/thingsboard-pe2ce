@@ -25,11 +25,21 @@ import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { BreadCrumbConfig } from '@shared/components/breadcrumb';
 import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  DeviceGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 export const deviceRoutes: Routes = [
   {
     path: 'devices',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
         menuId: MenuId.devices
       }
@@ -37,32 +47,121 @@ export const deviceRoutes: Routes = [
     children: [
       {
         path: '',
-        component: EntitiesTableComponent,
+        children: [],
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'device.devices',
-          devicesType: 'tenant'
-        },
-        resolve: {
-          entitiesTableConfig: DevicesTableConfigResolver
+          redirectTo: '/entities/devices/all'
         }
       },
       {
-        path: ':entityId',
-        component: EntityDetailsPageComponent,
-        canDeactivate: [ConfirmOnExitGuard],
+        path: 'all',
         data: {
-          breadcrumb: {
-            labelFunction: entityDetailsPageBreadcrumbLabelFunction,
-            icon: 'devices_other'
-          } as BreadCrumbConfig<EntityDetailsPageComponent>,
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'device.devices',
-          devicesType: 'tenant'
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'devices_other'
+          }
         },
-        resolve: {
-          entitiesTableConfig: DevicesTableConfigResolver
-        }
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'device.devices',
+              devicesType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: DevicesTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'devices_other'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'device.devices',
+              devicesType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: DevicesTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.device-groups',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.device-groups',
+              groupType: EntityType.DEVICE
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                label: 'entity-group.group',
+                icon: 'view_list'
+              }
+            },
+            children: [
+              {
+                path: '',
+                component: EntitiesTableComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.device-groups',
+                  devicesType: 'tenant',
+                  groupType: EntityType.DEVICE
+                },
+                resolve: {
+                  entitiesTableConfig: DeviceGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'devices_other'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'device.devices',
+                  devicesType: 'tenant',
+                  groupType: EntityType.DEVICE
+                },
+                resolve: {
+                  entitiesTableConfig: DeviceGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        path: ':entityId',
+        pathMatch: 'full',
+        redirectTo: 'all/:entityId'
       }
     ]
   }
@@ -76,7 +175,7 @@ const routes: Routes = [
   },
   {
     path: 'devices/:entityId',
-    redirectTo: '/entities/devices/:entityId'
+    redirectTo: '/entities/devices/all/:entityId'
   }
 ];
 
@@ -84,7 +183,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    DevicesTableConfigResolver
+    DevicesTableConfigResolver,
+    DeviceGroupEntitiesTableConfigResolver
   ]
 })
 export class DeviceRoutingModule { }

@@ -53,6 +53,11 @@ export enum EntityType {
   CALCULATED_FIELD = 'CALCULATED_FIELD',
   AI_MODEL = 'AI_MODEL',
   API_KEY = 'API_KEY',
+  CONVERTER = 'CONVERTER',
+  INTEGRATION = 'INTEGRATION',
+  ENTITY_GROUP = 'ENTITY_GROUP',
+  ROLE = 'ROLE',
+  GROUP_PERMISSION = 'GROUP_PERMISSION',
 }
 
 export enum AliasEntityType {
@@ -521,6 +526,58 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
         selectedEntities: 'api-key.selected-api-keys'
       }
     ],
+    [
+      EntityType.CONVERTER,
+      {
+        type: 'entity.type-converter',
+        typePlural: 'entity.type-converters',
+        list: 'converter.list-of-converters',
+        details: 'converter.converter-details',
+        add: 'converter.add',
+        noEntities: 'converter.no-converters-text',
+        search: 'converter.search',
+        selectedEntities: 'converter.selected-converters'
+      }
+    ],
+    [
+      EntityType.INTEGRATION,
+      {
+        type: 'entity.type-integration',
+        typePlural: 'entity.type-integrations',
+        list: 'integration.list-of-integrations',
+        details: 'integration.integration-details',
+        add: 'integration.add',
+        noEntities: 'integration.no-integrations-text',
+        search: 'integration.search',
+        selectedEntities: 'integration.selected-integrations'
+      }
+    ],
+    [
+      EntityType.ENTITY_GROUP,
+      {
+        type: 'entity.type-entity-group',
+        typePlural: 'entity.type-entity-groups',
+        list: 'entity-group.list-of-groups',
+        details: 'entity-group.group-details',
+        add: 'entity-group.add',
+        noEntities: 'entity-group.no-groups-text',
+        search: 'entity-group.search',
+        selectedEntities: 'entity-group.selected-groups'
+      }
+    ],
+    [
+      EntityType.ROLE,
+      {
+        type: 'entity.type-role',
+        typePlural: 'entity.type-roles',
+        list: 'role.list-of-roles',
+        details: 'role.role-details',
+        add: 'role.add',
+        noEntities: 'role.no-roles-text',
+        search: 'role.search',
+        selectedEntities: 'role.selected-roles'
+      }
+    ],
   ]
 );
 
@@ -669,6 +726,18 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
       EntityType.API_KEY,
       {
         helpLinkId: 'apiKeys'
+      }
+    ],
+    [
+      EntityType.CONVERTER,
+      {
+        helpLinkId: 'converters'
+      }
+    ],
+    [
+      EntityType.INTEGRATION,
+      {
+        helpLinkId: 'integrations'
       }
     ],
   ]

@@ -20,7 +20,11 @@
     <mat-card-content class="!p-6">
       <form class="tb-login-form flex flex-col" [formGroup]="loginFormGroup" (ngSubmit)="login()">
         <div class="flex flex-col items-center justify-start" style="padding: 16px 0;">
-          <tb-logo link="https://allshen.org" target="_blank" class="login-logo"></tb-logo>
+          @if (logo) {
+            <tb-logo [src]="logo" link="https://allshen.org" target="_blank" class="login-logo"></tb-logo>
+          } @else {
+            <tb-logo link="https://allshen.org" target="_blank" class="login-logo"></tb-logo>
+          }
         </div>
         @if (isLoading || (isLoading$ | async)) {
           <mat-progress-bar color="warn" mode="indeterminate">
@@ -78,7 +82,10 @@
           </mat-form-field>
           <button mat-flat-button color="accent" [disabled]="isLoading || (isLoading$ | async)"
           class="tb-action-button" type="submit">{{ 'login.sign-in' | translate }}</button>
-          <div class="forgot-password flex items-center justify-end gap-5">
+          <div class="forgot-password flex items-center justify-between gap-5">
+            <button mat-button type="button" routerLink="/signup">
+              {{ 'signup.sign-up' | translate }}
+            </button>
             <button class="tb-reset-password" mat-button type="button" routerLink="/login/resetPasswordRequest">
               {{ (passwordViolation ? 'login.reset-password' : 'login.forgot-password') | translate }}
             </button>

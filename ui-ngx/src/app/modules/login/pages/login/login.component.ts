@@ -24,6 +24,7 @@ import { OAuth2ClientLoginInfo } from '@shared/models/oauth2.models';
 import { validateEmail } from '@app/core/utils';
 import { PageComponent } from '@shared/components/page.component';
 import { finalize } from 'rxjs/operators';
+import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
 @Component({
     selector: 'tb-login',
@@ -41,15 +42,20 @@ export class LoginComponent extends PageComponent implements OnInit {
     password: ['']
   });
   oauth2Clients: Array<OAuth2ClientLoginInfo> = null;
+  logo: string = null;
 
   constructor(private authService: AuthService,
               public fb: UntypedFormBuilder,
+              private whiteLabelingApplyService: WhiteLabelingApplyService,
               private router: Router) {
     super();
   }
 
   ngOnInit() {
     this.oauth2Clients = this.authService.oauth2Clients;
+    this.logo = this.whiteLabelingApplyService.logo;
+    this.whiteLabelingApplyService.logo$.subscribe((logo) => this.logo = logo);
+    this.whiteLabelingApplyService.loadAndApplyLogin().subscribe();
   }
 
   login(): void {

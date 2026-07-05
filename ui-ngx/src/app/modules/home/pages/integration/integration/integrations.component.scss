@@ -1,0 +1,68 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+:host {
+  display: block;
+  padding: 16px;
+
+  .tb-ic-header {
+    align-items: center;
+  }
+
+  .tb-ic-search {
+    width: 260px;
+  }
+
+  .tb-ic-table {
+    width: 100%;
+
+    .tb-ic-row {
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.04);
+      }
+    }
+  }
+
+  .tb-ic-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.54);
+  }
+
+  .tb-int-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+
+    &.tb-int-status-active {
+      background: rgba(76, 175, 80, 0.16);
+      color: #2e7d32;
+    }
+
+    &.tb-int-status-failed {
+      background: rgba(244, 67, 54, 0.14);
+      color: #c62828;
+    }
+
+    &.tb-int-status-stopped {
+      background: rgba(0, 0, 0, 0.08);
+      color: rgba(0, 0, 0, 0.6);
+    }
+  }
+}

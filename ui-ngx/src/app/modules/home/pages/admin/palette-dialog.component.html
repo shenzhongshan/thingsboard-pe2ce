@@ -1,0 +1,54 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-palette-dialog">
+  <mat-toolbar color="primary">
+    <h2 translate>white-labeling.edit-palette</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <div class="tb-palette-hues">
+      @for (hue of hues; track hue) {
+        <div class="tb-palette-hue-row" [style.background-color]="colors[hue]"
+             [class.tb-dark]="isDark(hue)">
+          <span class="tb-hue-label">{{ hue }}</span>
+          <span class="tb-hue-name">
+            @if (hueLabels[hue]) {
+              {{ hueLabels[hue] | translate }}
+            }
+          </span>
+          <tb-color-input asBoxInput noBorder
+                          [ngModel]="colors[hue]"
+                          (ngModelChange)="colorChanged(hue, $event)">
+          </tb-color-input>
+          <span class="tb-hue-hex">{{ colors[hue] }}</span>
+        </div>
+      }
+    </div>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end gap-2">
+    <button mat-button type="button" (click)="cancel()">
+      {{ 'action.cancel' | translate }}
+    </button>
+    <button mat-raised-button color="primary" type="button" (click)="save()">
+      {{ 'white-labeling.save-palette' | translate }}
+    </button>
+  </div>
+</div>

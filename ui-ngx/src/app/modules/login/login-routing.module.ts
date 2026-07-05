@@ -26,6 +26,8 @@ import { TwoFactorAuthLoginComponent } from '@modules/login/pages/login/two-fact
 import { Authority } from '@shared/models/authority.enum';
 import { LinkExpiredComponent } from '@modules/login/pages/login/link-expired.component';
 import { ForceTwoFactorAuthLoginComponent } from '@modules/login/pages/login/force-two-factor-auth-login.component';
+import { SignUpComponent } from '@modules/login/pages/login/sign-up.component';
+import { SignUpEmailVerifiedComponent } from '@modules/login/pages/login/sign-up-email-verified.component';
 import { of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { AuthService } from '@core/auth/auth.service';
@@ -48,6 +50,24 @@ const routes: Routes = [
     component: LoginComponent,
     data: {
       title: 'login.login',
+      module: 'public'
+    },
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'signup',
+    component: SignUpComponent,
+    data: {
+      title: 'signup.sign-up',
+      module: 'public'
+    },
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'signup/emailVerified',
+    component: SignUpEmailVerifiedComponent,
+    data: {
+      title: 'signup.sign-up',
       module: 'public'
     },
     canActivate: [AuthGuard]
