@@ -29,15 +29,18 @@ export class EntityGroupId implements HasUUID {
 
 export const GROUP_ALL_NAME = 'All';
 
-// CE port: group types limited to these four.
+// CE port: group types limited to these six.
 export const entityGroupTypes: EntityType[] = [
-  EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET
+  EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET,
+  EntityType.ENTITY_VIEW, EntityType.DASHBOARD
 ];
 
 export interface EntityGroup extends BaseData<EntityGroupId> {
   type: EntityType;
   name: string;
   tenantId?: TenantId;
+  // Customer id when the group is customer-owned (hierarchy view); absent for tenant-owned groups.
+  ownerId?: {entityType: string; id: string};
   additionalInfo?: {description?: string; isPublic?: boolean; [key: string]: any};
   configuration?: any;
 }

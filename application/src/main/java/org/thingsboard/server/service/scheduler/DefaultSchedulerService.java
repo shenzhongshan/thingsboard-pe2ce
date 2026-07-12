@@ -36,6 +36,7 @@ import org.thingsboard.server.common.data.id.OtaPackageId;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageDataIterable;
+import org.thingsboard.server.common.data.report.ReportConfig;
 import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventInfo;
 import org.thingsboard.server.common.msg.TbMsg;
@@ -65,8 +66,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * CE port of PE's scheduler runtime. Differences vs PE: no EntityGroup / generateReport branches,
- * and event change notifications arrive via direct method calls instead of queue protos (monolith).
+ * CE port of PE's scheduler runtime. Differences vs PE: no EntityGroup branch, and event change
+ * notifications arrive via direct method calls instead of queue protos (monolith). The
+ * "generateReport" event type is handled synchronously on the scheduler's own executor thread
+ * (render can take a few seconds; that's fine off the request thread).
  */
 @TbCoreComponent
 @Service
@@ -82,6 +85,9 @@ public class DefaultSchedulerService extends AbstractPartitionBasedService<Tenan
     private final OtaPackageService otaPackageService;
     private final OtaPackageStateService firmwareStateService;
     private final TbServiceInfoProvider serviceInfoProvider;
+    private final org.thingsboard.server.service.report.ReportGenerationService reportGenerationService;
+
+    private static final String GENERATE_REPORT_EVENT_TYPE = "generateReport";
 
     @Value("${server.rest.server_side_rpc.min_timeout:5000}")
     protected long minTimeout;
@@ -243,7 +249,9 @@ public class DefaultSchedulerService extends AbstractPartitionBasedService<Tenan
         EntityId originatorId = event.getOriginatorId();
         boolean isFirmwareUpdate = "updateFirmware".equals(event.getType());
         boolean isSoftwareUpdate = "updateSoftware".equals(event.getType());
-        if (isFirmwareUpdate || isSoftwareUpdate) {
+        if (GENERATE_REPORT_EVENT_TYPE.equals(event.getType())) {
+            generateReport(tenantId, configuration);
+        } else if (isFirmwareUpdate || isSoftwareUpdate) {
             OtaPackageId otaPackageId = JacksonUtil.convertValue(configuration.get("msgBody"), OtaPackageId.class);
             OtaPackageInfo otaPackageInfo = otaPackageService.findOtaPackageInfoById(tenantId, otaPackageId);
             if (otaPackageInfo == null) {
@@ -287,6 +295,11 @@ public class DefaultSchedulerService extends AbstractPartitionBasedService<Tenan
             log.debug("[{}][{}] Pushing scheduled message to the rule engine: {}", tenantId, originatorId, tbMsg);
             clusterService.pushMsgToRuleEngine(tenantId, originatorId, tbMsg, null);
         }
+    }
+
+    private void generateReport(TenantId tenantId, JsonNode configuration) throws Exception {
+        ReportConfig reportConfig = JacksonUtil.convertValue(configuration.get("msgBody"), ReportConfig.class);
+        reportGenerationService.generateReport(tenantId, reportConfig);
     }
 
     private String getMsgType(SchedulerEvent event, JsonNode configuration) {

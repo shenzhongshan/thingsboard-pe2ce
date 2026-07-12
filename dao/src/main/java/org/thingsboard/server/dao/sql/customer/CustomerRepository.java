@@ -71,4 +71,51 @@ public interface CustomerRepository extends JpaRepository<CustomerEntity, UUID>,
     List<CustomerFields> findNextBatch(@Param("id") UUID id, Limit limit);
 
     List<CustomerEntity> findCustomersByTenantIdAndIdIn(UUID tenantId, List<UUID> customerIds);
+
+    @Query("SELECT c FROM CustomerEntity c WHERE c.tenantId = :tenantId AND c.parentCustomerId = :parentCustomerId " +
+            "AND (:textSearch IS NULL OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true)")
+    Page<CustomerEntity> findByTenantIdAndParentCustomerId(@Param("tenantId") UUID tenantId,
+                                                            @Param("parentCustomerId") UUID parentCustomerId,
+                                                            @Param("textSearch") String textSearch,
+                                                            Pageable pageable);
+
+    @Query("SELECT c FROM CustomerEntity c WHERE c.tenantId = :tenantId AND c.parentCustomerId IS NULL " +
+            "AND (:textSearch IS NULL OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true)")
+    Page<CustomerEntity> findByTenantIdAndParentCustomerIdIsNull(@Param("tenantId") UUID tenantId,
+                                                                  @Param("textSearch") String textSearch,
+                                                                  Pageable pageable);
+
+    /** All descendants (any depth) of the given customer, via a recursive walk down parent_customer_id. Excludes the root itself. */
+    @Query(value = "WITH RECURSIVE sub_customers(id) AS (" +
+            "  SELECT id FROM customer WHERE tenant_id = :tenantId AND id = :customerId " +
+            "  UNION " +
+            "  SELECT c.id FROM customer c, sub_customers sc WHERE c.tenant_id = :tenantId AND c.parent_customer_id = sc.id" +
+            ") " +
+            "SELECT c.* FROM customer c WHERE c.tenant_id = :tenantId AND c.parent_customer_id IN (SELECT id FROM sub_customers) " +
+            "AND (CAST(:textSearch AS text) IS NULL OR c.title ILIKE CONCAT('%', CAST(:textSearch AS text), '%')) " +
+            "ORDER BY c.title",
+            countQuery = "WITH RECURSIVE sub_customers(id) AS (" +
+            "  SELECT id FROM customer WHERE tenant_id = :tenantId AND id = :customerId " +
+            "  UNION " +
+            "  SELECT c.id FROM customer c, sub_customers sc WHERE c.tenant_id = :tenantId AND c.parent_customer_id = sc.id" +
+            ") " +
+            "SELECT count(*) FROM customer c WHERE c.tenant_id = :tenantId AND c.parent_customer_id IN (SELECT id FROM sub_customers) " +
+            "AND (CAST(:textSearch AS text) IS NULL OR c.title ILIKE CONCAT('%', CAST(:textSearch AS text), '%'))",
+            nativeQuery = true)
+    Page<CustomerEntity> findByTenantIdAndCustomerIdIncludingSubCustomers(@Param("tenantId") UUID tenantId,
+                                                                           @Param("customerId") UUID customerId,
+                                                                           @Param("textSearch") String textSearch,
+                                                                           Pageable pageable);
+
+    /** Direct + transitive ancestor chain of the given customer (excluding itself), root-first. */
+    @Query(value = "WITH RECURSIVE ancestors(id, parent_customer_id, depth) AS (" +
+            "  SELECT id, parent_customer_id, 0 FROM customer WHERE tenant_id = :tenantId AND id = :customerId " +
+            "  UNION ALL " +
+            "  SELECT c.id, c.parent_customer_id, a.depth + 1 FROM customer c, ancestors a " +
+            "  WHERE c.tenant_id = :tenantId AND c.id = a.parent_customer_id" +
+            ") " +
+            "SELECT c.* FROM customer c JOIN ancestors a ON c.id = a.id " +
+            "WHERE a.depth > 0 ORDER BY a.depth DESC",
+            nativeQuery = true)
+    List<CustomerEntity> findAncestors(@Param("tenantId") UUID tenantId, @Param("customerId") UUID customerId);
 }

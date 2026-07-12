@@ -226,4 +226,39 @@ public class CustomerController extends BaseController {
         return getCustomersByIdsV1(customerUUIDs);
     }
 
+    @ApiOperation(value = "Get top-level Customers (getTopLevelCustomers)",
+            notes = "Returns a page of tenant customers that have no parent customer (sub-customer hierarchy roots). "
+                    + PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = "/customers/topLevel")
+    public PageData<Customer> getTopLevelCustomers(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = CUSTOMER_TEXT_SEARCH_DESCRIPTION) @RequestParam(required = false) String textSearch,
+            @Parameter(description = SORT_PROPERTY_DESCRIPTION) @RequestParam(required = false) String sortProperty,
+            @Parameter(description = SORT_ORDER_DESCRIPTION) @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.CUSTOMER, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(customerService.findTopLevelCustomersByTenantId(getTenantId(), pageLink));
+    }
+
+    @ApiOperation(value = "Get sub-customers of a Customer (getCustomerChildren)",
+            notes = "Returns a page of the direct sub-customers of the given customer. "
+                    + PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = "/customer/{customerId}/customers")
+    public PageData<Customer> getCustomerChildren(
+            @Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable(CUSTOMER_ID) String strCustomerId,
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = CUSTOMER_TEXT_SEARCH_DESCRIPTION) @RequestParam(required = false) String textSearch,
+            @Parameter(description = SORT_PROPERTY_DESCRIPTION) @RequestParam(required = false) String sortProperty,
+            @Parameter(description = SORT_ORDER_DESCRIPTION) @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        checkParameter(CUSTOMER_ID, strCustomerId);
+        CustomerId customerId = new CustomerId(toUUID(strCustomerId));
+        checkCustomerId(customerId, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(customerService.findCustomersByTenantIdAndParentCustomerId(getTenantId(), customerId, pageLink));
+    }
+
 }

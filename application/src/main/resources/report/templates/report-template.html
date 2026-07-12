@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style th:utext="'@page { size: ' + ${pageSize} + ' ' + ${pageOrientation} + '; margin: ' + ${pageMargin} + '; ' +
+                     '@top-center { content: element(pageHeader); } @bottom-center { content: element(pageFooter); } }'"></style>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #212121; }
+        h1 { font-size: 18pt; margin: 0 0 8px 0; }
+        h2 { font-size: 14pt; margin: 12px 0 6px 0; }
+        table.tb-report-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        table.tb-report-table th, table.tb-report-table td { border: 1px solid #cccccc; padding: 4px 6px; text-align: left; font-size: 9pt; }
+        table.tb-report-table th { background-color: #f0f0f0; }
+        .tb-report-divider { border: none; border-top: 1px solid #cccccc; margin: 10px 0; }
+        .tb-report-image { display: block; }
+        .tb-report-page-break { page-break-after: always; }
+        .tb-report-header, .tb-report-footer { font-size: 8pt; color: #757575; }
+    </style>
+</head>
+<body>
+    <div style="position: running(pageHeader);" class="tb-report-header" th:if="${header != null and !header.isEmpty()}" th:utext="${header}"></div>
+    <div style="position: running(pageFooter);" class="tb-report-footer" th:if="${footer != null and !footer.isEmpty()}" th:utext="${footer}"></div>
+    <div th:each="componentHtml : ${componentsHtml}" th:utext="${componentHtml}"></div>
+</body>
+</html>

@@ -27,24 +27,33 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.EntityInfo;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
+import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.config.annotations.ApiOperation;
+import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
+import org.thingsboard.server.service.security.permission.UserPermissionsService;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.thingsboard.server.controller.ControllerConstants.PAGE_NUMBER_DESCRIPTION;
 import static org.thingsboard.server.controller.ControllerConstants.PAGE_SIZE_DESCRIPTION;
@@ -65,6 +74,8 @@ public class EntityGroupController extends BaseController {
     public static final String ENTITY_GROUP_ID = "entityGroupId";
 
     private final EntityGroupService entityGroupService;
+    private final UserPermissionsService userPermissionsService;
+    private final CustomerService customerService;
 
     @ApiOperation(value = "Get Entity Group (getEntityGroupById)")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
@@ -92,11 +103,11 @@ public class EntityGroupController extends BaseController {
     }
 
     @ApiOperation(value = "Get Entity Groups by type (getEntityGroupsByType)",
-            notes = "Lists the tenant's entity groups of the given type (USER, CUSTOMER, DEVICE or ASSET). The 'All' group is created automatically.")
+            notes = "Lists the tenant's entity groups of the given type (USER, CUSTOMER, DEVICE, ASSET, ENTITY_VIEW or DASHBOARD). The 'All' group is created automatically.")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/entityGroups/{groupType}"}, params = {"pageSize", "page"})
     public PageData<EntityGroup> getEntityGroupsByType(
-            @Parameter(description = "Entity group type", required = true, schema = @Schema(allowableValues = {"USER", "CUSTOMER", "DEVICE", "ASSET"}))
+            @Parameter(description = "Entity group type", required = true, schema = @Schema(allowableValues = {"USER", "CUSTOMER", "DEVICE", "ASSET", "ENTITY_VIEW", "DASHBOARD"}))
             @PathVariable("groupType") String strGroupType,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
@@ -105,11 +116,14 @@ public class EntityGroupController extends BaseController {
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
-            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "Optional customer id — lists the customer's own groups of the type instead of the tenant's")
+            @RequestParam(required = false) String customerId) throws ThingsboardException {
         checkParameter("groupType", strGroupType);
         accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        return entityGroupService.findEntityGroupsByType(getTenantId(), EntityType.valueOf(strGroupType), pageLink);
+        CustomerId ownerId = StringUtils.isNotBlank(customerId) ? new CustomerId(toUUID(customerId)) : null;
+        return entityGroupService.findEntityGroupsByType(getTenantId(), ownerId, EntityType.valueOf(strGroupType), pageLink);
     }
 
     @ApiOperation(value = "Delete Entity Group (deleteEntityGroup)",
@@ -139,6 +153,9 @@ public class EntityGroupController extends BaseController {
         EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
         EntityGroup entityGroup = checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)));
         entityGroupService.addEntitiesToEntityGroup(getTenantId(), entityGroupId, toEntityIds(entityGroup, strEntityIds));
+        if (entityGroup.getType() == EntityType.USER) {
+            userPermissionsService.onUserGroupMembershipChanged(getTenantId(), entityGroupId);
+        }
     }
 
     @ApiOperation(value = "Remove entities from Entity Group (removeEntitiesFromEntityGroup)")
@@ -153,6 +170,10 @@ public class EntityGroupController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.WRITE);
         EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
         EntityGroup entityGroup = checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)));
+        if (entityGroup.getType() == EntityType.USER) {
+            // Evict before removal — membership lookup after removal would miss the departing members.
+            userPermissionsService.onUserGroupMembershipChanged(getTenantId(), entityGroupId);
+        }
         entityGroupService.removeEntitiesFromEntityGroup(getTenantId(), entityGroupId, toEntityIds(entityGroup, strEntityIds));
     }
 
@@ -190,6 +211,53 @@ public class EntityGroupController extends BaseController {
         EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
         checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)));
         return entityGroupService.makePublic(getTenantId(), entityGroupId, isPublic);
+    }
+
+    @ApiOperation(value = "Get entity group owners (getEntityGroupOwners)",
+            notes = "Searches the tenant itself plus its customers by name, for use as an entity-group-owner target " +
+                    "(PE parity: scheduler '实体组所有者' targeting).")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/entityGroup/owners"}, params = {"pageSize", "page"})
+    public PageData<EntityInfo> getEntityGroupOwners(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = "Case-insensitive 'substring' filter based on owner name")
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.READ);
+        List<EntityInfo> owners = new ArrayList<>();
+        Tenant tenant = tenantService.findTenantById(getTenantId());
+        if (tenant != null && (StringUtils.isBlank(textSearch)
+                || tenant.getName().toLowerCase().contains(textSearch.toLowerCase()))) {
+            owners.add(new EntityInfo(getTenantId(), tenant.getName()));
+        }
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, "name", "ASC");
+        owners.addAll(customerService.findCustomersByTenantId(getTenantId(), pageLink).getData().stream()
+                .map(c -> new EntityInfo(c.getId(), c.getName()))
+                .collect(Collectors.toList()));
+        owners.sort(Comparator.comparing(EntityInfo::getName, String.CASE_INSENSITIVE_ORDER));
+        int total = owners.size();
+        int from = Math.min(page * pageSize, total);
+        int to = Math.min(from + pageSize, total);
+        List<EntityInfo> pageData = owners.subList(from, to);
+        return new PageData<>(pageData, (total + pageSize - 1) / Math.max(pageSize, 1), total, to < total);
+    }
+
+    @ApiOperation(value = "Get or create the 'All' group id for an owner (getAllGroupIdForOwner)",
+            notes = "Resolves the given owner's 'All' group of the specified type, creating it if needed. Omit " +
+                    "ownerId (or pass the tenant id) for the tenant-level 'All' group. PE parity: scheduler " +
+                    "'实体组所有者' targeting resolves to this group at save time.")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/entityGroup/allGroupId/{groupType}"})
+    public EntityGroupId getAllGroupIdForOwner(
+            @Parameter(description = "Entity group type", required = true, schema = @Schema(allowableValues = {"USER", "CUSTOMER", "DEVICE", "ASSET"}))
+            @PathVariable("groupType") String strGroupType,
+            @Parameter(description = "Optional customer id — the customer's 'All' group instead of the tenant's")
+            @RequestParam(required = false) String ownerId) throws ThingsboardException {
+        checkParameter("groupType", strGroupType);
+        accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.READ);
+        CustomerId customerId = StringUtils.isNotBlank(ownerId) && !getTenantId().getId().toString().equals(ownerId) ?
+                new CustomerId(toUUID(ownerId)) : null;
+        return checkNotNull(entityGroupService.findOrCreateAllGroupId(getTenantId(), customerId, EntityType.valueOf(strGroupType)));
     }
 
     private List<EntityId> toEntityIds(EntityGroup entityGroup, String[] strEntityIds) throws ThingsboardException {

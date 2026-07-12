@@ -24,6 +24,7 @@ import org.thingsboard.server.common.data.BaseData;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
@@ -31,8 +32,8 @@ import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
  * CE port of PE's entity group. Simplifications: tenant-owned only (no customer hierarchy),
- * group types limited to USER/CUSTOMER/DEVICE/ASSET, the "All" group is virtual (its member
- * listing is the plain tenant entity list), no VC export / edge sync.
+ * group types limited to USER/CUSTOMER/DEVICE/ASSET/ENTITY_VIEW/DASHBOARD, the "All" group is
+ * virtual (its member listing is the plain tenant entity list), no VC export / edge sync.
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
@@ -41,7 +42,8 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
     private static final long serialVersionUID = 2807349040519543363L;
 
     public static final EntityType[] groupTypes = new EntityType[]{
-            EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET
+            EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET,
+            EntityType.ENTITY_VIEW, EntityType.DASHBOARD
     };
     public static final String GROUP_ALL_NAME = "All";
 
@@ -58,6 +60,10 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
     @Getter @Setter
     @Schema(description = "JSON object with Tenant Id (the group owner)", accessMode = Schema.AccessMode.READ_ONLY)
     private TenantId tenantId;
+
+    @Getter @Setter
+    @Schema(description = "Customer Id when the group is customer-owned; null for tenant-owned groups")
+    private CustomerId ownerId;
 
     @Getter @Setter
     @NoXss
@@ -81,6 +87,7 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
         this.type = entityGroup.getType();
         this.name = entityGroup.getName();
         this.tenantId = entityGroup.getTenantId();
+        this.ownerId = entityGroup.getOwnerId();
         this.additionalInfo = entityGroup.getAdditionalInfo();
         this.configuration = entityGroup.getConfiguration();
     }

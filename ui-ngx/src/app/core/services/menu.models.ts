@@ -81,6 +81,7 @@ export enum MenuId {
   white_labeling_login = 'white_labeling_login',
   mail_templates = 'mail_templates',
   self_registration = 'self_registration',
+  custom_translation = 'custom_translation',
   custom_menu = 'custom_menu',
   notification_settings = 'notification_settings',
   repository_settings = 'repository_settings',
@@ -120,12 +121,12 @@ export enum MenuId {
   integration_center = 'integration_center',
   integrations = 'integrations',
   converters = 'converters',
-  entity_groups = 'entity_groups',
-  device_groups = 'device_groups',
-  asset_groups = 'asset_groups',
-  customer_groups = 'customer_groups',
-  user_groups = 'user_groups',
+  users = 'users',
   roles = 'roles',
+  reporting = 'reporting',
+  report_templates = 'report_templates',
+  report_schedule = 'report_schedule',
+  reports = 'reports',
   api_usage = 'api_usage',
   trendz_settings = 'trendz_settings',
   ai_models = 'ai_models'
@@ -455,6 +456,17 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       type: 'link',
       path: '/security-settings/self-registration',
       icon: 'how_to_reg'
+    }
+  ],
+  [
+    MenuId.custom_translation,
+    {
+      id: MenuId.custom_translation,
+      name: 'custom-translation.custom-translation',
+      fullName: 'custom-translation.custom-translation',
+      type: 'link',
+      path: '/white-labeling/custom-translation',
+      icon: 'language'
     }
   ],
   [
@@ -806,52 +818,12 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
-    MenuId.entity_groups,
+    MenuId.users,
     {
-      id: MenuId.entity_groups,
-      name: 'entity-group.entity-groups',
-      type: 'toggle',
-      path: '/entity-groups',
-      icon: 'workspaces'
-    }
-  ],
-  [
-    MenuId.device_groups,
-    {
-      id: MenuId.device_groups,
-      name: 'entity-group.group-type-device',
+      id: MenuId.users,
+      name: 'user.users',
       type: 'link',
-      path: '/entity-groups/DEVICE',
-      icon: 'devices_other'
-    }
-  ],
-  [
-    MenuId.asset_groups,
-    {
-      id: MenuId.asset_groups,
-      name: 'entity-group.group-type-asset',
-      type: 'link',
-      path: '/entity-groups/ASSET',
-      icon: 'domain'
-    }
-  ],
-  [
-    MenuId.customer_groups,
-    {
-      id: MenuId.customer_groups,
-      name: 'entity-group.group-type-customer',
-      type: 'link',
-      path: '/entity-groups/CUSTOMER',
-      icon: 'supervisor_account'
-    }
-  ],
-  [
-    MenuId.user_groups,
-    {
-      id: MenuId.user_groups,
-      name: 'entity-group.group-type-user',
-      type: 'link',
-      path: '/entity-groups/USER',
+      path: '/users',
       icon: 'account_circle'
     }
   ],
@@ -893,6 +865,46 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
       type: 'link',
       path: '/integrations-center/converters',
       icon: 'transform'
+    }
+  ],
+  [
+    MenuId.reporting,
+    {
+      id: MenuId.reporting,
+      name: 'report.reporting',
+      type: 'toggle',
+      path: '/reporting',
+      icon: 'assessment'
+    }
+  ],
+  [
+    MenuId.report_templates,
+    {
+      id: MenuId.report_templates,
+      name: 'report.templates',
+      type: 'link',
+      path: '/reporting/templates',
+      icon: 'assessment'
+    }
+  ],
+  [
+    MenuId.report_schedule,
+    {
+      id: MenuId.report_schedule,
+      name: 'report.schedule',
+      type: 'link',
+      path: '/reporting/schedule',
+      icon: 'event_repeat'
+    }
+  ],
+  [
+    MenuId.reports,
+    {
+      id: MenuId.reports,
+      name: 'report.reports',
+      type: 'link',
+      path: '/reporting/reports',
+      icon: 'description'
     }
   ],
   [
@@ -1002,6 +1014,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.white_labeling_general},
           {id: MenuId.white_labeling_login},
           {id: MenuId.mail_templates},
+          {id: MenuId.custom_translation},
           {id: MenuId.custom_menu}
         ]
       },
@@ -1044,6 +1057,14 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
       },
       {id: MenuId.dashboards},
       {
+        id: MenuId.reporting,
+        pages: [
+          {id: MenuId.report_templates},
+          {id: MenuId.report_schedule},
+          {id: MenuId.reports}
+        ]
+      },
+      {
         id: MenuId.entities,
         pages: [
           {id: MenuId.devices},
@@ -1060,17 +1081,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         ]
       },
       {id: MenuId.customers},
-      {
-        id: MenuId.entity_groups,
-        pages: [
-          {id: MenuId.device_groups},
-          {id: MenuId.asset_groups},
-          {id: MenuId.customer_groups},
-          {id: MenuId.user_groups}
-        ]
-      },
-      {id: MenuId.calculated_fields},
-      {id: MenuId.rule_chains},
+      {id: MenuId.users},
       {
         id: MenuId.integration_center,
         pages: [
@@ -1078,6 +1089,8 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.converters}
         ]
       },
+      {id: MenuId.calculated_fields},
+      {id: MenuId.rule_chains},
       {
         id: MenuId.edge_management,
         pages: [
@@ -1134,6 +1147,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.white_labeling_general},
           {id: MenuId.white_labeling_login},
           {id: MenuId.mail_templates},
+          {id: MenuId.custom_translation},
           {id: MenuId.custom_menu}
         ]
       },

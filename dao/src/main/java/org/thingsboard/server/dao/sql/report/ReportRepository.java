@@ -1,0 +1,49 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.thingsboard.server.dao.sql.report;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.thingsboard.server.dao.model.sql.ReportEntity;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface ReportRepository extends JpaRepository<ReportEntity, UUID> {
+
+    @Query("SELECT r FROM ReportEntity r WHERE r.tenantId = :tenantId " +
+            "AND (:templateId IS NULL OR r.templateId = :templateId) " +
+            "AND (:userId IS NULL OR r.userId = :userId) " +
+            "AND (:searchText IS NULL OR ilike(r.name, CONCAT('%', :searchText, '%')) = true) " +
+            "ORDER BY r.createdTime DESC")
+    Page<ReportEntity> findByTenantId(@Param("tenantId") UUID tenantId,
+                                       @Param("templateId") UUID templateId,
+                                       @Param("userId") UUID userId,
+                                       @Param("searchText") String searchText,
+                                       Pageable pageable);
+
+    @Query("SELECT r.data FROM ReportEntity r WHERE r.id = :id")
+    byte[] findDataById(@Param("id") UUID id);
+
+    @Query("SELECT r.id FROM ReportEntity r WHERE r.tenantId = :tenantId")
+    List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
+
+    void deleteByTemplateId(UUID templateId);
+
+}

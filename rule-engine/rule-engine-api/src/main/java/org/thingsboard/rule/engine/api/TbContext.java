@@ -24,16 +24,21 @@ import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.alarm.Alarm;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.HasId;
+import org.thingsboard.server.common.data.id.IntegrationId;
+import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -311,6 +316,42 @@ public interface TbContext {
     RelationService getRelationService();
 
     EntityViewService getEntityViewService();
+
+    /**
+     * The owner (customer or tenant) of the given entity. Mirrors PE's PeContext.getOwner, but
+     * exposed directly on TbContext following this CE port's established pattern of granular
+     * service methods rather than a separate PE-context wrapper.
+     */
+    EntityId getOwner(EntityId entityId);
+
+    /** Reassigns the owner of the given entity to newOwnerId (a CustomerId or the TenantId). */
+    void changeEntityOwner(EntityId newOwnerId, EntityId entityId);
+
+    EntityGroup findEntityGroupByTypeAndName(CustomerId ownerId, EntityType groupType, String name);
+
+    /** Ensures + returns the "All" group id for the given owner+type (tenant-owned when ownerId is null). */
+    EntityGroupId findOrCreateAllGroupId(CustomerId ownerId, EntityType groupType);
+
+    EntityGroup saveEntityGroup(CustomerId ownerId, EntityGroup entityGroup);
+
+    void addEntityToEntityGroup(EntityGroupId entityGroupId, EntityId entityId);
+
+    void removeEntityFromEntityGroup(EntityGroupId entityGroupId, EntityId entityId);
+
+    /** Raw member entity ids of a group (including the virtual "All" group). */
+    List<EntityId> findAllEntityIds(EntityGroupId entityGroupId);
+
+    /** All entity-group ids the given entity belongs to (implicit "All" groups + explicit memberships). */
+    List<EntityGroupId> findEntityGroupsForEntity(EntityId entityId, CustomerId customerId);
+
+    Integration findIntegrationById(IntegrationId integrationId);
+
+    /** Pushes msg's payload as a downlink to the given integration. See PlatformIntegrationService#pushDownlink for CE scope. */
+    void pushToIntegrationDownlink(IntegrationId integrationId, TbMsg msg, Runnable onSuccess, Consumer<Throwable> onFailure);
+
+    /** Renders + persists a report from the given config, mirroring the scheduler's synchronous "generateReport" path. */
+    void generateReport(org.thingsboard.server.common.data.report.ReportConfig reportConfig,
+                         Consumer<org.thingsboard.server.common.data.report.Report> onSuccess, Consumer<Throwable> onFailure);
 
     ResourceService getResourceService();
 

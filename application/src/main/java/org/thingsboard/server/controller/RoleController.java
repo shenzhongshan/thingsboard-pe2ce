@@ -38,6 +38,7 @@ import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
+import org.thingsboard.server.service.security.permission.UserPermissionsService;
 
 import static org.thingsboard.server.controller.ControllerConstants.PAGE_NUMBER_DESCRIPTION;
 import static org.thingsboard.server.controller.ControllerConstants.PAGE_SIZE_DESCRIPTION;
@@ -57,6 +58,7 @@ public class RoleController extends BaseController {
     public static final String ROLE_ID = "roleId";
 
     private final RoleService roleService;
+    private final UserPermissionsService userPermissionsService;
 
     @ApiOperation(value = "Get Role (getRoleById)")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
@@ -79,7 +81,9 @@ public class RoleController extends BaseController {
         if (role.getId() != null) {
             checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), role.getId())));
         }
-        return roleService.saveRole(getTenantId(), role);
+        Role saved = roleService.saveRole(getTenantId(), role);
+        userPermissionsService.onRoleUpdated(saved);
+        return saved;
     }
 
     @ApiOperation(value = "Get Roles (getRoles)",

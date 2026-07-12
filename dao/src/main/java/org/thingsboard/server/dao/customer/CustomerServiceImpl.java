@@ -217,6 +217,7 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
                 throw new IncorrectParameterException("Unable to delete non-existent customer.");
             }
         }
+        deleteSubCustomers(tenantId, customerId);
         dashboardService.unassignCustomerDashboards(tenantId, customerId);
         entityViewService.unassignCustomerEntityViews(customer.getTenantId(), customerId);
         assetService.unassignCustomerAssets(customer.getTenantId(), customerId);
@@ -325,6 +326,48 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
     @Override
     public EntityType getEntityType() {
         return EntityType.CUSTOMER;
+    }
+
+    /** Recursively deletes sub-customers before their parent (mirrors PE's cascading customer-tree delete). */
+    private void deleteSubCustomers(TenantId tenantId, CustomerId parentId) {
+        PageData<Customer> children = customerDao.findByTenantIdAndParentCustomerId(tenantId.getId(), parentId.getId(), new PageLink(10000));
+        for (Customer child : children.getData()) {
+            deleteEntity(tenantId, child.getId(), false);
+        }
+    }
+
+    @Override
+    public PageData<Customer> findCustomersByTenantIdAndParentCustomerId(TenantId tenantId, CustomerId parentCustomerId, PageLink pageLink) {
+        log.trace("Executing findCustomersByTenantIdAndParentCustomerId, tenantId [{}], parentCustomerId [{}]", tenantId, parentCustomerId);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        Validator.validateId(parentCustomerId, id -> INCORRECT_CUSTOMER_ID + id);
+        Validator.validatePageLink(pageLink);
+        return customerDao.findByTenantIdAndParentCustomerId(tenantId.getId(), parentCustomerId.getId(), pageLink);
+    }
+
+    @Override
+    public PageData<Customer> findTopLevelCustomersByTenantId(TenantId tenantId, PageLink pageLink) {
+        log.trace("Executing findTopLevelCustomersByTenantId, tenantId [{}]", tenantId);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        Validator.validatePageLink(pageLink);
+        return customerDao.findTopLevelByTenantId(tenantId.getId(), pageLink);
+    }
+
+    @Override
+    public PageData<Customer> findCustomerDescendants(TenantId tenantId, CustomerId customerId, PageLink pageLink) {
+        log.trace("Executing findCustomerDescendants, tenantId [{}], customerId [{}]", tenantId, customerId);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        Validator.validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
+        Validator.validatePageLink(pageLink);
+        return customerDao.findDescendants(tenantId.getId(), customerId.getId(), pageLink);
+    }
+
+    @Override
+    public List<Customer> findCustomerAncestors(TenantId tenantId, CustomerId customerId) {
+        log.trace("Executing findCustomerAncestors, tenantId [{}], customerId [{}]", tenantId, customerId);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        Validator.validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
+        return customerDao.findAncestors(tenantId.getId(), customerId.getId());
     }
 
 }

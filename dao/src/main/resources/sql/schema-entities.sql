@@ -992,6 +992,14 @@ CREATE TABLE IF NOT EXISTS white_labeling (
     CONSTRAINT fk_white_labeling_domain_id FOREIGN KEY (domain_id) REFERENCES domain(id)
 );
 
+CREATE TABLE IF NOT EXISTS custom_translation (
+    tenant_id UUID NOT NULL,
+    customer_id UUID NOT NULL default '13814000-1dd2-11b2-8080-808080808080',
+    locale_code VARCHAR(10) NOT NULL,
+    value VARCHAR(1000000),
+    CONSTRAINT custom_translation_pkey PRIMARY KEY (tenant_id, customer_id, locale_code)
+);
+
 CREATE TABLE IF NOT EXISTS custom_menu (
     id UUID NOT NULL CONSTRAINT custom_menu_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
@@ -1004,6 +1012,10 @@ CREATE TABLE IF NOT EXISTS custom_menu (
 
 ALTER TABLE customer ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
 ALTER TABLE tb_user ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
+-- PE parity: self-referencing parent customer id for multi-level sub-customer hierarchies.
+-- No FK constraint, matching PE's own schema (a customer can be reparented without a DB-level cascade).
+ALTER TABLE customer ADD COLUMN IF NOT EXISTS parent_customer_id UUID;
+CREATE INDEX IF NOT EXISTS idx_customer_tenant_id_parent_customer_id ON customer(tenant_id, parent_customer_id);
 
 CREATE TABLE IF NOT EXISTS converter (
     id UUID NOT NULL CONSTRAINT converter_pkey PRIMARY KEY,
@@ -1040,9 +1052,10 @@ CREATE TABLE IF NOT EXISTS entity_group (
     type VARCHAR(255) NOT NULL,
     name VARCHAR(255),
     tenant_id UUID,
+    owner_id UUID,
     additional_info VARCHAR,
     configuration VARCHAR(10000000),
-    CONSTRAINT group_name_per_owner_unq_key UNIQUE (tenant_id, type, name)
+    CONSTRAINT group_name_per_owner_unq_key UNIQUE (owner_id, type, name)
 );
 
 CREATE TABLE IF NOT EXISTS role (
@@ -1080,3 +1093,35 @@ CREATE TABLE IF NOT EXISTS scheduler_event (
     additional_info VARCHAR,
     enabled BOOLEAN
 );
+
+-- CE port of PE's report engine. Simplifications vs PE: report.configuration is opaque JSON
+-- (no ~260-class strongly-typed config hierarchy — see ReportComponentType javadoc); no FK on
+-- template_id (matches this project's converter/integration precedent); report is a plain table,
+-- not PARTITION BY RANGE(created_time) like PE (acceptable for CE's expected scale).
+CREATE TABLE IF NOT EXISTS report_template (
+    id UUID NOT NULL CONSTRAINT report_template_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    customer_id UUID,
+    name VARCHAR(255),
+    format VARCHAR(32),
+    type VARCHAR(32),
+    description VARCHAR(1024),
+    configuration VARCHAR(1000000)
+);
+
+CREATE TABLE IF NOT EXISTS report (
+    id UUID NOT NULL CONSTRAINT report_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID NOT NULL,
+    customer_id UUID,
+    template_id UUID,
+    format VARCHAR(32),
+    name VARCHAR(255),
+    user_id UUID NOT NULL,
+    data BYTEA
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_template_tenant_id ON report_template(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_report_tenant_id_created_time ON report(tenant_id, created_time DESC);
+CREATE INDEX IF NOT EXISTS idx_report_template_id ON report(template_id);

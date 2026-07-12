@@ -81,4 +81,12 @@ public interface CustomerDao extends Dao<Customer>, TenantEntityDao<Customer>, E
 
     List<Customer> findCustomersByTenantIdAndIds(UUID tenantId, List<UUID> customerIds);
 
+    PageData<Customer> findByTenantIdAndParentCustomerId(UUID tenantId, UUID parentCustomerId, PageLink pageLink);
+
+    PageData<Customer> findTopLevelByTenantId(UUID tenantId, PageLink pageLink);
+
+    PageData<Customer> findDescendants(UUID tenantId, UUID customerId, PageLink pageLink);
+
+    List<Customer> findAncestors(UUID tenantId, UUID customerId);
+
 }

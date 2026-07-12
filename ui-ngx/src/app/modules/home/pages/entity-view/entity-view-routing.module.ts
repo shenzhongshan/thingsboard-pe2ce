@@ -25,11 +25,21 @@ import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { BreadCrumbConfig } from '@shared/components/breadcrumb';
 import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  EntityViewGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 export const entityViewRoutes: Routes = [
   {
     path: 'entityViews',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
         menuId: MenuId.entity_views
       }
@@ -37,32 +47,121 @@ export const entityViewRoutes: Routes = [
     children: [
       {
         path: '',
-        component: EntitiesTableComponent,
+        children: [],
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'entity-view.entity-views',
-          entityViewsType: 'tenant'
-        },
-        resolve: {
-          entitiesTableConfig: EntityViewsTableConfigResolver
+          redirectTo: '/entities/entityViews/all'
         }
       },
       {
-        path: ':entityId',
-        component: EntityDetailsPageComponent,
-        canDeactivate: [ConfirmOnExitGuard],
+        path: 'all',
         data: {
-          breadcrumb: {
-            labelFunction: entityDetailsPageBreadcrumbLabelFunction,
-            icon: 'view_quilt'
-          } as BreadCrumbConfig<EntityDetailsPageComponent>,
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: 'entity-view.entity-views',
-          entityViewsType: 'tenant'
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'view_quilt'
+          }
         },
-        resolve: {
-          entitiesTableConfig: EntityViewsTableConfigResolver
-        }
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'entity-view.entity-views',
+              entityViewsType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: EntityViewsTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'view_quilt'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'entity-view.entity-views',
+              entityViewsType: 'tenant'
+            },
+            resolve: {
+              entitiesTableConfig: EntityViewsTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.group-type-entity-view',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-entity-view',
+              groupType: EntityType.ENTITY_VIEW
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                label: 'entity-group.group-entities',
+                icon: 'view_list'
+              }
+            },
+            children: [
+              {
+                path: '',
+                component: EntitiesTableComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.group-type-entity-view',
+                  entityViewsType: 'tenant',
+                  groupType: EntityType.ENTITY_VIEW
+                },
+                resolve: {
+                  entitiesTableConfig: EntityViewGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'view_quilt'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-view.entity-views',
+                  entityViewsType: 'tenant',
+                  groupType: EntityType.ENTITY_VIEW
+                },
+                resolve: {
+                  entitiesTableConfig: EntityViewGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        path: ':entityId',
+        pathMatch: 'full',
+        redirectTo: 'all/:entityId'
       }
     ]
   }
@@ -76,7 +175,7 @@ const routes: Routes = [
   },
   {
     path: 'entityViews/:entityId',
-    redirectTo: '/entities/entityViews/:entityId'
+    redirectTo: '/entities/entityViews/all/:entityId'
   }
 ];
 
@@ -84,7 +183,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    EntityViewsTableConfigResolver
+    EntityViewsTableConfigResolver,
+    EntityViewGroupEntitiesTableConfigResolver
   ]
 })
 export class EntityViewRoutingModule { }

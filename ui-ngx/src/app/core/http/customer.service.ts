@@ -55,4 +55,14 @@ export class CustomerService {
     return this.http.delete(`/api/customer/${customerId}`, defaultHttpOptionsFromConfig(config));
   }
 
+  public getTopLevelCustomers(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Customer>> {
+    return this.http.get<PageData<Customer>>(`/api/customers/topLevel${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public getCustomerChildren(customerId: string, pageLink: PageLink, config?: RequestConfig): Observable<PageData<Customer>> {
+    return this.http.get<PageData<Customer>>(`/api/customer/${customerId}/customers${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
 }

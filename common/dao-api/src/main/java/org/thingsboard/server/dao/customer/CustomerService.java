@@ -53,4 +53,16 @@ public interface CustomerService extends EntityDaoService {
 
     List<Customer> findCustomersByTenantIdAndIds(TenantId tenantId, List<CustomerId> customerIds);
 
+    /** Direct children of the given customer (sub-customer hierarchy). */
+    PageData<Customer> findCustomersByTenantIdAndParentCustomerId(TenantId tenantId, CustomerId parentCustomerId, PageLink pageLink);
+
+    /** Top-level customers (no parent) for the tenant. */
+    PageData<Customer> findTopLevelCustomersByTenantId(TenantId tenantId, PageLink pageLink);
+
+    /** All descendants (any depth) of the given customer. */
+    PageData<Customer> findCustomerDescendants(TenantId tenantId, CustomerId customerId, PageLink pageLink);
+
+    /** The ancestor chain of the given customer, root-first (excludes the customer itself). */
+    List<Customer> findCustomerAncestors(TenantId tenantId, CustomerId customerId);
+
 }

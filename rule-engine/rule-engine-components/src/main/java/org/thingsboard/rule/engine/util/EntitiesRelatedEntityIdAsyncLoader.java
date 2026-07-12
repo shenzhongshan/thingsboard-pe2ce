@@ -25,7 +25,27 @@ import org.thingsboard.server.common.data.relation.EntityRelationsQuery;
 import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationsSearchParameters;
 
+import java.util.List;
+
 public class EntitiesRelatedEntityIdAsyncLoader {
+
+    public static ListenableFuture<List<EntityId>> findEntitiesAsync(
+            TbContext ctx,
+            EntityId originator,
+            RelationsQuery relationsQuery
+    ) {
+        var relationService = ctx.getRelationService();
+        var query = buildQuery(originator, relationsQuery);
+        var relationListFuture = relationService.findByQuery(ctx.getTenantId(), query);
+        if (relationsQuery.getDirection() == EntitySearchDirection.FROM) {
+            return Futures.transform(relationListFuture,
+                    relationList -> relationList.stream().map(r -> r.getTo()).toList(), ctx.getDbCallbackExecutor());
+        } else if (relationsQuery.getDirection() == EntitySearchDirection.TO) {
+            return Futures.transform(relationListFuture,
+                    relationList -> relationList.stream().map(r -> r.getFrom()).toList(), ctx.getDbCallbackExecutor());
+        }
+        return Futures.immediateFailedFuture(new IllegalStateException("Unknown direction"));
+    }
 
     public static ListenableFuture<EntityId> findEntityAsync(
             TbContext ctx,

@@ -14,7 +14,7 @@
 /// limitations under the License.
 ///
 
-import { Component, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
@@ -42,7 +42,13 @@ import {
   styleUrls: ['./entity-groups.component.scss'],
   standalone: false
 })
-export class EntityGroupsComponent extends PageComponent implements OnInit {
+export class EntityGroupsComponent extends PageComponent implements OnInit, OnChanges {
+
+  // Embedded mode (customer hierarchy): type/owner come from inputs, open is emitted to the host.
+  @Input() embedded = false;
+  @Input('groupType') inputGroupType: EntityType;
+  @Input() customerId: string;
+  @Output() groupOpen = new EventEmitter<EntityGroup>();
 
   groupType: EntityType;
   groups: EntityGroup[] = [];
@@ -66,14 +72,31 @@ export class EntityGroupsComponent extends PageComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.groupType = this.route.snapshot.data.groupType;
+    this.groupType = this.inputGroupType ?? this.route.snapshot.data.groupType;
+    this.reload();
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    const typeChange = changes.inputGroupType;
+    const customerChange = changes.customerId;
+    if ((typeChange && !typeChange.firstChange) || (customerChange && !customerChange.firstChange)) {
+      this.setContext(this.inputGroupType, this.customerId);
+    }
+  }
+
+  setContext(groupType: EntityType, customerId: string) {
+    this.groupType = groupType;
+    this.customerId = customerId;
+    this.page = 0;
+    this.textSearch = null;
+    this.searchMode = false;
     this.reload();
   }
 
   reload() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: 'createdTime', direction: Direction.DESC });
-    this.entityGroupService.getEntityGroupsByType(this.groupType, pageLink).subscribe((pageData) => {
+    this.entityGroupService.getEntityGroupsByType(this.groupType, pageLink, this.customerId).subscribe((pageData) => {
       this.groups = pageData.data;
       this.totalElements = pageData.totalElements;
     });
@@ -117,7 +140,7 @@ export class EntityGroupsComponent extends PageComponent implements OnInit {
       EntityGroupDialogComponent, {
         disableClose: true,
         panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-        data: { entityGroupId, groupType: this.groupType }
+        data: { entityGroupId, groupType: this.groupType, ownerId: this.customerId }
       }).afterClosed().subscribe((changed) => {
       if (changed) {
         this.reload();
@@ -127,7 +150,11 @@ export class EntityGroupsComponent extends PageComponent implements OnInit {
 
   openGroup($event: Event, group: EntityGroup) {
     $event?.stopPropagation();
-    this.router.navigate([group.id.id], {relativeTo: this.route});
+    if (this.embedded) {
+      this.groupOpen.emit(group);
+    } else {
+      this.router.navigate([group.id.id], {relativeTo: this.route});
+    }
   }
 
   openPermissions($event: Event, group: EntityGroup) {

@@ -17,11 +17,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { PageData } from '@shared/models/page/page-data';
 import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroup } from '@shared/models/entity-group.models';
+import { EntityInfoData } from '@shared/models/entity.models';
 
 @Injectable({
   providedIn: 'root'
@@ -31,10 +33,13 @@ export class EntityGroupService {
   constructor(private http: HttpClient) {
   }
 
-  public getEntityGroupsByType(groupType: EntityType, pageLink: PageLink,
+  public getEntityGroupsByType(groupType: EntityType, pageLink: PageLink, customerId?: string,
                                config?: RequestConfig): Observable<PageData<EntityGroup>> {
-    return this.http.get<PageData<EntityGroup>>(`/api/entityGroups/${groupType}${pageLink.toQuery()}`,
-      defaultHttpOptionsFromConfig(config));
+    let url = `/api/entityGroups/${groupType}${pageLink.toQuery()}`;
+    if (customerId) {
+      url += `&customerId=${customerId}`;
+    }
+    return this.http.get<PageData<EntityGroup>>(url, defaultHttpOptionsFromConfig(config));
   }
 
   public getEntityGroup(entityGroupId: string, config?: RequestConfig): Observable<EntityGroup> {
@@ -71,6 +76,21 @@ export class EntityGroupService {
                                config?: RequestConfig): Observable<EntityGroup> {
     return this.http.post<EntityGroup>(`/api/entityGroup/${entityGroupId}/makePublic?isPublic=${isPublic}`, null,
       defaultHttpOptionsFromConfig(config));
+  }
+
+  public getOwners(pageLink: PageLink, config?: RequestConfig): Observable<PageData<EntityInfoData>> {
+    return this.http.get<PageData<EntityInfoData>>(`/api/entityGroup/owners${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public getAllGroupId(groupType: EntityType, ownerId?: string, config?: RequestConfig): Observable<string> {
+    let url = `/api/entityGroup/allGroupId/${groupType}`;
+    if (ownerId) {
+      url += `?ownerId=${ownerId}`;
+    }
+    return this.http.get<{id: string}>(url, defaultHttpOptionsFromConfig(config)).pipe(
+      map(res => res.id)
+    );
   }
 
 }

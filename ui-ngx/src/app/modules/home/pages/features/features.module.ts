@@ -32,6 +32,9 @@ import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.co
     CommonModule,
     SharedModule,
     FeaturesRoutingModule
+  ],
+  exports: [
+    SchedulerEventDialogComponent
   ]
 })
 export class FeaturesModule { }

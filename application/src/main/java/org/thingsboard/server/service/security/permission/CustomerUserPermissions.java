@@ -23,18 +23,38 @@ import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.ApiKeyId;
 import org.thingsboard.server.common.data.id.DashboardId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.pat.ApiKeyInfo;
 import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
+/**
+ * CE's CUSTOMER_USER checkers are augmented (on top of their existing PE-independent CE baseline
+ * access, unchanged, see below) with real entity-group/role enforcement: a customer_user's default
+ * access remains "anything owned by their own customer" (CE's original design), and GENERIC or
+ * GROUP role permissions from {@link MergedUserPermissions} — resolved through the user's entity
+ * -group memberships — can ADDITIONALLY grant operations/entities the baseline wouldn't otherwise
+ * cover (e.g. an entity outside their own customer, explicitly shared via an entity group).
+ * <p>
+ * This is a deliberately additive enforcement model, not PE's literal deny-by-default algorithm:
+ * PE's checker returns false when no generic/group permission matches at all, which only works
+ * because PE auto-provisions a default tenant/customer role grant for every user. CE has no such
+ * bootstrap step, and returning false-by-default here would silently lock every existing
+ * tenant-admin/customer-user out the moment this port is deployed. Additive enforcement makes the
+ * already-built Role/GroupPermission UI have real effect without that regression risk.
+ */
 @Component
 public class CustomerUserPermissions extends AbstractPermissions {
 
-    public CustomerUserPermissions() {
+    private final EntityGroupService entityGroupService;
+
+    public CustomerUserPermissions(EntityGroupService entityGroupService) {
         super();
+        this.entityGroupService = entityGroupService;
         put(Resource.WHITE_LABELING, PermissionChecker.allowAllPermissionChecker);
         put(Resource.SCHEDULER_EVENT, PermissionChecker.allowAllPermissionChecker);
         put(Resource.ALARM, customerAlarmPermissionChecker);
@@ -55,7 +75,27 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.API_KEY, apiKeysPermissionChecker);
     }
 
-    private static final PermissionChecker customerAlarmPermissionChecker = new PermissionChecker() {
+    /** True if the user's MergedUserPermissions (generic, or group-scoped via the entity's groups) cover this operation. */
+    private boolean hasGroupOrGenericPermission(SecurityUser user, Resource resource, Operation operation, EntityId entityId) {
+        MergedUserPermissions perms = user.getUserPermissions();
+        if (perms == null) {
+            return false;
+        }
+        if (perms.hasGenericPermission(resource, operation)) {
+            return true;
+        }
+        if (!operation.isAllowedForGroupRole()) {
+            return false;
+        }
+        for (EntityGroupId groupId : entityGroupService.findEntityGroupsForEntity(user.getTenantId(), entityId, user.getCustomerId())) {
+            if (perms.hasGroupPermissions(groupId, operation)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private final PermissionChecker customerAlarmPermissionChecker = new PermissionChecker() {
         @Override
         public boolean hasPermission(SecurityUser user, Operation operation, EntityId entityId, HasTenantId entity) {
             if (!user.getTenantId().equals(entity.getTenantId())) {
@@ -64,11 +104,14 @@ public class CustomerUserPermissions extends AbstractPermissions {
             if (!(entity instanceof HasCustomerId)) {
                 return false;
             }
-            return user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId());
+            if (user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId())) {
+                return true;
+            }
+            return hasGroupOrGenericPermission(user, Resource.ALARM, operation, entityId);
         }
     };
 
-    private static final PermissionChecker customerEntityPermissionChecker =
+    private final PermissionChecker customerEntityPermissionChecker =
             new PermissionChecker.GenericPermissionChecker(Operation.READ, Operation.READ_CREDENTIALS,
                     Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY, Operation.RPC_CALL, Operation.CLAIM_DEVICES,
                     Operation.WRITE, Operation.WRITE_ATTRIBUTES, Operation.WRITE_TELEMETRY) {
@@ -76,35 +119,36 @@ public class CustomerUserPermissions extends AbstractPermissions {
                 @Override
                 @SuppressWarnings("unchecked")
                 public boolean hasPermission(SecurityUser user, Operation operation, EntityId entityId, HasTenantId entity) {
-
-                    if (!super.hasPermission(user, operation, entityId, entity)) {
-                        return false;
-                    }
                     if (!user.getTenantId().equals(entity.getTenantId())) {
                         return false;
                     }
                     if (!(entity instanceof HasCustomerId)) {
                         return false;
                     }
-                    return operation.equals(Operation.CLAIM_DEVICES) || user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId());
+                    boolean baseline = super.hasPermission(user, operation, entityId, entity)
+                            && (operation.equals(Operation.CLAIM_DEVICES) || user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId()));
+                    if (baseline) {
+                        return true;
+                    }
+                    return hasGroupOrGenericPermission(user, Resource.of(entityId.getEntityType()), operation, entityId);
                 }
             };
 
-    private static final PermissionChecker customerPermissionChecker =
+    private final PermissionChecker customerPermissionChecker =
             new PermissionChecker.GenericPermissionChecker(Operation.READ, Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY) {
 
                 @Override
                 @SuppressWarnings("unchecked")
                 public boolean hasPermission(SecurityUser user, Operation operation, EntityId entityId, HasTenantId entity) {
-                    if (!super.hasPermission(user, operation, entityId, entity)) {
-                        return false;
+                    if (super.hasPermission(user, operation, entityId, entity) && user.getCustomerId().equals(entityId)) {
+                        return true;
                     }
-                    return user.getCustomerId().equals(entityId);
+                    return hasGroupOrGenericPermission(user, Resource.CUSTOMER, operation, entityId);
                 }
 
             };
 
-    private static final PermissionChecker customerResourcePermissionChecker =
+    private final PermissionChecker customerResourcePermissionChecker =
             new PermissionChecker<TbResourceId, TbResourceInfo>() {
 
                 @Override
@@ -124,24 +168,24 @@ public class CustomerUserPermissions extends AbstractPermissions {
 
             };
 
-    private static final PermissionChecker customerDashboardPermissionChecker =
+    private final PermissionChecker customerDashboardPermissionChecker =
             new PermissionChecker.GenericPermissionChecker<DashboardId, DashboardInfo>(Operation.READ, Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY) {
 
                 @Override
                 public boolean hasPermission(SecurityUser user, Operation operation, DashboardId dashboardId, DashboardInfo dashboard) {
 
-                    if (!super.hasPermission(user, operation, dashboardId, dashboard)) {
-                        return false;
-                    }
                     if (!user.getTenantId().equals(dashboard.getTenantId())) {
                         return false;
                     }
-                    return dashboard.isAssignedToCustomer(user.getCustomerId());
+                    if (super.hasPermission(user, operation, dashboardId, dashboard) && dashboard.isAssignedToCustomer(user.getCustomerId())) {
+                        return true;
+                    }
+                    return hasGroupOrGenericPermission(user, Resource.DASHBOARD, operation, dashboardId);
                 }
 
             };
 
-    private static final PermissionChecker userPermissionChecker = new PermissionChecker<UserId, User>() {
+    private final PermissionChecker userPermissionChecker = new PermissionChecker<UserId, User>() {
 
         @Override
         public boolean hasPermission(SecurityUser user, Operation operation, UserId userId, User userEntity) {
@@ -149,20 +193,21 @@ public class CustomerUserPermissions extends AbstractPermissions {
                 return false;
             }
 
-            if (!user.getCustomerId().equals(userEntity.getCustomerId())) {
-                return false;
+            if (user.getCustomerId().equals(userEntity.getCustomerId())) {
+                if (Operation.READ.equals(operation)) {
+                    return true;
+                }
+                if (user.getId().equals(userId)) {
+                    return true;
+                }
             }
 
-            if (Operation.READ.equals(operation)) {
-                return true;
-            }
-
-            return user.getId().equals(userId);
+            return hasGroupOrGenericPermission(user, Resource.USER, operation, userId);
         }
 
     };
 
-    private static final PermissionChecker widgetsPermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
+    private final PermissionChecker widgetsPermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -178,7 +223,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
 
     };
 
-    private static final PermissionChecker rpcPermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
+    private final PermissionChecker rpcPermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -193,7 +238,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
         }
     };
 
-    private static final PermissionChecker profilePermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
+    private final PermissionChecker profilePermissionChecker = new PermissionChecker.GenericPermissionChecker(Operation.READ) {
 
         @Override
         @SuppressWarnings("unchecked")
@@ -208,7 +253,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
         }
     };
 
-    private static final PermissionChecker apiKeysPermissionChecker = new PermissionChecker<ApiKeyId, ApiKeyInfo>() {
+    private final PermissionChecker apiKeysPermissionChecker = new PermissionChecker<ApiKeyId, ApiKeyInfo>() {
 
         @Override
         public boolean hasPermission(SecurityUser user, Operation operation) {

@@ -28,9 +28,11 @@ import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -40,7 +42,9 @@ import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.model.sql.EntityGroupEntity;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.sql.group.EntityGroupRepository;
@@ -51,6 +55,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -63,6 +68,8 @@ public class BaseEntityGroupService implements EntityGroupService {
     private final AssetService assetService;
     private final CustomerService customerService;
     private final UserService userService;
+    private final EntityViewService entityViewService;
+    private final DashboardService dashboardService;
 
     @Override
     public EntityGroup saveEntityGroup(TenantId tenantId, EntityGroup entityGroup) {
@@ -80,9 +87,19 @@ public class BaseEntityGroupService implements EntityGroupService {
             if (existing.isGroupAll() && !EntityGroup.GROUP_ALL_NAME.equals(entityGroup.getName())) {
                 throw new DataValidationException("Renaming of the 'All' entity group is prohibited!");
             }
-        } else if (EntityGroup.GROUP_ALL_NAME.equals(entityGroup.getName())
-                && entityGroupRepository.findByTenantIdAndTypeAndName(tenantId.getId(), entityGroup.getType(), EntityGroup.GROUP_ALL_NAME).isPresent()) {
-            throw new DataValidationException("Entity group 'All' already exists!");
+            if (entityGroup.getOwnerId() == null) {
+                entityGroup.setOwnerId(existing.getOwnerId());
+            }
+        } else {
+            if (entityGroup.getOwnerId() != null
+                    && customerService.findCustomerById(tenantId, entityGroup.getOwnerId()) == null) {
+                throw new DataValidationException("Group owner customer not found!");
+            }
+            UUID ownerUuid = entityGroup.getOwnerId() != null ? entityGroup.getOwnerId().getId() : tenantId.getId();
+            if (EntityGroup.GROUP_ALL_NAME.equals(entityGroup.getName())
+                    && entityGroupRepository.findByOwnerIdAndTypeAndName(ownerUuid, entityGroup.getType(), EntityGroup.GROUP_ALL_NAME).isPresent()) {
+                throw new DataValidationException("Entity group 'All' already exists!");
+            }
         }
         entityGroup.setTenantId(tenantId);
         if (entityGroup.getId() == null) {
@@ -106,22 +123,46 @@ public class BaseEntityGroupService implements EntityGroupService {
 
     @Override
     public PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, EntityType groupType, PageLink pageLink) {
-        ensureAllGroup(tenantId, groupType);
-        return DaoUtil.toPageData(entityGroupRepository.findByTenantIdAndType(
-                tenantId.getId(), groupType, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+        return findEntityGroupsByType(tenantId, null, groupType, pageLink);
     }
 
-    private void ensureAllGroup(TenantId tenantId, EntityType groupType) {
-        if (entityGroupRepository.findByTenantIdAndTypeAndName(tenantId.getId(), groupType, EntityGroup.GROUP_ALL_NAME).isEmpty()) {
-            EntityGroup all = new EntityGroup();
-            all.setTenantId(tenantId);
-            all.setType(groupType);
-            all.setName(EntityGroup.GROUP_ALL_NAME);
-            all.setCreatedTime(System.currentTimeMillis());
+    @Override
+    public PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, CustomerId ownerId, EntityType groupType, PageLink pageLink) {
+        ensureDefaultGroups(tenantId, ownerId, groupType);
+        UUID ownerUuid = ownerId != null ? ownerId.getId() : tenantId.getId();
+        return DaoUtil.toPageData(entityGroupRepository.findByOwnerIdAndType(
+                ownerUuid, groupType, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    private void ensureDefaultGroups(TenantId tenantId, CustomerId ownerId, EntityType groupType) {
+        ensureGroup(tenantId, ownerId, groupType, EntityGroup.GROUP_ALL_NAME, null);
+        if (ownerId != null && groupType == EntityType.USER) {
+            // PE parity: per-customer default user groups (management data only, no RBAC enforcement)
+            ensureGroup(tenantId, ownerId, groupType, "Customer Administrators",
+                    "Autogenerated Customer Administrators group with all permissions.");
+            ensureGroup(tenantId, ownerId, groupType, "Customer Users",
+                    "Autogenerated Customer Users group with read-only permissions.");
+        }
+    }
+
+    private void ensureGroup(TenantId tenantId, CustomerId ownerId, EntityType groupType, String name, String description) {
+        UUID ownerUuid = ownerId != null ? ownerId.getId() : tenantId.getId();
+        if (entityGroupRepository.findByOwnerIdAndTypeAndName(ownerUuid, groupType, name).isEmpty()) {
+            EntityGroup group = new EntityGroup();
+            group.setTenantId(tenantId);
+            group.setOwnerId(ownerId);
+            group.setType(groupType);
+            group.setName(name);
+            group.setCreatedTime(System.currentTimeMillis());
+            if (description != null) {
+                ObjectNode info = JacksonUtil.newObjectNode();
+                info.put("description", description);
+                group.setAdditionalInfo(info);
+            }
             try {
-                entityGroupRepository.save(new EntityGroupEntity(all));
+                entityGroupRepository.save(new EntityGroupEntity(group));
             } catch (Exception e) {
-                log.debug("[{}][{}] Concurrent 'All' group creation, ignoring", tenantId, groupType, e);
+                log.debug("[{}][{}][{}] Concurrent default group creation, ignoring", tenantId, groupType, name, e);
             }
         }
     }
@@ -178,6 +219,9 @@ public class BaseEntityGroupService implements EntityGroupService {
             throw new DataValidationException("Entity group not found!");
         }
         if (entityGroup.isGroupAll()) {
+            if (entityGroup.getOwnerId() != null) {
+                return findAllCustomerEntities(tenantId, entityGroup.getOwnerId(), entityGroup.getType(), pageLink);
+            }
             return findAllTenantEntities(tenantId, entityGroup.getType(), pageLink);
         }
         String textSearch = pageLink.getTextSearch() != null ? pageLink.getTextSearch().toLowerCase() : null;
@@ -202,6 +246,22 @@ public class BaseEntityGroupService implements EntityGroupService {
             case ASSET -> assetService.findAssetInfosByTenantId(tenantId, pageLink);
             case CUSTOMER -> customerService.findCustomersByTenantId(tenantId, pageLink);
             case USER -> userService.findUsersByTenantId(tenantId, pageLink);
+            case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantId(tenantId, pageLink);
+            case DASHBOARD -> dashboardService.findDashboardsByTenantId(tenantId, pageLink);
+            default -> throw new DataValidationException("Unsupported entity group type!");
+        };
+    }
+
+    /** The customer's "All" group lists entities assigned to that customer. */
+    private PageData<? extends HasName> findAllCustomerEntities(TenantId tenantId, CustomerId customerId, EntityType type, PageLink pageLink) {
+        return switch (type) {
+            case DEVICE -> deviceService.findDeviceInfosByFilter(
+                    DeviceInfoFilter.builder().tenantId(tenantId).customerId(customerId).build(), pageLink);
+            case ASSET -> assetService.findAssetInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
+            case CUSTOMER -> customerService.findCustomersByTenantIdAndParentCustomerId(tenantId, customerId, pageLink);
+            case USER -> userService.findCustomerUsers(tenantId, customerId, pageLink);
+            case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
+            case DASHBOARD -> dashboardService.findDashboardsByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
     }
@@ -213,11 +273,102 @@ public class BaseEntityGroupService implements EntityGroupService {
                 case ASSET -> assetService.findAssetInfoById(tenantId, new AssetId(entityId.getId()));
                 case CUSTOMER -> customerService.findCustomerById(tenantId, new CustomerId(entityId.getId()));
                 case USER -> userService.findUserById(tenantId, new UserId(entityId.getId()));
+                case ENTITY_VIEW -> entityViewService.findEntityViewInfoById(tenantId, new EntityViewId(entityId.getId()));
+                case DASHBOARD -> dashboardService.findDashboardInfoById(tenantId, new DashboardId(entityId.getId()));
                 default -> null;
             };
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @Override
+    public EntityGroupId findOrCreateAllGroupId(TenantId tenantId, CustomerId ownerId, EntityType groupType) {
+        ensureDefaultGroups(tenantId, ownerId, groupType);
+        UUID ownerUuid = ownerId != null ? ownerId.getId() : tenantId.getId();
+        return entityGroupRepository.findByOwnerIdAndTypeAndName(ownerUuid, groupType, EntityGroup.GROUP_ALL_NAME)
+                .map(e -> new EntityGroupId(e.getId()))
+                .orElse(null);
+    }
+
+    @Override
+    public List<EntityGroupId> findEntityGroupsForEntity(TenantId tenantId, EntityId entityId, CustomerId customerId) {
+        List<EntityGroupId> result = new java.util.ArrayList<>();
+        EntityType type = entityId.getEntityType();
+        if (Arrays.asList(EntityGroup.groupTypes).contains(type)) {
+            EntityGroupId tenantAll = findOrCreateAllGroupId(tenantId, null, type);
+            if (tenantAll != null) {
+                result.add(tenantAll);
+            }
+            if (customerId != null && !customerId.isNullUid()) {
+                EntityGroupId customerAll = findOrCreateAllGroupId(tenantId, customerId, type);
+                if (customerAll != null) {
+                    result.add(customerAll);
+                }
+            }
+        }
+        relationService.findByTo(tenantId, entityId, RelationTypeGroup.FROM_ENTITY_GROUP).stream()
+                .map(EntityRelation::getFrom)
+                .map(from -> new EntityGroupId(from.getId()))
+                .forEach(result::add);
+        return result;
+    }
+
+    @Override
+    public List<org.thingsboard.server.common.data.id.UserId> findGroupUserIds(TenantId tenantId, EntityGroupId entityGroupId) {
+        EntityGroup group = findEntityGroupById(tenantId, entityGroupId);
+        if (group == null || group.getType() != EntityType.USER) {
+            return List.of();
+        }
+        if (group.isGroupAll()) {
+            PageLink pageLink = new PageLink(1000);
+            PageData<? extends HasName> page = group.getOwnerId() != null
+                    ? findAllCustomerEntities(tenantId, group.getOwnerId(), EntityType.USER, pageLink)
+                    : findAllTenantEntities(tenantId, EntityType.USER, pageLink);
+            return page.getData().stream()
+                    .map(u -> ((org.thingsboard.server.common.data.User) u).getId())
+                    .toList();
+        }
+        return relationService.findByFrom(tenantId, entityGroupId, RelationTypeGroup.FROM_ENTITY_GROUP).stream()
+                .map(EntityRelation::getTo)
+                .map(to -> new UserId(to.getId()))
+                .toList();
+    }
+
+    @Override
+    public EntityGroup findEntityGroupByTypeAndName(TenantId tenantId, CustomerId ownerId, EntityType groupType, String name) {
+        UUID ownerUuid = ownerId != null ? ownerId.getId() : tenantId.getId();
+        return entityGroupRepository.findByOwnerIdAndTypeAndName(ownerUuid, groupType, name).map(EntityGroupEntity::toData).orElse(null);
+    }
+
+    @Override
+    public void addEntityToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
+        addEntitiesToEntityGroup(tenantId, entityGroupId, List.of(entityId));
+    }
+
+    @Override
+    public void removeEntityFromEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
+        removeEntitiesFromEntityGroup(tenantId, entityGroupId, List.of(entityId));
+    }
+
+    @Override
+    public List<EntityId> findAllEntityIds(TenantId tenantId, EntityGroupId entityGroupId) {
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            throw new DataValidationException("Entity group not found!");
+        }
+        if (entityGroup.isGroupAll()) {
+            PageLink pageLink = new PageLink(Integer.MAX_VALUE);
+            PageData<? extends HasName> page = entityGroup.getOwnerId() != null
+                    ? findAllCustomerEntities(tenantId, entityGroup.getOwnerId(), entityGroup.getType(), pageLink)
+                    : findAllTenantEntities(tenantId, entityGroup.getType(), pageLink);
+            return page.getData().stream()
+                    .map(e -> (EntityId) ((org.thingsboard.server.common.data.id.HasId<?>) e).getId())
+                    .toList();
+        }
+        return relationService.findByFrom(tenantId, entityGroupId, RelationTypeGroup.FROM_ENTITY_GROUP).stream()
+                .map(EntityRelation::getTo)
+                .toList();
     }
 
     @Override

@@ -36,4 +36,11 @@ public interface PlatformIntegrationService {
 
     void processUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception;
 
+    /**
+     * Pushes a downlink payload to the integration's external endpoint. CE simplification vs PE:
+     * only MQTT integrations (publishes to the configured downlinkTopic) support downlink in this
+     * build; other integration types throw UnsupportedOperationException.
+     */
+    void pushDownlink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception;
+
 }

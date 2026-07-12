@@ -27,19 +27,23 @@ export class SchedulerEventId implements HasUUID {
   }
 }
 
-// Known scheduler event types (CE port: PE's generateReport/generateDashboardReport dropped).
+// Known scheduler event types. PE's generateDashboardReport (live dashboard screenshot via a
+// separate Web Report Server microservice) is dropped; generateReport is ported (see
+// DefaultSchedulerService#generateReport on the backend).
 export enum SchedulerEventType {
   UPDATE_ATTRIBUTES = 'updateAttributes',
   SEND_RPC_REQUEST = 'sendRpcRequest',
   UPDATE_FIRMWARE = 'updateFirmware',
-  UPDATE_SOFTWARE = 'updateSoftware'
+  UPDATE_SOFTWARE = 'updateSoftware',
+  GENERATE_REPORT = 'generateReport'
 }
 
 export const schedulerEventTypeTranslations = new Map<string, string>([
   [SchedulerEventType.UPDATE_ATTRIBUTES, 'scheduler.event-type-update-attributes'],
   [SchedulerEventType.SEND_RPC_REQUEST, 'scheduler.event-type-send-rpc-request'],
   [SchedulerEventType.UPDATE_FIRMWARE, 'scheduler.event-type-update-firmware'],
-  [SchedulerEventType.UPDATE_SOFTWARE, 'scheduler.event-type-update-software']
+  [SchedulerEventType.UPDATE_SOFTWARE, 'scheduler.event-type-update-software'],
+  [SchedulerEventType.GENERATE_REPORT, 'scheduler.event-type-generate-report']
 ]);
 
 // Display names matching the PE UI dropdown.
@@ -47,7 +51,8 @@ export const schedulerEventTypeNames = new Map<string, string>([
   [SchedulerEventType.UPDATE_ATTRIBUTES, 'Update Attributes'],
   [SchedulerEventType.SEND_RPC_REQUEST, 'Send RPC Request to Device'],
   [SchedulerEventType.UPDATE_FIRMWARE, 'Update Firmware'],
-  [SchedulerEventType.UPDATE_SOFTWARE, 'Update Software']
+  [SchedulerEventType.UPDATE_SOFTWARE, 'Update Software'],
+  [SchedulerEventType.GENERATE_REPORT, 'Generate Report']
 ]);
 
 export enum SchedulerRepeatType {

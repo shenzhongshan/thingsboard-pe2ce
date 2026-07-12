@@ -80,6 +80,8 @@ public enum TbMsgType {
     DEDUPLICATION_TIMEOUT_SELF_MSG(null, true),
     DELAY_TIMEOUT_SELF_MSG(null, true),
     MSG_COUNT_SELF_MSG(null, true),
+    TB_AGG_LATEST_SELF_MSG(null, true),
+    TB_AGG_LATEST_CLEAR_INACTIVE_ENTITIES_SELF_MSG(null, true),
 
     // Custom or N/A type:
     NA;

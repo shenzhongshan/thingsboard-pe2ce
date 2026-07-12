@@ -36,11 +36,12 @@ import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
+import org.thingsboard.server.service.security.permission.UserPermissionsService;
 
 import java.util.List;
 
 /**
- * CE port of PE's group permission API — managed data model only (no RBAC enforcement).
+ * CE port of PE's group permission API.
  */
 @RestController
 @TbCoreComponent
@@ -51,6 +52,7 @@ public class GroupPermissionController extends BaseController {
     public static final String GROUP_PERMISSION_ID = "groupPermissionId";
 
     private final GroupPermissionService groupPermissionService;
+    private final UserPermissionsService userPermissionsService;
 
     @ApiOperation(value = "Save Group Permission (saveGroupPermission)")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
@@ -62,7 +64,9 @@ public class GroupPermissionController extends BaseController {
         if (groupPermission.getId() != null) {
             checkAccess(checkNotNull(groupPermissionService.findGroupPermissionById(getTenantId(), groupPermission.getId())));
         }
-        return groupPermissionService.saveGroupPermission(getTenantId(), groupPermission);
+        GroupPermission saved = groupPermissionService.saveGroupPermission(getTenantId(), groupPermission);
+        userPermissionsService.onGroupPermissionUpdated(saved);
+        return saved;
     }
 
     @ApiOperation(value = "Get user group permissions (getUserGroupPermissions)",
@@ -86,8 +90,9 @@ public class GroupPermissionController extends BaseController {
         checkParameter(GROUP_PERMISSION_ID, strGroupPermissionId);
         accessControlService.checkPermission(getCurrentUser(), Resource.GROUP_PERMISSION, Operation.DELETE);
         GroupPermissionId groupPermissionId = new GroupPermissionId(toUUID(strGroupPermissionId));
-        checkAccess(checkNotNull(groupPermissionService.findGroupPermissionById(getTenantId(), groupPermissionId)));
+        GroupPermission existing = checkAccess(checkNotNull(groupPermissionService.findGroupPermissionById(getTenantId(), groupPermissionId)));
         groupPermissionService.deleteGroupPermission(getTenantId(), groupPermissionId);
+        userPermissionsService.onGroupPermissionDeleted(existing);
     }
 
     private GroupPermission checkAccess(GroupPermission groupPermission) throws ThingsboardException {

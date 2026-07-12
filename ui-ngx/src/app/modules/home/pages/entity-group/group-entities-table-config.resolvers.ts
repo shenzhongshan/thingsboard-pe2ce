@@ -36,10 +36,18 @@ import { User } from '@shared/models/user.model';
 import { Authority } from '@shared/models/authority.enum';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { UserService } from '@core/http/user.service';
+import { DeviceService } from '@core/http/device.service';
+import { AssetService } from '@core/http/asset.service';
+import { EntityViewService } from '@core/http/entity-view.service';
+import { DashboardService } from '@core/http/dashboard.service';
 import { DevicesTableConfigResolver } from '@home/pages/device/devices-table-config.resolver';
 import { AssetsTableConfigResolver } from '@home/pages/asset/assets-table-config.resolver';
 import { CustomersTableConfigResolver } from '@home/pages/customer/customers-table-config.resolver';
 import { UsersTableConfigResolver } from '@home/pages/user/users-table-config.resolver';
+import { EntityViewsTableConfigResolver } from '@home/pages/entity-view/entity-views-table-config.resolver';
+import { DashboardsTableConfigResolver } from '@home/pages/dashboard/dashboards-table-config.resolver';
+import { EntityViewInfo } from '@shared/models/entity-view.models';
+import { Dashboard, DashboardInfo } from '@shared/models/dashboard.models';
 import { DeviceWizardDialogComponent } from '@home/components/wizard/device-wizard-dialog.component';
 import { AddEntityDialogComponent } from '@home/components/entity/add-entity-dialog.component';
 import { AddUserDialogComponent, AddUserDialogData } from '@modules/home/pages/user/add-user-dialog.component';
@@ -70,6 +78,11 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
   /** Configure how a brand-new entity is created from inside a non-All group. */
   protected abstract configureGroupAdd(config: EntityTableConfig<T>, group: EntityGroup): void;
 
+  /** Route data the base resolver expects (e.g. devicesType: 'tenant') for synthetic resolution. */
+  protected groupRouteData(): any {
+    return {};
+  }
+
   resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<T>> {
     const entityGroupId: string = route.params.entityGroupId;
     return forkJoin({
@@ -78,10 +91,26 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
     }).pipe(map(({config, group}) => this.patch(config, group)));
   }
 
+  /** Build the table config for a known group without router context (customer hierarchy view). */
+  resolveByGroup(group: EntityGroup): Observable<EntityTableConfig<T>> {
+    const route = {
+      params: {entityGroupId: group.id.id},
+      data: this.groupRouteData(),
+      queryParams: {}
+    } as unknown as ActivatedRouteSnapshot;
+    return this.resolveBase(route).pipe(map(config => this.patch(config, group)));
+  }
+
   private patch(config: EntityTableConfig<T>, group: EntityGroup): EntityTableConfig<T> {
     config.tableTitle = group.name + ': ' + this.translate.instant(this.entityTypeTitle());
     config.entitiesFetchFunction = pageLink =>
       this.entityGroupService.getEntityGroupEntities<T>(group.id.id, pageLink);
+    if (isGroupAll(group) && group.ownerId) {
+      // A customer's "All" group lists entities assigned to the customer — membership is managed
+      // through assignment on the main tables, not from here.
+      config.addEnabled = false;
+      config.addActionDescriptors = [];
+    }
     if (!isGroupAll(group)) {
       this.configureGroupAdd(config, group);
       config.addActionDescriptors = [
@@ -92,20 +121,20 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
           onAction: () => config.getTable().addEntity(null)
         },
         {
-          name: this.translate.instant('entity-group.add-existing-entities'),
+          name: this.translate.instant('entity-group.add-entities'),
           icon: 'playlist_add',
           isEnabled: () => true,
           onAction: () => this.addExisting(config, group)
         }
       ];
       config.cellActionDescriptors = config.cellActionDescriptors.concat({
-        name: this.translate.instant('entity-group.remove-from-group'),
+        name: this.translate.instant('entity-group.remove-entity'),
         icon: 'remove_circle_outline',
         isEnabled: () => true,
         onAction: ($event, entity) => this.removeFromGroup($event, config, group, [entity])
       });
       config.groupActionDescriptors = config.groupActionDescriptors.concat({
-        name: this.translate.instant('entity-group.remove-from-group'),
+        name: this.translate.instant('entity-group.remove-entity'),
         icon: 'remove_circle_outline',
         isEnabled: true,
         onAction: ($event, entities) => this.removeFromGroup($event, config, group, entities)
@@ -118,8 +147,17 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
     if (!entity) {
       return of(entity);
     }
-    return this.entityGroupService.addEntitiesToEntityGroup(group.id.id, [entity.id.id as string])
-      .pipe(map(() => entity));
+    const assign$: Observable<any> = group.ownerId
+      ? this.assignToOwner(group.ownerId.id, entity.id.id as string) : of(null);
+    return assign$.pipe(
+      mergeMap(() => this.entityGroupService.addEntitiesToEntityGroup(group.id.id, [entity.id.id as string])),
+      map(() => entity)
+    );
+  }
+
+  /** Entities created inside a customer-owned group are also assigned to that customer. */
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return of(null);
   }
 
   private addExisting(config: EntityTableConfig<T>, group: EntityGroup) {
@@ -167,7 +205,7 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
 export class DeviceGroupEntitiesTableConfigResolver extends GroupEntitiesTableConfigResolver<DeviceInfo> {
 
   constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
-              dialogService: DialogService, dialog: MatDialog) {
+              dialogService: DialogService, dialog: MatDialog, private deviceService: DeviceService) {
     super(injector, entityGroupService, translate, dialogService, dialog);
   }
 
@@ -178,6 +216,14 @@ export class DeviceGroupEntitiesTableConfigResolver extends GroupEntitiesTableCo
 
   protected entityTypeTitle(): string {
     return 'device.devices';
+  }
+
+  protected groupRouteData(): any {
+    return {devicesType: 'tenant'};
+  }
+
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return this.deviceService.assignDeviceToCustomer(customerId, entityId);
   }
 
   protected configureGroupAdd(config: EntityTableConfig<DeviceInfo>, group: EntityGroup): void {
@@ -202,7 +248,7 @@ export class DeviceGroupEntitiesTableConfigResolver extends GroupEntitiesTableCo
 export class AssetGroupEntitiesTableConfigResolver extends GroupEntitiesTableConfigResolver<AssetInfo> {
 
   constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
-              dialogService: DialogService, dialog: MatDialog) {
+              dialogService: DialogService, dialog: MatDialog, private assetService: AssetService) {
     super(injector, entityGroupService, translate, dialogService, dialog);
   }
 
@@ -213,6 +259,14 @@ export class AssetGroupEntitiesTableConfigResolver extends GroupEntitiesTableCon
 
   protected entityTypeTitle(): string {
     return 'asset.assets';
+  }
+
+  protected groupRouteData(): any {
+    return {assetsType: 'tenant'};
+  }
+
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return this.assetService.assignAssetToCustomer(customerId, entityId);
   }
 
   protected configureGroupAdd(config: EntityTableConfig<AssetInfo>, group: EntityGroup): void {
@@ -229,8 +283,8 @@ export class CustomerGroupEntitiesTableConfigResolver extends GroupEntitiesTable
   }
 
   protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<Customer>> {
-    return Injector.create({providers: [CustomersTableConfigResolver], parent: this.injector})
-      .get(CustomersTableConfigResolver).resolve(route);
+    return of(Injector.create({providers: [CustomersTableConfigResolver], parent: this.injector})
+      .get(CustomersTableConfigResolver).resolve());
   }
 
   protected entityTypeTitle(): string {
@@ -238,6 +292,66 @@ export class CustomerGroupEntitiesTableConfigResolver extends GroupEntitiesTable
   }
 
   protected configureGroupAdd(config: EntityTableConfig<Customer>, group: EntityGroup): void {
+    this.genericDialogAdd(config, group);
+  }
+}
+
+@Injectable()
+export class EntityViewGroupEntitiesTableConfigResolver extends GroupEntitiesTableConfigResolver<EntityViewInfo> {
+
+  constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
+              dialogService: DialogService, dialog: MatDialog, private entityViewService: EntityViewService) {
+    super(injector, entityGroupService, translate, dialogService, dialog);
+  }
+
+  protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<EntityViewInfo>> {
+    return Injector.create({providers: [EntityViewsTableConfigResolver], parent: this.injector})
+      .get(EntityViewsTableConfigResolver).resolve(route);
+  }
+
+  protected entityTypeTitle(): string {
+    return 'entity-view.entity-views';
+  }
+
+  protected groupRouteData(): any {
+    return {entityViewsType: 'tenant'};
+  }
+
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return this.entityViewService.assignEntityViewToCustomer(customerId, entityId);
+  }
+
+  protected configureGroupAdd(config: EntityTableConfig<EntityViewInfo>, group: EntityGroup): void {
+    this.genericDialogAdd(config, group);
+  }
+}
+
+@Injectable()
+export class DashboardGroupEntitiesTableConfigResolver extends GroupEntitiesTableConfigResolver<DashboardInfo | Dashboard> {
+
+  constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
+              dialogService: DialogService, dialog: MatDialog, private dashboardService: DashboardService) {
+    super(injector, entityGroupService, translate, dialogService, dialog);
+  }
+
+  protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<DashboardInfo | Dashboard>> {
+    return Injector.create({providers: [DashboardsTableConfigResolver], parent: this.injector})
+      .get(DashboardsTableConfigResolver).resolve(route);
+  }
+
+  protected entityTypeTitle(): string {
+    return 'dashboard.dashboards';
+  }
+
+  protected groupRouteData(): any {
+    return {dashboardsType: 'tenant'};
+  }
+
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return this.dashboardService.assignDashboardToCustomer(customerId, entityId);
+  }
+
+  protected configureGroupAdd(config: EntityTableConfig<DashboardInfo | Dashboard>, group: EntityGroup): void {
     this.genericDialogAdd(config, group);
   }
 }
@@ -270,11 +384,12 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     config.tableTitle = this.translate.instant('user.users');
     config.entitiesFetchFunction = pageLink => this.userService.getUsers(pageLink);
     config.saveEntity = user => this.userService.saveUser(user);
-    config.addEntity = () => this.addTenantUser();
+    config.addEntity = () => this.addUser();
     return config;
   }
 
-  protected addTenantUser(): Observable<User> {
+  /** Users created in a customer-owned group become customer users of that customer. */
+  protected addUser(customerOwnerId?: string): Observable<User> {
     const authUser = getCurrentAuthUser(this.store);
     return this.dialog.open<AddUserDialogComponent, AddUserDialogData, User>(
       AddUserDialogComponent, {
@@ -282,14 +397,14 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
         panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
         data: {
           tenantId: authUser.tenantId,
-          customerId: NULL_UUID,
-          authority: Authority.TENANT_ADMIN
+          customerId: customerOwnerId ?? NULL_UUID,
+          authority: customerOwnerId ? Authority.CUSTOMER_USER : Authority.TENANT_ADMIN
         }
       }).afterClosed();
   }
 
   protected configureGroupAdd(config: EntityTableConfig<User>, group: EntityGroup): void {
-    config.addEntity = () => this.addTenantUser().pipe(mergeMap(user => this.addToGroup(group, user)));
+    config.addEntity = () => this.addUser(group.ownerId?.id).pipe(mergeMap(user => this.addToGroup(group, user)));
   }
 }
 

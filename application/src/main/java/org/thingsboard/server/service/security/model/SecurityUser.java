@@ -21,6 +21,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.UserId;
+import org.thingsboard.server.service.security.permission.MergedUserPermissions;
 
 import java.util.Collection;
 import java.util.UUID;
@@ -38,6 +39,8 @@ public class SecurityUser extends User {
     private UserPrincipal userPrincipal;
     @Getter @Setter
     private String sessionId = UUID.randomUUID().toString();
+    @Getter @Setter
+    private MergedUserPermissions userPermissions;
 
     public SecurityUser() {
         super();
@@ -51,6 +54,13 @@ public class SecurityUser extends User {
         super(user);
         this.enabled = enabled;
         this.userPrincipal = userPrincipal;
+    }
+
+    public SecurityUser(User user, boolean enabled, UserPrincipal userPrincipal, MergedUserPermissions userPermissions) {
+        super(user);
+        this.enabled = enabled;
+        this.userPrincipal = userPrincipal;
+        this.userPermissions = userPermissions;
     }
 
     public Collection<GrantedAuthority> getAuthorities() {

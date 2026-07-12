@@ -17,7 +17,9 @@ package org.thingsboard.server.service.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.util.concurrent.Futures;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.mqtt.MqttQoS;
+import io.netty.util.concurrent.Future;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.mqtt.MqttClient;
@@ -35,8 +37,9 @@ import java.util.concurrent.TimeUnit;
  * In-process MQTT client for an MQTT integration: connects to the external broker described in
  * the integration configuration and feeds received messages to the uplink processing chain.
  * Configuration JSON: {host, port, ssl?, clientId?, credentials: {type: 'anonymous'|'basic',
- * username?, password?}, topicFilters: [{filter, qos}]}. CE simplifications vs PE: no cert-based
- * credentials, no downlink publishing yet.
+ * username?, password?}, topicFilters: [{filter, qos}], downlinkTopic?}. CE simplifications vs
+ * PE: no cert-based credentials; downlink publishes the raw rule-node message payload to
+ * downlinkTopic (no separate downlink-converter execution pipeline).
  */
 @Slf4j
 public class MqttIntegrationClient {
@@ -102,6 +105,14 @@ public class MqttIntegrationClient {
             }
         }
         log.info("[{}][{}] MQTT integration connected to {}:{}", tenantId, integration.getName(), host, port);
+    }
+
+    public Future<Void> publish(String topic, byte[] payload) {
+        MqttClient mqttClient = this.client;
+        if (mqttClient == null || !mqttClient.isConnected()) {
+            throw new IllegalStateException("MQTT integration is not connected!");
+        }
+        return mqttClient.publish(topic, Unpooled.wrappedBuffer(payload));
     }
 
     public void stop() {

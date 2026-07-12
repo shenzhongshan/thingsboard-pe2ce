@@ -26,6 +26,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.dao.model.BaseEntity;
@@ -50,6 +51,10 @@ public class EntityGroupEntity extends BaseSqlEntity<EntityGroup> implements Bas
     @Column(name = "tenant_id")
     private UUID tenantId;
 
+    // owner_id = tenant_id for tenant-owned groups, a customer id for customer-owned groups
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
     @Convert(converter = JsonConverter.class)
     @Column(name = "additional_info")
     private JsonNode additionalInfo;
@@ -72,6 +77,7 @@ public class EntityGroupEntity extends BaseSqlEntity<EntityGroup> implements Bas
         if (entityGroup.getTenantId() != null) {
             this.tenantId = entityGroup.getTenantId().getId();
         }
+        this.ownerId = entityGroup.getOwnerId() != null ? entityGroup.getOwnerId().getId() : this.tenantId;
         this.additionalInfo = entityGroup.getAdditionalInfo();
         this.configuration = entityGroup.getConfiguration();
     }
@@ -84,6 +90,9 @@ public class EntityGroupEntity extends BaseSqlEntity<EntityGroup> implements Bas
         entityGroup.setName(name);
         if (tenantId != null) {
             entityGroup.setTenantId(TenantId.fromUUID(tenantId));
+        }
+        if (ownerId != null && !ownerId.equals(tenantId)) {
+            entityGroup.setOwnerId(new CustomerId(ownerId));
         }
         entityGroup.setAdditionalInfo(additionalInfo);
         entityGroup.setConfiguration(configuration);

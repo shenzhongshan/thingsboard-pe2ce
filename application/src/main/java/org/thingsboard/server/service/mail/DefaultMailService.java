@@ -257,26 +257,27 @@ public class DefaultMailService implements MailService {
 
     @Override
     public void sendAccountLockoutEmail(String lockoutEmail, String email, Integer maxFailedLoginAttempts) throws ThingsboardException {
-        String subject = messages.getMessage("account.lockout.subject", null, Locale.US);
-
         Map<String, Object> model = new HashMap<>();
         model.put("lockoutAccount", lockoutEmail);
         model.put("maxFailedLoginAttempts", maxFailedLoginAttempts);
         model.put(TARGET_EMAIL, email);
 
-        String message = mergeTemplateIntoString("account.lockout.ftl", model);
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_LOCKOUT, messages.getMessage("account.lockout.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_LOCKOUT, "account.lockout.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }
 
     @Override
     public void sendTwoFaVerificationEmail(String email, String verificationCode, int expirationTimeSeconds) throws ThingsboardException {
-        String subject = messages.getMessage("2fa.verification.code.subject", null, Locale.US);
-        String message = mergeTemplateIntoString("2fa.verification.code.ftl", Map.of(
+        Map<String, Object> model = Map.of(
                 TARGET_EMAIL, email,
                 "code", verificationCode,
                 "expirationTimeSeconds", expirationTimeSeconds
-        ));
+        );
+
+        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.TWO_FA_VERIFICATION, messages.getMessage("2fa.verification.code.subject", null, Locale.US));
+        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.TWO_FA_VERIFICATION, "2fa.verification.code.ftl", model);
 
         sendMail(mailSender, mailFrom, email, subject, message, timeout);
     }

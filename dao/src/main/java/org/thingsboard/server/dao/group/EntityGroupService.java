@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.group;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -42,6 +43,9 @@ public interface EntityGroupService {
 
     PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, EntityType groupType, PageLink pageLink);
 
+    /** ownerId = null → tenant-owned groups; otherwise the customer's groups of that type. */
+    PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, CustomerId ownerId, EntityType groupType, PageLink pageLink);
+
     void deleteEntityGroup(TenantId tenantId, EntityGroupId entityGroupId);
 
     void addEntitiesToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds);
@@ -51,5 +55,28 @@ public interface EntityGroupService {
     PageData<? extends HasName> findGroupEntities(TenantId tenantId, EntityGroupId entityGroupId, PageLink pageLink);
 
     EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId, boolean isPublic);
+
+    /** Ensures + returns the "All" group id for the given owner+type (tenant-owned when ownerId is null). */
+    EntityGroupId findOrCreateAllGroupId(TenantId tenantId, CustomerId ownerId, EntityType groupType);
+
+    /**
+     * All entity-group ids the given entity belongs to: its tenant-level (and, if customerId is
+     * provided, its customer-level) implicit "All" group, plus any explicit group memberships
+     * (relations). Used by permission enforcement to resolve GROUP-role scoping.
+     */
+    List<EntityGroupId> findEntityGroupsForEntity(TenantId tenantId, EntityId entityId, CustomerId customerId);
+
+    /** Member user ids of a USER-type entity group (including the virtual "All" group). Used for permission-cache eviction. */
+    List<org.thingsboard.server.common.data.id.UserId> findGroupUserIds(TenantId tenantId, EntityGroupId entityGroupId);
+
+    /** Sync lookup by owner+type+name (ownerId null = tenant-owned). Returns null if not found. */
+    EntityGroup findEntityGroupByTypeAndName(TenantId tenantId, CustomerId ownerId, EntityType groupType, String name);
+
+    void addEntityToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId);
+
+    void removeEntityFromEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId);
+
+    /** Raw member entity ids of a group (including the virtual "All" group). */
+    List<EntityId> findAllEntityIds(TenantId tenantId, EntityGroupId entityGroupId);
 
 }

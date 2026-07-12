@@ -141,7 +141,7 @@ public class SchedulerEventDataValidator extends DataValidator<SchedulerEvent> {
                 }
                 default -> throw new DataValidationException("Firmware update target must be a device or a device profile!");
             }
-        } else if (schedulerEvent.getOriginatorId() == null) {
+        } else if (!"generateReport".equals(schedulerEvent.getType()) && schedulerEvent.getOriginatorId() == null) {
             throw new DataValidationException("SchedulerEvent originatorId should be specified!");
         }
         JsonNode repeatNode = schedulerEvent.getSchedule().get("repeat");

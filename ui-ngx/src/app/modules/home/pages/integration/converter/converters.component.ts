@@ -95,6 +95,38 @@ export class ConvertersComponent extends PageComponent implements OnInit {
     this.openDialog(null);
   }
 
+  onImportFileSelected($event: Event, input: HTMLInputElement) {
+    const file = ($event.target as HTMLInputElement).files?.[0];
+    if (file) {
+      this.importConverter(file);
+    }
+    input.value = '';
+  }
+
+  private importConverter(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = JSON.parse(reader.result as string);
+        const converter: Converter = {
+          name: imported.name,
+          type: imported.type,
+          integrationType: imported.integrationType,
+          debugMode: imported.debugMode || false,
+          configuration: imported.configuration || {},
+          additionalInfo: imported.additionalInfo || {}
+        } as Converter;
+        this.converterService.saveConverter(converter).subscribe(() => this.reload());
+      } catch (e) {
+        this.dialogService.alert(
+          this.translate.instant('converter.import-failed-title'),
+          this.translate.instant('converter.import-failed-text')
+        ).subscribe();
+      }
+    };
+    reader.readAsText(file);
+  }
+
   editConverter($event: Event, converter: Converter) {
     $event?.stopPropagation();
     this.openDialog(converter.id.id);

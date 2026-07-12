@@ -99,7 +99,7 @@ export const assetRoutes: Routes = [
         data: {
           auth: [Authority.TENANT_ADMIN],
           breadcrumb: {
-            label: 'entity-group.asset-groups',
+            label: 'entity-group.group-type-asset',
             icon: 'workspaces'
           }
         },
@@ -109,7 +109,7 @@ export const assetRoutes: Routes = [
             component: EntityGroupsComponent,
             data: {
               auth: [Authority.TENANT_ADMIN],
-              title: 'entity-group.asset-groups',
+              title: 'entity-group.group-type-asset',
               groupType: EntityType.ASSET
             }
           },
@@ -118,7 +118,7 @@ export const assetRoutes: Routes = [
             data: {
               auth: [Authority.TENANT_ADMIN],
               breadcrumb: {
-                label: 'entity-group.group',
+                label: 'entity-group.group-entities',
                 icon: 'view_list'
               }
             },
@@ -128,7 +128,7 @@ export const assetRoutes: Routes = [
                 component: EntitiesTableComponent,
                 data: {
                   auth: [Authority.TENANT_ADMIN],
-                  title: 'entity-group.asset-groups',
+                  title: 'entity-group.group-type-asset',
                   assetsType: 'tenant',
                   groupType: EntityType.ASSET
                 },

@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.common.data.notification.template;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
@@ -23,6 +24,14 @@ import org.thingsboard.server.common.data.notification.NotificationDeliveryMetho
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Tolerates unknown properties on read: the frontend's notification-template config model still
+ * carries a few PE-inherited fields (e.g. report-attachment options) this CE port doesn't model
+ * here, and some persisted rows already have them saved. Report-generation notifications are
+ * wired at the scheduler level instead (see ReportConfig/targets/notificationTemplateId), not
+ * inside this class.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Data
 public class NotificationTemplateConfig {
 

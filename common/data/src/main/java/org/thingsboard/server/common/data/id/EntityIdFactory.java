@@ -89,6 +89,8 @@ public class EntityIdFactory {
             case ENTITY_GROUP -> new EntityGroupId(uuid);
             case ROLE -> new RoleId(uuid);
             case GROUP_PERMISSION -> new GroupPermissionId(uuid);
+            case REPORT_TEMPLATE -> new ReportTemplateId(uuid);
+            case REPORT -> new ReportId(uuid);
         };
     }
 

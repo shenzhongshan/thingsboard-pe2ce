@@ -43,6 +43,7 @@ import org.thingsboard.server.service.security.auth.jwt.settings.JwtSettingsServ
 import org.thingsboard.server.service.security.exception.JwtExpiredTokenException;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
+import org.thingsboard.server.service.security.permission.UserPermissionsService;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -73,6 +74,9 @@ public class JwtTokenFactory {
 
     @Lazy
     private final JwtSettingsService jwtSettingsService;
+
+    @Lazy
+    private final UserPermissionsService userPermissionsService;
 
     private volatile JwtParser jwtParser;
     private volatile SecretKey secretKey;
@@ -141,6 +145,7 @@ public class JwtTokenFactory {
             securityUser.setLastName(claims.get(LAST_NAME, String.class));
             securityUser.setEnabled(claims.get(ENABLED, Boolean.class));
             isPublic = claims.get(IS_PUBLIC, Boolean.class);
+            securityUser.setUserPermissions(userPermissionsService.getMergedPermissions(securityUser, isPublic));
         }
         UserPrincipal principal = new UserPrincipal(isPublic ? UserPrincipal.Type.PUBLIC_ID : UserPrincipal.Type.USER_NAME, subject);
         securityUser.setUserPrincipal(principal);

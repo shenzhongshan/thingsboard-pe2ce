@@ -45,10 +45,18 @@ import { PaletteDialogComponent } from '@home/pages/admin/palette-dialog.compone
 import { WlPaletteSelectComponent } from '@home/pages/admin/wl-palette-select.component';
 import { CustomCssDialogComponent } from '@home/pages/admin/custom-css-dialog.component';
 import { CustomMenuItemDialogComponent } from '@home/pages/admin/custom-menu-item-dialog.component';
+import {
+  CustomMenuDefaultItemDialogComponent
+} from '@home/pages/admin/custom-menu-default-item-dialog.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
 import { CustomMenuInfoDialogComponent } from '@home/pages/admin/custom-menu-info-dialog.component';
+import { CustomTranslationListComponent } from '@home/pages/admin/custom-translation-list.component';
+import { CustomTranslationComponent } from '@home/pages/admin/custom-translation.component';
+import {
+  CustomTranslationAddDialogComponent
+} from '@home/pages/admin/custom-translation-add-dialog.component';
 
 @NgModule({
   declarations:
@@ -76,10 +84,14 @@ import { CustomMenuInfoDialogComponent } from '@home/pages/admin/custom-menu-inf
       WlPaletteSelectComponent,
       CustomCssDialogComponent,
       CustomMenuItemDialogComponent,
+      CustomMenuDefaultItemDialogComponent,
       SelfRegistrationComponent,
       CustomMenuComponent,
       CustomMenuListComponent,
-      CustomMenuInfoDialogComponent
+      CustomMenuInfoDialogComponent,
+      CustomTranslationListComponent,
+      CustomTranslationComponent,
+      CustomTranslationAddDialogComponent
     ],
   imports: [
     CommonModule,

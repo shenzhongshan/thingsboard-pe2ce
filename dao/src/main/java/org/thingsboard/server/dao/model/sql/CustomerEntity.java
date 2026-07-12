@@ -81,6 +81,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
     @Column(name = ModelConstants.CUSTOM_MENU_ID_PROPERTY)
     private UUID customMenuId;
 
+    @Column(name = ModelConstants.CUSTOMER_PARENT_CUSTOMER_ID_PROPERTY)
+    private UUID parentCustomerId;
+
     public CustomerEntity() {
         super();
     }
@@ -105,6 +108,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
         if (customer.getCustomMenuId() != null) {
             this.customMenuId = customer.getCustomMenuId().getId();
         }
+        if (customer.getParentCustomerId() != null) {
+            this.parentCustomerId = customer.getParentCustomerId().getId();
+        }
     }
 
     @Override
@@ -128,6 +134,9 @@ public final class CustomerEntity extends BaseVersionedEntity<Customer> {
         }
         if (customMenuId != null) {
             customer.setCustomMenuId(new CustomMenuId(customMenuId));
+        }
+        if (parentCustomerId != null) {
+            customer.setParentCustomerId(new CustomerId(parentCustomerId));
         }
         return customer;
     }

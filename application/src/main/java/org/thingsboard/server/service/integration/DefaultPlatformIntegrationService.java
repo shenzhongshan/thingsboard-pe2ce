@@ -43,6 +43,7 @@ import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.partition.AbstractPartitionBasedService;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.thingsboard.server.common.data.converter.Converter;
 
@@ -73,8 +75,28 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     private final ConcurrentMap<IntegrationId, MqttIntegrationClient> mqttClients = new ConcurrentHashMap<>();
     // integrationId -> running TCP server
     private final ConcurrentMap<IntegrationId, TcpIntegrationServer> tcpServers = new ConcurrentHashMap<>();
+    // integrationId -> today's uplink message count (PE's "daily activity" metric)
+    private final ConcurrentMap<IntegrationId, DailyCounter> dailyEventCounts = new ConcurrentHashMap<>();
 
     record IntegrationStatus(String status, String error) {}
+
+    private static final class DailyCounter {
+        private volatile LocalDate day = LocalDate.now();
+        private final AtomicLong count = new AtomicLong();
+
+        synchronized void increment() {
+            LocalDate today = LocalDate.now();
+            if (!today.equals(day)) {
+                day = today;
+                count.set(0);
+            }
+            count.incrementAndGet();
+        }
+
+        synchronized long get() {
+            return LocalDate.now().equals(day) ? count.get() : 0;
+        }
+    }
 
     @PostConstruct
     public void init() {
@@ -153,6 +175,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         scheduledExecutor.submit(() -> {
             stopIntegration(integration.getId());
             statuses.remove(integration.getId());
+            dailyEventCounts.remove(integration.getId());
         });
     }
 
@@ -164,6 +187,8 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         if (status.error() != null) {
             result.put("error", status.error());
         }
+        DailyCounter counter = dailyEventCounts.get(integrationId);
+        result.put("eventsCountToday", counter == null ? 0 : counter.get());
         return result;
     }
 
@@ -200,6 +225,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     @Override
     public void processUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
+        dailyEventCounts.computeIfAbsent(integration.getId(), id -> new DailyCounter()).increment();
         Converter converter = converterService.findConverterById(integration.getTenantId(), integration.getDefaultConverterId());
         if (converter == null || converter.getConfiguration() == null) {
             throw new IllegalStateException("Uplink converter is not configured!");
@@ -253,6 +279,23 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         if (data.has("attributes") && data.get("attributes").isObject() && !data.get("attributes").isEmpty()) {
             pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, data.get("attributes"), msgMetaData);
         }
+    }
+
+    @Override
+    public void pushDownlink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
+        if (integration.getType() != IntegrationType.MQTT) {
+            throw new UnsupportedOperationException("Downlink is only supported for MQTT integrations in this build!");
+        }
+        MqttIntegrationClient client = mqttClients.get(integration.getId());
+        if (client == null) {
+            throw new IllegalStateException("Integration is not connected!");
+        }
+        JsonNode cfg = integration.getConfiguration();
+        String topic = cfg != null && cfg.has("downlinkTopic") ? cfg.get("downlinkTopic").asText() : null;
+        if (topic == null || topic.isEmpty()) {
+            throw new IllegalArgumentException("Downlink topic is not configured for this integration!");
+        }
+        client.publish(topic, payload).get(5, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private void pushMsg(TenantId tenantId, Device device, TbMsgType msgType, JsonNode body, TbMsgMetaData metaData) {

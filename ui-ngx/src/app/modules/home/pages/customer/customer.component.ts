@@ -27,6 +27,7 @@ import { isDefinedAndNotNull } from '@core/utils';
 import { getCurrentAuthState } from '@core/auth/auth.selectors';
 import { AuthState } from '@core/auth/auth.models';
 import { CountryData } from '@shared/models/country.models';
+import { EntityType } from '@shared/models/entity-type.models';
 
 @Component({
     selector: 'tb-customer',
@@ -37,6 +38,8 @@ import { CountryData } from '@shared/models/country.models';
 export class CustomerComponent extends ContactBasedComponent<Customer> {
 
   isPublic = false;
+
+  EntityType = EntityType;
 
   authState: AuthState = getCurrentAuthState(this.store);
 
@@ -62,6 +65,7 @@ export class CustomerComponent extends ContactBasedComponent<Customer> {
     return this.fb.group(
       {
         title: [entity ? entity.title : '', [Validators.required, Validators.maxLength(255)]],
+        parentCustomerId: [entity ? entity.parentCustomerId : null],
         additionalInfo: this.fb.group(
           {
             description: [entity && entity.additionalInfo ? entity.additionalInfo.description : ''],
@@ -77,6 +81,7 @@ export class CustomerComponent extends ContactBasedComponent<Customer> {
   updateEntityForm(entity: Customer) {
     this.isPublic = entity.additionalInfo && entity.additionalInfo.isPublic;
     this.entityForm.patchValue({title: entity.title});
+    this.entityForm.patchValue({parentCustomerId: entity.parentCustomerId});
     this.entityForm.patchValue({additionalInfo: {description: entity.additionalInfo ? entity.additionalInfo.description : ''}});
     this.entityForm.patchValue({additionalInfo:
         {homeDashboardId: entity.additionalInfo ? entity.additionalInfo.homeDashboardId : null}});

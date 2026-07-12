@@ -58,9 +58,11 @@ import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.alarm.Alarm;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.HasId;
 import org.thingsboard.server.common.data.id.RuleChainId;
@@ -781,6 +783,99 @@ public class DefaultTbContext implements TbContext {
     @Override
     public EntityViewService getEntityViewService() {
         return mainCtx.getEntityViewService();
+    }
+
+    @Override
+    public EntityId getOwner(EntityId entityId) {
+        return mainCtx.getOwnerService().getOwner(getTenantId(), entityId);
+    }
+
+    @Override
+    public void changeEntityOwner(EntityId newOwnerId, EntityId entityId) {
+        mainCtx.getOwnerService().changeOwner(getTenantId(), newOwnerId, entityId);
+    }
+
+    @Override
+    public EntityGroup findEntityGroupByTypeAndName(CustomerId ownerId, EntityType groupType, String name) {
+        return mainCtx.getEntityGroupService().findEntityGroupByTypeAndName(getTenantId(), ownerId, groupType, name);
+    }
+
+    @Override
+    public EntityGroupId findOrCreateAllGroupId(CustomerId ownerId, EntityType groupType) {
+        return mainCtx.getEntityGroupService().findOrCreateAllGroupId(getTenantId(), ownerId, groupType);
+    }
+
+    @Override
+    public EntityGroup saveEntityGroup(CustomerId ownerId, EntityGroup entityGroup) {
+        entityGroup.setOwnerId(ownerId);
+        return mainCtx.getEntityGroupService().saveEntityGroup(getTenantId(), entityGroup);
+    }
+
+    @Override
+    public void addEntityToEntityGroup(EntityGroupId entityGroupId, EntityId entityId) {
+        mainCtx.getEntityGroupService().addEntityToEntityGroup(getTenantId(), entityGroupId, entityId);
+    }
+
+    @Override
+    public void removeEntityFromEntityGroup(EntityGroupId entityGroupId, EntityId entityId) {
+        mainCtx.getEntityGroupService().removeEntityFromEntityGroup(getTenantId(), entityGroupId, entityId);
+    }
+
+    @Override
+    public List<EntityId> findAllEntityIds(EntityGroupId entityGroupId) {
+        return mainCtx.getEntityGroupService().findAllEntityIds(getTenantId(), entityGroupId);
+    }
+
+    @Override
+    public List<EntityGroupId> findEntityGroupsForEntity(EntityId entityId, CustomerId customerId) {
+        return mainCtx.getEntityGroupService().findEntityGroupsForEntity(getTenantId(), entityId, customerId);
+    }
+
+    @Override
+    public org.thingsboard.server.common.data.integration.Integration findIntegrationById(org.thingsboard.server.common.data.id.IntegrationId integrationId) {
+        return mainCtx.getIntegrationService().findIntegrationById(getTenantId(), integrationId);
+    }
+
+    @Override
+    public void pushToIntegrationDownlink(org.thingsboard.server.common.data.id.IntegrationId integrationId, TbMsg msg, Runnable onSuccess, Consumer<Throwable> onFailure) {
+        com.google.common.util.concurrent.ListenableFuture<Void> future = getDbCallbackExecutor().executeAsync(() -> {
+            org.thingsboard.server.common.data.integration.Integration integration = findIntegrationById(integrationId);
+            if (integration == null) {
+                throw new RuntimeException("Integration not found!");
+            }
+            java.util.Map<String, String> metadata = new java.util.HashMap<>(msg.getMetaData().getData());
+            mainCtx.getPlatformIntegrationService().pushDownlink(integration, msg.getData().getBytes(java.nio.charset.StandardCharsets.UTF_8), metadata);
+            return null;
+        });
+        com.google.common.util.concurrent.Futures.addCallback(future, new com.google.common.util.concurrent.FutureCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                onSuccess.run();
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                onFailure.accept(t);
+            }
+        }, com.google.common.util.concurrent.MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public void generateReport(org.thingsboard.server.common.data.report.ReportConfig reportConfig,
+                                Consumer<org.thingsboard.server.common.data.report.Report> onSuccess, Consumer<Throwable> onFailure) {
+        com.google.common.util.concurrent.ListenableFuture<org.thingsboard.server.common.data.report.Report> future =
+                getDbCallbackExecutor().executeAsync(() -> mainCtx.getReportGenerationService().generateReport(getTenantId(), reportConfig));
+        com.google.common.util.concurrent.Futures.addCallback(future, new com.google.common.util.concurrent.FutureCallback<org.thingsboard.server.common.data.report.Report>() {
+            @Override
+            public void onSuccess(org.thingsboard.server.common.data.report.Report report) {
+                onSuccess.accept(report);
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                onFailure.accept(t);
+            }
+        }, com.google.common.util.concurrent.MoreExecutors.directExecutor());
     }
 
     @Override

@@ -34,6 +34,12 @@ import { AppState } from '@core/core.state';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { MenuId } from '@core/services/menu.models';
+import { RouterTabsComponent } from '@home/components/router-tabs.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import {
+  DashboardGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 @Injectable()
 export class DashboardResolver  {
@@ -65,7 +71,11 @@ export const dashboardBreadcumbLabelFunction: BreadCrumbLabelFunction<DashboardP
 const routes: Routes = [
   {
     path: 'dashboards',
+    component: RouterTabsComponent,
     data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      showMainLoadingBar: false,
+      useChildrenRoutesForTabs: true,
       breadcrumb: {
         menuId: MenuId.dashboards
       }
@@ -73,21 +83,73 @@ const routes: Routes = [
     children: [
       {
         path: '',
+        children: [],
+        data: {
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          redirectTo: '/dashboards/all'
+        }
+      },
+      {
+        path: 'all',
         component: EntitiesTableComponent,
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: 'dashboard.dashboards',
-          dashboardsType: 'tenant'
+          dashboardsType: 'tenant',
+          breadcrumb: {
+            label: 'entity-group.all-entities',
+            icon: 'dashboard'
+          }
         },
         resolve: {
           entitiesTableConfig: DashboardsTableConfigResolver
         }
       },
       {
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.group-type-dashboard',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-dashboard',
+              groupType: EntityType.DASHBOARD
+            }
+          },
+          {
+            path: ':entityGroupId',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-dashboard',
+              dashboardsType: 'tenant',
+              groupType: EntityType.DASHBOARD,
+              breadcrumb: {
+                label: 'entity-group.group-entities',
+                icon: 'view_list'
+              }
+            },
+            resolve: {
+              entitiesTableConfig: DashboardGroupEntitiesTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        // Dashboard view stays at /dashboards/<id> — absolute links all over the app point here.
         path: ':dashboardId',
         component: DashboardPageComponent,
         canDeactivate: [ConfirmOnExitGuard],
         data: {
+          hideTabs: true,
           breadcrumb: {
             labelFunction: dashboardBreadcumbLabelFunction,
             icon: 'dashboard'
@@ -110,7 +172,8 @@ const routes: Routes = [
   exports: [RouterModule],
   providers: [
     DashboardsTableConfigResolver,
-    DashboardResolver
+    DashboardResolver,
+    DashboardGroupEntitiesTableConfigResolver
   ]
 })
 export class DashboardRoutingModule { }

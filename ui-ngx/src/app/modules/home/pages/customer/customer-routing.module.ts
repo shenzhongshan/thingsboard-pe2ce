@@ -35,6 +35,7 @@ import { MenuId } from '@core/services/menu.models';
 import { RouterTabsComponent } from '@home/components/router-tabs.component';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hierarchy.component';
 import {
   CustomerGroupEntitiesTableConfigResolver
 } from '@home/pages/entity-group/group-entities-table-config.resolvers';
@@ -104,7 +105,7 @@ const routes: Routes = [
         data: {
           auth: [Authority.TENANT_ADMIN],
           breadcrumb: {
-            label: 'entity-group.customer-groups',
+            label: 'entity-group.group-type-customer',
             icon: 'workspaces'
           }
         },
@@ -114,7 +115,7 @@ const routes: Routes = [
             component: EntityGroupsComponent,
             data: {
               auth: [Authority.TENANT_ADMIN],
-              title: 'entity-group.customer-groups',
+              title: 'entity-group.group-type-customer',
               groupType: EntityType.CUSTOMER
             }
           },
@@ -123,7 +124,7 @@ const routes: Routes = [
             data: {
               auth: [Authority.TENANT_ADMIN],
               breadcrumb: {
-                label: 'entity-group.group',
+                label: 'entity-group.group-entities',
                 icon: 'view_list'
               }
             },
@@ -133,7 +134,7 @@ const routes: Routes = [
                 component: EntitiesTableComponent,
                 data: {
                   auth: [Authority.TENANT_ADMIN],
-                  title: 'entity-group.customer-groups',
+                  title: 'entity-group.group-type-customer',
                   groupType: EntityType.CUSTOMER
                 },
                 resolve: {
@@ -160,6 +161,18 @@ const routes: Routes = [
             ]
           }
         ]
+      },
+      {
+        path: 'hierarchy',
+        component: CustomerHierarchyComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          title: 'customer.hierarchy',
+          breadcrumb: {
+            label: 'customer.hierarchy',
+            icon: 'sort'
+          }
+        }
       },
       {
         path: ':entityId',

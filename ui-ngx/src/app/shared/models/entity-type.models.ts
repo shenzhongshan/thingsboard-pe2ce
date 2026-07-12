@@ -58,6 +58,8 @@ export enum EntityType {
   ENTITY_GROUP = 'ENTITY_GROUP',
   ROLE = 'ROLE',
   GROUP_PERMISSION = 'GROUP_PERMISSION',
+  REPORT_TEMPLATE = 'REPORT_TEMPLATE',
+  REPORT = 'REPORT',
 }
 
 export enum AliasEntityType {

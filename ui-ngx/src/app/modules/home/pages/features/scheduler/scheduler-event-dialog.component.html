@@ -33,7 +33,7 @@
             <mat-error>{{ 'scheduler.name-required' | translate }}</mat-error>
           }
         </mat-form-field>
-        <mat-tab-group>
+        <mat-tab-group #tabGroup>
           <mat-tab label="{{ 'scheduler.configuration' | translate }}">
             <div class="flex flex-col gap-2" style="padding-top: 16px;">
               <mat-form-field class="w-full">
@@ -51,14 +51,117 @@
                 <mat-slide-toggle formControlName="enabled">
                   {{ 'scheduler.enable-scheduler-event' | translate }}
                 </mat-slide-toggle>
-                <fieldset class="tb-se-fieldset">
-                  <legend translate>scheduler.target</legend>
+                @if (eventType !== SchedulerEventType.GENERATE_REPORT && !supportsGroupTargeting) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.target</legend>
+                    <tb-entity-select
+                      formControlName="originatorId"
+                      required
+                      [allowedEntityTypes]="allowedOriginatorEntityTypes">
+                    </tb-entity-select>
+                  </fieldset>
+                }
+                @if (supportsGroupTargeting) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.target</legend>
+                    <mat-button-toggle-group formControlName="targetMode" class="tb-se-target-mode">
+                      <mat-button-toggle [value]="TargetMode.SINGLE">{{ 'scheduler.target-mode-single' | translate }}</mat-button-toggle>
+                      <mat-button-toggle [value]="TargetMode.GROUP">{{ 'scheduler.target-mode-group' | translate }}</mat-button-toggle>
+                      <mat-button-toggle [value]="TargetMode.OWNER">{{ 'scheduler.target-mode-owner' | translate }}</mat-button-toggle>
+                    </mat-button-toggle-group>
+                    @if (form.get('targetMode').value === TargetMode.SINGLE) {
+                      <tb-entity-select
+                        formControlName="originatorId"
+                        required
+                        [allowedEntityTypes]="allowedOriginatorEntityTypes">
+                      </tb-entity-select>
+                    }
+                    @if (form.get('targetMode').value === TargetMode.GROUP || form.get('targetMode').value === TargetMode.OWNER) {
+                      <mat-form-field class="w-full">
+                        <mat-label translate>scheduler.target-entity-type</mat-label>
+                        <mat-select formControlName="targetEntityType" required>
+                          @for (type of groupableEntityTypes; track type) {
+                            <mat-option [value]="type">{{ entityTypeTranslations.get(type)?.type | translate }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                    }
+                    @if (form.get('targetMode').value === TargetMode.GROUP) {
+                      <mat-form-field class="w-full">
+                        <mat-label translate>scheduler.target-entity-group</mat-label>
+                        <input matInput formControlName="targetEntityGroup" required
+                               [matAutocomplete]="entityGroupAuto">
+                        <mat-autocomplete #entityGroupAuto="matAutocomplete" [displayWith]="displayEntityGroupFn">
+                          @for (group of (filteredEntityGroups | async); track group.id.id) {
+                            <mat-option [value]="group">{{ group.name }}</mat-option>
+                          }
+                        </mat-autocomplete>
+                      </mat-form-field>
+                    }
+                    @if (form.get('targetMode').value === TargetMode.OWNER) {
+                      <mat-form-field class="w-full">
+                        <mat-label translate>scheduler.target-owner</mat-label>
+                        <input matInput formControlName="targetOwner" required
+                               [matAutocomplete]="ownerAuto">
+                        <mat-autocomplete #ownerAuto="matAutocomplete" [displayWith]="displayOwnerFn">
+                          @for (owner of (filteredOwners | async); track owner.id.id) {
+                            <mat-option [value]="owner">{{ owner.name }}</mat-option>
+                          }
+                        </mat-autocomplete>
+                      </mat-form-field>
+                    }
+                  </fieldset>
+                }
+                @if (eventType === SchedulerEventType.GENERATE_REPORT) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.report-template</mat-label>
+                    <mat-select formControlName="reportTemplateId" required>
+                      @for (t of reportTemplates; track t.id.id) {
+                        <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (form.get('reportTemplateId').hasError('required')) {
+                      <mat-error translate>report.report-template-required</mat-error>
+                    }
+                  </mat-form-field>
                   <tb-entity-select
-                    formControlName="originatorId"
+                    formControlName="reportUserId"
                     required
-                    [allowedEntityTypes]="allowedOriginatorEntityTypes">
+                    [allowedEntityTypes]="[EntityType.USER]">
                   </tb-entity-select>
-                </fieldset>
+                  <tb-timezone-select formControlName="timezone" required>
+                  </tb-timezone-select>
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.recipients</legend>
+                    <div class="flex flex-row items-end gap-2">
+                      <mat-form-field class="flex-1">
+                        <mat-label translate>scheduler.recipients</mat-label>
+                        <mat-select formControlName="reportTargets" multiple>
+                          @for (t of notificationTargets; track t.id.id) {
+                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                      <button mat-button color="primary" type="button" (click)="createNotificationTarget()">
+                        {{ 'scheduler.create-new' | translate }}
+                      </button>
+                    </div>
+                    <div class="flex flex-row items-end gap-2">
+                      <mat-form-field class="flex-1">
+                        <mat-label translate>scheduler.notification-template</mat-label>
+                        <mat-select formControlName="reportNotificationTemplateId">
+                          <mat-option [value]="null">{{ 'common.none' | translate }}</mat-option>
+                          @for (t of notificationTemplates; track t.id.id) {
+                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
+                          }
+                        </mat-select>
+                      </mat-form-field>
+                      <button mat-button color="primary" type="button" (click)="createNotificationTemplate()">
+                        {{ 'scheduler.create-new' | translate }}
+                      </button>
+                    </div>
+                  </fieldset>
+                }
                 @if (eventType === SchedulerEventType.UPDATE_ATTRIBUTES) {
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.attributes</legend>
@@ -110,6 +213,9 @@
                     </mat-form-field>
                     <mat-checkbox formControlName="rpcOneway">
                       {{ 'scheduler.rpc-oneway' | translate }}
+                    </mat-checkbox>
+                    <mat-checkbox formControlName="rpcPersistent">
+                      {{ 'scheduler.rpc-persistent' | translate }}
                     </mat-checkbox>
                   </fieldset>
                 }

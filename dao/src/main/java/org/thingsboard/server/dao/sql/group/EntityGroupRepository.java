@@ -29,14 +29,15 @@ import java.util.UUID;
 
 public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, UUID> {
 
-    @Query("SELECT g FROM EntityGroupEntity g WHERE g.tenantId = :tenantId AND g.type = :type " +
+    // owner_id = tenant_id for tenant-owned groups, a customer id for customer-owned groups
+    @Query("SELECT g FROM EntityGroupEntity g WHERE g.ownerId = :ownerId AND g.type = :type " +
             "AND (:textSearch IS NULL OR ilike(g.name, CONCAT('%', :textSearch, '%')) = true)")
-    Page<EntityGroupEntity> findByTenantIdAndType(@Param("tenantId") UUID tenantId,
-                                                  @Param("type") EntityType type,
-                                                  @Param("textSearch") String textSearch,
-                                                  Pageable pageable);
+    Page<EntityGroupEntity> findByOwnerIdAndType(@Param("ownerId") UUID ownerId,
+                                                 @Param("type") EntityType type,
+                                                 @Param("textSearch") String textSearch,
+                                                 Pageable pageable);
 
-    Optional<EntityGroupEntity> findByTenantIdAndTypeAndName(UUID tenantId, EntityType type, String name);
+    Optional<EntityGroupEntity> findByOwnerIdAndTypeAndName(UUID ownerId, EntityType type, String name);
 
     List<EntityGroupEntity> findAllByTenantId(UUID tenantId);
 

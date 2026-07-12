@@ -142,6 +142,7 @@ public class ModelConstants {
     public static final String CUSTOMER_TITLE_PROPERTY = TITLE_PROPERTY;
     public static final String CUSTOMER_ADDITIONAL_INFO_PROPERTY = ADDITIONAL_INFO_PROPERTY;
     public static final String CUSTOMER_IS_PUBLIC_PROPERTY = "is_public";
+    public static final String CUSTOMER_PARENT_CUSTOMER_ID_PROPERTY = "parent_customer_id";
 
     /**
      * Device constants.

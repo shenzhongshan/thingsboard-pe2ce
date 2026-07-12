@@ -50,6 +50,7 @@ import { MobileModule } from '@home/pages/mobile/mobile.module';
 import { AiModelModule } from '@home/pages/ai-model/ai-model.module';
 import { IntegrationCenterModule } from '@home/pages/integration/integration-center.module';
 import { EntityGroupModule } from '@home/pages/entity-group/entity-group.module';
+import { ReportingModule } from '@home/pages/reporting/reporting.module';
 
 @NgModule({
   exports: [
@@ -87,6 +88,7 @@ import { EntityGroupModule } from '@home/pages/entity-group/entity-group.module'
     AiModelModule,
     IntegrationCenterModule,
     EntityGroupModule,
+    ReportingModule,
   ]
 })
 export class HomePagesModule { }

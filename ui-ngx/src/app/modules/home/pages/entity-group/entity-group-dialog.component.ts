@@ -26,6 +26,8 @@ import { EntityGroup } from '@shared/models/entity-group.models';
 export interface EntityGroupDialogData {
   entityGroupId?: string;
   groupType: EntityType;
+  // customer id when creating a customer-owned group (hierarchy view)
+  ownerId?: string;
 }
 
 @Component({
@@ -58,6 +60,9 @@ export class EntityGroupDialogComponent implements OnInit {
       });
     } else {
       this.entityGroup = {type: this.data.groupType, name: '', additionalInfo: {}};
+      if (this.data.ownerId) {
+        this.entityGroup.ownerId = {entityType: 'CUSTOMER', id: this.data.ownerId};
+      }
       this.buildForm(this.entityGroup);
       this.loaded = true;
     }

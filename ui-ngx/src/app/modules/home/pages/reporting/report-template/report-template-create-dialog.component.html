@@ -1,0 +1,61 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 420px;">
+  <mat-toolbar color="primary">
+    <h2 translate>report.add-template</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+      <mat-form-field class="w-full">
+        <mat-label translate>report.name</mat-label>
+        <input matInput formControlName="name" required>
+        @if (form.get('name').hasError('required')) {
+          <mat-error translate>report.name-required</mat-error>
+        }
+      </mat-form-field>
+      <div class="flex flex-row items-center justify-between">
+        <span translate>report.format</span>
+        <tb-toggle-select formControlName="format" appearance="fill">
+          <tb-toggle-option [value]="TbReportFormat.PDF">PDF</tb-toggle-option>
+          <tb-toggle-option [value]="TbReportFormat.CSV">CSV</tb-toggle-option>
+        </tb-toggle-select>
+      </div>
+      <div class="flex flex-row items-center justify-between">
+        <span translate>report.type</span>
+        <tb-toggle-select formControlName="type" appearance="fill">
+          <tb-toggle-option [value]="ReportTemplateType.REPORT">{{ 'report.type-report' | translate }}</tb-toggle-option>
+          <tb-toggle-option [value]="ReportTemplateType.SUB_REPORT">{{ 'report.type-sub-report' | translate }}</tb-toggle-option>
+        </tb-toggle-select>
+      </div>
+      <mat-form-field class="w-full">
+        <mat-label translate>report.description</mat-label>
+        <textarea matInput formControlName="description" rows="2"></textarea>
+      </mat-form-field>
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end">
+    <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+    <button mat-raised-button color="primary" type="button" (click)="add()">
+      {{ 'action.add' | translate }}
+    </button>
+  </div>
+</div>

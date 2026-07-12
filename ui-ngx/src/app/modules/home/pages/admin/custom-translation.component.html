@@ -1,0 +1,116 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-ct-editor" [class.tb-ct-fullscreen]="fullscreen">
+  <div class="tb-ct-editor-header">
+    <button mat-icon-button type="button" (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span class="mat-headline-6">{{ meta.name }} {{ 'custom-translation.translation' | translate }} - {{ meta.country }}</span>
+    <span class="flex-1"></span>
+    <mat-button-toggle-group [value]="mode" (change)="switchMode($event.value)">
+      <mat-button-toggle value="basic">{{ 'custom-translation.basic' | translate }}</mat-button-toggle>
+      <mat-button-toggle value="advanced">{{ 'custom-translation.advanced' | translate }}</mat-button-toggle>
+    </mat-button-toggle-group>
+  </div>
+
+  @if (mode === 'basic') {
+    <mat-card appearance="outlined" class="tb-ct-basic-card">
+      <div class="tb-ct-basic-toolbar">
+        <span class="mat-subtitle-1" translate>custom-translation.translation-map</span>
+        <span class="flex-1"></span>
+        <mat-form-field subscriptSizing="dynamic" style="width: 240px;">
+          <input matInput [(ngModel)]="textSearch" (ngModelChange)="applyFilter()"
+                 placeholder="{{ 'custom-translation.search' | translate }}">
+        </mat-form-field>
+        <button mat-icon-button type="button" (click)="addKey()"
+                matTooltip="{{ 'custom-translation.add-key' | translate }}" matTooltipPosition="above">
+          <mat-icon>add</mat-icon>
+        </button>
+        <button mat-icon-button type="button" (click)="toggleFullscreen()"
+                matTooltip="{{ 'fullscreen.toggle' | translate }}" matTooltipPosition="above">
+          <mat-icon>{{ fullscreen ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+        </button>
+      </div>
+      <div class="tb-ct-table-wrap">
+        <table class="tb-ct-grid" mat-table [dataSource]="filteredRows.slice(page * pageSize, (page + 1) * pageSize)">
+          <ng-container matColumnDef="key">
+            <th mat-header-cell *matHeaderCellDef style="width: 30%;">{{ 'custom-translation.term-key' | translate }}</th>
+            <td mat-cell *matCellDef="let row">{{ row.key }}</td>
+          </ng-container>
+          <ng-container matColumnDef="english">
+            <th mat-header-cell *matHeaderCellDef style="width: 30%;">English (United States)</th>
+            <td mat-cell *matCellDef="let row">{{ row.english }}</td>
+          </ng-container>
+          <ng-container matColumnDef="value">
+            <th mat-header-cell *matHeaderCellDef>{{ meta.name }}</th>
+            <td mat-cell *matCellDef="let row">
+              <div class="tb-ct-value-cell">
+                <input class="tb-ct-value-input" [class.tb-ct-customized]="row.customized"
+                       [value]="row.value" (change)="updateRowValue(row, $event.target.value)">
+                @if (row.customized) {
+                  <button mat-icon-button type="button" (click)="revertRow(row)"
+                          matTooltip="{{ 'custom-translation.revert' | translate }}" matTooltipPosition="above">
+                    <mat-icon class="tb-mat-18">restore</mat-icon>
+                  </button>
+                }
+              </div>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="['key', 'english', 'value']"></tr>
+          <tr mat-row [class.tb-ct-row-added]="row.added" *matRowDef="let row; columns: ['key', 'english', 'value'];"></tr>
+        </table>
+      </div>
+      <mat-paginator [length]="filteredRows.length" [pageSize]="pageSize" [pageIndex]="page"
+                      [pageSizeOptions]="[25, 50, 100]"
+                      (page)="page = $event.pageIndex; pageSize = $event.pageSize">
+      </mat-paginator>
+      <div class="tb-ct-filter-bar">
+        <mat-chip-listbox>
+          <mat-chip-option [selected]="activeFilter === 'translated'" (click)="toggleFilter('translated')">
+            <span class="tb-ct-dot tb-ct-dot-translated"></span>{{ 'custom-translation.filter-translated' | translate }}
+          </mat-chip-option>
+          <mat-chip-option [selected]="activeFilter === 'untranslated'" (click)="toggleFilter('untranslated')">
+            <span class="tb-ct-dot tb-ct-dot-untranslated"></span>{{ 'custom-translation.filter-untranslated' | translate }}
+          </mat-chip-option>
+          <mat-chip-option [selected]="activeFilter === 'customized'" (click)="toggleFilter('customized')">
+            <span class="tb-ct-dot tb-ct-dot-customized"></span>{{ 'custom-translation.filter-customized' | translate }}
+          </mat-chip-option>
+          <mat-chip-option [selected]="activeFilter === 'added'" (click)="toggleFilter('added')">
+            <span class="tb-ct-dot tb-ct-dot-added"></span>{{ 'custom-translation.filter-added' | translate }}
+          </mat-chip-option>
+        </mat-chip-listbox>
+      </div>
+    </mat-card>
+  } @else {
+    <mat-card appearance="outlined" class="tb-ct-advanced-card">
+      <div class="tb-ct-basic-toolbar">
+        <span class="mat-subtitle-1" translate>custom-translation.translation-map</span>
+      </div>
+      <div class="tb-ct-json-wrap" [formGroup]="advancedForm">
+        <tb-json-content formControlName="value" [contentType]="'JSON'" [fillHeight]="true">
+        </tb-json-content>
+      </div>
+    </mat-card>
+  }
+
+  <div class="tb-ct-save-bar">
+    <span class="flex-1"></span>
+    <button mat-button type="button" [disabled]="!isDirty" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+    <button mat-flat-button color="primary" type="button" [disabled]="!isDirty" (click)="save()">{{ 'action.save' | translate }}</button>
+  </div>
+</div>

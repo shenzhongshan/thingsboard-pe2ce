@@ -1,0 +1,101 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div>
+  <mat-card appearance="outlined" class="settings-card">
+    <mat-card-header class="tb-ct-list-header">
+      @if (!searchMode) {
+        <mat-card-title>
+          <span class="mat-headline-5" translate>custom-translation.custom-translation</span>
+        </mat-card-title>
+        <span class="flex-1"></span>
+        <button mat-icon-button type="button" (click)="addLanguage()"
+                matTooltip="{{ 'custom-translation.add-language' | translate }}" matTooltipPosition="above">
+          <mat-icon>add</mat-icon>
+        </button>
+        <button mat-icon-button type="button" (click)="reload()"
+                matTooltip="{{ 'action.refresh' | translate }}" matTooltipPosition="above">
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <button mat-icon-button type="button" (click)="enterSearchMode()"
+                matTooltip="{{ 'action.search' | translate }}" matTooltipPosition="above">
+          <mat-icon>search</mat-icon>
+        </button>
+      } @else {
+        <mat-form-field class="flex-1" subscriptSizing="dynamic">
+          <input matInput [(ngModel)]="textSearch" (ngModelChange)="applySearch()"
+                 placeholder="{{ 'custom-translation.search' | translate }}">
+        </mat-form-field>
+        <button mat-icon-button type="button" (click)="exitSearchMode()">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </mat-card-header>
+    <mat-card-content>
+      <table class="tb-ct-table" mat-table [dataSource]="filteredRows">
+        <ng-container matColumnDef="code">
+          <th mat-header-cell *matHeaderCellDef style="width: 140px;">{{ 'custom-translation.locale-code' | translate }}</th>
+          <td mat-cell *matCellDef="let row">{{ row.code }}</td>
+        </ng-container>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>{{ 'custom-translation.language' | translate }}</th>
+          <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+        </ng-container>
+        <ng-container matColumnDef="country">
+          <th mat-header-cell *matHeaderCellDef style="width: 200px;">{{ 'custom-translation.country' | translate }}</th>
+          <td mat-cell *matCellDef="let row">{{ row.country }}</td>
+        </ng-container>
+        <ng-container matColumnDef="progress">
+          <th mat-header-cell *matHeaderCellDef style="width: 220px;">{{ 'custom-translation.progress' | translate }}</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="tb-ct-progress">
+              <mat-progress-bar mode="determinate" [value]="row.progress"></mat-progress-bar>
+              <span>{{ row.progress }}%</span>
+            </div>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef style="width: 140px;"></th>
+          <td mat-cell *matCellDef="let row">
+            <div class="flex flex-row items-center justify-end">
+              <button mat-icon-button type="button" (click)="downloadTranslation($event, row)"
+                      matTooltip="{{ 'custom-translation.download' | translate }}" matTooltipPosition="above">
+                <mat-icon>file_download</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="openEditor($event, row)"
+                      matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="deleteTranslation($event, row)"
+                      [disabled]="!row.customized"
+                      matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="['code', 'name', 'country', 'progress', 'actions']"></tr>
+        <tr mat-row class="tb-ct-table-row"
+            *matRowDef="let row; columns: ['code', 'name', 'country', 'progress', 'actions'];"
+            (click)="openEditor($event, row)"></tr>
+      </table>
+      @if (!filteredRows.length) {
+        <div class="tb-ct-empty" translate>custom-translation.no-locales</div>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

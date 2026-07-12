@@ -20,6 +20,6 @@ package org.thingsboard.server.common.data.plugin;
  */
 public enum ComponentType {
 
-    ENRICHMENT, FILTER, TRANSFORMATION, ACTION, EXTERNAL, FLOW
+    ENRICHMENT, FILTER, TRANSFORMATION, ACTION, EXTERNAL, FLOW, ANALYTICS
 
 }

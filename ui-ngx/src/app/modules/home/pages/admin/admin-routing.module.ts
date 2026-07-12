@@ -32,6 +32,8 @@ import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.c
 import { RolesComponent } from '@home/pages/entity-group/roles.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
+import { CustomTranslationListComponent } from '@home/pages/admin/custom-translation-list.component';
+import { CustomTranslationComponent } from '@home/pages/admin/custom-translation.component';
 import { EntitiesTableComponent } from '@home/components/entity/entities-table.component';
 import { ResourcesLibraryTableConfigResolver } from '@home/pages/admin/resource/resources-library-table-config.resolve';
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
@@ -523,6 +525,38 @@ const routes: Routes = [
             menuId: MenuId.mail_templates
           }
         }
+      },
+      {
+        path: 'custom-translation',
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          breadcrumb: {
+            menuId: MenuId.custom_translation
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: CustomTranslationListComponent,
+            data: {
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'custom-translation.custom-translation'
+            }
+          },
+          {
+            path: ':localeCode',
+            component: CustomTranslationComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              title: 'custom-translation.custom-translation',
+              breadcrumb: {
+                label: 'custom-translation.translation',
+                icon: 'edit'
+              }
+            }
+          }
+        ]
       },
       {
         path: 'custom-menu',

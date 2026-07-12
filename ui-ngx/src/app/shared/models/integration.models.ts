@@ -103,6 +103,7 @@ export interface Integration extends BaseData<IntegrationId> {
 export interface IntegrationStatus {
   status: 'ACTIVE' | 'FAILED' | 'STOPPED';
   error?: string;
+  eventsCountToday?: number;
 }
 
 export function newIntegration(): Integration {

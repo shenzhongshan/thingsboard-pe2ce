@@ -34,4 +34,8 @@ public interface GroupPermissionService {
 
     void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId);
 
+    List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
+
+    List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId);
+
 }

@@ -48,6 +48,9 @@ public class Customer extends ContactBased<CustomerId> implements HasTenantId, E
     @Getter @Setter
     @Schema(description = "JSON object with the Custom Menu Id assigned directly to this customer (CMAssigneeType.CUSTOMERS)")
     private CustomMenuId customMenuId;
+    @Getter @Setter
+    @Schema(description = "JSON object with the parent Customer Id, for sub-customer hierarchies. Null for a top-level customer.")
+    private CustomerId parentCustomerId;
 
     public Customer() {
         super();
@@ -64,6 +67,12 @@ public class Customer extends ContactBased<CustomerId> implements HasTenantId, E
         this.externalId = customer.getExternalId();
         this.version = customer.getVersion();
         this.customMenuId = customer.getCustomMenuId();
+        this.parentCustomerId = customer.getParentCustomerId();
+    }
+
+    @JsonIgnore
+    public boolean isSubCustomer() {
+        return parentCustomerId != null && !parentCustomerId.isNullUid();
     }
 
     public TenantId getTenantId() {

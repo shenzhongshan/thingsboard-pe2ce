@@ -22,6 +22,7 @@ import java.util.Set;
 
 public enum Resource {
 
+    ALL,
     ADMIN_SETTINGS(EntityType.ADMIN_SETTINGS),
     ALARM(EntityType.ALARM),
     DEVICE(EntityType.DEVICE),
@@ -61,7 +62,9 @@ public enum Resource {
     INTEGRATION(EntityType.INTEGRATION),
     ENTITY_GROUP(EntityType.ENTITY_GROUP),
     ROLE(EntityType.ROLE),
-    GROUP_PERMISSION(EntityType.GROUP_PERMISSION);
+    GROUP_PERMISSION(EntityType.GROUP_PERMISSION),
+    REPORT_TEMPLATE(EntityType.REPORT_TEMPLATE),
+    REPORT(EntityType.REPORT);
 
     private final Set<EntityType> entityTypes;
 

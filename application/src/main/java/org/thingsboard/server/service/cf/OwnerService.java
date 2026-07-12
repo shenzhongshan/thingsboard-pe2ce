@@ -52,6 +52,31 @@ public class OwnerService {
         };
     }
 
+    public void changeOwner(TenantId tenantId, EntityId newOwnerId, EntityId entityId) {
+        switch (entityId.getEntityType()) {
+            case DEVICE -> {
+                if (EntityType.CUSTOMER.equals(newOwnerId.getEntityType())) {
+                    deviceService.assignDeviceToCustomer(tenantId, (DeviceId) entityId, (CustomerId) newOwnerId);
+                } else {
+                    deviceService.unassignDeviceFromCustomer(tenantId, (DeviceId) entityId);
+                }
+            }
+            case ASSET -> {
+                if (EntityType.CUSTOMER.equals(newOwnerId.getEntityType())) {
+                    assetService.assignAssetToCustomer(tenantId, (AssetId) entityId, (CustomerId) newOwnerId);
+                } else {
+                    assetService.unassignAssetFromCustomer(tenantId, (AssetId) entityId);
+                }
+            }
+            case CUSTOMER -> {
+                Customer customer = customerService.findCustomerById(tenantId, (CustomerId) entityId);
+                customer.setParentCustomerId(EntityType.CUSTOMER.equals(newOwnerId.getEntityType()) ? (CustomerId) newOwnerId : null);
+                customerService.saveCustomer(customer);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported entity type for owner change: " + entityId.getEntityType());
+        }
+    }
+
     public Set<EntityId> getOwnedEntities(TenantId tenantId, EntityId ownerId) {
         Set<EntityId> ownedEntities = new HashSet<>();
         if (EntityType.CUSTOMER.equals(ownerId.getEntityType())) {

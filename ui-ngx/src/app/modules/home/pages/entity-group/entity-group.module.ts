@@ -17,12 +17,14 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '@shared/shared.module';
+import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
 import { EntityGroupDialogComponent } from '@home/pages/entity-group/entity-group-dialog.component';
 import { AddGroupEntitiesDialogComponent } from '@home/pages/entity-group/add-group-entities-dialog.component';
 import { GroupPermissionsDialogComponent } from '@home/pages/entity-group/group-permissions-dialog.component';
 import { RolesComponent } from '@home/pages/entity-group/roles.component';
 import { RoleDialogComponent } from '@home/pages/entity-group/role-dialog.component';
+import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hierarchy.component';
 
 @NgModule({
   declarations: [
@@ -31,15 +33,18 @@ import { RoleDialogComponent } from '@home/pages/entity-group/role-dialog.compon
     AddGroupEntitiesDialogComponent,
     GroupPermissionsDialogComponent,
     RolesComponent,
-    RoleDialogComponent
+    RoleDialogComponent,
+    CustomerHierarchyComponent
   ],
   imports: [
     CommonModule,
-    SharedModule
+    SharedModule,
+    HomeComponentsModule
   ],
   exports: [
     EntityGroupsComponent,
-    RolesComponent
+    RolesComponent,
+    CustomerHierarchyComponent
   ]
 })
 export class EntityGroupModule { }

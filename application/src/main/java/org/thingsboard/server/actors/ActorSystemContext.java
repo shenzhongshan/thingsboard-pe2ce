@@ -75,6 +75,7 @@ import org.thingsboard.server.dao.audit.AuditLogService;
 import org.thingsboard.server.dao.cassandra.CassandraCluster;
 import org.thingsboard.server.dao.cf.CalculatedFieldService;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.ClaimDevicesService;
 import org.thingsboard.server.dao.device.DeviceCredentialsService;
@@ -581,6 +582,22 @@ public class ActorSystemContext {
     @Autowired
     @Getter
     private OwnerService ownerService;
+
+    @Autowired
+    @Getter
+    private EntityGroupService entityGroupService;
+
+    @Autowired
+    @Getter
+    private org.thingsboard.server.dao.integration.IntegrationService integrationService;
+
+    @Autowired
+    @Getter
+    private org.thingsboard.server.service.integration.PlatformIntegrationService platformIntegrationService;
+
+    @Autowired
+    @Getter
+    private org.thingsboard.server.service.report.ReportGenerationService reportGenerationService;
 
     @Value("${actors.session.max_concurrent_sessions_per_device:1}")
     @Getter

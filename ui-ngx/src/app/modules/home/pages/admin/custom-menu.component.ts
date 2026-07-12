@@ -40,11 +40,17 @@ import {
   CustomMenuItemDialogComponent,
   CustomMenuItemDialogData
 } from '@home/pages/admin/custom-menu-item-dialog.component';
+import {
+  CustomMenuDefaultItemDialogComponent,
+  CustomMenuDefaultItemDialogData,
+  CustomMenuDefaultItemDialogResult
+} from '@home/pages/admin/custom-menu-default-item-dialog.component';
 
 interface EditorMenuItem {
   type: MenuItemType;
   id?: string;              // DEFAULT: MenuId
   baseName?: string;        // DEFAULT: translated base label
+  baseIcon?: string;        // DEFAULT: original base icon, to detect an override
   icon?: string;
   name: string;             // rename override ('' = none for DEFAULT)
   visible: boolean;
@@ -110,6 +116,7 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
       type: MenuItemType.DEFAULT,
       id: section.id as string,
       baseName: this.translate.instant(section.name),
+      baseIcon: section.icon,
       icon: section.icon,
       name: '',
       visible: true,
@@ -139,6 +146,7 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
           const row = remaining.splice(idx, 1)[0];
           row.visible = def.visible !== false;
           row.name = def.name || '';
+          row.icon = def.icon || row.baseIcon;
           if (def.pages?.length) {
             row.pages = this.overlay(row.pages, def.pages);
           }
@@ -252,12 +260,39 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
     });
   }
 
+  editDefaultItem(row: EditorMenuItem) {
+    this.dialog.open<CustomMenuDefaultItemDialogComponent, CustomMenuDefaultItemDialogData,
+      CustomMenuDefaultItemDialogResult>(CustomMenuDefaultItemDialogComponent, {
+      disableClose: true,
+      autoFocus: false,
+      data: { baseName: row.baseName, icon: row.icon, name: row.name, visible: row.visible }
+    }).afterClosed().subscribe((result) => {
+      if (result) {
+        row.icon = result.icon || row.baseIcon;
+        row.name = result.name;
+        row.visible = result.visible;
+        this.dirtyForm.markAsDirty();
+      }
+    });
+  }
+
   removeCustomItem(list: EditorMenuItem[], row: EditorMenuItem) {
     const idx = list.indexOf(row);
     if (idx >= 0) {
       list.splice(idx, 1);
       this.dirtyForm.markAsDirty();
     }
+  }
+
+  hasDefaultOverride(row: EditorMenuItem): boolean {
+    return row.icon !== row.baseIcon || !!row.name || row.visible !== true;
+  }
+
+  resetDefaultItem(row: EditorMenuItem) {
+    row.icon = row.baseIcon;
+    row.name = '';
+    row.visible = true;
+    this.dirtyForm.markAsDirty();
   }
 
   // Reset the editor to the built-in menu (local only — takes effect on save).
@@ -292,6 +327,9 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
     };
     if (row.name) {
       def.name = row.name;
+    }
+    if (row.icon && row.icon !== row.baseIcon) {
+      def.icon = row.icon;
     }
     if (row.pages.length) {
       def.pages = row.pages.map((child) => this.editorItemToConfigItem(child));

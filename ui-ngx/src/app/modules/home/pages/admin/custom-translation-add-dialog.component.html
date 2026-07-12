@@ -1,0 +1,55 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div mat-dialog-title>
+  <span translate>custom-translation.add-language</span>
+  <button mat-icon-button mat-dialog-close type="button" style="position: absolute; right: 8px; top: 8px;">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+<div mat-dialog-content [formGroup]="form" style="min-width: 360px;">
+  <mat-form-field class="flex-1" appearance="outline" subscriptSizing="dynamic">
+    <mat-label>{{ 'custom-translation.language' | translate }}</mat-label>
+    <input matInput formControlName="localeCode" [matAutocomplete]="localeAuto"
+           placeholder="{{ 'custom-translation.locale-code-hint' | translate }}">
+    <mat-autocomplete #localeAuto="matAutocomplete">
+      @for (option of localeOptions; track option.code) {
+        <mat-option [value]="option.code">{{ option.code }} — {{ option.name }}</mat-option>
+      }
+    </mat-autocomplete>
+    @if (form.get('localeCode').hasError('required')) {
+      <mat-error>{{ 'custom-translation.locale-code-required' | translate }}</mat-error>
+    }
+    @if (form.get('localeCode').hasError('pattern')) {
+      <mat-error>{{ 'custom-translation.locale-code-invalid' | translate }}</mat-error>
+    }
+  </mat-form-field>
+  <div style="margin-top: 16px;">
+    <input #fileInput type="file" accept=".json" style="display: none;" (change)="onFileSelected($event)">
+    <button mat-stroked-button type="button" (click)="fileInput.click()">
+      <mat-icon>file_upload</mat-icon>
+      <span translate>custom-translation.upload-file</span>
+    </button>
+    @if (uploadedFileName) {
+      <span style="margin-left: 8px;">{{ uploadedFileName }}</span>
+    }
+  </div>
+</div>
+<div mat-dialog-actions style="justify-content: flex-end;">
+  <button mat-button type="button" (click)="cancel()">{{ 'action.close' | translate }}</button>
+  <button mat-flat-button color="primary" type="button" [disabled]="form.invalid" (click)="add()">{{ 'action.add' | translate }}</button>
+</div>

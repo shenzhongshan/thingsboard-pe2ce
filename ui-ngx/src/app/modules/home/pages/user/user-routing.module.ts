@@ -97,7 +97,7 @@ const routes: Routes = [
         data: {
           auth: [Authority.TENANT_ADMIN],
           breadcrumb: {
-            label: 'entity-group.user-groups',
+            label: 'entity-group.group-type-user',
             icon: 'workspaces'
           }
         },
@@ -107,7 +107,7 @@ const routes: Routes = [
             component: EntityGroupsComponent,
             data: {
               auth: [Authority.TENANT_ADMIN],
-              title: 'entity-group.user-groups',
+              title: 'entity-group.group-type-user',
               groupType: EntityType.USER
             }
           },
@@ -116,7 +116,7 @@ const routes: Routes = [
             data: {
               auth: [Authority.TENANT_ADMIN],
               breadcrumb: {
-                label: 'entity-group.group',
+                label: 'entity-group.group-entities',
                 icon: 'view_list'
               }
             },
@@ -126,7 +126,7 @@ const routes: Routes = [
                 component: EntitiesTableComponent,
                 data: {
                   auth: [Authority.TENANT_ADMIN],
-                  title: 'entity-group.user-groups',
+                  title: 'entity-group.group-type-user',
                   groupType: EntityType.USER
                 },
                 resolve: {

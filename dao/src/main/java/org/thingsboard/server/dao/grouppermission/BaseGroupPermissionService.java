@@ -100,4 +100,16 @@ public class BaseGroupPermissionService implements GroupPermissionService {
         groupPermissionRepository.deleteById(groupPermissionId.getId());
     }
 
+    @Override
+    public List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId) {
+        return groupPermissionRepository.findByTenantIdAndUserGroupId(tenantId.getId(), userGroupId.getId())
+                .stream().map(GroupPermissionEntity::toData).toList();
+    }
+
+    @Override
+    public List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId) {
+        return groupPermissionRepository.findByTenantIdAndRoleId(tenantId.getId(), roleId.getId())
+                .stream().map(GroupPermissionEntity::toData).toList();
+    }
+
 }

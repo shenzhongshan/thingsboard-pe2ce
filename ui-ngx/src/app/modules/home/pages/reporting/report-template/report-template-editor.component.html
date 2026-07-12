@@ -1,0 +1,236 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-rte-container">
+  <mat-toolbar color="primary">
+    <h2>{{ loaded ? form.get('name').value : '' }}</h2>
+    <span class="flex-1"></span>
+    <button mat-raised-button color="accent" type="button" (click)="save()" [disabled]="!loaded">
+      {{ 'action.save' | translate }}
+    </button>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  @if (loaded) {
+    <div class="tb-rte-body" [formGroup]="form">
+      <div class="tb-rte-components">
+        <div class="tb-rte-components-toolbar">
+          <span class="mat-subtitle-1" translate>report.components</span>
+          <span class="flex-1"></span>
+          <button mat-raised-button color="primary" type="button" [matMenuTriggerFor]="addMenu">
+            <mat-icon>add</mat-icon>
+            {{ 'report.add-component' | translate }}
+          </button>
+          <mat-menu #addMenu="matMenu">
+            @for (type of componentTypes; track type) {
+              <button mat-menu-item type="button" (click)="addComponent(type)">
+                <mat-icon>{{ componentTypeIcons.get(type) }}</mat-icon>
+                <span>{{ componentTypeTranslations.get(type) | translate }}</span>
+              </button>
+            }
+          </mat-menu>
+        </div>
+        <div formArrayName="components" class="flex flex-col gap-2">
+          @for (row of componentsArray.controls; track row; let i = $index) {
+            <mat-expansion-panel [formGroupName]="i" class="tb-rte-component">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon class="tb-rte-component-icon">{{ componentTypeIcons.get(row.get('type').value) }}</mat-icon>
+                  {{ componentTypeTranslations.get(row.get('type').value) | translate }}
+                  @if (row.get('title').value) {
+                    <span class="tb-rte-component-subtitle">&nbsp;— {{ row.get('title').value }}</span>
+                  }
+                </mat-panel-title>
+                <mat-panel-description class="flex flex-row items-center justify-end gap-1" (click)="$event.stopPropagation()">
+                  <button mat-icon-button type="button" [disabled]="i === 0" (click)="moveComponent(i, -1)">
+                    <mat-icon>arrow_upward</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" [disabled]="i === componentsArray.length - 1" (click)="moveComponent(i, 1)">
+                    <mat-icon>arrow_downward</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="removeComponent(i)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <div class="flex flex-col gap-2">
+                @if (row.get('type').value === ReportComponentType.HEADING) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.heading-text</mat-label>
+                    <input matInput formControlName="text">
+                  </mat-form-field>
+                  <mat-form-field>
+                    <mat-label translate>report.heading-level</mat-label>
+                    <mat-select formControlName="level">
+                      <mat-option [value]="1">H1</mat-option>
+                      <mat-option [value]="2">H2</mat-option>
+                      <mat-option [value]="3">H3</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                }
+                @if (row.get('type').value === ReportComponentType.RICH_TEXT) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.rich-text-html</mat-label>
+                    <textarea matInput formControlName="html" rows="4"></textarea>
+                  </mat-form-field>
+                }
+                @if (row.get('type').value === ReportComponentType.IMAGE) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.image-url</mat-label>
+                    <input matInput formControlName="url">
+                  </mat-form-field>
+                }
+                @if (row.get('type').value === ReportComponentType.SUB_REPORT) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.sub-report-template</mat-label>
+                    <mat-select formControlName="reportTemplateId">
+                      @for (t of otherTemplates; track t.id.id) {
+                        <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                }
+                @if (isDataDriven(row.get('type').value)) {
+                  <mat-form-field class="w-full">
+                    <mat-label translate>report.component-title</mat-label>
+                    <input matInput formControlName="title">
+                  </mat-form-field>
+                  <tb-entity-select
+                    formControlName="entityId"
+                    [allowedEntityTypes]="[EntityType.DEVICE, EntityType.ASSET, EntityType.ENTITY_VIEW, EntityType.CUSTOMER]">
+                  </tb-entity-select>
+                  <tb-string-items-list
+                    formControlName="keys"
+                    [allowUserValue]="true"
+                    label="{{ 'report.keys' | translate }}">
+                  </tb-string-items-list>
+                  <mat-form-field>
+                    <mat-label translate>report.last-ms</mat-label>
+                    <input matInput type="number" formControlName="lastMs">
+                    <mat-hint translate>report.last-ms-hint</mat-hint>
+                  </mat-form-field>
+                  @if (row.get('type').value === ReportComponentType.LATEST_CHART) {
+                    <mat-form-field>
+                      <mat-label translate>report.chart-type</mat-label>
+                      <mat-select formControlName="chartType">
+                        <mat-option value="BAR">{{ 'report.chart-type-bar' | translate }}</mat-option>
+                        <mat-option value="PIE">{{ 'report.chart-type-pie' | translate }}</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  }
+                }
+                @if (row.get('type').value === ReportComponentType.DASHBOARD) {
+                  <tb-entity-select
+                    formControlName="dashboardId"
+                    [allowedEntityTypes]="[EntityType.DASHBOARD]">
+                  </tb-entity-select>
+                  <div class="tb-rte-widgets">
+                    <div class="flex flex-row items-center">
+                      <span class="mat-body-2" translate>report.dashboard-widgets</span>
+                      <span class="flex-1"></span>
+                      <button mat-icon-button type="button" (click)="addWidget(row, ReportComponentType.TIME_SERIES_CHART)"
+                              matTooltip="{{ 'report.add-time-series-chart' | translate }}">
+                        <mat-icon>show_chart</mat-icon>
+                      </button>
+                      <button mat-icon-button type="button" (click)="addWidget(row, ReportComponentType.LATEST_CHART)"
+                              matTooltip="{{ 'report.add-latest-chart' | translate }}">
+                        <mat-icon>bar_chart</mat-icon>
+                      </button>
+                    </div>
+                    <div formArrayName="widgets" class="flex flex-col gap-1">
+                      @for (widget of widgetsArray(row).controls; track widget; let wi = $index) {
+                        <div [formGroupName]="wi" class="tb-rte-widget-row flex flex-col gap-1">
+                          <div class="flex flex-row items-center justify-between">
+                            <span>{{ componentTypeTranslations.get(widget.get('type').value) | translate }}</span>
+                            <button mat-icon-button type="button" (click)="removeWidget(row, wi)">
+                              <mat-icon>delete</mat-icon>
+                            </button>
+                          </div>
+                          <tb-entity-select
+                            formControlName="entityId"
+                            [allowedEntityTypes]="[EntityType.DEVICE, EntityType.ASSET, EntityType.ENTITY_VIEW, EntityType.CUSTOMER]">
+                          </tb-entity-select>
+                          <tb-string-items-list
+                            formControlName="keys"
+                            [allowUserValue]="true"
+                            label="{{ 'report.keys' | translate }}">
+                          </tb-string-items-list>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </mat-expansion-panel>
+          }
+          @if (!componentsArray.length) {
+            <div class="tb-rte-empty" translate>report.no-components-text</div>
+          }
+        </div>
+      </div>
+      <div class="tb-rte-settings">
+        <span class="mat-subtitle-1" translate>report.template-settings</span>
+        <div class="flex flex-col gap-2" style="padding-top: 8px;">
+          <span class="mat-body-strong" translate>report.general-settings</span>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.name</mat-label>
+            <input matInput formControlName="name" required>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.name-pattern</mat-label>
+            <input matInput formControlName="namePattern">
+            <mat-hint translate>report.name-pattern-hint</mat-hint>
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.description</mat-label>
+            <textarea matInput formControlName="description" rows="2"></textarea>
+          </mat-form-field>
+          <mat-divider></mat-divider>
+          <span class="mat-body-strong" translate>report.page-settings</span>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.page-size</mat-label>
+            <mat-select formControlName="pageSize">
+              @for (size of pageSizes; track size) {
+                <mat-option [value]="size">{{ size }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <div class="flex flex-row items-center justify-between">
+            <span translate>report.page-orientation</span>
+            <tb-toggle-select formControlName="pageOrientation" appearance="fill">
+              <tb-toggle-option value="portrait">{{ 'report.orientation-portrait' | translate }}</tb-toggle-option>
+              <tb-toggle-option value="landscape">{{ 'report.orientation-landscape' | translate }}</tb-toggle-option>
+            </tb-toggle-select>
+          </div>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.page-margin</mat-label>
+            <input matInput formControlName="pageMargin">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.header</mat-label>
+            <input matInput formControlName="header">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>report.footer</mat-label>
+            <input matInput formControlName="footer">
+          </mat-form-field>
+        </div>
+      </div>
+    </div>
+  }
+</div>

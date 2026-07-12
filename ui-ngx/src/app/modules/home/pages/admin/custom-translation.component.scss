@@ -1,0 +1,140 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  .tb-ct-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: 8px;
+    gap: 8px;
+
+    &.tb-ct-fullscreen {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: #fff;
+      padding: 16px;
+    }
+  }
+
+  .tb-ct-editor-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tb-ct-basic-card, .tb-ct-advanced-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 8px 16px;
+  }
+
+  .tb-ct-basic-toolbar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .tb-ct-table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .tb-ct-grid {
+    width: 100%;
+  }
+
+  tr.tb-ct-row-added {
+    background: rgba(255, 193, 7, 0.08);
+  }
+
+  .tb-ct-value-cell {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .tb-ct-value-input {
+    flex: 1;
+    border: none;
+    border-bottom: 1px solid transparent;
+    padding: 4px 0;
+    font-size: 13px;
+    background: transparent;
+
+    &:focus {
+      outline: none;
+      border-bottom-color: var(--tb-primary-500, #305680);
+    }
+
+    &.tb-ct-customized {
+      color: var(--tb-primary-500, #305680);
+      font-weight: 500;
+    }
+  }
+
+  .tb-mat-18 {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+  }
+
+  .tb-ct-filter-bar {
+    padding: 8px 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  .tb-ct-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+
+    &.tb-ct-dot-translated { background: #198038; }
+    &.tb-ct-dot-untranslated { background: #d12730; }
+    &.tb-ct-dot-customized { background: #305680; }
+    &.tb-ct-dot-added { background: #ffc107; }
+  }
+
+  .tb-ct-json-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tb-ct-save-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 0;
+  }
+}

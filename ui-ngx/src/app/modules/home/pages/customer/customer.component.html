@@ -84,6 +84,12 @@
           <mat-error>{{ 'customer.title-max-length' | translate }}</mat-error>
         }
       </mat-form-field>
+      <tb-entity-select
+        class="mat-block"
+        formControlName="parentCustomerId"
+        appearance="outline"
+        [allowedEntityTypes]="[EntityType.CUSTOMER]">
+      </tb-entity-select>
       <tb-contact [parentForm]="entityForm" [isEdit]="isEdit"></tb-contact>
       <div formGroupName="additionalInfo" class="flex flex-col">
         @if (entity?.id) {

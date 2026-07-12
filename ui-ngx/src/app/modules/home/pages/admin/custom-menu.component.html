@@ -96,7 +96,10 @@
     } @else {
       <span class="tb-cm-toggle-placeholder"></span>
     }
-    <tb-icon class="tb-cm-icon">{{ item.icon || 'link' }}</tb-icon>
+    <tb-material-icon-select asBoxInput allowedCustomIcon appearance="outline"
+                              [(ngModel)]="item.icon" (ngModelChange)="nameChanged()"
+                              class="tb-cm-icon-select">
+    </tb-material-icon-select>
     <span class="tb-cm-base-name" [matTooltip]="item.baseName">{{ item.baseName }}</span>
     <input class="tb-cm-name-input" [(ngModel)]="item.name" (ngModelChange)="nameChanged()"
            [placeholder]="item.baseName">
@@ -108,6 +111,18 @@
       <button mat-icon-button type="button" color="warn" (click)="removeCustomItem(list, item)"
               matTooltip="{{ 'action.remove' | translate }}">
         <mat-icon>delete</mat-icon>
+      </button>
+    } @else {
+      @if (!item.isHome) {
+        <button mat-icon-button type="button" (click)="editDefaultItem(item)"
+                matTooltip="{{ 'action.edit' | translate }}">
+          <mat-icon>edit</mat-icon>
+        </button>
+      }
+      <button mat-icon-button type="button" [disabled]="!hasDefaultOverride(item)"
+              (click)="resetDefaultItem(item)"
+              matTooltip="{{ 'custom-menu.reset-item' | translate }}">
+        <mat-icon>cleaning_services</mat-icon>
       </button>
     }
   </div>

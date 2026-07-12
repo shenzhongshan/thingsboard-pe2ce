@@ -133,4 +133,27 @@ public class JpaCustomerDao extends JpaAbstractDao<CustomerEntity, Customer> imp
         return EntityType.CUSTOMER;
     }
 
+    @Override
+    public PageData<Customer> findByTenantIdAndParentCustomerId(UUID tenantId, UUID parentCustomerId, PageLink pageLink) {
+        return DaoUtil.toPageData(customerRepository.findByTenantIdAndParentCustomerId(
+                tenantId, parentCustomerId, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public PageData<Customer> findTopLevelByTenantId(UUID tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(customerRepository.findByTenantIdAndParentCustomerIdIsNull(
+                tenantId, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public PageData<Customer> findDescendants(UUID tenantId, UUID customerId, PageLink pageLink) {
+        return DaoUtil.toPageData(customerRepository.findByTenantIdAndCustomerIdIncludingSubCustomers(
+                tenantId, customerId, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public List<Customer> findAncestors(UUID tenantId, UUID customerId) {
+        return DaoUtil.convertDataList(customerRepository.findAncestors(tenantId, customerId));
+    }
+
 }

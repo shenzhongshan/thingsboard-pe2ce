@@ -99,7 +99,7 @@ export const deviceRoutes: Routes = [
         data: {
           auth: [Authority.TENANT_ADMIN],
           breadcrumb: {
-            label: 'entity-group.device-groups',
+            label: 'entity-group.group-type-device',
             icon: 'workspaces'
           }
         },
@@ -109,7 +109,7 @@ export const deviceRoutes: Routes = [
             component: EntityGroupsComponent,
             data: {
               auth: [Authority.TENANT_ADMIN],
-              title: 'entity-group.device-groups',
+              title: 'entity-group.group-type-device',
               groupType: EntityType.DEVICE
             }
           },
@@ -118,7 +118,7 @@ export const deviceRoutes: Routes = [
             data: {
               auth: [Authority.TENANT_ADMIN],
               breadcrumb: {
-                label: 'entity-group.group',
+                label: 'entity-group.group-entities',
                 icon: 'view_list'
               }
             },
@@ -128,7 +128,7 @@ export const deviceRoutes: Routes = [
                 component: EntitiesTableComponent,
                 data: {
                   auth: [Authority.TENANT_ADMIN],
-                  title: 'entity-group.device-groups',
+                  title: 'entity-group.group-type-device',
                   devicesType: 'tenant',
                   groupType: EntityType.DEVICE
                 },

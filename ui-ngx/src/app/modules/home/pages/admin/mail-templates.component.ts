@@ -26,7 +26,8 @@ import { Authority } from '@shared/models/authority.enum';
 import { WhiteLabelingService } from '@core/http/white-labeling.service';
 
 export const mailTemplateKeys = [
-  'test', 'activation', 'accountActivated', 'resetPassword', 'passwordWasReset', 'accountLockout'
+  'test', 'activation', 'accountActivated', 'resetPassword', 'passwordWasReset', 'accountLockout',
+  'twoFaVerification'
 ];
 
 @Component({

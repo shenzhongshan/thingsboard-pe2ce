@@ -29,10 +29,22 @@
         </mat-form-field>
         <button mat-icon-button type="button" (click)="exitSearchMode()"><mat-icon>close</mat-icon></button>
       } @else {
-        <button mat-icon-button type="button" (click)="addConverter()"
+        <input #importInput type="file" accept=".json" style="display: none;"
+               (change)="onImportFileSelected($event, importInput)">
+        <button mat-icon-button type="button" [matMenuTriggerFor]="addMenu"
                 matTooltip="{{ 'converter.add-converter' | translate }}" matTooltipPosition="above">
           <mat-icon>add</mat-icon>
         </button>
+        <mat-menu #addMenu="matMenu">
+          <button mat-menu-item type="button" (click)="addConverter()">
+            <mat-icon>insert_drive_file</mat-icon>
+            <span translate>converter.create-new-converter</span>
+          </button>
+          <button mat-menu-item type="button" (click)="importInput.click()">
+            <mat-icon>file_upload</mat-icon>
+            <span translate>converter.import-converter</span>
+          </button>
+        </mat-menu>
         <button mat-icon-button type="button" (click)="reload()"
                 matTooltip="{{ 'action.refresh' | translate }}" matTooltipPosition="above">
           <mat-icon>refresh</mat-icon>
