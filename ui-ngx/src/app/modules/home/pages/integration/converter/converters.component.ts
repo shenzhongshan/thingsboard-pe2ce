@@ -112,7 +112,7 @@ export class ConvertersComponent extends PageComponent implements OnInit {
           name: imported.name,
           type: imported.type,
           integrationType: imported.integrationType,
-          debugMode: imported.debugMode || false,
+          debugSettings: imported.debugSettings || { failuresEnabled: false, allEnabled: false, allEnabledUntil: 0 },
           configuration: imported.configuration || {},
           additionalInfo: imported.additionalInfo || {}
         } as Converter;
@@ -152,7 +152,7 @@ export class ConvertersComponent extends PageComponent implements OnInit {
         name: full.name,
         type: full.type,
         integrationType: full.integrationType,
-        debugMode: full.debugMode,
+        debugSettings: full.debugSettings,
         configuration: full.configuration,
         additionalInfo: full.additionalInfo
       };

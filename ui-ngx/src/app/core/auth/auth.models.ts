@@ -39,6 +39,8 @@ export interface SysParamsState {
   maxRelatedEntitiesToReturnPerCfArgument: number;
   ruleChainDebugPerTenantLimitsConfiguration?: string;
   calculatedFieldDebugPerTenantLimitsConfiguration?: string;
+  integrationDebugPerTenantLimitsConfiguration?: string;
+  converterDebugPerTenantLimitsConfiguration?: string;
   intermediateAggregationIntervalInSecForCF: number;
   trendzSettings: TrendzSettings;
   allowKeyFiltersOrConditions: boolean;

@@ -25,55 +25,88 @@
   </mat-toolbar>
   @if (loaded) {
     <div mat-dialog-content>
-      <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
-        <div class="flex flex-row items-center justify-between">
-          <span translate>converter.converter-type</span>
-          <tb-toggle-select formControlName="type" appearance="fill" [attr.disabled]="isEdit ? true : null">
-            <tb-toggle-option [value]="ConverterType.UPLINK">{{ 'converter.type-uplink' | translate }}</tb-toggle-option>
-            <tb-toggle-option [value]="ConverterType.DOWNLINK">{{ 'converter.type-downlink' | translate }}</tb-toggle-option>
-          </tb-toggle-select>
-        </div>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.integration-type</mat-label>
-          <mat-select formControlName="integrationType">
-            <mat-option [value]="''">{{ 'converter.integration-type-all' | translate }}</mat-option>
-            @for (type of integrationTypes; track type) {
-              @if (type) {
-                <mat-option [value]="type">{{ type }}</mat-option>
+      <form [formGroup]="form" class="flex flex-col gap-4" style="padding-top: 8px;">
+        <div class="tb-conv-card">
+          <div class="flex flex-row items-center justify-between">
+            <span translate>converter.converter-type</span>
+            <tb-toggle-select formControlName="type" appearance="fill" [attr.disabled]="isEdit ? true : null">
+              <tb-toggle-option [value]="ConverterType.UPLINK">{{ 'converter.type-uplink' | translate }}</tb-toggle-option>
+              <tb-toggle-option [value]="ConverterType.DOWNLINK">{{ 'converter.type-downlink' | translate }}</tb-toggle-option>
+            </tb-toggle-select>
+          </div>
+          <mat-form-field class="w-full">
+            <mat-label translate>converter.integration-type</mat-label>
+            <mat-select formControlName="integrationType">
+              <mat-option [value]="''">{{ 'converter.integration-type-all' | translate }}</mat-option>
+              @for (type of integrationTypes; track type) {
+                @if (type) {
+                  <mat-option [value]="type">{{ type }}</mat-option>
+                }
               }
-            }
-          </mat-select>
-        </mat-form-field>
-        <div class="flex flex-row items-baseline gap-2">
-          <mat-form-field class="flex-1">
-            <mat-label translate>converter.name</mat-label>
-            <input matInput formControlName="name" required>
-            @if (form.get('name').hasError('required')) {
-              <mat-error>{{ 'converter.name-required' | translate }}</mat-error>
-            }
+            </mat-select>
           </mat-form-field>
-          <mat-slide-toggle formControlName="debugMode">{{ 'converter.debug-mode' | translate }}</mat-slide-toggle>
         </div>
-        <div class="flex flex-row items-center justify-between">
-          <span style="font-weight: 500;">{{ (isUplink ? 'converter.decoder-config' : 'converter.encoder-config') | translate }}</span>
-          <tb-toggle-select formControlName="scriptLang" appearance="fill">
-            <tb-toggle-option [value]="ConverterScriptLanguage.TBEL">TBEL</tb-toggle-option>
-            <tb-toggle-option [value]="ConverterScriptLanguage.JS">JS</tb-toggle-option>
-          </tb-toggle-select>
+
+        <div class="tb-conv-card">
+          <div class="tb-conv-card-title">
+            {{ (isUplink ? 'integration.uplink-data-converter' : 'integration.downlink-data-converter') | translate }}
+          </div>
+          <div class="flex flex-row items-baseline gap-2">
+            <mat-form-field class="flex-1">
+              <mat-label translate>converter.name</mat-label>
+              <input matInput formControlName="name" required>
+              @if (form.get('name').hasError('required')) {
+                <mat-error>{{ 'converter.name-required' | translate }}</mat-error>
+              }
+            </mat-form-field>
+            <tb-entity-debug-settings-button formControlName="debugSettings"
+                                               [entityType]="EntityType.CONVERTER">
+            </tb-entity-debug-settings-button>
+          </div>
         </div>
-        <tb-js-func
-          formControlName="script"
-          [functionName]="isUplink ? 'Decoder' : 'Encoder'"
-          [functionArgs]="isUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
-          [scriptLanguage]="scriptEditorLang"
-          [disableUndefinedCheck]="true"
-          noValidate="true"
-          minHeight="320px">
-        </tb-js-func>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.description</mat-label>
-          <textarea matInput formControlName="description" rows="2"></textarea>
-        </mat-form-field>
+
+        <div class="tb-conv-card">
+          <div class="flex flex-row items-center justify-between">
+            <span class="tb-conv-card-title">{{ (isUplink ? 'converter.decoder-config' : 'converter.encoder-config') | translate }}</span>
+            <tb-toggle-select formControlName="scriptLang" appearance="fill">
+              <tb-toggle-option [value]="ConverterScriptLanguage.TBEL">TBEL</tb-toggle-option>
+              <tb-toggle-option [value]="ConverterScriptLanguage.JS">JS</tb-toggle-option>
+            </tb-toggle-select>
+          </div>
+          <tb-js-func
+            formControlName="script"
+            [functionName]="isUplink ? 'Decoder' : 'Encoder'"
+            [functionArgs]="isUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
+            [scriptLanguage]="scriptEditorLang"
+            [disableUndefinedCheck]="true"
+            noValidate="true"
+            minHeight="320px">
+          </tb-js-func>
+          <div>
+            <button mat-raised-button color="primary" type="button" (click)="testFunction()">
+              {{ (isUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}
+            </button>
+          </div>
+        </div>
+
+        <div class="tb-conv-card">
+          <div class="tb-conv-card-title">
+            {{ (isUplink ? 'converter.advanced-decode-params' : 'converter.advanced-encode-params') | translate }}
+          </div>
+          <tb-string-items-list
+            formControlName="updateOnlyKeys"
+            appearance="fill"
+            [label]="'converter.update-only-keys' | translate">
+          </tb-string-items-list>
+          <div class="tb-conv-hint" translate>converter.update-only-keys-hint</div>
+        </div>
+
+        <div class="tb-conv-card">
+          <mat-form-field class="w-full">
+            <mat-label translate>converter.description</mat-label>
+            <textarea matInput formControlName="description" rows="2"></textarea>
+          </mat-form-field>
+        </div>
       </form>
     </div>
     <div mat-dialog-actions class="flex items-center justify-end">

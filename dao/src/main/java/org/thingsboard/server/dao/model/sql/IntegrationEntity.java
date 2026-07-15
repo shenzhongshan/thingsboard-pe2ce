@@ -24,6 +24,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.thingsboard.common.util.JacksonUtil;
+import org.thingsboard.server.common.data.debug.DebugSettings;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -72,6 +74,9 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
     @Column(name = "debug_mode")
     private boolean debugMode;
 
+    @Column(name = "debug_settings")
+    private String debugSettings;
+
     @Convert(converter = JsonConverter.class)
     @Column(name = "configuration")
     private JsonNode configuration;
@@ -105,6 +110,7 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
         this.enabled = integration.isEnabled();
         this.allowCreateDevicesOrAssets = integration.isAllowCreateDevicesOrAssets();
         this.debugMode = integration.isDebugMode();
+        this.debugSettings = JacksonUtil.toString(integration.getDebugSettings());
         this.configuration = integration.getConfiguration();
         this.additionalInfo = integration.getAdditionalInfo();
     }
@@ -129,6 +135,7 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
         integration.setEnabled(enabled);
         integration.setAllowCreateDevicesOrAssets(allowCreateDevicesOrAssets);
         integration.setDebugMode(debugMode);
+        integration.setDebugSettings(JacksonUtil.fromString(debugSettings, DebugSettings.class));
         integration.setConfiguration(configuration);
         integration.setAdditionalInfo(additionalInfo);
         return integration;

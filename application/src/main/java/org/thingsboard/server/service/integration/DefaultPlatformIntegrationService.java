@@ -62,21 +62,33 @@ import org.thingsboard.server.common.data.converter.Converter;
 @RequiredArgsConstructor
 public class DefaultPlatformIntegrationService extends AbstractPartitionBasedService<TenantId> implements PlatformIntegrationService {
 
+    // Integration types with no in-process runtime: the inbound endpoint resolves them by
+    // routing key and calls processUplink() directly (see IntegrationHttpController).
+    private static final Set<IntegrationType> PASSIVE_TYPES = Set.of(
+            IntegrationType.HTTP, IntegrationType.SIGFOX, IntegrationType.CHIRPSTACK,
+            IntegrationType.PARTICLE, IntegrationType.KPN, IntegrationType.LORIOT,
+            IntegrationType.OCEANCONNECT, IntegrationType.THINGPARK, IntegrationType.TPE,
+            IntegrationType.TMOBILE_IOT_CDP);
+
     private final IntegrationService integrationService;
     private final ConverterService converterService;
     private final ConverterExecutorService converterExecutorService;
     private final DeviceService deviceService;
     private final TbClusterService clusterService;
-    private final MqttIntegrationClientFactory mqttClientFactory;
+    private final List<IntegrationRuntimeFactory> runtimeFactories;
+
+    private final Map<IntegrationType, IntegrationRuntimeFactory> factoryByType = new ConcurrentHashMap<>();
 
     // integrationId -> runtime status ("ACTIVE"/"FAILED"/"STOPPED", error)
     private final ConcurrentMap<IntegrationId, IntegrationStatus> statuses = new ConcurrentHashMap<>();
-    // integrationId -> running MQTT client (HTTP integrations have no runtime state)
-    private final ConcurrentMap<IntegrationId, MqttIntegrationClient> mqttClients = new ConcurrentHashMap<>();
-    // integrationId -> running TCP server
-    private final ConcurrentMap<IntegrationId, TcpIntegrationServer> tcpServers = new ConcurrentHashMap<>();
+    // integrationId -> running runtime instance (passive types have no entry here)
+    private final ConcurrentMap<IntegrationId, IntegrationRuntime> runtimes = new ConcurrentHashMap<>();
     // integrationId -> today's uplink message count (PE's "daily activity" metric)
     private final ConcurrentMap<IntegrationId, DailyCounter> dailyEventCounts = new ConcurrentHashMap<>();
+    // converterId+deviceId+key -> last value this converter produced for that key, used to
+    // enforce a converter's "updateOnlyKeys" (only persist a key if it changed since the
+    // previous converted message for that device).
+    private final ConcurrentMap<String, JsonNode> lastConvertedValues = new ConcurrentHashMap<>();
 
     record IntegrationStatus(String status, String error) {}
 
@@ -100,15 +112,18 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     @PostConstruct
     public void init() {
+        for (IntegrationRuntimeFactory factory : runtimeFactories) {
+            for (IntegrationType type : factory.getSupportedTypes()) {
+                factoryByType.put(type, factory);
+            }
+        }
         super.init();
     }
 
     @PreDestroy
     public void stop() {
-        mqttClients.values().forEach(MqttIntegrationClient::stop);
-        mqttClients.clear();
-        tcpServers.values().forEach(TcpIntegrationServer::stop);
-        tcpServers.clear();
+        runtimes.values().forEach(IntegrationRuntime::stop);
+        runtimes.clear();
         super.stop();
     }
 
@@ -140,15 +155,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     @Override
     protected void cleanupEntityOnPartitionRemoval(TenantId tenantId) {
         // Stop runtimes of tenants we no longer own.
-        mqttClients.entrySet().removeIf(e -> {
-            if (tenantId.equals(e.getValue().getTenantId())) {
-                e.getValue().stop();
-                statuses.put(e.getKey(), new IntegrationStatus("STOPPED", null));
-                return true;
-            }
-            return false;
-        });
-        tcpServers.entrySet().removeIf(e -> {
+        runtimes.entrySet().removeIf(e -> {
             if (tenantId.equals(e.getValue().getTenantId())) {
                 e.getValue().stop();
                 statuses.put(e.getKey(), new IntegrationStatus("STOPPED", null));
@@ -194,16 +201,16 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     private void startIntegration(Integration integration) {
         try {
-            if (integration.getType() == IntegrationType.MQTT) {
-                MqttIntegrationClient client = mqttClientFactory.create(integration, this);
-                client.start();
-                mqttClients.put(integration.getId(), client);
-            } else if (integration.getType() == IntegrationType.TCP) {
-                TcpIntegrationServer server = new TcpIntegrationServer(integration, this);
-                server.start();
-                tcpServers.put(integration.getId(), server);
+            IntegrationType type = integration.getType();
+            if (!PASSIVE_TYPES.contains(type)) {
+                IntegrationRuntimeFactory factory = factoryByType.get(type);
+                if (factory == null) {
+                    throw new UnsupportedOperationException("Integration type " + type + " is not implemented in this build!");
+                }
+                IntegrationRuntime runtime = factory.create(integration, this);
+                runtime.start();
+                runtimes.put(integration.getId(), runtime);
             }
-            // HTTP integrations are passive: the inbound endpoint resolves them by routing key.
             statuses.put(integration.getId(), new IntegrationStatus("ACTIVE", null));
             log.info("[{}][{}] Integration started", integration.getTenantId(), integration.getName());
         } catch (Exception e) {
@@ -213,13 +220,9 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     }
 
     private void stopIntegration(IntegrationId integrationId) {
-        MqttIntegrationClient client = mqttClients.remove(integrationId);
-        if (client != null) {
-            client.stop();
-        }
-        TcpIntegrationServer server = tcpServers.remove(integrationId);
-        if (server != null) {
-            server.stop();
+        IntegrationRuntime runtime = runtimes.remove(integrationId);
+        if (runtime != null) {
+            runtime.stop();
         }
     }
 
@@ -230,25 +233,33 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         if (converter == null || converter.getConfiguration() == null) {
             throw new IllegalStateException("Uplink converter is not configured!");
         }
+        byte[] effectivePayload = payload;
+        Map<String, String> effectiveMetadata = metadata;
+        IntegrationPayloadUnwrapper unwrapper = IntegrationPayloadUnwrapperFactory.getUnwrapper(integration.getType());
+        if (unwrapper != null) {
+            IntegrationPayloadUnwrapper.UnwrapResult unwrapped = unwrapper.unwrap(payload, metadata);
+            effectivePayload = unwrapped.payload();
+            effectiveMetadata = unwrapped.metadata();
+        }
         JsonNode cfg = converter.getConfiguration();
         ScriptLanguage lang = cfg.has("scriptLang") ? ScriptLanguage.valueOf(cfg.get("scriptLang").asText()) : ScriptLanguage.TBEL;
         String decoder = cfg.get("decoder").asText();
-        Map<String, String> md = new HashMap<>(metadata);
+        Map<String, String> md = new HashMap<>(effectiveMetadata);
         md.put("integrationName", integration.getName());
-        JsonNode result = converterExecutorService.executeUplink(integration.getTenantId(), lang, decoder, payload, md);
+        JsonNode result = converterExecutorService.executeUplink(integration.getTenantId(), lang, decoder, effectivePayload, md);
         if (result == null || result.isNull()) {
             return;
         }
         if (result.isArray()) {
             for (JsonNode item : result) {
-                processUplinkData(integration, item, md);
+                processUplinkData(integration, converter, item, md);
             }
         } else {
-            processUplinkData(integration, result, md);
+            processUplinkData(integration, converter, result, md);
         }
     }
 
-    private void processUplinkData(Integration integration, JsonNode data, Map<String, String> metadata) {
+    private void processUplinkData(Integration integration, Converter converter, JsonNode data, Map<String, String> metadata) {
         if (data == null || !data.has("deviceName")) {
             log.debug("[{}] Uplink result has no deviceName, skipping: {}", integration.getId(), data);
             return;
@@ -273,29 +284,66 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         msgMetaData.putValue("deviceName", deviceName);
         msgMetaData.putValue("deviceType", deviceType);
         metadata.forEach(msgMetaData::putValue);
-        if (data.has("telemetry") && data.get("telemetry").isObject() && !data.get("telemetry").isEmpty()) {
-            pushMsg(tenantId, device, TbMsgType.POST_TELEMETRY_REQUEST, data.get("telemetry"), msgMetaData);
+        List<String> updateOnlyKeys = getUpdateOnlyKeys(converter);
+        JsonNode telemetry = data.has("telemetry") && data.get("telemetry").isObject() ? data.get("telemetry") : null;
+        JsonNode attributes = data.has("attributes") && data.get("attributes").isObject() ? data.get("attributes") : null;
+        if (!updateOnlyKeys.isEmpty()) {
+            String converterId = converter.getId().getId().toString();
+            String deviceId = device.getId().getId().toString();
+            telemetry = filterUnchangedKeys(converterId, deviceId, "ts", telemetry, updateOnlyKeys);
+            attributes = filterUnchangedKeys(converterId, deviceId, "attr", attributes, updateOnlyKeys);
         }
-        if (data.has("attributes") && data.get("attributes").isObject() && !data.get("attributes").isEmpty()) {
-            pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, data.get("attributes"), msgMetaData);
+        if (telemetry != null && !telemetry.isEmpty()) {
+            pushMsg(tenantId, device, TbMsgType.POST_TELEMETRY_REQUEST, telemetry, msgMetaData);
         }
+        if (attributes != null && !attributes.isEmpty()) {
+            pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, attributes, msgMetaData);
+        }
+    }
+
+    private List<String> getUpdateOnlyKeys(Converter converter) {
+        JsonNode cfg = converter.getConfiguration();
+        if (cfg != null && cfg.has("updateOnlyKeys") && cfg.get("updateOnlyKeys").isArray() && !cfg.get("updateOnlyKeys").isEmpty()) {
+            List<String> keys = new java.util.ArrayList<>();
+            cfg.get("updateOnlyKeys").forEach(k -> keys.add(k.asText()));
+            return keys;
+        }
+        return Collections.emptyList();
+    }
+
+    // Only saves a key to the DB if its value differs from the value this same converter
+    // produced for that device+key in the previous converted message (PE parity: "仅当提供的键
+    // 对应的值与上一条转换消息中的相应值不同时，才会将其保存到数据库").
+    private JsonNode filterUnchangedKeys(String converterId, String deviceId, String scope, JsonNode data, List<String> updateOnlyKeys) {
+        if (data == null || !data.isObject() || data.isEmpty()) {
+            return data;
+        }
+        ObjectNode filtered = JacksonUtil.newObjectNode();
+        Iterator<Map.Entry<String, JsonNode>> fields = data.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String key = entry.getKey();
+            JsonNode value = entry.getValue();
+            if (updateOnlyKeys.contains(key)) {
+                String cacheKey = converterId + ":" + deviceId + ":" + scope + ":" + key;
+                JsonNode previous = lastConvertedValues.get(cacheKey);
+                if (previous != null && previous.equals(value)) {
+                    continue;
+                }
+                lastConvertedValues.put(cacheKey, value);
+            }
+            filtered.set(key, value);
+        }
+        return filtered;
     }
 
     @Override
     public void pushDownlink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
-        if (integration.getType() != IntegrationType.MQTT) {
-            throw new UnsupportedOperationException("Downlink is only supported for MQTT integrations in this build!");
+        IntegrationRuntime runtime = runtimes.get(integration.getId());
+        if (runtime == null) {
+            throw new UnsupportedOperationException("Downlink is not supported for this integration type in this build!");
         }
-        MqttIntegrationClient client = mqttClients.get(integration.getId());
-        if (client == null) {
-            throw new IllegalStateException("Integration is not connected!");
-        }
-        JsonNode cfg = integration.getConfiguration();
-        String topic = cfg != null && cfg.has("downlinkTopic") ? cfg.get("downlinkTopic").asText() : null;
-        if (topic == null || topic.isEmpty()) {
-            throw new IllegalArgumentException("Downlink topic is not configured for this integration!");
-        }
-        client.publish(topic, payload).get(5, java.util.concurrent.TimeUnit.SECONDS);
+        runtime.pushDownlink(payload, metadata);
     }
 
     private void pushMsg(TenantId tenantId, Device device, TbMsgType msgType, JsonNode body, TbMsgMetaData metaData) {

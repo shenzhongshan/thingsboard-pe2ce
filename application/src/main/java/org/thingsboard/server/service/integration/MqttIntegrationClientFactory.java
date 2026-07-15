@@ -17,12 +17,27 @@ package org.thingsboard.server.service.integration;
 
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 
+import java.util.Set;
+
+/**
+ * MqttIntegrationClient serves every MQTT-family type: the differences between plain MQTT and
+ * AWS_IOT/AZURE_IOT_HUB/TTN/TTI are config-shape only (forced port, credential type, host
+ * suffixing), all handled inside MqttIntegrationClient itself.
+ */
 @Component
 @TbCoreComponent
-public class MqttIntegrationClientFactory {
+public class MqttIntegrationClientFactory implements IntegrationRuntimeFactory {
 
+    @Override
+    public Set<IntegrationType> getSupportedTypes() {
+        return Set.of(IntegrationType.MQTT, IntegrationType.AWS_IOT, IntegrationType.AZURE_IOT_HUB,
+                IntegrationType.TTN, IntegrationType.TTI);
+    }
+
+    @Override
     public MqttIntegrationClient create(Integration integration, PlatformIntegrationService platformIntegrationService) {
         return new MqttIntegrationClient(integration, platformIntegrationService);
     }

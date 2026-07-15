@@ -175,6 +175,12 @@ public class SystemInfoController extends BaseController {
             if (debugModeRateLimitsConfig.isCalculatedFieldDebugPerTenantLimitsEnabled()) {
                 systemParams.setCalculatedFieldDebugPerTenantLimitsConfiguration(debugModeRateLimitsConfig.getCalculatedFieldDebugPerTenantLimitsConfiguration());
             }
+            if (debugModeRateLimitsConfig.isIntegrationDebugPerTenantLimitsEnabled()) {
+                systemParams.setIntegrationDebugPerTenantLimitsConfiguration(debugModeRateLimitsConfig.getIntegrationDebugPerTenantLimitsConfiguration());
+            }
+            if (debugModeRateLimitsConfig.isConverterDebugPerTenantLimitsEnabled()) {
+                systemParams.setConverterDebugPerTenantLimitsConfiguration(debugModeRateLimitsConfig.getConverterDebugPerTenantLimitsConfiguration());
+            }
             systemParams.setMaxArgumentsPerCF(tenantProfileConfiguration.getMaxArgumentsPerCF());
             systemParams.setMaxDataPointsPerRollingArg(tenantProfileConfiguration.getMaxDataPointsPerRollingArg());
             systemParams.setMinAllowedScheduledUpdateIntervalInSecForCF(tenantProfileConfiguration.getMinAllowedScheduledUpdateIntervalInSecForCF());

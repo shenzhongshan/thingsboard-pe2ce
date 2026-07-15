@@ -1,0 +1,70 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-converter-test-dialog">
+  <mat-toolbar color="primary">
+    <h2>{{ (isUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="close()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+      @if (isUplink) {
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-payload</mat-label>
+          <textarea matInput formControlName="payload" rows="6"></textarea>
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-metadata</mat-label>
+          <textarea matInput formControlName="metadata" rows="3"></textarea>
+        </mat-form-field>
+      } @else {
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-msg</mat-label>
+          <textarea matInput formControlName="msg" rows="4"></textarea>
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-msg-type</mat-label>
+          <input matInput formControlName="msgType">
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-metadata</mat-label>
+          <textarea matInput formControlName="metadata" rows="2"></textarea>
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>converter.test-integration-metadata</mat-label>
+          <textarea matInput formControlName="integrationMetadata" rows="2"></textarea>
+        </mat-form-field>
+      }
+      <button mat-raised-button color="primary" type="button" [disabled]="testing" (click)="runTest()">
+        {{ 'converter.test-run' | translate }}
+      </button>
+      @if (result) {
+        <mat-form-field class="w-full">
+          <mat-label translate>{{ result.error ? 'converter.test-error' : 'converter.test-output' }}</mat-label>
+          <textarea matInput [value]="result.error || result.output" rows="8" readonly
+                    [class.tb-test-error]="result.error"></textarea>
+        </mat-form-field>
+      }
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end">
+    <button mat-button type="button" (click)="close()">{{ 'action.close' | translate }}</button>
+  </div>
+</div>

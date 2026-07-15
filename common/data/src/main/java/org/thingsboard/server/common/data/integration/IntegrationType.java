@@ -16,11 +16,37 @@
 package org.thingsboard.server.common.data.integration;
 
 /**
- * CE port: HTTP, MQTT and TCP have runtime implementations. The remaining PE types are not
- * included — add constants here together with an integration runtime when porting more types.
+ * Full PE protocol list (29 types). Runtime implementations live under
+ * org.thingsboard.server.service.integration, registered per-type in IntegrationRuntimeFactory.
  */
 public enum IntegrationType {
     HTTP,
     MQTT,
-    TCP
+    TCP,
+    UDP,
+    COAP,
+    OPC_UA,
+    CUSTOM,
+    AWS_IOT,
+    AZURE_IOT_HUB,
+    TTN,
+    TTI,
+    AWS_SQS,
+    AWS_KINESIS,
+    AZURE_EVENT_HUB,
+    AZURE_SERVICE_BUS,
+    PUB_SUB,
+    KAFKA,
+    RABBITMQ,
+    APACHE_PULSAR,
+    TUYA,
+    SIGFOX,
+    CHIRPSTACK,
+    PARTICLE,
+    KPN,
+    LORIOT,
+    OCEANCONNECT,
+    THINGPARK,
+    TPE,
+    TMOBILE_IOT_CDP
 }

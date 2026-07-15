@@ -17,7 +17,9 @@ package org.thingsboard.server.dao.converter;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.id.ConverterId;
@@ -29,6 +31,7 @@ import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.model.sql.ConverterEntity;
 import org.thingsboard.server.dao.sql.integration.ConverterRepository;
 import org.thingsboard.server.dao.sql.integration.IntegrationRepository;
+import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.UUID;
@@ -40,6 +43,10 @@ public class BaseConverterService implements ConverterService {
 
     private final ConverterRepository converterRepository;
     private final IntegrationRepository integrationRepository;
+    private final TbTenantProfileCache tbTenantProfileCache;
+
+    @Value("${debug.settings.default_duration:15}")
+    private int defaultDebugDurationMinutes;
 
     @Override
     public Converter saveConverter(Converter converter) {
@@ -63,6 +70,9 @@ public class BaseConverterService implements ConverterService {
         if (converter.getId() == null) {
             converter.setCreatedTime(System.currentTimeMillis());
         }
+        DebugModeUtil.migrateDebugSettings(converter,
+                tbTenantProfileCache.get(converter.getTenantId()).getDefaultProfileConfiguration().getMaxDebugModeDurationMinutes(),
+                defaultDebugDurationMinutes, System.currentTimeMillis());
         return converterRepository.save(new ConverterEntity(converter)).toData();
     }
 

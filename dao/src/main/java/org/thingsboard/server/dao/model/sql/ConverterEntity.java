@@ -24,8 +24,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.converter.ConverterType;
+import org.thingsboard.server.common.data.debug.DebugSettings;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.IntegrationType;
@@ -58,6 +60,9 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
     @Column(name = "debug_mode")
     private boolean debugMode;
 
+    @Column(name = "debug_settings")
+    private String debugSettings;
+
     @Convert(converter = JsonConverter.class)
     @Column(name = "configuration")
     private JsonNode configuration;
@@ -82,6 +87,7 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
         this.type = converter.getType();
         this.integrationType = converter.getIntegrationType();
         this.debugMode = converter.isDebugMode();
+        this.debugSettings = JacksonUtil.toString(converter.getDebugSettings());
         this.configuration = converter.getConfiguration();
         this.additionalInfo = converter.getAdditionalInfo();
     }
@@ -97,6 +103,7 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
         converter.setType(type);
         converter.setIntegrationType(integrationType);
         converter.setDebugMode(debugMode);
+        converter.setDebugSettings(JacksonUtil.fromString(debugSettings, DebugSettings.class));
         converter.setConfiguration(configuration);
         converter.setAdditionalInfo(additionalInfo);
         return converter;

@@ -230,7 +230,7 @@ public class EntityGroupController extends BaseController {
                 || tenant.getName().toLowerCase().contains(textSearch.toLowerCase()))) {
             owners.add(new EntityInfo(getTenantId(), tenant.getName()));
         }
-        PageLink pageLink = createPageLink(pageSize, page, textSearch, "name", "ASC");
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, "title", "ASC");
         owners.addAll(customerService.findCustomersByTenantId(getTenantId(), pageLink).getData().stream()
                 .map(c -> new EntityInfo(c.getId(), c.getName()))
                 .collect(Collectors.toList()));

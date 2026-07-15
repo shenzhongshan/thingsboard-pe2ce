@@ -15,7 +15,7 @@
 ///
 
 import { Component, Inject, OnInit } from '@angular/core';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
@@ -32,6 +32,8 @@ import {
   newConverter
 } from '@shared/models/converter.models';
 import { IntegrationType } from '@shared/models/integration.models';
+import { ConverterTestDialogComponent } from '@home/pages/integration/converter/converter-test-dialog.component';
+import { EntityType } from '@shared/models/entity-type.models';
 
 export interface ConverterDialogData {
   converterId?: string;
@@ -49,6 +51,7 @@ export class ConverterDialogComponent implements OnInit {
   isEdit = false;
   loaded = false;
 
+  EntityType = EntityType;
   ConverterType = ConverterType;
   ScriptLanguage = ScriptLanguage;
   ConverterScriptLanguage = ConverterScriptLanguage;
@@ -60,6 +63,7 @@ export class ConverterDialogComponent implements OnInit {
               private dialogRef: MatDialogRef<ConverterDialogComponent, boolean>,
               protected store: Store<AppState>,
               private converterService: ConverterService,
+              private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.converterId;
   }
@@ -85,10 +89,11 @@ export class ConverterDialogComponent implements OnInit {
       name: [converter.name, [Validators.required]],
       type: [converter.type],
       integrationType: [converter.integrationType || ''],
-      debugMode: [converter.debugMode !== false],
+      debugSettings: [converter.debugSettings || { failuresEnabled: true, allEnabled: false, allEnabledUntil: 0 }],
       scriptLang: [cfg.scriptLang || ConverterScriptLanguage.TBEL],
       script: [isUplink ? (cfg.decoder || DEFAULT_TBEL_DECODER) : (cfg.encoder || DEFAULT_TBEL_ENCODER),
         [Validators.required]],
+      updateOnlyKeys: [cfg.updateOnlyKeys || []],
       description: [converter.additionalInfo?.description || '']
     });
     // Reset the script template when switching type/lang on a fresh converter.
@@ -118,6 +123,18 @@ export class ConverterDialogComponent implements OnInit {
     return this.form.get('scriptLang').value === ConverterScriptLanguage.JS ? ScriptLanguage.JS : ScriptLanguage.TBEL;
   }
 
+  testFunction(): void {
+    this.dialog.open(ConverterTestDialogComponent, {
+      disableClose: false,
+      panelClass: ['tb-dialog'],
+      data: {
+        type: this.form.get('type').value,
+        script: this.form.get('script').value,
+        scriptLang: this.form.get('scriptLang').value
+      }
+    });
+  }
+
   cancel(): void {
     this.dialogRef.close(false);
   }
@@ -129,14 +146,14 @@ export class ConverterDialogComponent implements OnInit {
     }
     const v = this.form.value;
     const configuration = this.isUplink
-      ? { scriptLang: v.scriptLang, decoder: v.script }
-      : { scriptLang: v.scriptLang, encoder: v.script };
+      ? { scriptLang: v.scriptLang, decoder: v.script, updateOnlyKeys: v.updateOnlyKeys || [] }
+      : { scriptLang: v.scriptLang, encoder: v.script, updateOnlyKeys: v.updateOnlyKeys || [] };
     const converter: Converter = {
       ...(this.converter || {} as Converter),
       name: v.name,
       type: v.type,
       integrationType: v.integrationType || null,
-      debugMode: v.debugMode,
+      debugSettings: v.debugSettings,
       configuration,
       additionalInfo: { ...(this.converter?.additionalInfo || {}), description: v.description }
     };

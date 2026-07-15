@@ -35,11 +35,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Inbound endpoint for HTTP integrations (PE path convention). The routing key acts as the
- * shared secret — same trust model as PE. Served under the device API entry point, which is
- * not JWT-protected.
+ * Inbound endpoint for HTTP-webhook-family integrations (PE path convention). The routing key
+ * acts as the shared secret — same trust model as PE. Served under the device API entry point,
+ * which is not JWT-protected. Covers plain HTTP plus every LPWAN network-server webhook type
+ * (they're all "POST a JSON body to a routing-key URL", differing only in payload shape, which
+ * IntegrationPayloadUnwrapperFactory normalizes before the uplink converter runs).
  */
 @Slf4j
 @RestController
@@ -47,6 +50,12 @@ import java.util.Optional;
 @RequestMapping("/api/v1/integrations/http")
 @RequiredArgsConstructor
 public class IntegrationHttpController {
+
+    private static final Set<IntegrationType> SUPPORTED_TYPES = Set.of(
+            IntegrationType.HTTP, IntegrationType.SIGFOX, IntegrationType.CHIRPSTACK,
+            IntegrationType.PARTICLE, IntegrationType.KPN, IntegrationType.LORIOT,
+            IntegrationType.OCEANCONNECT, IntegrationType.THINGPARK, IntegrationType.TPE,
+            IntegrationType.TMOBILE_IOT_CDP);
 
     private final IntegrationService integrationService;
     private final PlatformIntegrationService platformIntegrationService;
@@ -56,7 +65,7 @@ public class IntegrationHttpController {
                                                 @RequestBody String body,
                                                 @RequestHeader Map<String, String> headers) {
         Optional<Integration> integrationOpt = integrationService.findIntegrationByRoutingKey(routingKey);
-        if (integrationOpt.isEmpty() || integrationOpt.get().getType() != IntegrationType.HTTP) {
+        if (integrationOpt.isEmpty() || !SUPPORTED_TYPES.contains(integrationOpt.get().getType())) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Integration not found");
         }
         Integration integration = integrationOpt.get();

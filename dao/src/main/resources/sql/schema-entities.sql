@@ -1025,9 +1025,11 @@ CREATE TABLE IF NOT EXISTS converter (
     type VARCHAR(255),
     integration_type VARCHAR(255),
     debug_mode BOOLEAN DEFAULT false,
+    debug_settings VARCHAR(1024),
     configuration VARCHAR(10000000),
     additional_info VARCHAR
 );
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
 
 CREATE TABLE IF NOT EXISTS integration (
     id UUID NOT NULL CONSTRAINT integration_pkey PRIMARY KEY,
@@ -1042,9 +1044,11 @@ CREATE TABLE IF NOT EXISTS integration (
     enabled BOOLEAN,
     allow_create_devices_or_assets BOOLEAN,
     debug_mode BOOLEAN DEFAULT false,
+    debug_settings VARCHAR(1024),
     configuration VARCHAR(10000000),
     additional_info VARCHAR
 );
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
 
 CREATE TABLE IF NOT EXISTS entity_group (
     id UUID NOT NULL CONSTRAINT entity_group_pkey PRIMARY KEY,

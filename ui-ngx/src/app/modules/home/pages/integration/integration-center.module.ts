@@ -22,18 +22,22 @@ import { IntegrationsComponent } from '@home/pages/integration/integration/integ
 import { IntegrationDialogComponent } from '@home/pages/integration/integration/integration-dialog.component';
 import { ConvertersComponent } from '@home/pages/integration/converter/converters.component';
 import { ConverterDialogComponent } from '@home/pages/integration/converter/converter-dialog.component';
+import { ConverterTestDialogComponent } from '@home/pages/integration/converter/converter-test-dialog.component';
+import { EntityDebugSettingsButtonComponent } from '@home/components/entity/debug/entity-debug-settings-button.component';
 
 @NgModule({
   declarations: [
     IntegrationsComponent,
     IntegrationDialogComponent,
     ConvertersComponent,
-    ConverterDialogComponent
+    ConverterDialogComponent,
+    ConverterTestDialogComponent
   ],
   imports: [
     CommonModule,
     SharedModule,
-    IntegrationCenterRoutingModule
+    IntegrationCenterRoutingModule,
+    EntityDebugSettingsButtonComponent
   ]
 })
 export class IntegrationCenterModule { }

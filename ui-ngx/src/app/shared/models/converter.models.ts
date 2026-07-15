@@ -18,6 +18,7 @@ import { BaseData } from '@shared/models/base-data';
 import { TenantId } from '@shared/models/id/tenant-id';
 import { EntityType } from '@shared/models/entity-type.models';
 import { HasUUID } from '@shared/models/id/has-uuid';
+import { EntityDebugSettings } from '@shared/models/entity.models';
 
 export class ConverterId implements HasUUID {
   entityType = EntityType.CONVERTER;
@@ -46,6 +47,7 @@ export interface ConverterConfiguration {
   scriptLang: ConverterScriptLanguage;
   decoder?: string;
   encoder?: string;
+  updateOnlyKeys?: string[];
 }
 
 export interface Converter extends BaseData<ConverterId> {
@@ -53,7 +55,7 @@ export interface Converter extends BaseData<ConverterId> {
   name: string;
   type: ConverterType;
   integrationType?: string;
-  debugMode: boolean;
+  debugSettings?: EntityDebugSettings;
   configuration: ConverterConfiguration;
   additionalInfo?: {description?: string; [key: string]: any};
 }
@@ -181,7 +183,7 @@ export function newConverter(): Converter {
   return {
     name: '',
     type: ConverterType.UPLINK,
-    debugMode: true,
+    debugSettings: { failuresEnabled: true, allEnabled: false, allEnabledUntil: 0 },
     configuration: {
       scriptLang: ConverterScriptLanguage.TBEL,
       decoder: DEFAULT_TBEL_DECODER

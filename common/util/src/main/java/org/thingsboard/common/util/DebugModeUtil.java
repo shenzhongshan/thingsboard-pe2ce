@@ -16,9 +16,11 @@
 package org.thingsboard.common.util;
 
 import org.thingsboard.server.common.data.HasDebugSettings;
+import org.thingsboard.server.common.data.debug.DebugSettings;
 import org.thingsboard.server.common.data.msg.TbNodeConnectionType;
 
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public final class DebugModeUtil {
 
@@ -32,6 +34,21 @@ public final class DebugModeUtil {
             return tenantProfileDuration;
         } else {
             return systemDefaultDuration > 0 ? systemDefaultDuration : DEBUG_MODE_DEFAULT_DURATION_MINUTES;
+        }
+    }
+
+    /**
+     * Migrates a legacy debugMode boolean into a DebugSettings object and clamps allEnabledUntil
+     * to the tenant's max debug-all duration, mirroring AbstractEntityService.updateDebugSettings
+     * for entities (e.g. Integration/Converter) whose DAO service doesn't extend that base class.
+     */
+    public static void migrateDebugSettings(HasDebugSettings entity, int tenantProfileMaxMinutes, int systemDefaultMinutes, long now) {
+        long maxDebugAllUntil = now + TimeUnit.MINUTES.toMillis(getMaxDebugAllDuration(tenantProfileMaxMinutes, systemDefaultMinutes));
+        if (entity.getDebugSettings() != null) {
+            entity.setDebugSettings(entity.getDebugSettings().copy(maxDebugAllUntil));
+        } else if (entity.isDebugMode()) {
+            entity.setDebugSettings(DebugSettings.failuresOrUntil(maxDebugAllUntil));
+            entity.setDebugMode(false);
         }
     }
 

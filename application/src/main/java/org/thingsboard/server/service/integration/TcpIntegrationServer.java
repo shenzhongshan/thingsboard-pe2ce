@@ -49,7 +49,7 @@ import java.util.Map;
  * PE's richer binary length-field framing and socket tuning options are dropped.
  */
 @Slf4j
-public class TcpIntegrationServer {
+public class TcpIntegrationServer implements IntegrationRuntime {
 
     private final Integration integration;
     private final PlatformIntegrationService platformIntegrationService;
@@ -66,6 +66,7 @@ public class TcpIntegrationServer {
         this.tenantId = integration.getTenantId();
     }
 
+    @Override
     public void start() throws Exception {
         JsonNode cfg = integration.getConfiguration();
         if (cfg == null || !cfg.has("port")) {
@@ -111,6 +112,7 @@ public class TcpIntegrationServer {
         return Delimiters.lineDelimiter();
     }
 
+    @Override
     public void stop() {
         if (serverChannel != null) {
             serverChannel.close();

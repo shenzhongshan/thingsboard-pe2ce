@@ -36,6 +36,8 @@ public class SystemParams {
     int maxDebugModeDurationMinutes;
     String ruleChainDebugPerTenantLimitsConfiguration;
     String calculatedFieldDebugPerTenantLimitsConfiguration;
+    String integrationDebugPerTenantLimitsConfiguration;
+    String converterDebugPerTenantLimitsConfiguration;
     long maxArgumentsPerCF;
     long maxDataPointsPerRollingArg;
     int minAllowedScheduledUpdateIntervalInSecForCF;

@@ -33,4 +33,14 @@ public class DebugModeRateLimitsConfig {
     @Value("${actors.calculated_fields.debug_mode_rate_limits_per_tenant.configuration:50000:3600}")
     private String calculatedFieldDebugPerTenantLimitsConfiguration;
 
+    @Value("${actors.integrations.debug_mode_rate_limits_per_tenant.enabled:true}")
+    private boolean integrationDebugPerTenantLimitsEnabled;
+    @Value("${actors.integrations.debug_mode_rate_limits_per_tenant.configuration:50000:3600}")
+    private String integrationDebugPerTenantLimitsConfiguration;
+
+    @Value("${actors.converters.debug_mode_rate_limits_per_tenant.enabled:true}")
+    private boolean converterDebugPerTenantLimitsEnabled;
+    @Value("${actors.converters.debug_mode_rate_limits_per_tenant.configuration:50000:3600}")
+    private String converterDebugPerTenantLimitsConfiguration;
+
 }
