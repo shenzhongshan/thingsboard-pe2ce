@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
+import org.thingsboard.server.common.data.domain.Domain;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.DomainId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
@@ -162,7 +164,17 @@ extends BaseController {
         Authority authority = this.getCurrentUser().getAuthority();
         this.checkWhiteLabelingPermissions(Operation.WRITE);
         if (loginWhiteLabelingParams.getDomainId() != null) {
-            this.checkEntityId(loginWhiteLabelingParams.getDomainId(), this.domainService::findDomainById, Operation.READ);
+            if (Authority.SYS_ADMIN.equals((Object)authority)) {
+                this.checkEntityId(loginWhiteLabelingParams.getDomainId(), this.domainService::findDomainById, Operation.READ);
+            } else {
+                // Domain is a SYS_ADMIN-owned resource (see DomainController), so a tenant admin or
+                // customer user configuring their own Login White Labeling can never satisfy the
+                // Resource.DOMAIN permission check above - they're only referencing an existing domain
+                // by id (already resolved via /api/domain/resolve, which is gated on WHITE_LABELING
+                // read), not managing it, so a plain existence check is sufficient here.
+                Domain domain = this.domainService.findDomainById(this.getTenantId(), (DomainId)loginWhiteLabelingParams.getDomainId());
+                this.checkNotNull(domain, "Domain with id [" + loginWhiteLabelingParams.getDomainId() + "] is not found");
+            }
         }
         LoginWhiteLabelingParams savedLoginWhiteLabelingParams = null;
         if (Authority.SYS_ADMIN.equals((Object)authority)) {

@@ -24,6 +24,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.dao.model.sql.DomainEntity;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DomainRepository extends JpaRepository<DomainEntity, UUID> {
@@ -33,6 +34,8 @@ public interface DomainRepository extends JpaRepository<DomainEntity, UUID> {
     Page<DomainEntity> findByTenantId(@Param("tenantId") UUID tenantId,
                                       @Param("searchText") String searchText,
                                       Pageable pageable);
+
+    Optional<DomainEntity> findByName(String name);
 
     @Transactional
     @Modifying

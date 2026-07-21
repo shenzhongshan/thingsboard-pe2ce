@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.domain.Domain;
 import org.thingsboard.server.common.data.domain.DomainInfo;
+import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.DomainId;
 import org.thingsboard.server.common.data.id.OAuth2ClientId;
@@ -117,6 +118,26 @@ public class DomainController extends BaseController {
     public DomainInfo getDomainInfoById(@PathVariable UUID id) throws ThingsboardException {
         DomainId domainId = new DomainId(id);
         return checkEntityId(domainId, domainService::findDomainInfoById, Operation.READ);
+    }
+
+    @ApiOperation(value = "Resolve Domain by name (resolveDomainByName)",
+            notes = "Resolve an existing Domain by its unique name. Domains are created by a system " +
+                    "administrator (see saveDomain), but a tenant admin or customer user configuring their " +
+                    "own Login White Labeling needs to reference one of those domains by name — the general " +
+                    "domain-listing/management endpoints are SYS_ADMIN-only, so this endpoint exists " +
+                    "specifically to let non-SYS_ADMIN users resolve the Domain id for a name they already " +
+                    "know (typically derived from their own Login White Labeling base URL), without exposing " +
+                    "the full domain list or its OAuth2 client configuration.")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/domain/resolve")
+    public Domain resolveDomainByName(@Parameter(description = "Domain name to resolve, e.g. 'app.example.com'", required = true)
+                                       @RequestParam String name) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
+        Domain domain = domainService.findDomainByName(name);
+        if (domain == null) {
+            throw new ThingsboardException("Domain '" + name + "' not found!", ThingsboardErrorCode.ITEM_NOT_FOUND);
+        }
+        return domain;
     }
 
     @ApiOperation(value = "Delete Domain by ID (deleteDomain)",

@@ -34,6 +34,8 @@ public interface DomainService extends EntityDaoService {
 
     Domain findDomainById(TenantId tenantId, DomainId domainId);
 
+    Domain findDomainByName(String name);
+
     PageData<DomainInfo> findDomainInfosByTenantId(TenantId tenantId, PageLink pageLink);
 
     DomainInfo findDomainInfoById(TenantId tenantId, DomainId domainId);

@@ -61,6 +61,11 @@ public class JpaDomainDao extends JpaAbstractDao<DomainEntity, Domain> implement
     }
 
     @Override
+    public Domain findByName(String name) {
+        return DaoUtil.getData(domainRepository.findByName(name));
+    }
+
+    @Override
     public int countDomainByTenantIdAndOauth2Enabled(TenantId tenantId, boolean enabled) {
         return domainRepository.countByTenantIdAndOauth2Enabled(tenantId.getId(), enabled);
     }

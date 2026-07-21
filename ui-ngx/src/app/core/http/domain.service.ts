@@ -48,6 +48,13 @@ export class DomainService {
     return this.http.get<PageData<DomainInfo>>(`/api/domain/infos${pageLink.toQuery()}`, defaultHttpOptionsFromConfig(config));
   }
 
+  // Unlike getTenantDomainInfos (SYS_ADMIN-only listing), this is available to any authenticated
+  // user configuring their own Login White Labeling, to resolve a domain they already know the name
+  // of (a system administrator must have created it beforehand).
+  public resolveDomainByName(name: string, config?: RequestConfig): Observable<Domain> {
+    return this.http.get<Domain>(`/api/domain/resolve?name=${encodeURIComponent(name)}`, defaultHttpOptionsFromConfig(config));
+  }
+
   public getDomainInfoById(id: string, config?: RequestConfig): Observable<DomainInfo> {
     return this.http.get<DomainInfo>(`/api/domain/info/${id}`, defaultHttpOptionsFromConfig(config));
   }

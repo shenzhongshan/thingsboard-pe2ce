@@ -106,6 +106,12 @@ public class DomainServiceImpl extends AbstractEntityService implements DomainSe
     }
 
     @Override
+    public Domain findDomainByName(String name) {
+        log.trace("Executing findDomainByName [{}]", name);
+        return domainDao.findByName(name);
+    }
+
+    @Override
     public PageData<DomainInfo> findDomainInfosByTenantId(TenantId tenantId, PageLink pageLink) {
         log.trace("Executing findDomainInfosByTenantId [{}]", tenantId);
         PageData<Domain> domains = domainDao.findByTenantId(tenantId, pageLink);

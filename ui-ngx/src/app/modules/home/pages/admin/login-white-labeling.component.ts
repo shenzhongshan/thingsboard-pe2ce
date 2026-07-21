@@ -25,7 +25,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { TranslateService } from '@ngx-translate/core';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { Authority } from '@shared/models/authority.enum';
-import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
 import { DomainService } from '@core/http/domain.service';
 import { WhiteLabelingService } from '@core/http/white-labeling.service';
@@ -152,15 +151,10 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
         this.showError(this.translate.instant('white-labeling.base-url-required'));
         return;
       }
-      this.domainService.getTenantDomainInfos(new PageLink(100), { ignoreErrors: true }).subscribe({
-        next: (page) => {
-          const domain = (page.data || []).find((d) => d.name?.toLowerCase() === host.toLowerCase());
-          if (domain) {
-            params.domainId = { entityType: EntityType.DOMAIN, id: domain.id.id };
-            this.doSave(params);
-          } else {
-            this.showError(this.translate.instant('white-labeling.domain-not-found', { domain: host }));
-          }
+      this.domainService.resolveDomainByName(host, { ignoreErrors: true }).subscribe({
+        next: (domain) => {
+          params.domainId = { entityType: EntityType.DOMAIN, id: domain.id.id };
+          this.doSave(params);
         },
         error: () => this.showError(this.translate.instant('white-labeling.domain-not-found', { domain: host }))
       });

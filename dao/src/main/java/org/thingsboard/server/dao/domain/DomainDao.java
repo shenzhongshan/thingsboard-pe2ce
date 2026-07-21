@@ -29,6 +29,8 @@ public interface DomainDao extends Dao<Domain> {
 
     PageData<Domain> findByTenantId(TenantId tenantId, PageLink pageLink);
 
+    Domain findByName(String name);
+
     int countDomainByTenantIdAndOauth2Enabled(TenantId tenantId, boolean oauth2Enabled);
 
     List<DomainOauth2Client> findOauth2ClientsByDomainId(TenantId tenantId, DomainId domainId);
