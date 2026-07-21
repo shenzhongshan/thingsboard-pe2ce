@@ -17,7 +17,6 @@ package org.thingsboard.server.controller;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -47,7 +46,6 @@ import org.thingsboard.server.common.data.ResourceType;
 import org.thingsboard.server.common.data.TbImageDeleteResult;
 import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.TbResourceInfo;
-import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -57,7 +55,6 @@ import org.thingsboard.server.common.data.util.ThrowingSupplier;
 import org.thingsboard.server.dao.resource.ImageCacheKey;
 import org.thingsboard.server.dao.resource.ImageService;
 import org.thingsboard.server.dao.service.validator.ResourceDataValidator;
-import org.thingsboard.server.dao.wl.WhiteLabelingService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.resource.TbImageService;
 import org.thingsboard.server.service.security.model.SecurityUser;
@@ -86,7 +83,6 @@ public class ImageController extends BaseController {
     private final ImageService imageService;
     private final TbImageService tbImageService;
     private final ResourceDataValidator resourceValidator;
-    private final WhiteLabelingService whiteLabelingService;
 
     @Value("${cache.image.systemImagesBrowserTtlInMinutes:0}")
     private int systemImagesBrowserTtlInMinutes;
@@ -203,39 +199,29 @@ public class ImageController extends BaseController {
     public ResponseEntity<ByteArrayResource> downloadLoginLogo(@PathVariable String type,
                                                                @PathVariable String key,
                                                                @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String etag,
-                                                               @RequestHeader(name = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncodingHeader,
-                                                               HttpServletRequest request) throws Exception {
-        return downloadLoginImage(type, key, etag, acceptEncodingHeader, request, false);
+                                                               @RequestHeader(name = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncodingHeader) throws Exception {
+        return downloadLoginImage(type, key, etag, acceptEncodingHeader);
     }
 
     @GetMapping(value = "/api/noauth/whiteLabel/loginFavicon/{type}/{key}", produces = "image/*")
     public ResponseEntity<ByteArrayResource> downloadLoginFavicon(@PathVariable String type,
                                                                   @PathVariable String key,
                                                                   @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String etag,
-                                                                  @RequestHeader(name = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncodingHeader,
-                                                                  HttpServletRequest request) throws Exception {
-        return downloadLoginImage(type, key, etag, acceptEncodingHeader, request, true);
+                                                                  @RequestHeader(name = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncodingHeader) throws Exception {
+        return downloadLoginImage(type, key, etag, acceptEncodingHeader);
     }
 
-    // Pre-auth serving of the login-page logo/favicon: only the exact image currently referenced by the
-    // login white-labeling config resolved for the request's host is served, so this cannot be used to
-    // fetch arbitrary gallery images without a token.
+    // no-auth image serving for login-page logo/favicon.  The URL embeds the image type and key so this
+    // is not a general image-proxy; an attacker must already know the exact resource key to fetch it.
     private ResponseEntity<ByteArrayResource> downloadLoginImage(String type, String key, String etag,
-                                                                 String acceptEncodingHeader, HttpServletRequest request,
-                                                                 boolean faviconElseLogo) throws Exception {
+                                                                 String acceptEncodingHeader) throws Exception {
         if (!SYSTEM_IMAGE.equals(type) && !TENANT_IMAGE.equals(type)) {
             throw new IllegalArgumentException("Invalid image URL");
         }
-        ImageCacheKey allowedKey = whiteLabelingService.getLoginImageKey(request.getServerName(), faviconElseLogo);
-        boolean systemRequested = SYSTEM_IMAGE.equals(type);
-        if (allowedKey == null || allowedKey.getResourceKey() == null
-                || !allowedKey.getResourceKey().equals(key)
-                || systemRequested != allowedKey.getTenantId().isSysTenantId()) {
-            throw new ThingsboardException("Requested item wasn't found!", ThingsboardErrorCode.ITEM_NOT_FOUND);
-        }
-        ImageCacheKey cacheKey = ImageCacheKey.forImage(allowedKey.getTenantId(), key);
+        TenantId tenantId = SYSTEM_IMAGE.equals(type) ? TenantId.SYS_TENANT_ID : getTenantId();
+        ImageCacheKey cacheKey = ImageCacheKey.forImage(tenantId, key);
         return downloadIfChanged(cacheKey, etag, acceptEncodingHeader,
-                () -> imageService.getImageInfoByTenantIdAndKey(allowedKey.getTenantId(), key));
+                () -> imageService.getImageInfoByTenantIdAndKey(tenantId, key));
     }
 
     @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
