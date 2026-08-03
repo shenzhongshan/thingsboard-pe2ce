@@ -51,6 +51,7 @@ import { TenantService } from '@app/core/http/tenant.service';
 import { TenantId } from '@app/shared/models/id/tenant-id';
 import { UserTabsComponent } from '@home/pages/user/user-tabs.component';
 import { isDefinedAndNotNull } from '@core/utils';
+import { UserTableHeaderComponent } from '@modules/home/pages/user/user-table-header.component';
 
 export interface UsersTableRouteData {
   authority: Authority;
@@ -100,6 +101,7 @@ export class UsersTableConfigResolver  {
     this.config.deleteEntity = id => this.userService.deleteUser(id.id);
     this.config.onEntityAction = action => this.onUserAction(action, this.config);
     this.config.addEntity = () => this.addUser();
+    this.config.componentsData = {includeCustomerEntities: true};
   }
 
   resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<User>> {
@@ -111,7 +113,9 @@ export class UsersTableConfigResolver  {
         if (this.authority === Authority.TENANT_ADMIN) {
           this.tenantId = routeParams.tenantId;
           this.customerId = NULL_UUID;
-          this.config.entitiesFetchFunction = pageLink => this.userService.getTenantAdmins(this.tenantId, pageLink);
+          this.config.headerComponent = UserTableHeaderComponent;
+          this.config.entitiesFetchFunction = pageLink => this.userService.getTenantAdmins(this.tenantId, pageLink,
+            this.config.componentsData.includeCustomerEntities !== false);
         } else {
           this.tenantId = this.authUser.tenantId.id;
           this.customerId = routeParams.customerId;

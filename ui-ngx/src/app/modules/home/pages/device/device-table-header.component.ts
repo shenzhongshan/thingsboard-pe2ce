@@ -41,4 +41,17 @@ export class DeviceTableHeaderComponent extends EntityTableHeaderComponent<Devic
     this.entitiesTableConfig.getTable().resetSortAndFilter(true);
   }
 
+  get deviceScope(): string {
+    return this.entitiesTableConfig?.componentsData?.deviceScope;
+  }
+
+  get includeCustomerEntities(): boolean {
+    return this.entitiesTableConfig?.componentsData?.includeCustomerEntities !== false;
+  }
+
+  includeCustomerEntitiesChanged(value: boolean) {
+    this.entitiesTableConfig.componentsData.includeCustomerEntities = value;
+    this.entitiesTableConfig.getTable().resetSortAndFilter(true);
+  }
+
 }

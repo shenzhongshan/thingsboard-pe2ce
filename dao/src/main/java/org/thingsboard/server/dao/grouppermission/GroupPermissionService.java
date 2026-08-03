@@ -32,6 +32,10 @@ public interface GroupPermissionService {
     // Enriched entries (role name/type + entity group name) for the user-group permissions UI.
     List<JsonNode> findGroupPermissionInfosByUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
 
+    // Enriched entries (role name/type + user group name/owner) for the entity-group permissions tab
+    // (reverse of the above: which user groups have been granted access to this entity group).
+    List<JsonNode> findGroupPermissionInfosByEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId);
+
     void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);

@@ -81,6 +81,18 @@ public class GroupPermissionController extends BaseController {
         return groupPermissionService.findGroupPermissionInfosByUserGroupId(getTenantId(), new EntityGroupId(toUUID(strUserGroupId)));
     }
 
+    @ApiOperation(value = "Get entity group permissions (getEntityGroupPermissions)",
+            notes = "Lists the permissions granted on a target entity group, enriched with role name/type and granting user group name/owner.")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/entityGroup/{entityGroupId}/groupPermissions"})
+    public List<JsonNode> getEntityGroupPermissions(
+            @Parameter(description = "A string value representing the entity group id", required = true)
+            @PathVariable("entityGroupId") String strEntityGroupId) throws ThingsboardException {
+        checkParameter("entityGroupId", strEntityGroupId);
+        accessControlService.checkPermission(getCurrentUser(), Resource.GROUP_PERMISSION, Operation.READ);
+        return groupPermissionService.findGroupPermissionInfosByEntityGroupId(getTenantId(), new EntityGroupId(toUUID(strEntityGroupId)));
+    }
+
     @ApiOperation(value = "Delete Group Permission (deleteGroupPermission)")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @DeleteMapping(value = {"/groupPermission/{groupPermissionId}"})

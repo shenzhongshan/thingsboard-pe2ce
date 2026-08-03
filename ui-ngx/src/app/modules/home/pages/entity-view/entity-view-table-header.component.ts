@@ -40,4 +40,17 @@ export class EntityViewTableHeaderComponent extends EntityTableHeaderComponent<E
     this.entitiesTableConfig.getTable().resetSortAndFilter(true);
   }
 
+  get entityViewScope(): string {
+    return this.entitiesTableConfig?.componentsData?.entityViewScope;
+  }
+
+  get includeCustomerEntities(): boolean {
+    return this.entitiesTableConfig?.componentsData?.includeCustomerEntities !== false;
+  }
+
+  includeCustomerEntitiesChanged(value: boolean) {
+    this.entitiesTableConfig.componentsData.includeCustomerEntities = value;
+    this.entitiesTableConfig.getTable().resetSortAndFilter(true);
+  }
+
 }

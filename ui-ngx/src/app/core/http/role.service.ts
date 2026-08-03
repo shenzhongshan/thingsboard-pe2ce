@@ -55,6 +55,11 @@ export class RoleService {
       defaultHttpOptionsFromConfig(config));
   }
 
+  public getEntityGroupPermissions(entityGroupId: string, config?: RequestConfig): Observable<GroupPermissionInfo[]> {
+    return this.http.get<GroupPermissionInfo[]>(`/api/entityGroup/${entityGroupId}/groupPermissions`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
   public deleteGroupPermission(groupPermissionId: string, config?: RequestConfig): Observable<void> {
     return this.http.delete<void>(`/api/groupPermission/${groupPermissionId}`, defaultHttpOptionsFromConfig(config));
   }

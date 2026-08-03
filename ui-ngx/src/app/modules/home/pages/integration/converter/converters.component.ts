@@ -29,6 +29,7 @@ import {
   ConverterDialogComponent,
   ConverterDialogData
 } from '@home/pages/integration/converter/converter-dialog.component';
+import { ImportDialogComponent, ImportDialogData } from '@shared/import-export/import-dialog.component';
 
 @Component({
   selector: 'tb-converters',
@@ -95,19 +96,16 @@ export class ConvertersComponent extends PageComponent implements OnInit {
     this.openDialog(null);
   }
 
-  onImportFileSelected($event: Event, input: HTMLInputElement) {
-    const file = ($event.target as HTMLInputElement).files?.[0];
-    if (file) {
-      this.importConverter(file);
-    }
-    input.value = '';
-  }
-
-  private importConverter(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const imported = JSON.parse(reader.result as string);
+  importConverter() {
+    this.dialog.open<ImportDialogComponent, ImportDialogData, any>(ImportDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+      data: {
+        importTitle: 'converter.import-converter',
+        importFileLabel: 'converter.converter-file'
+      }
+    }).afterClosed().subscribe((imported) => {
+      if (imported) {
         const converter: Converter = {
           name: imported.name,
           type: imported.type,
@@ -117,14 +115,8 @@ export class ConvertersComponent extends PageComponent implements OnInit {
           additionalInfo: imported.additionalInfo || {}
         } as Converter;
         this.converterService.saveConverter(converter).subscribe(() => this.reload());
-      } catch (e) {
-        this.dialogService.alert(
-          this.translate.instant('converter.import-failed-title'),
-          this.translate.instant('converter.import-failed-text')
-        ).subscribe();
       }
-    };
-    reader.readAsText(file);
+    });
   }
 
   editConverter($event: Event, converter: Converter) {

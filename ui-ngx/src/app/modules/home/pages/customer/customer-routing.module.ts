@@ -30,12 +30,16 @@ import { dashboardBreadcumbLabelFunction, DashboardResolver } from '@home/pages/
 import { EdgesTableConfigResolver } from '@home/pages/edge/edges-table-config.resolver';
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
-import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
+import {
+  entityDetailsPageBreadcrumbLabelFunction,
+  groupMembersPageBreadcrumbLabelFunction
+} from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
 import { RouterTabsComponent } from '@home/components/router-tabs.component';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
 import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hierarchy.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
 import {
   CustomerGroupEntitiesTableConfigResolver
 } from '@home/pages/entity-group/group-entities-table-config.resolvers';
@@ -124,14 +128,14 @@ const routes: Routes = [
             data: {
               auth: [Authority.TENANT_ADMIN],
               breadcrumb: {
-                label: 'entity-group.group-entities',
+                labelFunction: groupMembersPageBreadcrumbLabelFunction,
                 icon: 'view_list'
-              }
+              } as BreadCrumbConfig<GroupMembersPageComponent>
             },
             children: [
               {
                 path: '',
-                component: EntitiesTableComponent,
+                component: GroupMembersPageComponent,
                 data: {
                   auth: [Authority.TENANT_ADMIN],
                   title: 'entity-group.group-type-customer',

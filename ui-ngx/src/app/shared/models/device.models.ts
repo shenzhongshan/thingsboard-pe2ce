@@ -38,6 +38,7 @@ import {
 import { PageLink } from '@shared/models/page/page-link';
 import { isDefinedAndNotNull, isNotEmptyStr } from '@core/utils';
 import { EdgeId } from '@shared/models/id/edge-id';
+import { NULL_UUID } from '@shared/models/id/has-uuid';
 
 export enum DeviceProfileType {
   DEFAULT = 'DEFAULT',
@@ -737,6 +738,9 @@ export interface DeviceInfoFilter {
   type?: string;
   deviceProfileId?: DeviceProfileId;
   active?: boolean;
+  // Tenant-wide ("全部") list only — excludes devices assigned to any customer. Distinct from
+  // `customerId` above, which routes to a different endpoint scoped to viewing ONE customer's devices.
+  excludeCustomerEntities?: boolean;
 }
 
 export interface SaveDeviceParams extends SaveEntityParams {
@@ -770,6 +774,9 @@ export class DeviceInfoQuery  {
     }
     if (isDefinedAndNotNull(this.deviceInfoFilter.active)) {
       query += `&active=${this.deviceInfoFilter.active}`;
+    }
+    if (!this.deviceInfoFilter.customerId && !this.deviceInfoFilter.edgeId && this.deviceInfoFilter.excludeCustomerEntities) {
+      query += `&customerId=${NULL_UUID}`;
     }
     return query;
   }

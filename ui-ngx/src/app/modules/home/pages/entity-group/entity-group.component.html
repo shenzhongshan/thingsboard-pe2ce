@@ -1,0 +1,95 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-details-buttons xs:flex xs:flex-col">
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'open')"
+          [class.!hidden]="isEdit || !showOpenButton">
+    {{'entity-group.open' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'delete')"
+          [class.!hidden]="isEdit || isAll">
+    {{'entity-group.delete-group' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="openShareDialog($event)"
+          [class.!hidden]="isEdit || isAll">
+    {{'entity-group.share-group' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'makePublic')"
+          [class.!hidden]="isEdit || isAll || isPublic">
+    {{'entity-group.make-public' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'makePrivate')"
+          [class.!hidden]="isEdit || isAll || !isPublic">
+    {{'entity-group.make-private' | translate }}
+  </button>
+  <button mat-raised-button
+          ngxClipboard
+          (cbOnSuccess)="onGroupIdCopied()"
+          [cbContent]="entity?.id?.id"
+          [disabled]="(isLoading$ | async)"
+          [class.!hidden]="isEdit">
+    <mat-icon svgIcon="mdi:clipboard-arrow-left"></mat-icon>
+    <span translate>entity-group.copy-id</span>
+  </button>
+</div>
+<div class="mat-padding flex flex-col">
+  <form [formGroup]="entityForm">
+    <fieldset [disabled]="(isLoading$ | async) || !isEdit" style="min-width: 0;">
+      <mat-form-field class="mat-block" appearance="outline">
+        <mat-label translate>entity-group.name</mat-label>
+        <input matInput formControlName="name" required>
+        @if (entityForm.get('name').hasError('required')) {
+          <mat-error translate>entity-group.name-required</mat-error>
+        }
+      </mat-form-field>
+      @if (isDeviceGroup) {
+        <tb-entity-autocomplete
+          formControlName="firmwareId"
+          [entityType]="entityType.OTA_PACKAGE"
+          entitySubtype="FIRMWARE"
+          [useFullEntityId]="true"
+          labelText="{{ 'entity-group.assigned-firmware' | translate }}"
+          placeholder="{{ 'entity-group.assigned-firmware-placeholder' | translate }}"
+          appearance="outline">
+        </tb-entity-autocomplete>
+        <tb-entity-autocomplete
+          formControlName="softwareId"
+          [entityType]="entityType.OTA_PACKAGE"
+          entitySubtype="SOFTWARE"
+          [useFullEntityId]="true"
+          labelText="{{ 'entity-group.assigned-software' | translate }}"
+          placeholder="{{ 'entity-group.assigned-software-placeholder' | translate }}"
+          appearance="outline">
+        </tb-entity-autocomplete>
+      }
+      <mat-form-field class="mat-block" appearance="outline">
+        <mat-label translate>entity-group.description</mat-label>
+        <textarea matInput formControlName="description" cdkTextareaAutosize cdkAutosizeMinRows="1" rows="1"></textarea>
+      </mat-form-field>
+    </fieldset>
+  </form>
+</div>

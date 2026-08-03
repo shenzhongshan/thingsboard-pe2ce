@@ -25,6 +25,17 @@ import { GroupPermissionsDialogComponent } from '@home/pages/entity-group/group-
 import { RolesComponent } from '@home/pages/entity-group/roles.component';
 import { RoleDialogComponent } from '@home/pages/entity-group/role-dialog.component';
 import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hierarchy.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
+import { GroupEntityTableHeaderComponent } from '@home/pages/entity-group/group-entity-table-header.component';
+import { EntityGroupComponent } from '@home/pages/entity-group/entity-group.component';
+import { EntityGroupTabsComponent } from '@home/pages/entity-group/entity-group-tabs.component';
+import { EntityGroupColumnsTabComponent } from '@home/pages/entity-group/entity-group-columns-tab.component';
+import { EntityGroupSettingsTabComponent } from '@home/pages/entity-group/entity-group-settings-tab.component';
+import { EntityGroupActionsTabComponent } from '@home/pages/entity-group/entity-group-actions-tab.component';
+import { EntityGroupPermissionsTabComponent } from '@home/pages/entity-group/entity-group-permissions-tab.component';
+import { EntityGroupPermissionDialogComponent } from '@home/pages/entity-group/entity-group-permission-dialog.component';
+import { EntityGroupActionDialogComponent } from '@home/pages/entity-group/entity-group-action-dialog.component';
+import { EntityGroupShareDialogComponent } from '@home/pages/entity-group/entity-group-share-dialog.component';
 
 @NgModule({
   declarations: [
@@ -34,7 +45,18 @@ import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hi
     GroupPermissionsDialogComponent,
     RolesComponent,
     RoleDialogComponent,
-    CustomerHierarchyComponent
+    CustomerHierarchyComponent,
+    GroupMembersPageComponent,
+    GroupEntityTableHeaderComponent,
+    EntityGroupComponent,
+    EntityGroupTabsComponent,
+    EntityGroupColumnsTabComponent,
+    EntityGroupSettingsTabComponent,
+    EntityGroupActionsTabComponent,
+    EntityGroupPermissionsTabComponent,
+    EntityGroupPermissionDialogComponent,
+    EntityGroupActionDialogComponent,
+    EntityGroupShareDialogComponent
   ],
   imports: [
     CommonModule,
@@ -44,7 +66,8 @@ import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hi
   exports: [
     EntityGroupsComponent,
     RolesComponent,
-    CustomerHierarchyComponent
+    CustomerHierarchyComponent,
+    GroupMembersPageComponent
   ]
 })
 export class EntityGroupModule { }

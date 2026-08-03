@@ -334,7 +334,7 @@ public class UserController extends BaseController {
 
     @ApiOperation(value = "Get Tenant Users (getTenantAdmins)",
             notes = "Returns a page of users owned by tenant. " + PAGE_DATA_PARAMETERS + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @GetMapping(value = "/tenant/{tenantId}/users")
     public PageData<User> getTenantAdmins(
             @Parameter(description = TENANT_ID_PARAM_DESCRIPTION, required = true)
@@ -348,10 +348,16 @@ public class UserController extends BaseController {
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "firstName", "lastName", "email"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
-            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "If true, also includes customer users belonging to this tenant (包含客户实体)")
+            @RequestParam(required = false) Boolean includeCustomerUsers) throws ThingsboardException {
         checkParameter("tenantId", strTenantId);
         TenantId tenantId = TenantId.fromUUID(toUUID(strTenantId));
+        checkTenantId(tenantId, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        if (Boolean.TRUE.equals(includeCustomerUsers)) {
+            return checkNotNull(userService.findUsersByTenantId(tenantId, pageLink));
+        }
         return checkNotNull(userService.findTenantAdmins(tenantId, pageLink));
     }
 

@@ -37,9 +37,11 @@ import { MenuId } from '@core/services/menu.models';
 import { RouterTabsComponent } from '@home/components/router-tabs.component';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
 import {
   DashboardGroupEntitiesTableConfigResolver
 } from '@home/pages/entity-group/group-entities-table-config.resolvers';
+import { groupMembersPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 
 @Injectable()
 export class DashboardResolver  {
@@ -126,16 +128,16 @@ const routes: Routes = [
           },
           {
             path: ':entityGroupId',
-            component: EntitiesTableComponent,
+            component: GroupMembersPageComponent,
             data: {
               auth: [Authority.TENANT_ADMIN],
               title: 'entity-group.group-type-dashboard',
               dashboardsType: 'tenant',
               groupType: EntityType.DASHBOARD,
               breadcrumb: {
-                label: 'entity-group.group-entities',
+                labelFunction: groupMembersPageBreadcrumbLabelFunction,
                 icon: 'view_list'
-              }
+              } as BreadCrumbConfig<GroupMembersPageComponent>
             },
             resolve: {
               entitiesTableConfig: DashboardGroupEntitiesTableConfigResolver

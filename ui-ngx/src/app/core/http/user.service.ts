@@ -39,10 +39,13 @@ export class UserService {
       defaultHttpOptionsFromConfig(config));
   }
 
-  public getTenantAdmins(tenantId: string, pageLink: PageLink,
+  public getTenantAdmins(tenantId: string, pageLink: PageLink, includeCustomerUsers = false,
                          config?: RequestConfig): Observable<PageData<User>> {
-    return this.http.get<PageData<User>>(`/api/tenant/${tenantId}/users${pageLink.toQuery()}`,
-      defaultHttpOptionsFromConfig(config));
+    let url = `/api/tenant/${tenantId}/users${pageLink.toQuery()}`;
+    if (includeCustomerUsers) {
+      url += '&includeCustomerUsers=true';
+    }
+    return this.http.get<PageData<User>>(url, defaultHttpOptionsFromConfig(config));
   }
 
   public getCustomerUsers(customerId: string, pageLink: PageLink,

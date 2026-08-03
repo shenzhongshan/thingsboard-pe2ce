@@ -184,7 +184,7 @@ export class AssetsTableConfigResolver  {
     if (assetScope === 'tenant') {
       this.config.entitiesFetchFunction = pageLink =>
         this.assetService.getTenantAssetInfosByAssetProfileId(pageLink, this.config.componentsData.assetProfileId !== null ?
-          this.config.componentsData.assetProfileId.id : '');
+          this.config.componentsData.assetProfileId.id : '', this.config.componentsData.includeCustomerEntities === false);
       this.config.deleteEntity = id => this.assetService.deleteAsset(id.id);
     } else if (assetScope === 'edge' || assetScope === 'edge_customer_user') {
       this.config.entitiesFetchFunction = pageLink =>

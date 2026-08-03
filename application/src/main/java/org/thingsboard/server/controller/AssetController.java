@@ -261,10 +261,14 @@ public class AssetController extends BaseController {
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name", "type", "label", "customerTitle"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
-            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "A string value representing the customer id — pass the all-zero NULL_UUID to restrict results to assets with no customer assigned")
+            @RequestParam(required = false) String customerId) throws ThingsboardException {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        if (type != null && type.trim().length() > 0) {
+        if (customerId != null && customerId.length() > 0) {
+            return checkNotNull(assetService.findAssetInfosByTenantIdAndCustomerId(tenantId, new CustomerId(toUUID(customerId)), pageLink));
+        } else if (type != null && type.trim().length() > 0) {
             return checkNotNull(assetService.findAssetInfosByTenantIdAndType(tenantId, type, pageLink));
         } else if (assetProfileId != null && assetProfileId.length() > 0) {
             AssetProfileId profileId = new AssetProfileId(toUUID(assetProfileId));

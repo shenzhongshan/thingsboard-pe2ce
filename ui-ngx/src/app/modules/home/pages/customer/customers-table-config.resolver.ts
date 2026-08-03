@@ -35,6 +35,7 @@ import { getCurrentAuthState } from '@core/auth/auth.selectors';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { HomeDialogsService } from '@home/dialogs/home-dialogs.service';
+import { CustomerTableHeaderComponent } from '@modules/home/pages/customer/customer-table-header.component';
 
 @Injectable()
 export class CustomersTableConfigResolver  {
@@ -123,7 +124,10 @@ export class CustomersTableConfigResolver  {
     this.config.deleteEntitiesTitle = count => this.translate.instant('customer.delete-customers-title', {count});
     this.config.deleteEntitiesContent = () => this.translate.instant('customer.delete-customers-text');
 
-    this.config.entitiesFetchFunction = pageLink => this.customerService.getCustomers(pageLink);
+    this.config.componentsData = {includeCustomerEntities: true};
+    this.config.headerComponent = CustomerTableHeaderComponent;
+    this.config.entitiesFetchFunction = pageLink => this.config.componentsData.includeCustomerEntities === false ?
+      this.customerService.getTopLevelCustomers(pageLink) : this.customerService.getCustomers(pageLink);
     this.config.loadEntity = id => this.customerService.getCustomer(id.id);
     this.config.saveEntity = customer => this.customerService.saveCustomer(customer);
     this.config.deleteEntity = id => this.customerService.deleteCustomer(id.id);

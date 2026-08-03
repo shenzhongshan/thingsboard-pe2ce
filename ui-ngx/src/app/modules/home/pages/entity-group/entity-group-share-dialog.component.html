@@ -1,0 +1,48 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 560px;">
+  <mat-toolbar color="primary">
+    <h2 translate>entity-group.share-group</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+      <tb-entity-autocomplete
+        formControlName="customerId"
+        [entityType]="entityType.CUSTOMER"
+        labelText="{{ 'entity-group.share-customer' | translate }}"
+        appearance="outline"
+        required>
+      </tb-entity-autocomplete>
+      <mat-checkbox formControlName="allUsers">{{ 'entity-group.share-all-users' | translate }}</mat-checkbox>
+      <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>entity-group.share-permission</div>
+      <mat-radio-group formControlName="permission" class="flex flex-row" style="gap: 16px;">
+        <mat-radio-button value="READ">{{ 'entity-group.share-permission-read' | translate }}</mat-radio-button>
+        <mat-radio-button value="WRITE">{{ 'entity-group.share-permission-write' | translate }}</mat-radio-button>
+        <mat-radio-button value="OTHER">{{ 'entity-group.share-permission-other' | translate }}</mat-radio-button>
+      </mat-radio-group>
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end">
+    <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+    <button mat-raised-button color="primary" type="button" [disabled]="!form.valid" (click)="share()">{{ 'entity-group.share' | translate }}</button>
+  </div>
+</div>

@@ -32,6 +32,7 @@ import org.thingsboard.server.common.data.ApiUsageState;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.EntityView;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.OtaPackageInfo;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.Tenant;
@@ -49,6 +50,7 @@ import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.OtaPackageId;
 import org.thingsboard.server.common.data.id.RpcId;
@@ -69,6 +71,7 @@ import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.ota.OtaPackageService;
@@ -149,6 +152,9 @@ public class AccessValidator {
     @Autowired
     protected RpcService rpcService;
 
+    @Autowired
+    protected EntityGroupService entityGroupService;
+
     private ExecutorService executor;
 
     @PostConstruct
@@ -223,6 +229,7 @@ public class AccessValidator {
             case TB_RESOURCE -> validateResource(currentUser, operation, entityId, callback);
             case OTA_PACKAGE -> validateOtaPackage(currentUser, operation, entityId, callback);
             case RPC -> validateRpc(currentUser, operation, entityId, callback);
+            case ENTITY_GROUP -> validateEntityGroup(currentUser, operation, entityId, callback);
             default ->
                 //TODO: add support of other entities
                 throw new IllegalStateException("Not Implemented!");
@@ -335,6 +342,25 @@ public class AccessValidator {
                     callback.onSuccess(ValidationResult.accessDenied(e.getMessage()));
                 }
                 callback.onSuccess(ValidationResult.ok(otaPackage));
+            }
+        }
+    }
+
+    private void validateEntityGroup(final SecurityUser currentUser, Operation operation, EntityId entityId, FutureCallback<ValidationResult> callback) {
+        if (currentUser.isSystemAdmin()) {
+            callback.onSuccess(ValidationResult.accessDenied(SYSTEM_ADMINISTRATOR_IS_NOT_ALLOWED_TO_PERFORM_THIS_OPERATION));
+        } else {
+            EntityGroup entityGroup = entityGroupService.findEntityGroupById(currentUser.getTenantId(), new EntityGroupId(entityId.getId()));
+            if (entityGroup == null) {
+                callback.onSuccess(ValidationResult.entityNotFound("Entity group with requested id wasn't found!"));
+            } else {
+                try {
+                    accessControlService.checkPermission(currentUser, Resource.ENTITY_GROUP, operation, entityId, entityGroup);
+                } catch (ThingsboardException e) {
+                    callback.onSuccess(ValidationResult.accessDenied(e.getMessage()));
+                    return;
+                }
+                callback.onSuccess(ValidationResult.ok(entityGroup));
             }
         }
     }

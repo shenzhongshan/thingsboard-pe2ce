@@ -19,6 +19,7 @@ import { EntityDetailsPageComponent } from '@home/components/entity/entity-detai
 import { EntityType } from '@shared/models/entity-type.models';
 import { ResourceInfo } from '@shared/models/resource.models';
 import { OtaPackage } from '@shared/models/ota-package.models';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
 
 export const entityDetailsPageBreadcrumbLabelFunction: BreadCrumbLabelFunction<EntityDetailsPageComponent>
   = ((route, translate, component) => {
@@ -30,3 +31,7 @@ export const entityDetailsPageBreadcrumbLabelFunction: BreadCrumbLabelFunction<E
       return component.entity?.name;
   }
 });
+
+export const groupMembersPageBreadcrumbLabelFunction: BreadCrumbLabelFunction<GroupMembersPageComponent>
+  = ((route, translate, component) =>
+    component.config?.componentsData?.groupName || translate.instant('entity-group.group-entities'));

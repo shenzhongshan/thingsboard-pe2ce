@@ -15,6 +15,16 @@
     limitations under the License.
 
 -->
-<tb-device-info-filter [ngModel]="entitiesTableConfig.componentsData.deviceInfoFilter"
-                       (ngModelChange)="deviceInfoFilterChanged($event)">
-</tb-device-info-filter>
+<div class="flex flex-row items-center">
+  <tb-device-info-filter [ngModel]="entitiesTableConfig.componentsData.deviceInfoFilter"
+                         (ngModelChange)="deviceInfoFilterChanged($event)">
+  </tb-device-info-filter>
+  @if (deviceScope === 'tenant') {
+    <mat-slide-toggle color="primary"
+                      style="margin-left: 8px;"
+                      [checked]="includeCustomerEntities"
+                      (change)="includeCustomerEntitiesChanged($event.checked)">
+      {{ 'device.include-customer-entities' | translate }}
+    </mat-slide-toggle>
+  }
+</div>

@@ -182,7 +182,8 @@ export class EntityViewsTableConfigResolver  {
   configureEntityFunctions(entityViewScope: string): void {
     if (entityViewScope === 'tenant') {
       this.config.entitiesFetchFunction = pageLink =>
-        this.entityViewService.getTenantEntityViewInfos(pageLink, this.config.componentsData.entityViewType);
+        this.entityViewService.getTenantEntityViewInfos(pageLink, this.config.componentsData.entityViewType,
+          this.config.componentsData.includeCustomerEntities === false);
       this.config.deleteEntity = id => this.entityViewService.deleteEntityView(id.id);
     } else if (entityViewScope === 'edge' || entityViewScope === 'edge_customer_user') {
       this.config.entitiesFetchFunction = pageLink =>

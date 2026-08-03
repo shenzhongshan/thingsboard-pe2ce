@@ -23,6 +23,7 @@ import { PageData } from '@shared/models/page/page-data';
 import { EntitySubtype } from '@app/shared/models/entity-type.models';
 import { EntityView, EntityViewInfo, EntityViewSearchQuery } from '@app/shared/models/entity-view.models';
 import { SaveEntityParams } from '@shared/models/entity.models';
+import { NULL_UUID } from '@shared/models/id/has-uuid';
 
 @Injectable({
   providedIn: 'root'
@@ -33,9 +34,13 @@ export class EntityViewService {
     private http: HttpClient
   ) { }
 
-  public getTenantEntityViewInfos(pageLink: PageLink, type: string = '', config?: RequestConfig): Observable<PageData<EntityViewInfo>> {
-    return this.http.get<PageData<EntityViewInfo>>(`/api/tenant/entityViewInfos${pageLink.toQuery()}&type=${type}`,
-      defaultHttpOptionsFromConfig(config));
+  public getTenantEntityViewInfos(pageLink: PageLink, type: string = '', excludeCustomerEntities = false,
+                                  config?: RequestConfig): Observable<PageData<EntityViewInfo>> {
+    let url = `/api/tenant/entityViewInfos${pageLink.toQuery()}&type=${type}`;
+    if (excludeCustomerEntities) {
+      url += `&customerId=${NULL_UUID}`;
+    }
+    return this.http.get<PageData<EntityViewInfo>>(url, defaultHttpOptionsFromConfig(config));
   }
 
   public getCustomerEntityViewInfos(customerId: string, pageLink: PageLink, type: string = '',

@@ -396,7 +396,9 @@ public class DeviceController extends BaseController {
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name", "deviceProfileName", "label", "customerTitle"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
-            @RequestParam(required = false) String sortOrder
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "A string value representing the customer id — pass the all-zero NULL_UUID to restrict results to devices with no customer assigned")
+            @RequestParam(required = false) String customerId
     ) throws ThingsboardException {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
@@ -407,6 +409,9 @@ public class DeviceController extends BaseController {
             filter.type(type);
         } else if (deviceProfileId != null && deviceProfileId.length() > 0) {
             filter.deviceProfileId(new DeviceProfileId(toUUID(deviceProfileId)));
+        }
+        if (customerId != null && customerId.length() > 0) {
+            filter.customerId(new CustomerId(toUUID(customerId)));
         }
         return checkNotNull(deviceService.findDeviceInfosByFilter(filter.build(), pageLink));
     }

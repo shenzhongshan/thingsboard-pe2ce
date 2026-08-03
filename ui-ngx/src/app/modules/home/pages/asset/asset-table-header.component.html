@@ -15,12 +15,22 @@
     limitations under the License.
 
 -->
-<tb-asset-profile-autocomplete
-  class="min-w-0 flex-1"
-  subscriptSizing="dynamic"
-  [ngModel]="entitiesTableConfig.componentsData.assetProfileId"
-  (ngModelChange)="assetProfileChanged($event)"
-  [addNewProfile]="false"
-  [displayAllOnEmpty]="true"
-  [editProfileEnabled]="false">
-</tb-asset-profile-autocomplete>
+<div class="flex flex-row items-center min-w-0 flex-1">
+  <tb-asset-profile-autocomplete
+    class="min-w-0"
+    subscriptSizing="dynamic"
+    [ngModel]="entitiesTableConfig.componentsData.assetProfileId"
+    (ngModelChange)="assetProfileChanged($event)"
+    [addNewProfile]="false"
+    [displayAllOnEmpty]="true"
+    [editProfileEnabled]="false">
+  </tb-asset-profile-autocomplete>
+  @if (assetScope === 'tenant') {
+    <mat-slide-toggle color="primary"
+                      style="margin-left: 8px;"
+                      [checked]="includeCustomerEntities"
+                      (change)="includeCustomerEntitiesChanged($event.checked)">
+      {{ 'device.include-customer-entities' | translate }}
+    </mat-slide-toggle>
+  }
+</div>

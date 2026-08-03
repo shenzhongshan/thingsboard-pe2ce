@@ -24,6 +24,15 @@ import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroup } from '@shared/models/entity-group.models';
 import { EntityInfoData } from '@shared/models/entity.models';
+import { OtaUpdateType } from '@shared/models/ota-package.models';
+
+export interface DeviceGroupOtaPackage {
+  id?: string;
+  groupId?: {entityType: string; id: string};
+  otaPackageType: OtaUpdateType;
+  otaPackageId?: {entityType: string; id: string};
+  otaPackageUpdateTime?: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -91,6 +100,22 @@ export class EntityGroupService {
     return this.http.get<{id: string}>(url, defaultHttpOptionsFromConfig(config)).pipe(
       map(res => res.id)
     );
+  }
+
+  public getDeviceGroupOtaPackage(entityGroupId: string, type: OtaUpdateType,
+                                  config?: RequestConfig): Observable<DeviceGroupOtaPackage> {
+    return this.http.get<DeviceGroupOtaPackage>(`/api/deviceGroupOtaPackage/${entityGroupId}/${type}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public saveDeviceGroupOtaPackage(deviceGroupOtaPackage: DeviceGroupOtaPackage,
+                                   config?: RequestConfig): Observable<DeviceGroupOtaPackage> {
+    return this.http.post<DeviceGroupOtaPackage>('/api/deviceGroupOtaPackage', deviceGroupOtaPackage,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public deleteDeviceGroupOtaPackage(entityGroupId: string, type: OtaUpdateType, config?: RequestConfig): Observable<void> {
+    return this.http.delete<void>(`/api/deviceGroupOtaPackage/${entityGroupId}/${type}`, defaultHttpOptionsFromConfig(config));
   }
 
 }

@@ -24,8 +24,8 @@ import { Router } from '@angular/router';
 import { Device, DeviceProfileInfo, DeviceTransportType } from '@shared/models/device.models';
 import { MatStepper, StepperOrientation } from '@angular/material/stepper';
 import { EntityType } from '@shared/models/entity-type.models';
-import { Observable, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { forkJoin, Observable, of, throwError } from 'rxjs';
+import { catchError, map, mergeMap } from 'rxjs/operators';
 import { DeviceService } from '@core/http/device.service';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
 import { BreakpointObserver } from '@angular/cdk/layout';
@@ -33,6 +33,9 @@ import { MediaBreakpoints } from '@shared/models/constants';
 import { deepTrim } from '@core/utils';
 import { CustomerId } from '@shared/models/id/customer-id';
 import { HttpErrorResponse } from '@angular/common/http';
+import { EntityGroupService } from '@core/http/entity-group.service';
+import { EntityGroup, isGroupAll } from '@shared/models/entity-group.models';
+import { PageLink } from '@shared/models/page/page-link';
 
 @Component({
     selector: 'tb-device-wizard',
@@ -62,10 +65,13 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
 
   private currentDeviceProfileTransportType = DeviceTransportType.DEFAULT;
 
+  availableGroups: EntityGroup[] = [];
+
   constructor(protected store: Store<AppState>,
               protected router: Router,
               public dialogRef: MatDialogRef<DeviceWizardDialogComponent, Device>,
               private deviceService: DeviceService,
+              private entityGroupService: EntityGroupService,
               private breakpointObserver: BreakpointObserver,
               private fb: FormBuilder) {
     super(store, router, dialogRef);
@@ -82,6 +88,7 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
         gateway: [false],
         overwriteActivityTime: [false],
         customerId: [null],
+        groupIds: [[]],
         deviceProfileId: [null, Validators.required],
         description: ['']
       }
@@ -91,6 +98,23 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
         credential: []
       }
     );
+
+    this.loadAvailableGroups(null);
+    this.deviceWizardFormGroup.get('customerId').valueChanges.subscribe((customerId: CustomerId) => {
+      this.loadAvailableGroups(customerId?.id);
+    });
+  }
+
+  /** Owner (tenant/customer) scopes which entity groups a newly-created device can be assigned to. */
+  private loadAvailableGroups(customerId: string): void {
+    this.entityGroupService.getEntityGroupsByType(EntityType.DEVICE, new PageLink(100, 0), customerId).subscribe(page => {
+      this.availableGroups = page.data.filter(group => !isGroupAll(group));
+      const selected: string[] = this.deviceWizardFormGroup.get('groupIds').value || [];
+      const stillValid = selected.filter(id => this.availableGroups.some(group => group.id.id === id));
+      if (stillValid.length !== selected.length) {
+        this.deviceWizardFormGroup.get('groupIds').setValue(stillValid, {emitEvent: false});
+      }
+    });
   }
 
   cancel(): void {
@@ -120,7 +144,16 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
 
   add(): void {
     if (this.allValid()) {
-      this.createDevice().subscribe(
+      this.createDevice().pipe(
+        mergeMap(device => {
+          const groupIds: string[] = this.deviceWizardFormGroup.get('groupIds').value || [];
+          if (!groupIds.length) {
+            return of(device);
+          }
+          return forkJoin(groupIds.map(groupId => this.entityGroupService.addEntitiesToEntityGroup(groupId, [device.id.id])))
+            .pipe(map(() => device));
+        })
+      ).subscribe(
         (device) => this.dialogRef.close(device)
       );
     }

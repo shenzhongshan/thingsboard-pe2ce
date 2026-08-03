@@ -279,6 +279,11 @@ export class DevicesTableConfigResolver  {
       deviceInfoFilter.edgeId = new EdgeId(this.config.componentsData.edgeId);
     } else if (this.config.componentsData.deviceScope !== 'tenant') {
       deviceInfoFilter.customerId = new CustomerId(this.customerId);
+    } else if (this.config.componentsData.includeCustomerEntities === false) {
+      // "包含客户实体" toggle OFF — restrict the tenant-wide list to devices with no customer assigned.
+      // Uses a distinct filter field (not `customerId`) because setting `customerId` routes
+      // DeviceInfoQuery.toQuery() to the /customer/{id}/deviceInfos endpoint instead of /tenant/deviceInfos.
+      deviceInfoFilter.excludeCustomerEntities = true;
     }
     return new DeviceInfoQuery(pageLink, deviceInfoFilter);
   }

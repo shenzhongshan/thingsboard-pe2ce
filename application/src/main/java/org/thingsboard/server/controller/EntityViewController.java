@@ -335,10 +335,14 @@ public class EntityViewController extends BaseController {
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name", "type", "customerTitle"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
-            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "A string value representing the customer id — pass the all-zero NULL_UUID to restrict results to entity views with no customer assigned")
+            @RequestParam(required = false) String customerId) throws ThingsboardException {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        if (type != null && !type.trim().isEmpty()) {
+        if (customerId != null && !customerId.isEmpty()) {
+            return checkNotNull(entityViewService.findEntityViewInfosByTenantIdAndCustomerId(tenantId, new CustomerId(toUUID(customerId)), pageLink));
+        } else if (type != null && !type.trim().isEmpty()) {
             return checkNotNull(entityViewService.findEntityViewInfosByTenantIdAndType(tenantId, type, pageLink));
         } else {
             return checkNotNull(entityViewService.findEntityViewInfosByTenantId(tenantId, pageLink));

@@ -96,6 +96,29 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     }
 
     @Override
+    public List<JsonNode> findGroupPermissionInfosByEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId) {
+        List<JsonNode> result = new ArrayList<>();
+        for (GroupPermissionEntity entity : groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), entityGroupId.getId())) {
+            GroupPermission gp = entity.toData();
+            ObjectNode info = (ObjectNode) JacksonUtil.valueToTree(gp);
+            Role role = roleService.findRoleById(tenantId, gp.getRoleId());
+            if (role != null) {
+                info.put("roleName", role.getName());
+                info.put("roleType", role.getType().name());
+            }
+            if (gp.getUserGroupId() != null) {
+                EntityGroup userGroup = entityGroupService.findEntityGroupById(tenantId, gp.getUserGroupId());
+                if (userGroup != null) {
+                    info.put("userGroupName", userGroup.getName());
+                    info.put("userGroupOwnerName", userGroup.getOwnerId() != null ? "customer" : "tenant");
+                }
+            }
+            result.add(info);
+        }
+        return result;
+    }
+
+    @Override
     public void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId) {
         groupPermissionRepository.deleteById(groupPermissionId.getId());
     }

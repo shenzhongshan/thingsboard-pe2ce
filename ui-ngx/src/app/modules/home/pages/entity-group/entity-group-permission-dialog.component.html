@@ -1,0 +1,57 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 560px;">
+  <mat-toolbar color="primary">
+    <h2 translate>entity-group.add-permission</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+      <mat-form-field class="w-full" appearance="outline">
+        <mat-label translate>entity-group.permissions-role</mat-label>
+        <mat-select formControlName="roleId" required>
+          @for (r of roles; track r.id.id) {
+            <mat-option [value]="r.id.id">{{ r.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>entity-group.permissions-user-group</div>
+      <div class="flex flex-row gap-2">
+        <mat-form-field class="flex-1" appearance="outline">
+          <mat-label translate>entity-group.permissions-user-group-owner</mat-label>
+          <input matInput disabled [value]="ownerLabel | translate">
+        </mat-form-field>
+        <mat-form-field class="flex-1" appearance="outline">
+          <mat-label translate>entity-group.permissions-select-user-group</mat-label>
+          <mat-select formControlName="userGroupId" required>
+            @for (g of userGroups; track g.id.id) {
+              <mat-option [value]="g.id.id">{{ g.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end">
+    <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+    <button mat-raised-button color="primary" type="button" [disabled]="!form.valid" (click)="add()">{{ 'action.add' | translate }}</button>
+  </div>
+</div>

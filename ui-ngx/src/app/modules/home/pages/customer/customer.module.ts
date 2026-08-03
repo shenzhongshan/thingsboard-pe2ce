@@ -21,11 +21,13 @@ import { CustomerComponent } from '@modules/home/pages/customer/customer.compone
 import { CustomerRoutingModule } from './customer-routing.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { CustomerTabsComponent } from '@home/pages/customer/customer-tabs.component';
+import { CustomerTableHeaderComponent } from '@modules/home/pages/customer/customer-table-header.component';
 
 @NgModule({
   declarations: [
     CustomerComponent,
-    CustomerTabsComponent
+    CustomerTabsComponent,
+    CustomerTableHeaderComponent
   ],
   imports: [
     CommonModule,

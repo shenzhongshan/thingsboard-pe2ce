@@ -1,0 +1,57 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="mat-padding flex flex-col tb-eg-settings" [formGroup]="form">
+  <mat-form-field class="mat-block" appearance="outline">
+    <mat-label translate>entity-group.settings-table-title</mat-label>
+    <input matInput formControlName="tableTitle">
+  </mat-form-field>
+  <mat-checkbox formControlName="enableSearch">{{ 'entity-group.settings-enable-search' | translate }}</mat-checkbox>
+  <mat-checkbox formControlName="enableAdd">{{ 'entity-group.settings-enable-add' | translate }}</mat-checkbox>
+  <mat-checkbox formControlName="enableDelete">{{ 'entity-group.settings-enable-delete' | translate }}</mat-checkbox>
+  <mat-checkbox formControlName="enableSelection">{{ 'entity-group.settings-enable-selection' | translate }}</mat-checkbox>
+  <mat-checkbox formControlName="enableGroupTransfer">{{ 'entity-group.settings-enable-group-transfer' | translate }}</mat-checkbox>
+  <mat-form-field class="mat-block" appearance="outline">
+    <mat-label translate>entity-group.settings-row-click-action</mat-label>
+    <mat-select formControlName="rowClickAction">
+      <mat-option value="openDetails">{{ 'entity-group.settings-row-click-open-details' | translate }}</mat-option>
+      <mat-option value="select">{{ 'entity-group.settings-row-click-select' | translate }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+  <mat-checkbox formControlName="displayPagination">{{ 'entity-group.settings-display-pagination' | translate }}</mat-checkbox>
+  @if (form.get('displayPagination').value) {
+    <mat-form-field class="mat-block" appearance="outline">
+      <mat-label translate>entity-group.settings-page-step-increment</mat-label>
+      <input matInput type="number" min="1" formControlName="pageStepIncrement" required>
+    </mat-form-field>
+    <mat-form-field class="mat-block" appearance="outline">
+      <mat-label translate>entity-group.settings-page-step-count</mat-label>
+      <input matInput type="number" min="1" formControlName="pageStepCount" required>
+    </mat-form-field>
+    <mat-form-field class="mat-block" appearance="outline">
+      <mat-label translate>entity-group.settings-default-page-size</mat-label>
+      <mat-select formControlName="defaultPageSize">
+        @for (size of pageSizeOptions; track size) {
+          <mat-option [value]="size">{{ size }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  }
+  @if (isDeviceGroup) {
+    <mat-checkbox formControlName="enableCredentialsManagement">{{ 'entity-group.settings-enable-credentials' | translate }}</mat-checkbox>
+  }
+</div>

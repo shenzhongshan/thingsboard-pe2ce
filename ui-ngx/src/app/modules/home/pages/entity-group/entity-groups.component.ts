@@ -14,7 +14,7 @@
 /// limitations under the License.
 ///
 
-import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
@@ -26,7 +26,7 @@ import { EntityGroupService } from '@core/http/entity-group.service';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityGroup, isGroupAll } from '@shared/models/entity-group.models';
+import { EntityGroup, EntityGroupId, isGroupAll } from '@shared/models/entity-group.models';
 import {
   EntityGroupDialogComponent,
   EntityGroupDialogData
@@ -35,6 +35,10 @@ import {
   GroupPermissionsDialogComponent,
   GroupPermissionsDialogData
 } from '@home/pages/entity-group/group-permissions-dialog.component';
+import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
+import { EntityAction } from '@home/models/entity/entity-component.models';
+import { EntityDetailsPanelComponent } from '@home/components/entity/entity-details-panel.component';
+import { createGroupDetailsConfig } from '@home/pages/entity-group/entity-group-details-config.util';
 
 @Component({
   selector: 'tb-entity-groups',
@@ -61,6 +65,12 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
   EntityType = EntityType;
   isGroupAll = isGroupAll;
 
+  groupDetailsConfig: EntityTableConfig<EntityGroup>;
+  groupDetailsOpen = false;
+  editingGroupId: EntityGroupId;
+
+  @ViewChild('groupDetailsPanel') groupDetailsPanel: EntityDetailsPanelComponent;
+
   constructor(protected store: Store<AppState>,
               private entityGroupService: EntityGroupService,
               private dialogService: DialogService,
@@ -73,6 +83,7 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
 
   ngOnInit() {
     this.groupType = this.inputGroupType ?? this.route.snapshot.data.groupType;
+    this.groupDetailsConfig = createGroupDetailsConfig(this.entityGroupService, action => this.onGroupAction(action));
     this.reload();
   }
 
@@ -132,7 +143,40 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
     if (isGroupAll(group)) {
       return;
     }
-    this.openDialog(group.id.id);
+    this.editingGroupId = group.id;
+    this.groupDetailsOpen = true;
+  }
+
+  onGroupDetailsClosed() {
+    this.groupDetailsOpen = false;
+    this.reload();
+  }
+
+  private onGroupAction(action: EntityAction<EntityGroup>): boolean {
+    switch (action.action) {
+      case 'open':
+        this.groupDetailsOpen = false;
+        this.openGroup(null, action.entity);
+        return true;
+      case 'delete':
+        this.deleteGroup(null, action.entity);
+        this.groupDetailsOpen = false;
+        return true;
+      case 'makePublic':
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, true).subscribe(() => {
+          this.groupDetailsPanel?.reloadEntity();
+          this.reload();
+        });
+        return true;
+      case 'makePrivate':
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, false).subscribe(() => {
+          this.groupDetailsPanel?.reloadEntity();
+          this.reload();
+        });
+        return true;
+      default:
+        return false;
+    }
   }
 
   private openDialog(entityGroupId: string) {

@@ -83,6 +83,7 @@ import {
 } from '@shared/models/query/query.models';
 import { alarmFields } from '@shared/models/alarm.models';
 import { OtaPackageService } from '@core/http/ota-package.service';
+import { OtaPackageInfo } from '@shared/models/ota-package.models';
 import { EdgeService } from '@core/http/edge.service';
 import { bodyContentEdgeEventActionTypes, Edge, EdgeEvent, EdgeEventType } from '@shared/models/edge.models';
 import { RuleChainMetaData, RuleChainType } from '@shared/models/rule-chain.models';
@@ -383,7 +384,7 @@ export class EntityService {
           entitiesObservable = this.entityViewService.getCustomerEntityViewInfos(customerId, pageLink,
             subType, config);
         } else {
-          entitiesObservable = this.entityViewService.getTenantEntityViewInfos(pageLink, subType, config);
+          entitiesObservable = this.entityViewService.getTenantEntityViewInfos(pageLink, subType, false, config);
         }
         break;
       case EntityType.TENANT:
@@ -428,7 +429,9 @@ export class EntityService {
         break;
       case EntityType.OTA_PACKAGE:
         pageLink.sortOrder.property = 'title';
-        entitiesObservable = this.otaPackageService.getOtaPackages(pageLink, config);
+        entitiesObservable = this.otaPackageService.getOtaPackages(pageLink, config).pipe(
+          map(page => subType ? {...page, data: page.data.filter(p => (p as OtaPackageInfo).type === subType)} : page)
+        );
         break;
       case EntityType.DEVICE_PROFILE:
         pageLink.sortOrder.property = 'name';

@@ -41,4 +41,17 @@ export class AssetTableHeaderComponent extends EntityTableHeaderComponent<AssetI
     this.entitiesTableConfig.getTable().resetSortAndFilter(true);
   }
 
+  get assetScope(): string {
+    return this.entitiesTableConfig?.componentsData?.assetScope;
+  }
+
+  get includeCustomerEntities(): boolean {
+    return this.entitiesTableConfig?.componentsData?.includeCustomerEntities !== false;
+  }
+
+  includeCustomerEntitiesChanged(value: boolean) {
+    this.entitiesTableConfig.componentsData.includeCustomerEntities = value;
+    this.entitiesTableConfig.getTable().resetSortAndFilter(true);
+  }
+
 }

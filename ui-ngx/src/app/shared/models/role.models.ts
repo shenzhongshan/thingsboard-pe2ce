@@ -76,4 +76,7 @@ export interface GroupPermissionInfo extends GroupPermission {
   roleName?: string;
   roleType?: string;
   entityGroupName?: string;
+  userGroupName?: string;
+  // 'tenant' | 'customer' — which kind of owner the granting user group belongs to.
+  userGroupOwnerName?: string;
 }

@@ -1,0 +1,73 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 560px;">
+  <mat-toolbar color="primary">
+    <h2>{{ (isEdit ? 'entity-group.actions-edit' : 'entity-group.actions-add') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+      <mat-form-field appearance="outline">
+        <mat-label translate>entity-group.actions-source</mat-label>
+        <mat-select formControlName="source" required>
+          @for (s of actionSources; track s) {
+            <mat-option [value]="s">{{ ('entity-group.actions-source-' + s) | translate }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <div class="flex flex-row gap-2">
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label translate>entity-group.actions-name</mat-label>
+          <input matInput formControlName="name" required>
+        </mat-form-field>
+        <mat-form-field appearance="outline" style="width: 160px;">
+          <mat-label translate>entity-group.actions-icon</mat-label>
+          <input matInput formControlName="icon" required>
+          <mat-icon matPrefix>{{ form.get('icon').value }}</mat-icon>
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label translate>entity-group.actions-type</mat-label>
+        <mat-select formControlName="type" required>
+          <mat-option value="openDashboard">{{ 'entity-group.actions-type-open-dashboard' | translate }}</mat-option>
+          <mat-option value="custom">{{ 'entity-group.actions-type-custom' | translate }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      @if (form.get('type').value === 'openDashboard') {
+        <tb-dashboard-autocomplete appearance="outline" formControlName="dashboardId"></tb-dashboard-autocomplete>
+        <mat-form-field appearance="outline">
+          <mat-label translate>entity-group.actions-dashboard-state</mat-label>
+          <input matInput formControlName="dashboardState">
+        </mat-form-field>
+      }
+      @if (form.get('type').value === 'custom') {
+        <mat-form-field appearance="outline">
+          <mat-label translate>entity-group.actions-custom-function</mat-label>
+          <textarea matInput formControlName="customFunction" rows="4" placeholder="(entityId, entityName) => {...}"></textarea>
+        </mat-form-field>
+      }
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex items-center justify-end">
+    <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+    <button mat-raised-button color="primary" type="button" [disabled]="!form.valid" (click)="save()">{{ 'action.save' | translate }}</button>
+  </div>
+</div>

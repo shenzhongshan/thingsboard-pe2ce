@@ -15,7 +15,7 @@
 ///
 
 import { Injectable, Injector } from '@angular/core';
-import { ActivatedRouteSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Router } from '@angular/router';
 import { forkJoin, Observable, of } from 'rxjs';
 import { map, mergeMap } from 'rxjs/operators';
 import { MatDialog } from '@angular/material/dialog';
@@ -27,7 +27,7 @@ import { DialogService } from '@core/services/dialog.service';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
 import { EntityGroupService } from '@core/http/entity-group.service';
-import { EntityGroup, isGroupAll } from '@shared/models/entity-group.models';
+import { EntityGroup, EntityGroupSettings, isGroupAll } from '@shared/models/entity-group.models';
 import { BaseData, HasId } from '@shared/models/base-data';
 import { DeviceInfo, Device } from '@shared/models/device.models';
 import { AssetInfo } from '@shared/models/asset.models';
@@ -55,6 +55,7 @@ import {
   AddGroupEntitiesDialogComponent,
   AddGroupEntitiesDialogData
 } from '@home/pages/entity-group/add-group-entities-dialog.component';
+import { UserTableHeaderComponent } from '@home/pages/user/user-table-header.component';
 
 /**
  * Table configs for entities inside an entity group. Each resolver instantiates a FRESH copy of
@@ -88,7 +89,54 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
     return forkJoin({
       config: this.resolveBase(route),
       group: this.entityGroupService.getEntityGroup(entityGroupId)
-    }).pipe(map(({config, group}) => this.patch(config, group)));
+    }).pipe(map(({config, group}) => {
+      const patched = this.patch(config, group);
+      patched.onBackNavigation = () => this.navigateBackToGroupList();
+      return patched;
+    }));
+  }
+
+  /** Applies the per-group 设置 tab overrides (EntityGroup.configuration.settings) onto the member table config. */
+  private applySettings(config: EntityTableConfig<T>, group: EntityGroup): void {
+    const settings: EntityGroupSettings = group.configuration?.settings;
+    if (!settings) {
+      return;
+    }
+    if (settings.tableTitle) {
+      config.tableTitle = settings.tableTitle;
+    }
+    if (settings.enableSearch === false) {
+      config.searchEnabled = false;
+    }
+    if (settings.enableAdd === false) {
+      config.addEnabled = false;
+    }
+    if (settings.enableDelete === false) {
+      config.entitiesDeleteEnabled = false;
+    }
+    if (settings.enableSelection === false) {
+      config.selectionEnabled = false;
+    }
+    if (settings.displayPagination === false) {
+      config.displayPagination = false;
+    }
+    if (settings.defaultPageSize) {
+      config.defaultPageSize = settings.defaultPageSize;
+    }
+    if (settings.rowClickAction === 'select') {
+      config.handleRowClick = ($event, entity) => {
+        config.getTable().dataSource.selection.toggle(entity);
+        return true;
+      };
+    }
+  }
+
+  /** Strips the trailing :entityGroupId segment off the current URL to get back to the group list. */
+  private navigateBackToGroupList(): void {
+    const router = this.injector.get(Router);
+    const segments = router.url.split('?')[0].split('/');
+    segments.pop();
+    router.navigateByUrl(segments.join('/'));
   }
 
   /** Build the table config for a known group without router context (customer hierarchy view). */
@@ -103,8 +151,11 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
 
   private patch(config: EntityTableConfig<T>, group: EntityGroup): EntityTableConfig<T> {
     config.tableTitle = group.name + ': ' + this.translate.instant(this.entityTypeTitle());
+    config.componentsData = config.componentsData || {};
+    config.componentsData.groupName = group.name;
     config.entitiesFetchFunction = pageLink =>
       this.entityGroupService.getEntityGroupEntities<T>(group.id.id, pageLink);
+    this.applySettings(config, group);
     if (isGroupAll(group) && group.ownerId) {
       // A customer's "All" group lists entities assigned to the customer — membership is managed
       // through assignment on the main tables, not from here.
@@ -382,7 +433,14 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     // The base resolver guesses a customer-users context here; repoint at whole-tenant users and
     // keep edits from overwriting authority/customer of existing users.
     config.tableTitle = this.translate.instant('user.users');
-    config.entitiesFetchFunction = pageLink => this.userService.getUsers(pageLink);
+    config.componentsData = config.componentsData || {};
+    config.componentsData.includeCustomerEntities = true;
+    config.headerComponent = UserTableHeaderComponent;
+    // "包含客户实体" ON (default) = tenant admins + all customer users (getUsers already merges both
+    // for a TENANT_ADMIN caller); OFF = tenant admins only, via the same endpoint UsersTableConfigResolver uses.
+    config.entitiesFetchFunction = pageLink => config.componentsData.includeCustomerEntities === false ?
+      this.userService.getTenantAdmins(getCurrentAuthUser(this.store).tenantId, pageLink) :
+      this.userService.getUsers(pageLink);
     config.saveEntity = user => this.userService.saveUser(user);
     config.addEntity = () => this.addUser();
     return config;

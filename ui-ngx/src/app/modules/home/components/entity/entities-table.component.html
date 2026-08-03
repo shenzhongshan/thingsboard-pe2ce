@@ -40,6 +40,15 @@
         <mat-toolbar class="mat-mdc-table-toolbar" [class.!hidden]="textSearchMode || !dataSource.selection.isEmpty()">
           <div class="mat-toolbar-tools">
             <div class="title-container flex flex-row items-center justify-start xs:flex-col xs:items-start xs:justify-center">
+              @if (entitiesTableConfig.onBackNavigation) {
+                <button mat-icon-button
+                        style="margin-right: 8px;"
+                        matTooltip="{{ 'action.back' | translate }}"
+                        matTooltipPosition="above"
+                        (click)="entitiesTableConfig.onBackNavigation()">
+                  <mat-icon>arrow_back</mat-icon>
+                </button>
+              }
               @if (entitiesTableConfig.tableTitle) {
                 <span class="tb-entity-table-title">{{ entitiesTableConfig.tableTitle }}</span>
               }

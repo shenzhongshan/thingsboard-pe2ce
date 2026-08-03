@@ -24,6 +24,7 @@ import { EntitySubtype } from '@shared/models/entity-type.models';
 import { Asset, AssetInfo, AssetSearchQuery } from '@shared/models/asset.models';
 import { BulkImportRequest, BulkImportResult } from '@shared/import-export/import-export.models';
 import { SaveEntityParams } from '@shared/models/entity.models';
+import { NULL_UUID } from '@shared/models/id/has-uuid';
 
 @Injectable({
   providedIn: 'root'
@@ -39,10 +40,13 @@ export class AssetService {
       defaultHttpOptionsFromConfig(config));
   }
 
-  public getTenantAssetInfosByAssetProfileId(pageLink: PageLink, assetProfileId: string = '',
+  public getTenantAssetInfosByAssetProfileId(pageLink: PageLink, assetProfileId: string = '', excludeCustomerEntities = false,
                                              config?: RequestConfig): Observable<PageData<AssetInfo>> {
-    return this.http.get<PageData<AssetInfo>>(`/api/tenant/assetInfos${pageLink.toQuery()}&assetProfileId=${assetProfileId}`,
-      defaultHttpOptionsFromConfig(config));
+    let url = `/api/tenant/assetInfos${pageLink.toQuery()}&assetProfileId=${assetProfileId}`;
+    if (excludeCustomerEntities) {
+      url += `&customerId=${NULL_UUID}`;
+    }
+    return this.http.get<PageData<AssetInfo>>(url, defaultHttpOptionsFromConfig(config));
   }
 
   public getCustomerAssetInfos(customerId: string, pageLink: PageLink, type: string = '',

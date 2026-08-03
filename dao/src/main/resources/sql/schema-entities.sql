@@ -1083,6 +1083,17 @@ CREATE TABLE IF NOT EXISTS group_permission (
     is_public BOOLEAN
 );
 
+CREATE TABLE IF NOT EXISTS device_group_ota_package (
+    id UUID NOT NULL CONSTRAINT device_group_ota_package_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID,
+    group_id UUID,
+    ota_package_type VARCHAR(32),
+    ota_package_id UUID,
+    ota_package_update_time BIGINT,
+    CONSTRAINT device_group_ota_package_group_type_unq_key UNIQUE (group_id, ota_package_type)
+);
+
 CREATE TABLE IF NOT EXISTS scheduler_event (
     id UUID NOT NULL CONSTRAINT scheduler_event_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
