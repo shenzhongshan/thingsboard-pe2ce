@@ -40,6 +40,7 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.AiModelId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.config.annotations.ApiOperation;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.ai.AiChatModelService;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -66,6 +67,7 @@ import static org.thingsboard.server.controller.ControllerConstants.TENANT_AUTHO
 class AiModelController extends BaseController {
 
     private final AiChatModelService aiChatModelService;
+    private final SecretConfigurationService secretConfigurationService;
 
     @ApiOperation(
             value = "Create or update AI model (saveAiModel)",
@@ -163,9 +165,13 @@ class AiModelController extends BaseController {
     )
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @PostMapping("/chat")
-    public DeferredResult<TbChatResponse> sendChatRequest(@Valid @RequestBody TbChatRequest tbChatRequest) {
+    public DeferredResult<TbChatResponse> sendChatRequest(@Valid @RequestBody TbChatRequest tbChatRequest) throws ThingsboardException {
         ChatRequest langChainChatRequest = tbChatRequest.toLangChainChatRequest();
         AiChatModelConfig<?> chatModelConfig = tbChatRequest.chatModelConfig();
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        AiChatModelConfig<?> resolvedChatModelConfig = secretConfigurationService
+                .replaceSecretUsages(getTenantId(), chatModelConfig, (Class) chatModelConfig.getClass());
+        chatModelConfig = resolvedChatModelConfig;
 
         ListenableFuture<TbChatResponse> future = aiChatModelService.sendChatRequestAsync(chatModelConfig, langChainChatRequest)
                 .transform(chatResponse -> (TbChatResponse) new TbChatResponse.Success(chatResponse.aiMessage().text()), directExecutor())

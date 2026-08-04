@@ -30,6 +30,7 @@ import { LoginWhiteLabelingComponent } from '@home/pages/admin/login-white-label
 import { MailTemplatesComponent } from '@home/pages/admin/mail-templates.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
 import { RolesComponent } from '@home/pages/entity-group/roles.component';
+import { SecretsComponent } from '@home/pages/admin/secrets.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
 import { CustomTranslationListComponent } from '@home/pages/admin/custom-translation-list.component';
@@ -464,6 +465,17 @@ const routes: Routes = [
           title: 'role.roles',
           breadcrumb: {
             menuId: MenuId.roles
+          }
+        }
+      },
+      {
+        path: 'secrets',
+        component: SecretsComponent,
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          title: 'secret.secrets',
+          breadcrumb: {
+            menuId: MenuId.secrets
           }
         }
       },

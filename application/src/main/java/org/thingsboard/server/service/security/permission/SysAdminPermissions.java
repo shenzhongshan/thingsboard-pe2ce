@@ -49,7 +49,23 @@ public class SysAdminPermissions extends AbstractPermissions {
         put(Resource.NOTIFICATION, systemEntityPermissionChecker);
         put(Resource.MOBILE_APP_SETTINGS, PermissionChecker.allowAllPermissionChecker);
         put(Resource.API_KEY, PermissionChecker.allowAllPermissionChecker);
+        put(Resource.SECRET, secretPermissionChecker);
     }
+
+    // SYS_ADMIN's own secrets are tenant-scoped to the SYS_TENANT_ID sentinel (used e.g. by
+    // system mail/SMS settings), same ownership rule as TenantAdminPermissions#tenantEntityPermissionChecker.
+    private static final PermissionChecker secretPermissionChecker = new PermissionChecker() {
+
+        @Override
+        public boolean hasPermission(SecurityUser user, Operation operation) {
+            return true;
+        }
+
+        @Override
+        public boolean hasPermission(SecurityUser user, Operation operation, EntityId entityId, HasTenantId entity) {
+            return user.getTenantId().equals(entity.getTenantId());
+        }
+    };
 
     private static final PermissionChecker systemEntityPermissionChecker = new PermissionChecker() {
 

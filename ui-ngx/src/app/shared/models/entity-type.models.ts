@@ -60,6 +60,7 @@ export enum EntityType {
   GROUP_PERMISSION = 'GROUP_PERMISSION',
   REPORT_TEMPLATE = 'REPORT_TEMPLATE',
   REPORT = 'REPORT',
+  SECRET = 'SECRET',
 }
 
 export enum AliasEntityType {

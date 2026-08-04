@@ -70,4 +70,11 @@ public @interface RuleNode {
 
     int version() default 0;
 
+    /**
+     * Set to true when this node's configuration may contain a {@code ${secret:<name>;type:<type>}}
+     * placeholder (typically in a credential field) that should be resolved against the tenant's
+     * secret vault before the node processes messages.
+     */
+    boolean hasSecrets() default false;
+
 }

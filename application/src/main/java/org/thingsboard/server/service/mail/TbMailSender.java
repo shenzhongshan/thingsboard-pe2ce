@@ -30,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.AdminSettings;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -62,6 +63,7 @@ public class TbMailSender extends JavaMailSenderImpl {
         this.lock = new ReentrantLock();
         this.tokenExpires = 0L;
         this.ctx = ctx;
+        ctx.getSecretConfigurationService().replaceSecretUsages(TenantId.SYS_TENANT_ID, jsonConfig);
         this.oauth2Enabled = jsonConfig.has("enableOauth2") && jsonConfig.get("enableOauth2").asBoolean();
 
         setHost(jsonConfig.get("smtpHost").asText());
@@ -151,12 +153,17 @@ public class TbMailSender extends JavaMailSenderImpl {
             if (System.currentTimeMillis() > getTokenExpires()) {
                 AdminSettings settings = ctx.getAdminSettingsService().findAdminSettingsByKey(TenantId.SYS_TENANT_ID, "mail");
                 JsonNode jsonValue = settings.getJsonValue();
+                // resolve secrets on a copy: 'jsonValue' is saved back to the DB below (refresh
+                // token rotation) and must keep the original ${secret:...} placeholder, not the
+                // decrypted value
+                JsonNode resolvedJsonValue = JacksonUtil.clone(jsonValue);
+                ctx.getSecretConfigurationService().replaceSecretUsages(TenantId.SYS_TENANT_ID, resolvedJsonValue);
 
-                String clientId = jsonValue.get("clientId").asText();
-                String clientSecret = jsonValue.get("clientSecret").asText();
-                String refreshToken = jsonValue.get("refreshToken").asText();
-                String tokenUri = jsonValue.get("tokenUri").asText();
-                String providerId = jsonValue.get("providerId").asText();
+                String clientId = resolvedJsonValue.get("clientId").asText();
+                String clientSecret = resolvedJsonValue.get("clientSecret").asText();
+                String refreshToken = resolvedJsonValue.get("refreshToken").asText();
+                String tokenUri = resolvedJsonValue.get("tokenUri").asText();
+                String providerId = resolvedJsonValue.get("providerId").asText();
 
                 TokenResponse tokenResponse = new RefreshTokenRequest(new NetHttpTransport(), new GsonFactory(),
                         new GenericUrl(tokenUri), refreshToken)

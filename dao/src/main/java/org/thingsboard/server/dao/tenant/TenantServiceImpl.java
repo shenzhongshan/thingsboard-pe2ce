@@ -36,6 +36,7 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.dao.asset.AssetProfileService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
+import org.thingsboard.server.dao.encryptionkey.EncryptionService;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
@@ -89,6 +90,8 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
     private TenantDataValidator tenantValidator;
     @Autowired
     protected TbTransactionalCache<TenantId, Boolean> existsTenantCache;
+    @Autowired
+    private EncryptionService encryptionService;
 
     @Override
     @TransactionalEventListener
@@ -156,6 +159,7 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
             assetProfileService.createDefaultAssetProfile(tenantId);
             apiUsageStateService.createDefaultApiUsageState(tenantId, null);
             notificationSettingsService.createDefaultNotificationConfigs(tenantId);
+            encryptionService.createEncryptionKey(tenantId);
         }
 
         return savedTenant;
@@ -171,6 +175,7 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
         notificationSettingsService.deleteNotificationSettings(tenantId);
         trendzSettingsService.deleteTrendzSettings(tenantId);
         qrCodeSettingService.deleteByTenantId(tenantId);
+        encryptionService.deleteEncryptionKeyByTenantId(tenantId);
 
         tenantDao.removeById(tenantId, tenantId.getId());
         publishEvictEvent(new TenantEvictEvent(tenantId, true));
@@ -184,7 +189,7 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
                 EntityType.NOTIFICATION_REQUEST, EntityType.NOTIFICATION_RULE, EntityType.NOTIFICATION_TEMPLATE,
                 EntityType.NOTIFICATION_TARGET, EntityType.QUEUE_STATS, EntityType.CUSTOMER,
                 EntityType.DOMAIN, EntityType.MOBILE_APP_BUNDLE, EntityType.MOBILE_APP, EntityType.OAUTH2_CLIENT,
-                EntityType.AI_MODEL
+                EntityType.AI_MODEL, EntityType.SECRET
         );
     }
 

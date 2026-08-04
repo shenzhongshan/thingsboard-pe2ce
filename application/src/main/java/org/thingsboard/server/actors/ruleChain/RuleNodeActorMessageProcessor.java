@@ -57,6 +57,7 @@ public class RuleNodeActorMessageProcessor extends ComponentMsgProcessor<RuleNod
         this.apiUsageClient = systemContext.getApiUsageClient();
         this.ruleChainName = ruleChainName;
         this.ruleNode = systemContext.getRuleChainService().findRuleNodeById(tenantId, entityId);
+        replaceSecretUsages(ruleNode);
         this.defaultCtx = new DefaultTbContext(systemContext, ruleChainName, new RuleNodeCtx(tenantId, selfActor, ruleNode));
         this.info = new RuleNodeInfo(ruleNodeId, ruleChainName, getName(ruleNode));
     }
@@ -75,6 +76,7 @@ public class RuleNodeActorMessageProcessor extends ComponentMsgProcessor<RuleNod
     @Override
     public void onUpdate(TbActorCtx context) throws Exception {
         RuleNode newRuleNode = systemContext.getRuleChainService().findRuleNodeById(tenantId, entityId);
+        replaceSecretUsages(newRuleNode);
         if (isMyNodePartition(newRuleNode)) {
             this.info = new RuleNodeInfo(entityId, ruleChainName, getName(newRuleNode));
             boolean restartRequired = state != ComponentLifecycleState.ACTIVE ||
@@ -172,6 +174,18 @@ public class RuleNodeActorMessageProcessor extends ComponentMsgProcessor<RuleNod
 
     private String getName(RuleNode ruleNode) {
         return ruleNode != null ? ruleNode.getName() : UNKNOWN_NAME;
+    }
+
+    private void replaceSecretUsages(RuleNode ruleNode) {
+        if (ruleNode == null) {
+            return;
+        }
+        boolean hasSecrets = systemContext.getComponentService().getRuleNodeInfo(ruleNode.getType())
+                .map(info -> info.getAnnotation().hasSecrets())
+                .orElse(false);
+        if (hasSecrets) {
+            systemContext.getSecretConfigurationService().replaceSecretUsages(tenantId, ruleNode.getConfiguration());
+        }
     }
 
     private TbNode initComponent(RuleNode ruleNode) throws Exception {

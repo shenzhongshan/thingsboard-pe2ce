@@ -123,6 +123,7 @@ export enum MenuId {
   converters = 'converters',
   users = 'users',
   roles = 'roles',
+  secrets = 'secrets',
   reporting = 'reporting',
   report_templates = 'report_templates',
   report_schedule = 'report_schedule',
@@ -838,6 +839,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
+    MenuId.secrets,
+    {
+      id: MenuId.secrets,
+      name: 'secret.secrets',
+      type: 'link',
+      path: '/security-settings/secrets',
+      icon: 'mdi:key-variant'
+    }
+  ],
+  [
     MenuId.integration_center,
     {
       id: MenuId.integration_center,
@@ -1032,6 +1043,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         pages: [
           {id: MenuId.security_settings_general},
           {id: MenuId.two_fa},
+          {id: MenuId.secrets},
           {
             id: MenuId.oauth2,
             pages: [
@@ -1166,6 +1178,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.security_settings,
         pages: [
           {id: MenuId.roles},
+          {id: MenuId.secrets},
           {id: MenuId.self_registration},
           {id: MenuId.audit_log},
           {

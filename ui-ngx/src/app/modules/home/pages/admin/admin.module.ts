@@ -57,6 +57,12 @@ import { CustomTranslationComponent } from '@home/pages/admin/custom-translation
 import {
   CustomTranslationAddDialogComponent
 } from '@home/pages/admin/custom-translation-add-dialog.component';
+import { SecretsComponent } from '@home/pages/admin/secrets.component';
+import { SecretDialogComponent } from '@home/pages/admin/secret-dialog.component';
+import { SecretChangeValueDialogComponent } from '@home/pages/admin/secret-change-value-dialog.component';
+import {
+  SecretEditDescriptionDialogComponent
+} from '@home/pages/admin/secret-edit-description-dialog.component';
 
 @NgModule({
   declarations:
@@ -91,7 +97,11 @@ import {
       CustomMenuInfoDialogComponent,
       CustomTranslationListComponent,
       CustomTranslationComponent,
-      CustomTranslationAddDialogComponent
+      CustomTranslationAddDialogComponent,
+      SecretsComponent,
+      SecretDialogComponent,
+      SecretChangeValueDialogComponent,
+      SecretEditDescriptionDialogComponent
     ],
   imports: [
     CommonModule,

@@ -199,6 +199,27 @@
     "search": "搜索角色",
     "selected-roles": "已选择{ count, plural, =1 {1 个角色} other {# 个角色} }"
   },
+  "secret": {
+    "secrets": "密钥存储",
+    "name-required": "名称为必填项。",
+    "add": "添加密钥",
+    "add-secret": "添加密钥",
+    "change-value": "更改密钥值",
+    "description": "描述",
+    "edit-description": "编辑描述",
+    "name": "名称",
+    "type": "类型",
+    "type-text": "文本",
+    "type-text-file": "文本文件",
+    "value": "值",
+    "value-file": "文件",
+    "value-max-length": "值超出最大长度限制。",
+    "value-max-file-size": "文件大小超出限制。",
+    "no-secrets-text": "未找到密钥",
+    "delete-secret-title": "确定要删除密钥 '{{secretName}}' 吗？",
+    "delete-secret-text": "该操作无法撤销。",
+    "delete-secret-in-use-text": "该密钥正被使用，无法删除。"
+  },
   "integration": {
     "integration-center": "集成中心",
     "integrations": "集成",

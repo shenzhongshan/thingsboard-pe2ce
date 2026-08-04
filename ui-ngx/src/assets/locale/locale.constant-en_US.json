@@ -199,6 +199,27 @@
         "search": "Search roles",
         "selected-roles": "{ count, plural, =1 {1 role} other {# roles} } selected"
     },
+    "secret": {
+        "secrets": "Secret store",
+        "add": "Add secret",
+        "add-secret": "Add secret",
+        "name": "Name",
+        "name-required": "Name is required.",
+        "type": "Type",
+        "type-text": "Text",
+        "type-text-file": "File",
+        "value": "Value",
+        "value-file": "Value file",
+        "value-max-length": "Value exceeds the maximum of 2048 characters.",
+        "value-max-file-size": "File size exceeds the maximum of 512 KB.",
+        "description": "Description",
+        "edit-description": "Edit description",
+        "change-value": "Change value",
+        "delete-secret-title": "Delete secret '{{secretName}}'?",
+        "delete-secret-text": "Deletion fails if the secret is still referenced by another configuration.",
+        "delete-secret-in-use-text": "This secret is still referenced by another configuration and cannot be deleted.",
+        "no-secrets-text": "No secrets found"
+    },
     "integration": {
         "integration-center": "Integration center",
         "integrations": "Integrations",

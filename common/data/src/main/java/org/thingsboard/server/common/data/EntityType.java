@@ -81,7 +81,8 @@ public enum EntityType {
     ROLE(105),
     GROUP_PERMISSION(106),
     REPORT_TEMPLATE(107),
-    REPORT(108);
+    REPORT(108),
+    SECRET(109);
 
     @Getter
     private final int protoNumber; // Corresponds to EntityTypeProto

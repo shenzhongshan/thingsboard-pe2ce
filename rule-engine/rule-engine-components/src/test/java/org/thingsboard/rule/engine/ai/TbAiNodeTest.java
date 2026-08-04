@@ -69,6 +69,7 @@ import org.thingsboard.server.common.data.rule.RuleNode;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 import org.thingsboard.server.dao.ai.AiModelService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.resource.TbResourceDataCache;
@@ -109,6 +110,8 @@ class TbAiNodeTest {
     TbResourceDataCache tbResourceDataCacheMock;
     @Mock
     ResourceService resourceServiceMock;
+    @Mock
+    SecretConfigurationService secretConfigurationServiceMock;
 
     TbAiNode aiNode;
     TbAiNodeConfiguration config;
@@ -166,6 +169,9 @@ class TbAiNodeTest {
         lenient().when(ctxMock.getTenantId()).thenReturn(tenantId);
         lenient().when(ctxMock.getAiModelService()).thenReturn(aiModelServiceMock);
         lenient().when(ctxMock.getAiChatModelService()).thenReturn(aiChatModelServiceMock);
+        lenient().when(ctxMock.getSecretConfigurationService()).thenReturn(secretConfigurationServiceMock);
+        lenient().when(secretConfigurationServiceMock.replaceSecretUsages(any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(1));
         lenient().when(ctxMock.getDbCallbackExecutor()).thenReturn(DirectListeningExecutor.INSTANCE);
         lenient().when(ctxMock.getTbResourceDataCache()).thenReturn(tbResourceDataCacheMock);
         lenient().when(ctxMock.getResourceService()).thenReturn(resourceServiceMock);

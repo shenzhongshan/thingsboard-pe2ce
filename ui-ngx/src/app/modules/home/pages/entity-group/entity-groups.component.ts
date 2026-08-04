@@ -87,6 +87,10 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
     this.reload();
   }
 
+  get groupTypeTitleKey(): string {
+    return 'entity-group.group-type-' + this.groupType.toLowerCase().replace(/_/g, '-');
+  }
+
   ngOnChanges(changes: SimpleChanges) {
     const typeChange = changes.inputGroupType;
     const customerChange = changes.customerId;

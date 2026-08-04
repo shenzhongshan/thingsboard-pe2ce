@@ -105,6 +105,7 @@ import org.thingsboard.server.common.data.id.QueueId;
 import org.thingsboard.server.common.data.id.RpcId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.RuleNodeId;
+import org.thingsboard.server.common.data.id.SecretId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.TenantProfileId;
@@ -116,6 +117,7 @@ import org.thingsboard.server.common.data.job.Job;
 import org.thingsboard.server.common.data.mobile.app.MobileApp;
 import org.thingsboard.server.common.data.mobile.bundle.MobileAppBundle;
 import org.thingsboard.server.common.data.notification.targets.NotificationTarget;
+import org.thingsboard.server.common.data.secret.SecretInfo;
 import org.thingsboard.server.common.data.oauth2.OAuth2Client;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.SortOrder;
@@ -166,6 +168,7 @@ import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.rpc.RpcService;
 import org.thingsboard.server.dao.rule.RuleChainService;
+import org.thingsboard.server.dao.secret.SecretService;
 import org.thingsboard.server.dao.service.ConstraintValidator;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
@@ -382,6 +385,9 @@ public abstract class BaseController {
 
     @Autowired
     protected JobService jobService;
+
+    @Autowired
+    protected SecretService secretService;
 
     @Autowired
     protected CalculatedFieldService calculatedFieldService;
@@ -656,6 +662,7 @@ public abstract class BaseController {
                 case MOBILE_APP_BUNDLE -> checkMobileAppBundleId(new MobileAppBundleId(entityId.getId()), operation);
                 case CALCULATED_FIELD -> checkCalculatedFieldId(new CalculatedFieldId(entityId.getId()), operation);
                 case AI_MODEL -> checkAiModelId(new AiModelId(entityId.getId()), operation);
+                case SECRET -> checkSecretId(new SecretId(entityId.getId()), operation);
                 case API_KEY -> checkApiKeyId(new ApiKeyId(entityId.getId()), operation);
                 default -> (HasId<? extends EntityId>) checkEntityId(entityId, entitiesService::findEntityByTenantIdAndId, operation);
             };
@@ -869,6 +876,10 @@ public abstract class BaseController {
 
     Job checkJobId(JobId jobId, Operation operation) throws ThingsboardException {
         return checkEntityId(jobId, jobService::findJobById, operation);
+    }
+
+    SecretInfo checkSecretId(SecretId secretId, Operation operation) throws ThingsboardException {
+        return checkEntityId(secretId, secretService::findSecretInfoById, operation);
     }
 
     AiModel checkAiModelId(AiModelId settingsId, Operation operation) throws ThingsboardException {

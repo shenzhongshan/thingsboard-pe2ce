@@ -52,6 +52,7 @@ import org.thingsboard.server.common.data.script.ScriptLanguage;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 import org.thingsboard.server.dao.ai.AiModelService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.alarm.AlarmCommentService;
 import org.thingsboard.server.dao.asset.AssetProfileService;
 import org.thingsboard.server.dao.asset.AssetService;
@@ -477,6 +478,8 @@ public interface TbContext {
     RuleEngineAiChatModelService getAiChatModelService();
 
     AiModelService getAiModelService();
+
+    SecretConfigurationService getSecretConfigurationService();
 
     // Configuration parameters for the MQTT client that is used in the MQTT node and Azure IoT hub node
 

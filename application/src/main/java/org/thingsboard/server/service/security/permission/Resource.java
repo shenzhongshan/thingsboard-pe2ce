@@ -64,7 +64,8 @@ public enum Resource {
     ROLE(EntityType.ROLE),
     GROUP_PERMISSION(EntityType.GROUP_PERMISSION),
     REPORT_TEMPLATE(EntityType.REPORT_TEMPLATE),
-    REPORT(EntityType.REPORT);
+    REPORT(EntityType.REPORT),
+    SECRET(EntityType.SECRET);
 
     private final Set<EntityType> entityTypes;
 

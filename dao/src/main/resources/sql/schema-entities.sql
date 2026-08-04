@@ -981,6 +981,26 @@ CREATE TABLE IF NOT EXISTS ai_model (
     CONSTRAINT ai_model_external_id_unq_key UNIQUE (tenant_id, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS secret (
+    id           UUID          NOT NULL CONSTRAINT secret_pkey PRIMARY KEY,
+    created_time BIGINT        NOT NULL,
+    tenant_id    UUID          NOT NULL,
+    name         VARCHAR(255)  NOT NULL,
+    type         VARCHAR(32)   NOT NULL,
+    description  VARCHAR(255),
+    value        BYTEA,
+    CONSTRAINT secret_unq_key UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS encryption_key (
+    id           UUID          NOT NULL CONSTRAINT encryption_key_pkey PRIMARY KEY,
+    created_time BIGINT        NOT NULL,
+    tenant_id    UUID          NOT NULL,
+    password     VARCHAR(255)  NOT NULL,
+    salt         VARCHAR(255)  NOT NULL,
+    CONSTRAINT encryption_key_tenant_unq_key UNIQUE (tenant_id)
+);
+
 CREATE TABLE IF NOT EXISTS white_labeling (
     tenant_id UUID NOT NULL,
     customer_id UUID NOT NULL default '13814000-1dd2-11b2-8080-808080808080',

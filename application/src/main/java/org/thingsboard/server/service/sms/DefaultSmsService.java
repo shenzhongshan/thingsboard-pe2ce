@@ -35,6 +35,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.sms.config.SmsProviderConfiguration;
 import org.thingsboard.server.common.data.sms.config.TestSmsRequest;
 import org.thingsboard.server.common.stats.TbApiUsageReportClient;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
 import org.thingsboard.server.service.apiusage.TbApiUsageStateService;
 
@@ -47,6 +48,7 @@ public class DefaultSmsService implements SmsService {
     private final AdminSettingsService adminSettingsService;
     private final TbApiUsageStateService apiUsageStateService;
     private final TbApiUsageReportClient apiUsageClient;
+    private final SecretConfigurationService secretConfigurationService;
 
     private SmsSender smsSender;
 
@@ -69,6 +71,7 @@ public class DefaultSmsService implements SmsService {
             try {
                 JsonNode jsonConfig = settings.getJsonValue();
                 SmsProviderConfiguration configuration = JacksonUtil.convertValue(jsonConfig, SmsProviderConfiguration.class);
+                configuration = replaceSmsSecretUsages(configuration);
                 SmsSender newSmsSender = this.smsSenderFactory.createSmsSender(configuration);
                 if (this.smsSender != null) {
                     this.smsSender.destroy();
@@ -109,7 +112,8 @@ public class DefaultSmsService implements SmsService {
     public void sendTestSms(TestSmsRequest testSmsRequest) throws ThingsboardException {
         SmsSender testSmsSender;
         try {
-            testSmsSender = this.smsSenderFactory.createSmsSender(testSmsRequest.getProviderConfiguration());
+            SmsProviderConfiguration configuration = replaceSmsSecretUsages(testSmsRequest.getProviderConfiguration());
+            testSmsSender = this.smsSenderFactory.createSmsSender(configuration);
         } catch (Exception e) {
             throw handleException(e);
         }
@@ -130,6 +134,11 @@ public class DefaultSmsService implements SmsService {
         } catch (Exception e) {
             throw handleException(e);
         }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private SmsProviderConfiguration replaceSmsSecretUsages(SmsProviderConfiguration configuration) {
+        return secretConfigurationService.replaceSecretUsages(TenantId.SYS_TENANT_ID, configuration, (Class) configuration.getClass());
     }
 
     private ThingsboardException handleException(Exception exception) {

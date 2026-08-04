@@ -83,6 +83,7 @@ import org.thingsboard.server.common.msg.TbMsgProcessingStackItem;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.dao.ai.AiModelService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.alarm.AlarmCommentService;
 import org.thingsboard.server.dao.asset.AssetProfileService;
 import org.thingsboard.server.dao.asset.AssetService;
@@ -1157,6 +1158,11 @@ public class DefaultTbContext implements TbContext {
     @Override
     public AiModelService getAiModelService() {
         return mainCtx.getAiModelService();
+    }
+
+    @Override
+    public SecretConfigurationService getSecretConfigurationService() {
+        return mainCtx.getSecretConfigurationService();
     }
 
     @Override
