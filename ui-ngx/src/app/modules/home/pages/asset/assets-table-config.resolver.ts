@@ -175,6 +175,7 @@ export class AssetsTableConfigResolver  {
           entity => {
             return checkBoxCell(entity.customerIsPublic);
           }, () => ({}), false),
+        new EntityTableColumn<AssetInfo>('groups', 'asset.groups', '25%'),
       );
     }
     return columns;

@@ -47,12 +47,20 @@ export const roleResources: string[] = [
   'EDGE_GROUP', 'DASHBOARD_GROUP', 'ROLE', 'GROUP_PERMISSION', 'WHITE_LABELING', 'AUDIT_LOG'
 ];
 
+export const roleResourceTranslations = new Map<string, string>(
+  roleResources.map(res => [res, `role.resource-${res}`])
+);
+
 // PE permission operation names.
 export const roleOperations: string[] = [
   'ALL', 'CREATE', 'READ', 'WRITE', 'DELETE', 'RPC_CALL', 'READ_CREDENTIALS', 'WRITE_CREDENTIALS',
   'READ_ATTRIBUTES', 'WRITE_ATTRIBUTES', 'READ_TELEMETRY', 'WRITE_TELEMETRY', 'ADD_TO_GROUP',
   'REMOVE_FROM_GROUP', 'CHANGE_OWNER', 'IMPERSONATE', 'CLAIM_DEVICES', 'SHARE_GROUP', 'ASSIGN_TO_TENANT'
 ];
+
+export const roleOperationTranslations = new Map<string, string>(
+  roleOperations.map(op => [op, `role.operation-${op}`])
+);
 
 export interface Role extends BaseData<RoleId> {
   tenantId?: TenantId;

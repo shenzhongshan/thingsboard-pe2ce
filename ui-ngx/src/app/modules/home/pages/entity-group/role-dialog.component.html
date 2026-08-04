@@ -54,7 +54,7 @@
                     <mat-label translate>role.resource</mat-label>
                     <mat-select formControlName="resource" required>
                       @for (res of roleResources; track res) {
-                        <mat-option [value]="res">{{ res }}</mat-option>
+                        <mat-option [value]="res">{{ roleResourceTranslations.get(res) | translate }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
@@ -62,7 +62,7 @@
                     <mat-label translate>role.operations</mat-label>
                     <mat-select formControlName="operations" multiple required>
                       @for (op of roleOperations; track op) {
-                        <mat-option [value]="op">{{ op }}</mat-option>
+                        <mat-option [value]="op">{{ roleOperationTranslations.get(op) | translate }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
@@ -82,7 +82,7 @@
               <mat-label translate>role.operations</mat-label>
               <mat-select formControlName="groupOperations" multiple>
                 @for (op of roleOperations; track op) {
-                  <mat-option [value]="op">{{ op }}</mat-option>
+                  <mat-option [value]="op">{{ roleOperationTranslations.get(op) | translate }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>

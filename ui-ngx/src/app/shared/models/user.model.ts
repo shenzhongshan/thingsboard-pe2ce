@@ -33,6 +33,10 @@ export interface User extends BaseData<UserId>, HasTenantId {
   additionalInfo: Partial<UserAdditionalInfo>;
 }
 
+export interface UserInfo extends User {
+  groups?: string;
+}
+
 export interface UserAdditionalInfo {
   userCredentialsEnabled: boolean;
   userActivated: boolean;

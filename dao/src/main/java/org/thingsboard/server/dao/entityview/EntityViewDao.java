@@ -27,6 +27,7 @@ import org.thingsboard.server.dao.Dao;
 import org.thingsboard.server.dao.ExportableEntityDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -184,5 +185,13 @@ public interface EntityViewDao extends Dao<EntityView>, ExportableEntityDao<Enti
                                                             UUID edgeId,
                                                             String type,
                                                             PageLink pageLink);
+
+    /**
+     * Find, for each of the given entity view ids, the comma-joined names of the Entity Groups it belongs to.
+     *
+     * @param entityViewIds the entity view ids
+     * @return map of entity view id to comma-joined entity group names
+     */
+    Map<UUID, String> findGroupNamesByIds(List<UUID> entityViewIds);
 
 }

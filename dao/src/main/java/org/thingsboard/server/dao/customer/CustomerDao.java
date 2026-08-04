@@ -25,6 +25,7 @@ import org.thingsboard.server.dao.ExportableEntityDao;
 import org.thingsboard.server.dao.TenantEntityDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,5 +89,13 @@ public interface CustomerDao extends Dao<Customer>, TenantEntityDao<Customer>, E
     PageData<Customer> findDescendants(UUID tenantId, UUID customerId, PageLink pageLink);
 
     List<Customer> findAncestors(UUID tenantId, UUID customerId);
+
+    /**
+     * Find, for each of the given customer ids, the comma-joined names of the Entity Groups it belongs to.
+     *
+     * @param customerIds the customer ids
+     * @return map of customer id to comma-joined entity group names
+     */
+    Map<UUID, String> findGroupNamesByIds(List<UUID> customerIds);
 
 }

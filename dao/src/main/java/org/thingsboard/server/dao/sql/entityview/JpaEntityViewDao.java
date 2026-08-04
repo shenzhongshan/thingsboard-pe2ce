@@ -37,9 +37,11 @@ import org.thingsboard.server.dao.entityview.EntityViewDao;
 import org.thingsboard.server.dao.model.sql.EntityViewEntity;
 import org.thingsboard.server.dao.model.sql.EntityViewInfoEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
+import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -241,6 +243,11 @@ public class JpaEntityViewDao extends JpaAbstractDao<EntityViewEntity, EntityVie
     @Override
     public EntityType getEntityType() {
         return EntityType.ENTITY_VIEW;
+    }
+
+    @Override
+    public Map<UUID, String> findGroupNamesByIds(List<UUID> entityViewIds) {
+        return GroupNamesUtil.groupNamesByEntityId(entityViewRepository.findGroupNamesByEntityViewIds(entityViewIds));
     }
 
 }

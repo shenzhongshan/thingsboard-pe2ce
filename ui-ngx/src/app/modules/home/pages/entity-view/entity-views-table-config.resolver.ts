@@ -174,6 +174,7 @@ export class EntityViewsTableConfigResolver  {
           entity => {
             return checkBoxCell(entity.customerIsPublic);
           }, () => ({}), false),
+        new EntityTableColumn<EntityViewInfo>('groups', 'entity-view.groups', '25%'),
       );
     }
     return columns;

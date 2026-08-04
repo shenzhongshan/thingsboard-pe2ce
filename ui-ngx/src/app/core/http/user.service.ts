@@ -16,7 +16,7 @@
 
 import { Injectable } from '@angular/core';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
-import { ActivationLinkInfo, User, UserEmailInfo } from '@shared/models/user.model';
+import { ActivationLinkInfo, User, UserEmailInfo, UserInfo } from '@shared/models/user.model';
 import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { PageLink } from '@shared/models/page/page-link';
@@ -34,8 +34,8 @@ export class UserService {
   ) { }
 
   public getUsers(pageLink: PageLink,
-                  config?: RequestConfig): Observable<PageData<User>> {
-    return this.http.get<PageData<User>>(`/api/users${pageLink.toQuery()}`,
+                  config?: RequestConfig): Observable<PageData<UserInfo>> {
+    return this.http.get<PageData<UserInfo>>(`/api/users${pageLink.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
   }
 

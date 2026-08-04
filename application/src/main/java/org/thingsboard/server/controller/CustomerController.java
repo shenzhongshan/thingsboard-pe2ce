@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.CustomerInfo;
 import org.thingsboard.server.common.data.NameConflictStrategy;
 import org.thingsboard.server.common.data.NameConflictPolicy;
 import org.thingsboard.server.common.data.UniquifyStrategy;
@@ -174,7 +175,7 @@ public class CustomerController extends BaseController {
                     PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = "/customers")
-    public PageData<Customer> getCustomers(
+    public PageData<CustomerInfo> getCustomers(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
             @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
@@ -187,7 +188,7 @@ public class CustomerController extends BaseController {
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         TenantId tenantId = getCurrentUser().getTenantId();
-        return checkNotNull(customerService.findCustomersByTenantId(tenantId, pageLink));
+        return checkNotNull(customerService.toCustomerInfos(customerService.findCustomersByTenantId(tenantId, pageLink)));
     }
 
     @ApiOperation(value = "Get Tenant Customer by Customer title (getTenantCustomer)",
@@ -231,7 +232,7 @@ public class CustomerController extends BaseController {
                     + PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = "/customers/topLevel")
-    public PageData<Customer> getTopLevelCustomers(
+    public PageData<CustomerInfo> getTopLevelCustomers(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = CUSTOMER_TEXT_SEARCH_DESCRIPTION) @RequestParam(required = false) String textSearch,
@@ -239,7 +240,7 @@ public class CustomerController extends BaseController {
             @Parameter(description = SORT_ORDER_DESCRIPTION) @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.CUSTOMER, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        return checkNotNull(customerService.findTopLevelCustomersByTenantId(getTenantId(), pageLink));
+        return checkNotNull(customerService.toCustomerInfos(customerService.findTopLevelCustomersByTenantId(getTenantId(), pageLink)));
     }
 
     @ApiOperation(value = "Get sub-customers of a Customer (getCustomerChildren)",

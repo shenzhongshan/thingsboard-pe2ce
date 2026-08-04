@@ -40,10 +40,12 @@ import org.thingsboard.server.dao.model.sql.AssetEntity;
 import org.thingsboard.server.dao.model.sql.AssetInfoEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.sql.device.NativeAssetRepository;
+import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -313,6 +315,11 @@ public class JpaAssetDao extends JpaAbstractDao<AssetEntity, Asset> implements A
     @Override
     public EntityType getEntityType() {
         return EntityType.ASSET;
+    }
+
+    @Override
+    public Map<UUID, String> findGroupNamesByIds(List<UUID> assetIds) {
+        return GroupNamesUtil.groupNamesByEntityId(assetRepository.findGroupNamesByAssetIds(assetIds));
     }
 
 }

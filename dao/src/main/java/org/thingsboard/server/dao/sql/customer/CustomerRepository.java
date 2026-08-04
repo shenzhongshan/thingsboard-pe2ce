@@ -118,4 +118,9 @@ public interface CustomerRepository extends JpaRepository<CustomerEntity, UUID>,
             "WHERE a.depth > 0 ORDER BY a.depth DESC",
             nativeQuery = true)
     List<CustomerEntity> findAncestors(@Param("tenantId") UUID tenantId, @Param("customerId") UUID customerId);
+
+    @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
+            "WHERE r.toId IN :ids AND r.toType = 'CUSTOMER' AND eg.type = org.thingsboard.server.common.data.EntityType.CUSTOMER " +
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+    List<Object[]> findGroupNamesByCustomerIds(@Param("ids") List<UUID> ids);
 }

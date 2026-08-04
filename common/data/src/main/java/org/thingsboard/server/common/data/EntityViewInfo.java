@@ -29,6 +29,9 @@ public class EntityViewInfo extends EntityView {
     @Schema(description = "Indicates special 'Public' Customer that is auto-generated to use the entity view on public dashboards.", accessMode = Schema.AccessMode.READ_ONLY)
     private boolean customerIsPublic;
 
+    @Schema(description = "Comma-separated names of the Entity Groups this entity view belongs to.", accessMode = Schema.AccessMode.READ_ONLY)
+    private String groups;
+
     public EntityViewInfo() {
         super();
     }

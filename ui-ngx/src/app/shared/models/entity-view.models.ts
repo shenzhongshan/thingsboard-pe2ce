@@ -48,6 +48,7 @@ export interface EntityView extends BaseData<EntityViewId>, HasTenantId, HasVers
 export interface EntityViewInfo extends EntityView {
   customerTitle: string;
   customerIsPublic: boolean;
+  groups?: string;
 }
 
 export interface EntityViewSearchQuery extends EntitySearchQuery {

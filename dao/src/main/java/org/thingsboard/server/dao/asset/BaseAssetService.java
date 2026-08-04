@@ -61,7 +61,9 @@ import org.thingsboard.server.dao.sql.JpaExecutorService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
@@ -269,7 +271,17 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         log.trace("Executing findAssetInfosByTenantId, tenantId [{}], pageLink [{}]", tenantId, pageLink);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validatePageLink(pageLink);
-        return assetDao.findAssetInfosByTenantId(tenantId.getId(), pageLink);
+        return withGroups(assetDao.findAssetInfosByTenantId(tenantId.getId(), pageLink));
+    }
+
+    private PageData<AssetInfo> withGroups(PageData<AssetInfo> page) {
+        if (page.getData().isEmpty()) {
+            return page;
+        }
+        List<UUID> ids = page.getData().stream().map(a -> a.getId().getId()).collect(Collectors.toList());
+        Map<UUID, String> groupsByAssetId = assetDao.findGroupNamesByIds(ids);
+        page.getData().forEach(a -> a.setGroups(groupsByAssetId.get(a.getId().getId())));
+        return page;
     }
 
     @Override

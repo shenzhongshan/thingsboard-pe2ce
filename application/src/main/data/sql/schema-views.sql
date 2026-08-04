@@ -21,6 +21,10 @@ SELECT d.*
        , COALESCE((c.additional_info::json->>'isPublic')::bool, FALSE) as customer_is_public
        , d.type as device_profile_name
        , COALESCE(da.bool_v, FALSE) as active
+       , (SELECT string_agg(eg.name, ', ' ORDER BY eg.name)
+          FROM relation r JOIN entity_group eg ON eg.id = r.from_id
+          WHERE r.to_id = d.id AND r.to_type = 'DEVICE' AND eg.type = 'DEVICE'
+            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains') as groups
 FROM device d
          LEFT JOIN customer c ON c.id = d.customer_id
          LEFT JOIN attribute_kv da ON da.entity_id = d.id AND da.attribute_type = 2 AND da.attribute_key = (select key_id from key_dictionary  where key = 'active');
@@ -32,6 +36,10 @@ SELECT d.*
        , COALESCE((c.additional_info::json->>'isPublic')::bool, FALSE) as customer_is_public
        , d.type as device_profile_name
        , COALESCE(dt.bool_v, FALSE) as active
+       , (SELECT string_agg(eg.name, ', ' ORDER BY eg.name)
+          FROM relation r JOIN entity_group eg ON eg.id = r.from_id
+          WHERE r.to_id = d.id AND r.to_type = 'DEVICE' AND eg.type = 'DEVICE'
+            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains') as groups
 FROM device d
          LEFT JOIN customer c ON c.id = d.customer_id
          LEFT JOIN ts_kv_latest dt ON dt.entity_id = d.id and dt.key = (select key_id from key_dictionary where key = 'active');

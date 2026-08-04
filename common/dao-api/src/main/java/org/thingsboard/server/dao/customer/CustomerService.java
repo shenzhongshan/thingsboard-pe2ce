@@ -17,6 +17,7 @@ package org.thingsboard.server.dao.customer;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.CustomerInfo;
 import org.thingsboard.server.common.data.NameConflictStrategy;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -48,6 +49,9 @@ public interface CustomerService extends EntityDaoService {
     Customer findPublicCustomer(TenantId tenantId);
 
     PageData<Customer> findCustomersByTenantId(TenantId tenantId, PageLink pageLink);
+
+    /** Converts a page of customers to a page of {@link CustomerInfo}, enriching each with its Entity Group names. */
+    PageData<CustomerInfo> toCustomerInfos(PageData<Customer> customers);
 
     void deleteCustomersByTenantId(TenantId tenantId);
 

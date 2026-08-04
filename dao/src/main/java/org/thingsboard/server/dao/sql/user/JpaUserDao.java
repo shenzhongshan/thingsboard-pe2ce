@@ -34,9 +34,11 @@ import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.model.sql.UserEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.user.UserDao;
+import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.thingsboard.server.dao.model.ModelConstants.NULL_UUID;
@@ -172,6 +174,11 @@ public class JpaUserDao extends JpaAbstractDao<UserEntity, User> implements User
     @Override
     public EntityType getEntityType() {
         return EntityType.USER;
+    }
+
+    @Override
+    public Map<UUID, String> findGroupNamesByIds(List<UUID> userIds) {
+        return GroupNamesUtil.groupNamesByEntityId(userRepository.findGroupNamesByUserIds(userIds));
     }
 
 }

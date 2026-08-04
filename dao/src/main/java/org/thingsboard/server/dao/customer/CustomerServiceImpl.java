@@ -28,6 +28,7 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cache.customer.CustomerCacheEvictEvent;
 import org.thingsboard.server.cache.customer.CustomerCacheKey;
 import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.CustomerInfo;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.NameConflictPolicy;
 import org.thingsboard.server.common.data.NameConflictStrategy;
@@ -56,7 +57,9 @@ import org.thingsboard.server.dao.user.UserService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
@@ -273,6 +276,18 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
         Validator.validateId(tenantId, id -> "Incorrect tenantId " + id);
         Validator.validatePageLink(pageLink);
         return customerDao.findCustomersByTenantId(tenantId.getId(), pageLink);
+    }
+
+    @Override
+    public PageData<CustomerInfo> toCustomerInfos(PageData<Customer> customers) {
+        PageData<CustomerInfo> infos = customers.mapData(CustomerInfo::new);
+        if (infos.getData().isEmpty()) {
+            return infos;
+        }
+        List<UUID> ids = infos.getData().stream().map(c -> c.getId().getId()).collect(Collectors.toList());
+        Map<UUID, String> groupsByCustomerId = customerDao.findGroupNamesByIds(ids);
+        infos.getData().forEach(c -> c.setGroups(groupsByCustomerId.get(c.getId().getId())));
+        return infos;
     }
 
     @Override

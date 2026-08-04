@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.user;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.UserAuthDetails;
+import org.thingsboard.server.common.data.UserInfo;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.TenantProfileId;
@@ -79,6 +80,9 @@ public interface UserService extends EntityDaoService {
     void deleteUser(TenantId tenantId, User user);
 
     PageData<User> findUsersByTenantId(TenantId tenantId, PageLink pageLink);
+
+    /** Converts a page of users to a page of {@link UserInfo}, enriching each with its Entity Group names. */
+    PageData<UserInfo> toUserInfos(PageData<User> users);
 
     PageData<User> findTenantAdmins(TenantId tenantId, PageLink pageLink);
 

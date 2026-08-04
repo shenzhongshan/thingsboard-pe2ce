@@ -233,6 +233,7 @@ export class DevicesTableConfigResolver  {
       );
     }
     columns.push(
+      new EntityTableColumn<DeviceInfo>('groups', 'device.groups', '25%'),
       new EntityTableColumn<DeviceInfo>('gateway', 'device.is-gateway', '60px',
         entity => checkBoxCell(entity.additionalInfo && entity.additionalInfo.gateway), () => ({}), false)
     );

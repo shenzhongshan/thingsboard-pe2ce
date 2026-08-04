@@ -37,6 +37,8 @@ public class DeviceInfo extends Device {
     private String deviceProfileName;
     @Schema(description = "Device active flag.", accessMode = Schema.AccessMode.READ_ONLY)
     private boolean active;
+    @Schema(description = "Comma-separated names of the Entity Groups this device belongs to.", accessMode = Schema.AccessMode.READ_ONLY)
+    private String groups;
 
     public DeviceInfo() {
         super();
@@ -47,10 +49,15 @@ public class DeviceInfo extends Device {
     }
 
     public DeviceInfo(Device device, String customerTitle, boolean customerIsPublic, String deviceProfileName, boolean active) {
+        this(device, customerTitle, customerIsPublic, deviceProfileName, active, null);
+    }
+
+    public DeviceInfo(Device device, String customerTitle, boolean customerIsPublic, String deviceProfileName, boolean active, String groups) {
         super(device);
         this.customerTitle = customerTitle;
         this.customerIsPublic = customerIsPublic;
         this.deviceProfileName = deviceProfileName;
         this.active = active;
+        this.groups = groups;
     }
 }

@@ -20,7 +20,14 @@ import { UntypedFormArray, UntypedFormBuilder, UntypedFormGroup, Validators } fr
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { RoleService } from '@core/http/role.service';
-import { Role, roleOperations, roleResources, RoleType } from '@shared/models/role.models';
+import {
+  Role,
+  roleOperations,
+  roleOperationTranslations,
+  roleResources,
+  roleResourceTranslations,
+  RoleType
+} from '@shared/models/role.models';
 
 export interface RoleDialogData {
   roleId?: string;
@@ -40,6 +47,8 @@ export class RoleDialogComponent implements OnInit {
   RoleType = RoleType;
   roleResources = roleResources;
   roleOperations = roleOperations;
+  roleResourceTranslations = roleResourceTranslations;
+  roleOperationTranslations = roleOperationTranslations;
 
   private role: Role;
 

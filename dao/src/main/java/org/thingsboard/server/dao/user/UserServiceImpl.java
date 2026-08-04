@@ -36,6 +36,7 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.UserAuthDetails;
+import org.thingsboard.server.common.data.UserInfo;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -79,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -399,6 +401,18 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validatePageLink(pageLink);
         return userDao.findByTenantId(tenantId.getId(), pageLink);
+    }
+
+    @Override
+    public PageData<UserInfo> toUserInfos(PageData<User> users) {
+        PageData<UserInfo> infos = users.mapData(UserInfo::new);
+        if (infos.getData().isEmpty()) {
+            return infos;
+        }
+        List<UUID> ids = infos.getData().stream().map(u -> u.getId().getId()).collect(Collectors.toList());
+        Map<UUID, String> groupsByUserId = userDao.findGroupNamesByIds(ids);
+        infos.getData().forEach(u -> u.setGroups(groupsByUserId.get(u.getId().getId())));
+        return infos;
     }
 
     @Override

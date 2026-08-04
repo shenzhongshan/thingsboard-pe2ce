@@ -730,6 +730,7 @@ export interface DeviceInfo extends Device {
   customerIsPublic: boolean;
   deviceProfileName: string;
   active: boolean;
+  groups: string;
 }
 
 export interface DeviceInfoFilter {

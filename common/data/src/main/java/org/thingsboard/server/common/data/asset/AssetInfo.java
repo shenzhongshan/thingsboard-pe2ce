@@ -35,6 +35,8 @@ public class AssetInfo extends Asset {
     @Schema(description = "Name of the corresponding Asset Profile.", accessMode = Schema.AccessMode.READ_ONLY)
     private String assetProfileName;
 
+    @Schema(description = "Comma-separated names of the Entity Groups this asset belongs to.", accessMode = Schema.AccessMode.READ_ONLY)
+    private String groups;
 
     public AssetInfo() {
         super();

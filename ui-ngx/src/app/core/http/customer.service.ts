@@ -20,7 +20,7 @@ import { Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { PageLink } from '@shared/models/page/page-link';
 import { PageData } from '@shared/models/page/page-data';
-import { Customer } from '@shared/models/customer.model';
+import { Customer, CustomerInfo } from '@shared/models/customer.model';
 import { SaveEntityParams } from '@shared/models/entity.models';
 
 @Injectable({
@@ -32,8 +32,8 @@ export class CustomerService {
     private http: HttpClient
   ) { }
 
-  public getCustomers(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Customer>> {
-    return this.http.get<PageData<Customer>>(`/api/customers${pageLink.toQuery()}`,
+  public getCustomers(pageLink: PageLink, config?: RequestConfig): Observable<PageData<CustomerInfo>> {
+    return this.http.get<PageData<CustomerInfo>>(`/api/customers${pageLink.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
   }
 
@@ -55,8 +55,8 @@ export class CustomerService {
     return this.http.delete(`/api/customer/${customerId}`, defaultHttpOptionsFromConfig(config));
   }
 
-  public getTopLevelCustomers(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Customer>> {
-    return this.http.get<PageData<Customer>>(`/api/customers/topLevel${pageLink.toQuery()}`,
+  public getTopLevelCustomers(pageLink: PageLink, config?: RequestConfig): Observable<PageData<CustomerInfo>> {
+    return this.http.get<PageData<CustomerInfo>>(`/api/customers/topLevel${pageLink.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
   }
 

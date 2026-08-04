@@ -25,7 +25,7 @@ import {
 import { TranslateService } from '@ngx-translate/core';
 import { DatePipe } from '@angular/common';
 import { EntityType, entityTypeResources, entityTypeTranslations } from '@shared/models/entity-type.models';
-import { User } from '@shared/models/user.model';
+import { User, UserInfo } from '@shared/models/user.model';
 import { UserService } from '@core/http/user.service';
 import { UserComponent } from '@modules/home/pages/user/user.component';
 import { CustomerService } from '@core/http/customer.service';
@@ -60,7 +60,7 @@ export interface UsersTableRouteData {
 @Injectable()
 export class UsersTableConfigResolver  {
 
-  private readonly config: EntityTableConfig<User> = new EntityTableConfig<User>();
+  private readonly config: EntityTableConfig<UserInfo> = new EntityTableConfig<UserInfo>();
 
   private tenantId: string;
   private customerId: string;
@@ -84,10 +84,10 @@ export class UsersTableConfigResolver  {
     this.config.entityResources = entityTypeResources.get(EntityType.USER);
 
     this.config.columns.push(
-      new DateEntityTableColumn<User>('createdTime', 'common.created-time', this.datePipe, '150px'),
-      new EntityTableColumn<User>('firstName', 'user.first-name', '33%'),
-      new EntityTableColumn<User>('lastName', 'user.last-name', '33%'),
-      new EntityTableColumn<User>('email', 'user.email', '33%')
+      new DateEntityTableColumn<UserInfo>('createdTime', 'common.created-time', this.datePipe, '150px'),
+      new EntityTableColumn<UserInfo>('firstName', 'user.first-name', '33%'),
+      new EntityTableColumn<UserInfo>('lastName', 'user.last-name', '33%'),
+      new EntityTableColumn<UserInfo>('email', 'user.email', '33%')
     );
 
     this.config.deleteEnabled = user => user && user.id && user.id.id !== this.authUser.id.id;
@@ -104,7 +104,7 @@ export class UsersTableConfigResolver  {
     this.config.componentsData = {includeCustomerEntities: true};
   }
 
-  resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<User>> {
+  resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<UserInfo>> {
     const routeParams = route.params;
     return this.store.pipe(select(selectAuth), take(1)).pipe(
       tap((auth) => {
@@ -184,7 +184,7 @@ export class UsersTableConfigResolver  {
     }).afterClosed();
   }
 
-  private openUser($event: Event, user: User, config: EntityTableConfig<User>) {
+  private openUser($event: Event, user: User, config: EntityTableConfig<UserInfo>) {
     if ($event) {
       $event.stopPropagation();
     }
@@ -247,7 +247,7 @@ export class UsersTableConfigResolver  {
     });
   }
 
-  onUserAction(action: EntityAction<User>, config: EntityTableConfig<User>): boolean {
+  onUserAction(action: EntityAction<UserInfo>, config: EntityTableConfig<UserInfo>): boolean {
     switch (action.action) {
       case 'open':
         this.openUser(action.event, action.entity, config);

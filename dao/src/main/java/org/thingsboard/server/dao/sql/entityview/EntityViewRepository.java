@@ -155,4 +155,9 @@ public interface EntityViewRepository extends JpaRepository<EntityViewEntity, UU
             "e.customerId, e.name, e.type, e.additionalInfo, e.version) " +
             "FROM EntityViewEntity e WHERE e.id > :id ORDER BY e.id")
     List<EntityViewFields> findNextBatch(@Param("id") UUID id, Limit limit);
+
+    @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
+            "WHERE r.toId IN :ids AND r.toType = 'ENTITY_VIEW' AND eg.type = org.thingsboard.server.common.data.EntityType.ENTITY_VIEW " +
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+    List<Object[]> findGroupNamesByEntityViewIds(@Param("ids") List<UUID> ids);
 }

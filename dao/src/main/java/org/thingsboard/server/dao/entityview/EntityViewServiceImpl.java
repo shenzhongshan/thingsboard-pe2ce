@@ -60,7 +60,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
@@ -235,7 +237,17 @@ public class EntityViewServiceImpl extends CachedVersionedEntityService<EntityVi
         log.trace("Executing findEntityViewInfosByTenantId, tenantId [{}], pageLink [{}]", tenantId, pageLink);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validatePageLink(pageLink);
-        return entityViewDao.findEntityViewInfosByTenantId(tenantId.getId(), pageLink);
+        return withGroups(entityViewDao.findEntityViewInfosByTenantId(tenantId.getId(), pageLink));
+    }
+
+    private PageData<EntityViewInfo> withGroups(PageData<EntityViewInfo> page) {
+        if (page.getData().isEmpty()) {
+            return page;
+        }
+        List<UUID> ids = page.getData().stream().map(e -> e.getId().getId()).collect(Collectors.toList());
+        Map<UUID, String> groupsByEntityViewId = entityViewDao.findGroupNamesByIds(ids);
+        page.getData().forEach(e -> e.setGroups(groupsByEntityViewId.get(e.getId().getId())));
+        return page;
     }
 
     @Override

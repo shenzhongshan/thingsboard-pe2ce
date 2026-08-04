@@ -27,6 +27,10 @@ export interface Customer extends ContactBased<CustomerId>, HasTenantId, HasVers
   parentCustomerId?: CustomerId;
 }
 
+export interface CustomerInfo extends Customer {
+  groups?: string;
+}
+
 export interface ShortCustomerInfo {
   customerId: CustomerId;
   title: string;

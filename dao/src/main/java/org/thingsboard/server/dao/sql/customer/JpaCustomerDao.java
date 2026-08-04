@@ -31,9 +31,11 @@ import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.model.sql.CustomerEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
+import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -154,6 +156,11 @@ public class JpaCustomerDao extends JpaAbstractDao<CustomerEntity, Customer> imp
     @Override
     public List<Customer> findAncestors(UUID tenantId, UUID customerId) {
         return DaoUtil.convertDataList(customerRepository.findAncestors(tenantId, customerId));
+    }
+
+    @Override
+    public Map<UUID, String> findGroupNamesByIds(List<UUID> customerIds) {
+        return GroupNamesUtil.groupNamesByEntityId(customerRepository.findGroupNamesByCustomerIds(customerIds));
     }
 
 }

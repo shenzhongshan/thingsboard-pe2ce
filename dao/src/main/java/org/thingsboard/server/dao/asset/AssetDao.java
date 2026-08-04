@@ -30,6 +30,7 @@ import org.thingsboard.server.dao.ExportableEntityDao;
 import org.thingsboard.server.dao.TenantEntityDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -241,5 +242,13 @@ public interface AssetDao extends Dao<Asset>, TenantEntityDao<Asset>, Exportable
     PageData<ProfileEntityIdInfo> findProfileEntityIdInfos(PageLink pageLink);
 
     PageData<ProfileEntityIdInfo> findProfileEntityIdInfosByTenantId(UUID tenantId, PageLink pageLink);
+
+    /**
+     * Find, for each of the given asset ids, the comma-joined names of the Entity Groups it belongs to.
+     *
+     * @param assetIds the asset ids
+     * @return map of asset id to comma-joined entity group names
+     */
+    Map<UUID, String> findGroupNamesByIds(List<UUID> assetIds);
 
 }

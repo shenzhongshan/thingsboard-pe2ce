@@ -27,6 +27,7 @@ import org.thingsboard.server.dao.Dao;
 import org.thingsboard.server.dao.TenantEntityDao;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface UserDao extends Dao<User>, TenantEntityDao<User> {
@@ -107,5 +108,13 @@ public interface UserDao extends Dao<User>, TenantEntityDao<User> {
     UserAuthDetails findUserAuthDetailsByUserId(UUID tenantId, UUID userId);
 
     List<User> findUsersByTenantIdAndIds(UUID tenantId, List<UUID> userIds);
+
+    /**
+     * Find, for each of the given user ids, the comma-joined names of the Entity Groups it belongs to.
+     *
+     * @param userIds the user ids
+     * @return map of user id to comma-joined entity group names
+     */
+    Map<UUID, String> findGroupNamesByIds(List<UUID> userIds);
 
 }

@@ -44,6 +44,7 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.UserActivationLink;
 import org.thingsboard.server.common.data.UserEmailInfo;
+import org.thingsboard.server.common.data.UserInfo;
 import org.thingsboard.server.common.data.alarm.Alarm;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
@@ -275,7 +276,7 @@ public class UserController extends BaseController {
                     PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = "/users")
-    public PageData<User> getUsers(
+    public PageData<UserInfo> getUsers(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
             @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
@@ -288,11 +289,13 @@ public class UserController extends BaseController {
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         SecurityUser currentUser = getCurrentUser();
+        PageData<User> users;
         if (Authority.TENANT_ADMIN.equals(currentUser.getAuthority())) {
-            return checkNotNull(userService.findUsersByTenantId(currentUser.getTenantId(), pageLink));
+            users = checkNotNull(userService.findUsersByTenantId(currentUser.getTenantId(), pageLink));
         } else {
-            return checkNotNull(userService.findCustomerUsers(currentUser.getTenantId(), currentUser.getCustomerId(), pageLink));
+            users = checkNotNull(userService.findCustomerUsers(currentUser.getTenantId(), currentUser.getCustomerId(), pageLink));
         }
+        return userService.toUserInfos(users);
     }
 
     @ApiOperation(value = "Find users by query (findUsersByQuery)",

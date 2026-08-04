@@ -234,4 +234,9 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
             "a.name, a.version, a.type, a.label, a.assetProfileId, a.additionalInfo) FROM AssetEntity a WHERE a.id > :id ORDER BY a.id")
     List<AssetFields> findAllFields(@Param("id") UUID id, Limit limit);
 
+    @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
+            "WHERE r.toId IN :ids AND r.toType = 'ASSET' AND eg.type = org.thingsboard.server.common.data.EntityType.ASSET " +
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+    List<Object[]> findGroupNamesByAssetIds(@Param("ids") List<UUID> ids);
+
 }

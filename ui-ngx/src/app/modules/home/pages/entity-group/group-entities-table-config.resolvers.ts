@@ -24,7 +24,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { DialogService } from '@core/services/dialog.service';
-import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
+import { EntityTableColumn, EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
 import { EntityGroupService } from '@core/http/entity-group.service';
 import { EntityGroup, EntityGroupSettings, isGroupAll } from '@shared/models/entity-group.models';
@@ -32,7 +32,7 @@ import { BaseData, HasId } from '@shared/models/base-data';
 import { DeviceInfo, Device } from '@shared/models/device.models';
 import { AssetInfo } from '@shared/models/asset.models';
 import { Customer } from '@shared/models/customer.model';
-import { User } from '@shared/models/user.model';
+import { User, UserInfo } from '@shared/models/user.model';
 import { Authority } from '@shared/models/authority.enum';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { UserService } from '@core/http/user.service';
@@ -412,7 +412,7 @@ export class DashboardGroupEntitiesTableConfigResolver extends GroupEntitiesTabl
  * tenant-admins-of-tenant / users-of-customer contexts, so both the "All" tab and group views
  * repoint fetching and creation at the whole-tenant users API).
  */
-abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigResolver<User> {
+abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigResolver<UserInfo> {
 
   protected constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
                         dialogService: DialogService, dialog: MatDialog,
@@ -420,7 +420,7 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     super(injector, entityGroupService, translate, dialogService, dialog);
   }
 
-  protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<User>> {
+  protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<UserInfo>> {
     return Injector.create({providers: [UsersTableConfigResolver], parent: this.injector})
       .get(UsersTableConfigResolver).resolve(route).pipe(map(config => this.patchUsersConfig(config)));
   }
@@ -429,13 +429,14 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     return 'user.users';
   }
 
-  protected patchUsersConfig(config: EntityTableConfig<User>): EntityTableConfig<User> {
+  protected patchUsersConfig(config: EntityTableConfig<UserInfo>): EntityTableConfig<UserInfo> {
     // The base resolver guesses a customer-users context here; repoint at whole-tenant users and
     // keep edits from overwriting authority/customer of existing users.
     config.tableTitle = this.translate.instant('user.users');
     config.componentsData = config.componentsData || {};
     config.componentsData.includeCustomerEntities = true;
     config.headerComponent = UserTableHeaderComponent;
+    config.columns.push(new EntityTableColumn<UserInfo>('groups', 'user.groups', '25%'));
     // "包含客户实体" ON (default) = tenant admins + all customer users (getUsers already merges both
     // for a TENANT_ADMIN caller); OFF = tenant admins only, via the same endpoint UsersTableConfigResolver uses.
     config.entitiesFetchFunction = pageLink => config.componentsData.includeCustomerEntities === false ?
@@ -461,7 +462,7 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
       }).afterClosed();
   }
 
-  protected configureGroupAdd(config: EntityTableConfig<User>, group: EntityGroup): void {
+  protected configureGroupAdd(config: EntityTableConfig<UserInfo>, group: EntityGroup): void {
     config.addEntity = () => this.addUser(group.ownerId?.id).pipe(mergeMap(user => this.addToGroup(group, user)));
   }
 }
@@ -475,7 +476,7 @@ export class AllUsersTableConfigResolver extends TenantUsersTableConfigResolver 
   }
 
   // Plain tenant users table — no group context at all.
-  resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<User>> {
+  resolve(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<UserInfo>> {
     return this.resolveBase(route);
   }
 }

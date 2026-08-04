@@ -27,7 +27,7 @@ import { TranslateService } from '@ngx-translate/core';
 import { DatePipe } from '@angular/common';
 import { EntityType, entityTypeResources, entityTypeTranslations } from '@shared/models/entity-type.models';
 import { EntityAction } from '@home/models/entity/entity-component.models';
-import { Customer } from '@app/shared/models/customer.model';
+import { Customer, CustomerInfo } from '@app/shared/models/customer.model';
 import { CustomerService } from '@app/core/http/customer.service';
 import { CustomerComponent } from '@modules/home/pages/customer/customer.component';
 import { CustomerTabsComponent } from '@home/pages/customer/customer-tabs.component';
@@ -40,7 +40,7 @@ import { CustomerTableHeaderComponent } from '@modules/home/pages/customer/custo
 @Injectable()
 export class CustomersTableConfigResolver  {
 
-  private readonly config: EntityTableConfig<Customer> = new EntityTableConfig<Customer>();
+  private readonly config: EntityTableConfig<CustomerInfo> = new EntityTableConfig<CustomerInfo>();
 
   constructor(private customerService: CustomerService,
               private homeDialogs: HomeDialogsService,
@@ -57,11 +57,12 @@ export class CustomersTableConfigResolver  {
     const authState = getCurrentAuthState(this.store);
 
     this.config.columns.push(
-      new DateEntityTableColumn<Customer>('createdTime', 'common.created-time', this.datePipe, '150px'),
-      new EntityTableColumn<Customer>('title', 'customer.title', '25%'),
-      new EntityTableColumn<Customer>('email', 'contact.email', '25%'),
-      new EntityTableColumn<Customer>('country', 'contact.country', '25%'),
-      new EntityTableColumn<Customer>('city', 'contact.city', '25%')
+      new DateEntityTableColumn<CustomerInfo>('createdTime', 'common.created-time', this.datePipe, '150px'),
+      new EntityTableColumn<CustomerInfo>('title', 'customer.title', '25%'),
+      new EntityTableColumn<CustomerInfo>('email', 'contact.email', '25%'),
+      new EntityTableColumn<CustomerInfo>('country', 'contact.country', '25%'),
+      new EntityTableColumn<CustomerInfo>('city', 'contact.city', '25%'),
+      new EntityTableColumn<CustomerInfo>('groups', 'customer.groups', '25%')
     );
     this.config.cellActionDescriptors.push(
       {
@@ -137,13 +138,13 @@ export class CustomersTableConfigResolver  {
     this.config.detailsReadonly = (customer) => customer && customer.additionalInfo && customer.additionalInfo.isPublic;
   }
 
-  resolve(): EntityTableConfig<Customer> {
+  resolve(): EntityTableConfig<CustomerInfo> {
     this.config.tableTitle = this.translate.instant('customer.customers');
 
     return this.config;
   }
 
-  private openCustomer($event: Event, customer: Customer, config: EntityTableConfig<Customer>) {
+  private openCustomer($event: Event, customer: Customer, config: EntityTableConfig<CustomerInfo>) {
     if ($event) {
       $event.stopPropagation();
     }
@@ -186,7 +187,7 @@ export class CustomersTableConfigResolver  {
     this.router.navigateByUrl(`customers/${customer.id.id}/edgeInstances`);
   }
 
-  onCustomerAction(action: EntityAction<Customer>, config: EntityTableConfig<Customer>): boolean {
+  onCustomerAction(action: EntityAction<CustomerInfo>, config: EntityTableConfig<CustomerInfo>): boolean {
     switch (action.action) {
       case 'open':
         this.openCustomer(action.event, action.entity, config);
