@@ -48,7 +48,14 @@ import { EntityViewsTableConfigResolver } from '@home/pages/entity-view/entity-v
 import { DashboardsTableConfigResolver } from '@home/pages/dashboard/dashboards-table-config.resolver';
 import { EntityViewInfo } from '@shared/models/entity-view.models';
 import { Dashboard, DashboardInfo } from '@shared/models/dashboard.models';
-import { DeviceWizardDialogComponent } from '@home/components/wizard/device-wizard-dialog.component';
+import {
+  DeviceWizardDialogComponent,
+  DeviceWizardDialogData
+} from '@home/components/wizard/device-wizard-dialog.component';
+import {
+  CustomerWizardDialogComponent,
+  CustomerWizardDialogData
+} from '@home/components/wizard/customer-wizard-dialog.component';
 import { AddEntityDialogComponent } from '@home/components/entity/add-entity-dialog.component';
 import { AddUserDialogComponent, AddUserDialogData } from '@modules/home/pages/user/add-user-dialog.component';
 import {
@@ -157,10 +164,13 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
       this.entityGroupService.getEntityGroupEntities<T>(group.id.id, pageLink);
     this.applySettings(config, group);
     if (isGroupAll(group) && group.ownerId) {
-      // A customer's "All" group lists entities assigned to the customer — membership is managed
-      // through assignment on the main tables, not from here.
-      config.addEnabled = false;
+      // A customer's "All" group lists entities assigned to the customer — group MEMBERSHIP is
+      // managed through assignment on the main tables, not from here (no add-existing, no
+      // remove-from-group). But creating a NEW entity from here should still preset its owner to
+      // this customer (PE parity) — configureGroupAdd() handles that; wizards that support
+      // presetGroup skip the groupIds prefill for an "All" group since there's nothing to add to.
       config.addActionDescriptors = [];
+      this.configureGroupAdd(config, group);
     }
     if (!isGroupAll(group)) {
       this.configureGroupAdd(config, group);
@@ -278,20 +288,14 @@ export class DeviceGroupEntitiesTableConfigResolver extends GroupEntitiesTableCo
   }
 
   protected configureGroupAdd(config: EntityTableConfig<DeviceInfo>, group: EntityGroup): void {
-    config.addEntity = () => {
-      this.dialog.open<DeviceWizardDialogComponent, AddEntityDialogData<BaseData<HasId>>, Device>(
-        DeviceWizardDialogComponent, {
-          disableClose: true,
-          panelClass: ['tb-dialog', 'tb-fullscreen-dialog']
-        }).afterClosed().pipe(
-        mergeMap(device => this.addToGroup(group, device))
-      ).subscribe((device) => {
-        if (device) {
-          config.updateData();
-        }
-      });
-      return of(null);
-    };
+    // The wizard itself handles owner + this group's membership (pre-filled via presetGroup),
+    // so no post-hoc addToGroup() is needed here.
+    config.addEntity = () => this.dialog.open<DeviceWizardDialogComponent, DeviceWizardDialogData, Device>(
+      DeviceWizardDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+        data: { presetGroup: group }
+      }).afterClosed().pipe(map(device => device as unknown as DeviceInfo));
   }
 }
 
@@ -343,7 +347,14 @@ export class CustomerGroupEntitiesTableConfigResolver extends GroupEntitiesTable
   }
 
   protected configureGroupAdd(config: EntityTableConfig<Customer>, group: EntityGroup): void {
-    this.genericDialogAdd(config, group);
+    // The wizard itself handles owner + this group's membership (pre-filled via presetGroup),
+    // so no post-hoc addToGroup() is needed here — unlike the other group resolvers' add flows.
+    config.addEntity = () => this.dialog.open<CustomerWizardDialogComponent, CustomerWizardDialogData, Customer>(
+      CustomerWizardDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+        data: { presetGroup: group }
+      }).afterClosed();
   }
 }
 

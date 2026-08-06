@@ -22,12 +22,14 @@ import { CustomerRoutingModule } from './customer-routing.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { CustomerTabsComponent } from '@home/pages/customer/customer-tabs.component';
 import { CustomerTableHeaderComponent } from '@modules/home/pages/customer/customer-table-header.component';
+import { CustomerOwnerGroupsDialogComponent } from '@modules/home/pages/customer/customer-owner-groups-dialog.component';
 
 @NgModule({
   declarations: [
     CustomerComponent,
     CustomerTabsComponent,
-    CustomerTableHeaderComponent
+    CustomerTableHeaderComponent,
+    CustomerOwnerGroupsDialogComponent
   ],
   imports: [
     CommonModule,

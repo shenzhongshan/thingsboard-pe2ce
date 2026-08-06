@@ -98,4 +98,12 @@ public interface CustomerDao extends Dao<Customer>, TenantEntityDao<Customer>, E
      */
     Map<UUID, String> findGroupNamesByIds(List<UUID> customerIds);
 
+    /**
+     * Find, for each of the given customer ids that has a parent customer, the parent customer's title.
+     *
+     * @param customerIds the customer ids
+     * @return map of customer id to parent customer title
+     */
+    Map<UUID, String> findParentCustomerTitlesByIds(List<UUID> customerIds);
+
 }

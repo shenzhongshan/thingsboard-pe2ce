@@ -34,6 +34,7 @@ import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -161,6 +162,15 @@ public class JpaCustomerDao extends JpaAbstractDao<CustomerEntity, Customer> imp
     @Override
     public Map<UUID, String> findGroupNamesByIds(List<UUID> customerIds) {
         return GroupNamesUtil.groupNamesByEntityId(customerRepository.findGroupNamesByCustomerIds(customerIds));
+    }
+
+    @Override
+    public Map<UUID, String> findParentCustomerTitlesByIds(List<UUID> customerIds) {
+        Map<UUID, String> result = new HashMap<>();
+        for (Object[] row : customerRepository.findParentCustomerTitlesByIds(customerIds)) {
+            result.put((UUID) row[0], (String) row[1]);
+        }
+        return result;
     }
 
 }

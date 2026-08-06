@@ -19,16 +19,19 @@ import { ContactBased } from '@shared/models/contact-based.model';
 import { TenantId } from './id/tenant-id';
 import { ExportableEntity } from '@shared/models/base-data';
 import { HasTenantId, HasVersion } from '@shared/models/entity.models';
+import { CustomMenuId } from '@shared/models/id/custom-menu-id';
 
 export interface Customer extends ContactBased<CustomerId>, HasTenantId, HasVersion, ExportableEntity<CustomerId> {
   tenantId: TenantId;
   title: string;
   additionalInfo?: any;
   parentCustomerId?: CustomerId;
+  customMenuId?: CustomMenuId;
 }
 
 export interface CustomerInfo extends Customer {
   groups?: string;
+  parentCustomerName?: string;
 }
 
 export interface ShortCustomerInfo {

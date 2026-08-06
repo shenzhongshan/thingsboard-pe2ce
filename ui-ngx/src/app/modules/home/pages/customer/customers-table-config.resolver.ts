@@ -36,6 +36,13 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { HomeDialogsService } from '@home/dialogs/home-dialogs.service';
 import { CustomerTableHeaderComponent } from '@modules/home/pages/customer/customer-table-header.component';
+import { MatDialog } from '@angular/material/dialog';
+import { CustomerWizardDialogComponent } from '@home/components/wizard/customer-wizard-dialog.component';
+import { of } from 'rxjs';
+import {
+  CustomerOwnerGroupsDialogComponent,
+  CustomerOwnerGroupsDialogData
+} from '@modules/home/pages/customer/customer-owner-groups-dialog.component';
 
 @Injectable()
 export class CustomersTableConfigResolver  {
@@ -47,6 +54,7 @@ export class CustomersTableConfigResolver  {
               private translate: TranslateService,
               private datePipe: DatePipe,
               private router: Router,
+              private dialog: MatDialog,
               private store: Store<AppState>) {
 
     this.config.entityType = EntityType.CUSTOMER;
@@ -62,6 +70,7 @@ export class CustomersTableConfigResolver  {
       new EntityTableColumn<CustomerInfo>('email', 'contact.email', '25%'),
       new EntityTableColumn<CustomerInfo>('country', 'contact.country', '25%'),
       new EntityTableColumn<CustomerInfo>('city', 'contact.city', '25%'),
+      new EntityTableColumn<CustomerInfo>('parentCustomerName', 'customer.parent-customer-name', '25%'),
       new EntityTableColumn<CustomerInfo>('groups', 'customer.groups', '25%')
     );
     this.config.cellActionDescriptors.push(
@@ -70,6 +79,12 @@ export class CustomersTableConfigResolver  {
         icon: 'account_circle',
         isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
         onAction: ($event, entity) => this.manageCustomerUsers($event, entity)
+      },
+      {
+        name: this.translate.instant('customer.manage-customer-customers'),
+        icon: 'people',
+        isEnabled: (customer) => true,
+        onAction: ($event, entity) => this.manageCustomerCustomers($event, entity)
       },
       {
         name: this.translate.instant('customer.manage-customer-assets'),
@@ -92,6 +107,12 @@ export class CustomersTableConfigResolver  {
         icon: 'devices_other',
         isEnabled: (customer) => true,
         onAction: ($event, entity) => this.manageCustomerDevices($event, entity)
+      },
+      {
+        name: this.translate.instant('customer.manage-customer-entity-views'),
+        icon: 'view_quilt',
+        isEnabled: (customer) => true,
+        onAction: ($event, entity) => this.manageCustomerEntityViews($event, entity)
       },
       {
         name: this.translate.instant('customer.manage-customer-dashboards'),
@@ -119,6 +140,14 @@ export class CustomersTableConfigResolver  {
         }
       );
     }
+    this.config.cellActionDescriptors.push(
+      {
+        name: this.translate.instant('customer.manage-owner-and-groups'),
+        icon: 'groups',
+        isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
+        onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
+      }
+    );
 
     this.config.deleteEntityTitle = customer => this.translate.instant('customer.delete-customer-title', { customerTitle: customer.title });
     this.config.deleteEntityContent = () => this.translate.instant('customer.delete-customer-text');
@@ -133,6 +162,7 @@ export class CustomersTableConfigResolver  {
     this.config.saveEntity = customer => this.customerService.saveCustomer(customer);
     this.config.deleteEntity = id => this.customerService.deleteCustomer(id.id);
     this.config.onEntityAction = action => this.onCustomerAction(action, this.config);
+    this.config.addEntity = () => { this.customerWizard(); return of(null); };
     this.config.deleteEnabled = (customer) => customer && (!customer.additionalInfo || !customer.additionalInfo.isPublic);
     this.config.entitySelectionEnabled = (customer) => customer && (!customer.additionalInfo || !customer.additionalInfo.isPublic);
     this.config.detailsReadonly = (customer) => customer && customer.additionalInfo && customer.additionalInfo.isPublic;
@@ -144,6 +174,17 @@ export class CustomersTableConfigResolver  {
     return this.config;
   }
 
+  customerWizard() {
+    this.dialog.open<CustomerWizardDialogComponent, void, Customer>(CustomerWizardDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog']
+    }).afterClosed().subscribe((res) => {
+      if (res) {
+        this.config.updateData();
+      }
+    });
+  }
+
   private openCustomer($event: Event, customer: Customer, config: EntityTableConfig<CustomerInfo>) {
     if ($event) {
       $event.stopPropagation();
@@ -152,32 +193,59 @@ export class CustomersTableConfigResolver  {
     this.router.navigateByUrl(url);
   }
 
+  /** When embedded in the customer hierarchy tree, onManageRelatedGroup syncs the tree to the
+   * corresponding group folder in place instead of navigating away to a standalone route. */
+  private manageRelatedGroup(groupType: EntityType, customer: Customer, fallbackUrl: string) {
+    if (this.config.onManageRelatedGroup) {
+      this.config.onManageRelatedGroup(groupType, customer.id.id);
+    } else {
+      this.router.navigateByUrl(fallbackUrl);
+    }
+  }
+
   manageCustomerUsers($event: Event, customer: Customer) {
     if ($event) {
       $event.stopPropagation();
     }
-    this.router.navigateByUrl(`customers/${customer.id.id}/users`);
+    this.manageRelatedGroup(EntityType.USER, customer, `customers/${customer.id.id}/users`);
   }
 
   manageCustomerAssets($event: Event, customer: Customer) {
     if ($event) {
       $event.stopPropagation();
     }
-    this.router.navigateByUrl(`customers/${customer.id.id}/assets`);
+    this.manageRelatedGroup(EntityType.ASSET, customer, `customers/${customer.id.id}/assets`);
+  }
+
+  /** PE's "管理客户" opens a sub-customer-scoped list; CE's customer hierarchy is a single
+   * tenant-wide tree view (no per-customer-scoped variant), so this navigates there instead of
+   * building a new scoped list — a documented simplification. */
+  manageCustomerCustomers($event: Event, customer: Customer) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.manageRelatedGroup(EntityType.CUSTOMER, customer, 'customers/hierarchy');
+  }
+
+  manageCustomerEntityViews($event: Event, customer: Customer) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.manageRelatedGroup(EntityType.ENTITY_VIEW, customer, `customers/${customer.id.id}/entityViews`);
   }
 
   manageCustomerDevices($event: Event, customer: Customer) {
     if ($event) {
       $event.stopPropagation();
     }
-    this.router.navigateByUrl(`customers/${customer.id.id}/devices`);
+    this.manageRelatedGroup(EntityType.DEVICE, customer, `customers/${customer.id.id}/devices`);
   }
 
   manageCustomerDashboards($event: Event, customer: Customer) {
     if ($event) {
       $event.stopPropagation();
     }
-    this.router.navigateByUrl(`customers/${customer.id.id}/dashboards`);
+    this.manageRelatedGroup(EntityType.DASHBOARD, customer, `customers/${customer.id.id}/dashboards`);
   }
 
   manageCustomerEdges($event: Event, customer: Customer) {
@@ -185,6 +253,22 @@ export class CustomersTableConfigResolver  {
       $event.stopPropagation();
     }
     this.router.navigateByUrl(`customers/${customer.id.id}/edgeInstances`);
+  }
+
+  manageOwnerAndGroups($event: Event, customer: CustomerInfo) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.dialog.open<CustomerOwnerGroupsDialogComponent, CustomerOwnerGroupsDialogData, boolean>(
+      CustomerOwnerGroupsDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data: {customer}
+      }).afterClosed().subscribe((res) => {
+      if (res) {
+        this.config.updateData();
+      }
+    });
   }
 
   onCustomerAction(action: EntityAction<CustomerInfo>, config: EntityTableConfig<CustomerInfo>): boolean {
@@ -195,14 +279,23 @@ export class CustomersTableConfigResolver  {
       case 'manageUsers':
         this.manageCustomerUsers(action.event, action.entity);
         return true;
+      case 'manageCustomers':
+        this.manageCustomerCustomers(action.event, action.entity);
+        return true;
       case 'manageAssets':
         this.manageCustomerAssets(action.event, action.entity);
         return true;
       case 'manageDevices':
         this.manageCustomerDevices(action.event, action.entity);
         return true;
+      case 'manageEntityViews':
+        this.manageCustomerEntityViews(action.event, action.entity);
+        return true;
       case 'manageDashboards':
         this.manageCustomerDashboards(action.event, action.entity);
+        return true;
+      case 'manageOwnerAndGroups':
+        this.manageOwnerAndGroups(action.event, action.entity);
         return true;
       case 'manageEdges':
         this.manageCustomerEdges(action.event, action.entity);

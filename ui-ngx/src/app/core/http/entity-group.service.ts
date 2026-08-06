@@ -16,7 +16,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { PageData } from '@shared/models/page/page-data';
@@ -53,6 +53,13 @@ export class EntityGroupService {
 
   public getEntityGroup(entityGroupId: string, config?: RequestConfig): Observable<EntityGroup> {
     return this.http.get<EntityGroup>(`/api/entityGroup/${entityGroupId}`, defaultHttpOptionsFromConfig(config));
+  }
+
+  public getEntityGroupsByIds(entityGroupIds: string[], config?: RequestConfig): Observable<EntityGroup[]> {
+    if (!entityGroupIds || !entityGroupIds.length) {
+      return of([]);
+    }
+    return forkJoin(entityGroupIds.map(id => this.getEntityGroup(id, config)));
   }
 
   public saveEntityGroup(entityGroup: EntityGroup, config?: RequestConfig): Observable<EntityGroup> {
@@ -100,6 +107,12 @@ export class EntityGroupService {
     return this.http.get<{id: string}>(url, defaultHttpOptionsFromConfig(config)).pipe(
       map(res => res.id)
     );
+  }
+
+  public getEntityGroupsForEntity(entityType: EntityType, entityId: string,
+                                  config?: RequestConfig): Observable<Array<{entityType: string; id: string}>> {
+    return this.http.get<Array<{entityType: string; id: string}>>(`/api/entityGroups/forEntity/${entityType}/${entityId}`,
+      defaultHttpOptionsFromConfig(config));
   }
 
   public getDeviceGroupOtaPackage(entityGroupId: string, type: OtaUpdateType,

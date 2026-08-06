@@ -28,6 +28,7 @@ import { DashboardPageComponent } from '@home/components/dashboard-page/dashboar
 import { BreadCrumbConfig } from '@shared/components/breadcrumb';
 import { dashboardBreadcumbLabelFunction, DashboardResolver } from '@home/pages/dashboard/dashboard-routing.module';
 import { EdgesTableConfigResolver } from '@home/pages/edge/edges-table-config.resolver';
+import { EntityViewsTableConfigResolver } from '@home/pages/entity-view/entity-views-table-config.resolver';
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import {
@@ -337,6 +338,46 @@ const routes: Routes = [
             },
             resolve: {
               entitiesTableConfig: EdgesTableConfigResolver
+            }
+          }
+        ]
+      },
+      {
+        path: ':customerId/entityViews',
+        data: {
+          breadcrumb: {
+            label: 'customer.entity-views',
+            icon: 'view_quilt'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'customer.entity-views',
+              entityViewsType: 'customer'
+            },
+            resolve: {
+              entitiesTableConfig: EntityViewsTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'view_quilt'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN],
+              title: 'customer.entity-views',
+              entityViewsType: 'customer'
+            },
+            resolve: {
+              entitiesTableConfig: EntityViewsTableConfigResolver
             }
           }
         ]

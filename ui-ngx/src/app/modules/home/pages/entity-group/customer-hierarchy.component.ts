@@ -22,11 +22,16 @@ import { PageComponent } from '@shared/components/page.component';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityGroup } from '@shared/models/entity-group.models';
+import { EntityGroup, EntityGroupId, isGroupAll } from '@shared/models/entity-group.models';
 import { Customer } from '@shared/models/customer.model';
 import { EntityGroupService } from '@core/http/entity-group.service';
 import { CustomerService } from '@core/http/customer.service';
+import { DialogService } from '@core/services/dialog.service';
+import { TranslateService } from '@ngx-translate/core';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
+import { EntityAction } from '@home/models/entity/entity-component.models';
+import { GroupEntityTableHeaderComponent } from '@home/pages/entity-group/group-entity-table-header.component';
+import { createGroupDetailsConfig } from '@home/pages/entity-group/entity-group-details-config.util';
 import {
   AssetGroupEntitiesTableConfigResolver,
   CustomerGroupEntitiesTableConfigResolver,
@@ -83,11 +88,21 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
   tableConfig: EntityTableConfig<any> = null;
   folderNode: HierarchyNode = null;
 
+  // entityGroup node's own details drawer (pencil next to "{name}: {type}" in the header,
+  // matches PE's tree-node-selected view) — kept separate from tableConfig's own row-details
+  // drawer, same "two independent co-existing drawers" pattern as the standalone group pages.
+  groupDetailsConfig: EntityTableConfig<EntityGroup>;
+  groupDetailsOpen = false;
+  editingGroupId: EntityGroupId;
+  private editingGroupNode: HierarchyNode;
+
   EntityType = EntityType;
 
   constructor(protected store: Store<AppState>,
               private entityGroupService: EntityGroupService,
               private customerService: CustomerService,
+              private dialogService: DialogService,
+              private translate: TranslateService,
               private customerGroupResolver: CustomerGroupEntitiesTableConfigResolver,
               private deviceGroupResolver: DeviceGroupEntitiesTableConfigResolver,
               private assetGroupResolver: AssetGroupEntitiesTableConfigResolver,
@@ -95,6 +110,7 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
               private dashboardGroupResolver: DashboardGroupEntitiesTableConfigResolver,
               private userGroupResolver: UserGroupEntitiesTableConfigResolver) {
     super(store);
+    this.groupDetailsConfig = createGroupDetailsConfig(this.entityGroupService, action => this.onGroupAction(action), false);
   }
 
   ngOnInit() {
@@ -218,21 +234,44 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
           done();
         });
         break;
-      case 'typeFolder':
+      case 'typeFolder': {
+        // A CUSTOMER-type group's members are themselves customers, so those leaves recurse
+        // (a group's own customer members can have further sub-customers/type-folders under
+        // them, matching PE's arbitrarily-deep hierarchy) — every other group type is a leaf.
+        const isCustomerGroup = node.groupType === EntityType.CUSTOMER;
         this.entityGroupService.getEntityGroupsByType(node.groupType, this.pageLink(), node.customerId).subscribe((page) => {
           node.children = page.data.map(group => ({
             kind: 'entityGroup' as NodeKind,
             name: group.name,
             icon: groupTypeIcons.get(node.groupType),
             level: node.level + 1,
-            expandable: false,
+            expandable: isCustomerGroup,
             expanded: false,
             loading: false,
-            children: [],
+            children: isCustomerGroup ? null : [],
             parent: node,
             group,
             groupType: node.groupType,
             customerId: node.customerId
+          }));
+          done();
+        });
+        break;
+      }
+      case 'entityGroup':
+        // Only reached for CUSTOMER-type groups (see above) — same member shape as customerGroup.
+        this.entityGroupService.getEntityGroupEntities<Customer>(node.group.id.id, this.pageLink()).subscribe((page) => {
+          node.children = page.data.map(customer => ({
+            kind: 'customer' as NodeKind,
+            name: customer.title,
+            icon: 'supervisor_account',
+            level: node.level + 1,
+            expandable: true,
+            expanded: false,
+            loading: false,
+            children: null,
+            parent: node,
+            customer
           }));
           done();
         });
@@ -250,6 +289,7 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
       case 'customerGroup':
         this.customerGroupResolver.resolveByGroup(node.group).subscribe((config) => {
           config.pageMode = false;
+          config.onManageRelatedGroup = (groupType, customerId) => this.navigateToGroupFolder(node, customerId, groupType);
           this.tableConfig = config;
         });
         break;
@@ -265,6 +305,19 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
       case 'entityGroup':
         this.resolverFor(node.groupType).resolveByGroup(node.group).subscribe((config) => {
           config.pageMode = false;
+          if (node.groupType === EntityType.CUSTOMER) {
+            config.onManageRelatedGroup = (groupType, customerId) => this.navigateToGroupFolder(node, customerId, groupType);
+          }
+          // "{name}: {type}" + edit pencil opening the group's own details drawer, matching PE.
+          config.headerComponent = GroupEntityTableHeaderComponent;
+          config.componentsData = config.componentsData || {};
+          config.componentsData.groupTableTitle = config.tableTitle;
+          config.componentsData.openGroupDetails = () => {
+            this.editingGroupNode = node;
+            this.editingGroupId = node.group.id;
+            this.groupDetailsOpen = true;
+          };
+          config.tableTitle = '';
           this.tableConfig = config;
         });
         break;
@@ -290,6 +343,94 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
       const leaf = folder.children?.find(child => child.group?.id?.id === group.id.id);
       if (leaf) {
         this.select(leaf);
+      }
+    });
+  }
+
+  private expandNode(node: HierarchyNode, onExpanded: () => void) {
+    node.expanded = true;
+    if (node.children === null) {
+      this.loadChildren(node, onExpanded);
+    } else {
+      this.updateVisibleNodes();
+      onExpanded();
+    }
+  }
+
+  /** A customer table's "manage devices/assets/..." button, when embedded in this hierarchy
+   * view, lands here instead of navigating away — expands parent -> customer -> type folder
+   * -> "All" group in place and selects it, so the tree stays in sync with what's on screen. */
+  private navigateToGroupFolder(parent: HierarchyNode, customerId: string, groupType: EntityType) {
+    this.expandNode(parent, () => {
+      const customerNode = parent.children?.find(c => c.kind === 'customer' && c.customer.id.id === customerId);
+      if (!customerNode) {
+        return;
+      }
+      this.expandNode(customerNode, () => {
+        const folder = customerNode.children?.find(c => c.kind === 'typeFolder' && c.groupType === groupType);
+        if (!folder) {
+          return;
+        }
+        this.expandNode(folder, () => {
+          const allGroup = folder.children?.find(g => isGroupAll(g.group)) || folder.children?.[0];
+          if (allGroup) {
+            this.select(allGroup);
+          }
+        });
+      });
+    });
+  }
+
+  onGroupDetailsClosed() {
+    this.groupDetailsOpen = false;
+  }
+
+  /** Reflect a rename from the 详情 tab back into the tree node label and table header. */
+  onGroupDetailsUpdated(group: EntityGroup) {
+    if (!this.editingGroupNode) {
+      return;
+    }
+    this.editingGroupNode.name = group.name;
+    this.editingGroupNode.group = group;
+    if (this.tableConfig?.componentsData && this.editingGroupNode === this.selectedNode) {
+      const typeLabel = (this.tableConfig.componentsData.groupTableTitle as string)?.split(': ').slice(1).join(': ');
+      this.tableConfig.componentsData.groupTableTitle = typeLabel ? `${group.name}: ${typeLabel}` : group.name;
+    }
+  }
+
+  private onGroupAction(action: EntityAction<EntityGroup>): boolean {
+    switch (action.action) {
+      case 'delete':
+        this.deleteEditingGroup(action.entity);
+        return true;
+      case 'makePublic':
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, true).subscribe(() => this.select(this.editingGroupNode));
+        return true;
+      case 'makePrivate':
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, false).subscribe(() => this.select(this.editingGroupNode));
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  private deleteEditingGroup(group: EntityGroup) {
+    this.dialogService.confirm(
+      this.translate.instant('entity-group.delete-group-title', {entityGroupName: group.name}),
+      this.translate.instant('entity-group.delete-group-text'),
+      this.translate.instant('action.no'),
+      this.translate.instant('action.yes')
+    ).subscribe((confirmed) => {
+      if (confirmed) {
+        this.entityGroupService.deleteEntityGroup(group.id.id).subscribe(() => {
+          this.groupDetailsOpen = false;
+          const folder = this.editingGroupNode?.parent;
+          if (folder) {
+            folder.children = folder.children.filter(c => c.group?.id?.id !== group.id.id);
+            this.updateVisibleNodes();
+            this.select(folder);
+          }
+        });
       }
     });
   }

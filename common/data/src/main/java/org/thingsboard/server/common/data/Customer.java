@@ -175,6 +175,14 @@ public class Customer extends ContactBased<CustomerId> implements HasTenantId, E
     }
 
     @JsonIgnore
+    public boolean isAllowWhiteLabeling() {
+        if (getAdditionalInfo() != null && getAdditionalInfo().has("allowWhiteLabeling")) {
+            return getAdditionalInfo().get("allowWhiteLabeling").asBoolean();
+        }
+        return true;
+    }
+
+    @JsonIgnore
     public ShortCustomerInfo toShortCustomerInfo() {
         return new ShortCustomerInfo(id, title, isPublic());
     }

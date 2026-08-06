@@ -96,6 +96,7 @@ import { RuleChainAutocompleteComponent } from '@home/components/rule-chain/rule
 import { DeviceProfileProvisionConfigurationComponent } from '@home/components/profile/device-profile-provision-configuration.component';
 import { AlarmScheduleComponent } from '@home/components/profile/alarm/alarm-schedule.component';
 import { DeviceWizardDialogComponent } from '@home/components/wizard/device-wizard-dialog.component';
+import { CustomerWizardDialogComponent } from '@home/components/wizard/customer-wizard-dialog.component';
 import { AlarmScheduleInfoComponent } from '@home/components/profile/alarm/alarm-schedule-info.component';
 import { AlarmScheduleDialogComponent } from '@home/components/profile/alarm/alarm-schedule-dialog.component';
 import { EditAlarmDetailsDialogComponent } from '@home/components/profile/alarm/edit-alarm-details-dialog.component';
@@ -304,6 +305,7 @@ import { EventsDialogComponent } from '@home/dialogs/events-dialog.component';
       AlarmDynamicValue,
       AlarmDurationPredicateValueComponent,
       DeviceWizardDialogComponent,
+      CustomerWizardDialogComponent,
       AlarmScheduleDialogComponent,
       EditAlarmDetailsDialogComponent,
       SmsProviderConfigurationComponent,
@@ -450,6 +452,7 @@ import { EventsDialogComponent } from '@home/dialogs/events-dialog.component';
     DeviceInfoFilterComponent,
     RuleChainAutocompleteComponent,
     DeviceWizardDialogComponent,
+    CustomerWizardDialogComponent,
     AssetProfileComponent,
     AssetProfileDialogComponent,
     AssetProfileAutocompleteComponent,

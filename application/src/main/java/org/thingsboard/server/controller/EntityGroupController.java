@@ -260,6 +260,23 @@ public class EntityGroupController extends BaseController {
         return checkNotNull(entityGroupService.findOrCreateAllGroupId(getTenantId(), customerId, EntityType.valueOf(strGroupType)));
     }
 
+    @ApiOperation(value = "Get entity groups for entity (getEntityGroupsForEntity)",
+            notes = "Returns the ids of all Entity Groups (including implicit 'All' groups) the given entity belongs to.")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/entityGroups/forEntity/{entityType}/{entityId}"})
+    public List<EntityGroupId> getEntityGroupsForEntity(
+            @Parameter(description = "Entity type", required = true)
+            @PathVariable("entityType") String strEntityType,
+            @Parameter(description = "A string value representing the entity id", required = true)
+            @PathVariable("entityId") String strEntityId) throws ThingsboardException {
+        checkParameter("entityType", strEntityType);
+        checkParameter("entityId", strEntityId);
+        accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.READ);
+        EntityId entityId = EntityIdFactory.getByTypeAndUuid(strEntityType, toUUID(strEntityId));
+        CustomerId customerId = getCurrentUser().getCustomerId();
+        return entityGroupService.findEntityGroupsForEntity(getTenantId(), entityId, customerId);
+    }
+
     private List<EntityId> toEntityIds(EntityGroup entityGroup, String[] strEntityIds) throws ThingsboardException {
         List<EntityId> entityIds = new ArrayList<>();
         for (String strId : strEntityIds) {

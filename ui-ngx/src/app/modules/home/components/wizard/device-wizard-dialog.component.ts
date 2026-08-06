@@ -14,8 +14,8 @@
 /// limitations under the License.
 ///
 
-import { Component, ViewChild } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
+import { Component, Inject, Optional, ViewChild } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -36,6 +36,19 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { EntityGroupService } from '@core/http/entity-group.service';
 import { EntityGroup, isGroupAll } from '@shared/models/entity-group.models';
 import { PageLink } from '@shared/models/page/page-link';
+import { EntityId } from '@shared/models/id/entity-id';
+import { getCurrentAuthUser } from '@core/auth/auth.selectors';
+import { TenantId } from '@shared/models/id/tenant-id';
+import {
+  EntityGroupDialogComponent,
+  EntityGroupDialogData
+} from '@home/pages/entity-group/entity-group-dialog.component';
+
+export interface DeviceWizardDialogData {
+  // When set, the group's owner and id pre-fill the owner/groups fields — matches PE's
+  // "add device from within a group's member view" flow.
+  presetGroup?: EntityGroup;
+}
 
 @Component({
     selector: 'tb-device-wizard',
@@ -65,15 +78,15 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
 
   private currentDeviceProfileTransportType = DeviceTransportType.DEFAULT;
 
-  availableGroups: EntityGroup[] = [];
-
   constructor(protected store: Store<AppState>,
               protected router: Router,
               public dialogRef: MatDialogRef<DeviceWizardDialogComponent, Device>,
               private deviceService: DeviceService,
               private entityGroupService: EntityGroupService,
               private breakpointObserver: BreakpointObserver,
-              private fb: FormBuilder) {
+              private dialog: MatDialog,
+              private fb: FormBuilder,
+              @Optional() @Inject(MAT_DIALOG_DATA) private data: DeviceWizardDialogData | null) {
     super(store, router, dialogRef);
 
     this.stepperOrientation = this.breakpointObserver.observe(MediaBreakpoints['gt-sm'])
@@ -82,13 +95,20 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
     this.stepperLabelPosition = this.breakpointObserver.observe(MediaBreakpoints['gt-sm'])
       .pipe(map(({matches}) => matches ? 'end' : 'bottom'));
 
+    // A group's ownerId is null for plain tenant-owned groups — default to the current tenant
+    // so the owner field pre-fills the same way PE's does, instead of showing blank.
+    const presetOwner: EntityId = (this.data?.presetGroup?.ownerId as EntityId)
+      ?? (this.data?.presetGroup ? new TenantId(getCurrentAuthUser(this.store).tenantId) : null);
+
     this.deviceWizardFormGroup = this.fb.group({
         name: ['', [Validators.required, Validators.maxLength(255)]],
         label: ['', Validators.maxLength(255)],
         gateway: [false],
         overwriteActivityTime: [false],
-        customerId: [null],
-        groupIds: [[]],
+        ownerId: [presetOwner],
+        // "All" groups have automatic membership (managed via customerId assignment) — nothing
+        // to explicitly add to, so only preset a real, named group.
+        groupIds: [this.data?.presetGroup && !isGroupAll(this.data.presetGroup) ? [this.data.presetGroup.id.id] : []],
         deviceProfileId: [null, Validators.required],
         description: ['']
       }
@@ -98,23 +118,31 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
         credential: []
       }
     );
+  }
 
-    this.loadAvailableGroups(null);
-    this.deviceWizardFormGroup.get('customerId').valueChanges.subscribe((customerId: CustomerId) => {
-      this.loadAvailableGroups(customerId?.id);
+  createNewGroup($event: string): void {
+    this.dialog.open<EntityGroupDialogComponent, EntityGroupDialogData, boolean>(EntityGroupDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog'],
+      data: {groupType: EntityType.DEVICE}
+    }).afterClosed().subscribe(created => {
+      if (created) {
+        this.entityGroupService.getEntityGroupsByType(EntityType.DEVICE, new PageLink(1, 0, $event)).subscribe(page => {
+          if (page.data.length) {
+            const groupIds: string[] = this.deviceWizardFormGroup.get('groupIds').value || [];
+            this.deviceWizardFormGroup.get('groupIds').setValue([...groupIds, page.data[0].id.id]);
+          }
+        });
+      }
     });
   }
 
-  /** Owner (tenant/customer) scopes which entity groups a newly-created device can be assigned to. */
-  private loadAvailableGroups(customerId: string): void {
-    this.entityGroupService.getEntityGroupsByType(EntityType.DEVICE, new PageLink(100, 0), customerId).subscribe(page => {
-      this.availableGroups = page.data.filter(group => !isGroupAll(group));
-      const selected: string[] = this.deviceWizardFormGroup.get('groupIds').value || [];
-      const stillValid = selected.filter(id => this.availableGroups.some(group => group.id.id === id));
-      if (stillValid.length !== selected.length) {
-        this.deviceWizardFormGroup.get('groupIds').setValue(stillValid, {emitEvent: false});
-      }
-    });
+  /** "所有者" allows picking either the tenant itself (= no customer) or a customer;
+   * tb-entity-select emits a generic EntityId, so a TENANT selection (or nothing) converts to
+   * null here. */
+  private ownerAsCustomerId(): CustomerId | null {
+    const owner = this.deviceWizardFormGroup.get('ownerId').value as EntityId;
+    return owner && owner.entityType === EntityType.CUSTOMER ? new CustomerId(owner.id) : null;
   }
 
   cancel(): void {
@@ -180,7 +208,7 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
         overwriteActivityTime: this.deviceWizardFormGroup.get('overwriteActivityTime').value,
         description: this.deviceWizardFormGroup.get('description').value
       },
-      customerId: this.deviceWizardFormGroup.get('customerId').value
+      customerId: this.ownerAsCustomerId()
     };
     if (this.addDeviceWizardStepper.steps.last.completed || this.addDeviceWizardStepper.selectedIndex > 0) {
       return this.deviceService.saveDeviceWithCredentials(deepTrim(device), deepTrim(this.credentialsFormGroup.value.credential)).pipe(

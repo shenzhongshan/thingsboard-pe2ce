@@ -30,6 +30,9 @@ public class CustomerInfo extends Customer {
     @Schema(description = "Comma-separated names of the Entity Groups this customer belongs to.", accessMode = Schema.AccessMode.READ_ONLY)
     private String groups;
 
+    @Schema(description = "Title of the parent Customer, if this is a sub-customer.", accessMode = Schema.AccessMode.READ_ONLY)
+    private String parentCustomerName;
+
     public CustomerInfo() {
         super();
     }

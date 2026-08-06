@@ -24,6 +24,7 @@ import { EntityId } from '@shared/models/id/entity-id';
 import { DeviceService } from '@core/http/device.service';
 import { TenantService } from '@core/http/tenant.service';
 import { CustomerService } from '@core/http/customer.service';
+import { EntityGroupService } from '@core/http/entity-group.service';
 import { UserService } from './user.service';
 import { DashboardService } from '@core/http/dashboard.service';
 import { Direction } from '@shared/models/page/sort-order';
@@ -135,6 +136,7 @@ export class EntityService {
     private oauth2Service: OAuth2Service,
     private mobileAppService: MobileAppService,
     private aiModelService: AiModelService,
+    private entityGroupService: EntityGroupService,
   ) { }
 
   private getEntityObservable(entityType: EntityType, entityId: string,
@@ -253,6 +255,9 @@ export class EntityService {
         break;
       case EntityType.CUSTOMER:
         observable = this.customerService.getCustomersByIds(entityIds, config);
+        break;
+      case EntityType.ENTITY_GROUP:
+        observable = this.entityGroupService.getEntityGroupsByIds(entityIds, config);
         break;
       case EntityType.DASHBOARD:
         observable = this.dashboardService.getDashboards(entityIds, config);
@@ -402,6 +407,10 @@ export class EntityService {
         } else {
           entitiesObservable = this.customerService.getCustomers(pageLink, config);
         }
+        break;
+      case EntityType.ENTITY_GROUP:
+        pageLink.sortOrder.property = 'name';
+        entitiesObservable = this.entityGroupService.getEntityGroupsByType(subType as EntityType, pageLink, null, config);
         break;
       case EntityType.RULE_CHAIN:
         pageLink.sortOrder.property = 'name';

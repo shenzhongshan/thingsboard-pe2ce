@@ -2577,7 +2577,17 @@
     "search": "搜索客户",
     "selected-customers": "已选择{ count, plural, =1 {1 个客户} other {# 个客户} }",
     "edges": "客户 Edge 实例",
-    "manage-edges": "管理 Edge"
+    "manage-edges": "管理 Edge",
+    "allow-white-labeling": "允许白标",
+    "custom-menu": "自定义菜单",
+    "owner": "所有者",
+    "owner-required": "所有者为必填项。",
+    "owner-and-groups": "所有者和分组",
+    "next-owner-and-groups": "下一步：所有者和分组",
+    "manage-owner-and-groups": "管理所有者和分组",
+    "manage-customer-customers": "管理客户",
+    "manage-customer-entity-views": "管理实体视图",
+    "parent-customer-name": "上级客户名称"
   },
   "css-size": {
     "size-value-required": "尺寸值为必填项",

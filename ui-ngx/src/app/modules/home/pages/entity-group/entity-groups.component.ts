@@ -35,6 +35,10 @@ import {
   GroupPermissionsDialogComponent,
   GroupPermissionsDialogData
 } from '@home/pages/entity-group/group-permissions-dialog.component';
+import {
+  EntityGroupShareDialogComponent,
+  EntityGroupShareDialogData
+} from '@home/pages/entity-group/entity-group-share-dialog.component';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { EntityAction } from '@home/models/entity/entity-component.models';
 import { EntityDetailsPanelComponent } from '@home/components/entity/entity-details-panel.component';
@@ -215,24 +219,13 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
       });
   }
 
-  isPublic(group: EntityGroup): boolean {
-    return group.additionalInfo?.isPublic === true;
-  }
-
-  togglePublic($event: Event, group: EntityGroup) {
+  shareGroup($event: Event, group: EntityGroup) {
     $event?.stopPropagation();
-    const makePublic = !this.isPublic(group);
-    this.dialogService.confirm(
-      this.translate.instant(makePublic ? 'entity-group.make-public-title' : 'entity-group.make-private-title',
-        {entityGroupName: group.name}),
-      this.translate.instant(makePublic ? 'entity-group.make-public-text' : 'entity-group.make-private-text'),
-      this.translate.instant('action.no'),
-      this.translate.instant('action.yes')
-    ).subscribe((confirmed) => {
-      if (confirmed) {
-        this.entityGroupService.makeEntityGroupPublic(group.id.id, makePublic).subscribe(() => this.reload());
-      }
-    });
+    this.dialog.open<EntityGroupShareDialogComponent, EntityGroupShareDialogData, boolean>(
+      EntityGroupShareDialogComponent, {
+        disableClose: true,
+        data: { entityGroup: group }
+      });
   }
 
   deleteGroup($event: Event, group: EntityGroup) {

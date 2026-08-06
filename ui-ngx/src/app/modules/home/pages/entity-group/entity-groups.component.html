@@ -73,47 +73,36 @@
           <th mat-header-cell *matHeaderCellDef>{{ 'entity-group.description' | translate }}</th>
           <td mat-cell *matCellDef="let g">{{ g.additionalInfo?.description || '' }}</td>
         </ng-container>
-        <ng-container matColumnDef="public">
-          <th mat-header-cell *matHeaderCellDef style="width: 90px;">{{ 'entity-group.public' | translate }}</th>
-          <td mat-cell *matCellDef="let g">
-            <mat-checkbox [checked]="isPublic(g)" disabled></mat-checkbox>
-          </td>
-        </ng-container>
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef style="width: 210px;"></th>
+          <th mat-header-cell *matHeaderCellDef style="width: 150px;"></th>
           <td mat-cell *matCellDef="let g">
             <div class="flex flex-row items-center justify-end">
-              <button mat-icon-button type="button" (click)="openGroup($event, g)"
-                      matTooltip="{{ 'entity-group.open' | translate }}" matTooltipPosition="above">
-                <mat-icon>view_list</mat-icon>
-              </button>
               @if (groupType === EntityType.USER) {
                 <button mat-icon-button type="button" (click)="openPermissions($event, g)"
                         matTooltip="{{ 'entity-group.permissions' | translate }}" matTooltipPosition="above">
                   <mat-icon>security</mat-icon>
                 </button>
               }
-              <button mat-icon-button type="button" (click)="togglePublic($event, g)"
-                      matTooltip="{{ (isPublic(g) ? 'entity-group.make-private' : 'entity-group.make-public') | translate }}"
-                      matTooltipPosition="above">
-                <mat-icon>{{ isPublic(g) ? 'reply' : 'share' }}</mat-icon>
+              <button mat-icon-button type="button" (click)="shareGroup($event, g)"
+                      matTooltip="{{ 'entity-group.share-group' | translate }}" matTooltipPosition="above">
+                <mat-icon>contact_page</mat-icon>
               </button>
-              @if (!isGroupAll(g)) {
-                <button mat-icon-button type="button" (click)="editGroup($event, g)"
-                        matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button type="button" (click)="deleteGroup($event, g)"
-                        matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              }
+              <button mat-icon-button type="button" (click)="editGroup($event, g)"
+                      [disabled]="isGroupAll(g)"
+                      matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="deleteGroup($event, g)"
+                      [disabled]="isGroupAll(g)"
+                      matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
           </td>
         </ng-container>
-        <tr mat-header-row *matHeaderRowDef="['createdTime', 'name', 'description', 'public', 'actions']"></tr>
+        <tr mat-header-row *matHeaderRowDef="['createdTime', 'name', 'description', 'actions']"></tr>
         <tr mat-row class="tb-eg-row"
-            *matRowDef="let g; columns: ['createdTime', 'name', 'description', 'public', 'actions'];"
+            *matRowDef="let g; columns: ['createdTime', 'name', 'description', 'actions'];"
             (click)="openGroup($event, g)"></tr>
       </table>
       @if (!groups.length) {

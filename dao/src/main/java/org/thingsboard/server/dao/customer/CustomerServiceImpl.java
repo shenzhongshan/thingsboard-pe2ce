@@ -286,7 +286,11 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
         }
         List<UUID> ids = infos.getData().stream().map(c -> c.getId().getId()).collect(Collectors.toList());
         Map<UUID, String> groupsByCustomerId = customerDao.findGroupNamesByIds(ids);
-        infos.getData().forEach(c -> c.setGroups(groupsByCustomerId.get(c.getId().getId())));
+        Map<UUID, String> parentTitleByCustomerId = customerDao.findParentCustomerTitlesByIds(ids);
+        infos.getData().forEach(c -> {
+            c.setGroups(groupsByCustomerId.get(c.getId().getId()));
+            c.setParentCustomerName(parentTitleByCustomerId.get(c.getId().getId()));
+        });
         return infos;
     }
 

@@ -78,23 +78,25 @@
               </mat-slide-toggle>
             }
           </div>
-          <tb-entity-autocomplete
-            useFullEntityId
-            formControlName="customerId"
-            labelText="device.assign-to-customer"
-            appearance="outline"
-            [entityType]="entityType.CUSTOMER">
-          </tb-entity-autocomplete>
-          @if (availableGroups.length) {
-            <mat-form-field class="mat-block" appearance="outline">
-              <mat-label translate>device.groups</mat-label>
-              <mat-select formControlName="groupIds" multiple>
-                @for (group of availableGroups; track group.id.id) {
-                  <mat-option [value]="group.id.id">{{ group.name }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-          }
+          <div class="flex flex-col gap-1" style="padding-top: 8px;">
+            <div class="mat-subtitle-1" translate>customer.owner-and-groups</div>
+            <tb-entity-select
+              class="mat-block"
+              formControlName="ownerId"
+              appearance="outline"
+              [entityTypeLabel]="'customer.owner' | translate"
+              [allowedEntityTypes]="[entityType.TENANT, entityType.CUSTOMER]">
+            </tb-entity-select>
+            <tb-entity-list
+              formControlName="groupIds"
+              appearance="outline"
+              [entityType]="entityType.ENTITY_GROUP"
+              [subType]="entityType.DEVICE"
+              labelText="{{ 'device.groups' | translate }}"
+              allowCreateNew
+              (createNew)="createNewGroup($event)">
+            </tb-entity-list>
+          </div>
           <mat-form-field class="mat-block" appearance="outline" subscriptSizing="dynamic">
             <mat-label translate>device.description</mat-label>
             <textarea matInput formControlName="description" cdkTextareaAutosize cdkAutosizeMinRows="1" rows="1"></textarea>

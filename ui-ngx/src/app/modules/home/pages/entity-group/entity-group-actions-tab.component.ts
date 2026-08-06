@@ -45,7 +45,9 @@ export class EntityGroupActionsTabComponent implements OnChanges {
   }
 
   ngOnChanges() {
-    this.actions = [...(this.entity?.configuration?.actions || [])];
+    // Some existing groups persisted configuration.actions as '{}' instead of '[]' — tolerate it.
+    const actions = this.entity?.configuration?.actions;
+    this.actions = Array.isArray(actions) ? [...actions] : [];
     this.applyFilter();
   }
 

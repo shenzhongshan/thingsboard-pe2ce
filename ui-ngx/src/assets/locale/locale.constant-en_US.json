@@ -2583,7 +2583,17 @@
         "search": "Search customers",
         "selected-customers": "{ count, plural, =1 {1 customer} other {# customers} } selected",
         "edges": "Customer edge instances",
-        "manage-edges": "Manage edges"
+        "manage-edges": "Manage edges",
+        "allow-white-labeling": "Allow white labeling",
+        "custom-menu": "Custom menu",
+        "owner": "Owner",
+        "owner-required": "Owner is required.",
+        "owner-and-groups": "Owner and groups",
+        "next-owner-and-groups": "Next: Owner and groups",
+        "manage-owner-and-groups": "Manage owner and groups",
+        "manage-customer-customers": "Manage customers",
+        "manage-customer-entity-views": "Manage entity views",
+        "parent-customer-name": "Parent customer name"
     },
     "css-size": {
         "size-value-required": "Size value is required",

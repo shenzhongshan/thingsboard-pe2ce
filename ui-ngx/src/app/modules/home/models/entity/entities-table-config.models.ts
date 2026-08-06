@@ -200,6 +200,10 @@ export class EntityTableConfig<T extends BaseData<HasId>, P extends PageLink = P
   addActionDescriptors: Array<HeaderActionDescriptor> = [];
   headerComponent: Type<EntityTableHeaderComponent<T, P, L>>;
   onBackNavigation: () => void;
+  // Set by embedding contexts (e.g. the customer hierarchy tree) that want a customer row's
+  // "manage devices/assets/..." buttons to sync in-place navigation instead of the default
+  // router.navigateByUrl away from the embedding page.
+  onManageRelatedGroup: (groupType: EntityType, customerId: string) => void;
   addEntity: CreateEntityOperation<T> = null;
   dataSource: (dataLoadedFunction: (col?: number, row?: number) => void)
     => EntitiesDataSource<L> = (dataLoadedFunction: (col?: number, row?: number) => void) =>
