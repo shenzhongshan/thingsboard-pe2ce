@@ -376,8 +376,11 @@ public class ModelConstants {
     public static final String ERROR_EVENT_TABLE_NAME = "error_event";
     public static final String LC_EVENT_TABLE_NAME = "lc_event";
     public static final String STATS_EVENT_TABLE_NAME = "stats_event";
+    public static final String RAW_DATA_EVENT_TABLE_NAME = "raw_data_event";
     public static final String RULE_NODE_DEBUG_EVENT_TABLE_NAME = "rule_node_debug_event";
     public static final String RULE_CHAIN_DEBUG_EVENT_TABLE_NAME = "rule_chain_debug_event";
+    public static final String CONVERTER_DEBUG_EVENT_TABLE_NAME = "converter_debug_event";
+    public static final String INTEGRATION_DEBUG_EVENT_TABLE_NAME = "integration_debug_event";
     public static final String CALCULATED_FIELD_DEBUG_EVENT_TABLE_NAME = "cf_debug_event";
 
     public static final String EVENT_TENANT_ID_PROPERTY = TENANT_ID_PROPERTY;
@@ -402,6 +405,13 @@ public class ModelConstants {
     public static final String EVENT_DATA_COLUMN_NAME = "e_data";
     public static final String EVENT_METADATA_COLUMN_NAME = "e_metadata";
     public static final String EVENT_MESSAGE_COLUMN_NAME = "e_message";
+    public static final String EVENT_MESSAGE_TYPE_COLUMN_NAME = "e_message_type";
+    public static final String EVENT_STATUS_COLUMN_NAME = "e_status";
+    public static final String EVENT_UUID_COLUMN_NAME = "e_uuid";
+    public static final String EVENT_IN_MSG_TYPE_COLUMN_NAME = "e_in_message_type";
+    public static final String EVENT_IN_MSG_COLUMN_NAME = "e_in_message";
+    public static final String EVENT_OUT_MSG_TYPE_COLUMN_NAME = "e_out_message_type";
+    public static final String EVENT_OUT_MSG_COLUMN_NAME = "e_out_message";
 
     public static final String EVENT_CALCULATED_FIELD_ID_COLUMN_NAME = "cf_id";
     public static final String EVENT_CALCULATED_FIELD_ARGUMENTS_COLUMN_NAME = "e_args";
@@ -773,6 +783,8 @@ public class ModelConstants {
     public static final String API_KEY_EXPIRATION_TIME_COLUMN_NAME = "expiration_time";
     public static final String API_KEY_ENABLED_COLUMN_NAME = "enabled";
     public static final String API_KEY_DESCRIPTION_COLUMN_NAME = "description";
+    public static final String API_KEY_INTERNAL_COLUMN_NAME = "internal";
+    public static final String API_KEY_PERMISSIONS_COLUMN_NAME = "permissions";
 
     protected static final String[] NONE_AGGREGATION_COLUMNS = new String[]{LONG_VALUE_COLUMN, DOUBLE_VALUE_COLUMN, BOOLEAN_VALUE_COLUMN, STRING_VALUE_COLUMN, JSON_VALUE_COLUMN, KEY_COLUMN, TS_COLUMN};
 

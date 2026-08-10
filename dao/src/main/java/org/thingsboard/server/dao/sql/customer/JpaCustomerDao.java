@@ -160,6 +160,11 @@ public class JpaCustomerDao extends JpaAbstractDao<CustomerEntity, Customer> imp
     }
 
     @Override
+    public List<UUID> findDescendantIds(UUID tenantId, UUID customerId) {
+        return customerRepository.findDescendantIds(tenantId, customerId);
+    }
+
+    @Override
     public Map<UUID, String> findGroupNamesByIds(List<UUID> customerIds) {
         return GroupNamesUtil.groupNamesByEntityId(customerRepository.findGroupNamesByCustomerIds(customerIds));
     }

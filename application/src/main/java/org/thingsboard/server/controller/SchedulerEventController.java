@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
+import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
@@ -68,6 +70,8 @@ import static org.thingsboard.server.controller.ControllerConstants.SORT_PROPERT
 public class SchedulerEventController extends BaseController {
 
     public static final String SCHEDULER_EVENT_ID = "schedulerEventId";
+    /** Scheduler event type used by report generation schedules. */
+    private static final String SCHEDULED_REPORT_EVENT_TYPE = "generateReport";
 
     private final SchedulerEventService schedulerEventService;
     private final TbSchedulerService tbSchedulerService;
@@ -172,6 +176,65 @@ public class SchedulerEventController extends BaseController {
                 .type(type)
                 .build();
         return schedulerEventService.findSchedulerEventsByTenantIdAndFilter(currentUser.getTenantId(), filter, pageLink);
+    }
+
+    @ApiOperation(value = "Get scheduled report events (getScheduledReportEvents)",
+            notes = "Returns a page of scheduler events that generate reports, optionally narrowed to a " +
+                    "report template and/or the user the report runs as. Requires TENANT_ADMIN authority.")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/scheduledReports"}, params = {"pageSize", "page"})
+    public PageData<SchedulerEventWithCustomerInfo> getScheduledReportEvents(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
+            @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
+            @RequestParam int page,
+            @Parameter(description = "Case-insensitive 'substring' filter based on the event name")
+            @RequestParam(required = false) String textSearch,
+            @Parameter(description = SORT_PROPERTY_DESCRIPTION)
+            @RequestParam(required = false) String sortProperty,
+            @Parameter(description = SORT_ORDER_DESCRIPTION)
+            @RequestParam(required = false) String sortOrder,
+            @Parameter(description = "Optional report template id to filter by")
+            @RequestParam(required = false) String reportTemplateId,
+            @Parameter(description = "Optional user id to filter by")
+            @RequestParam(required = false) String userId) throws ThingsboardException {
+        SecurityUser currentUser = getCurrentUser();
+        accessControlService.checkPermission(currentUser, Resource.SCHEDULER_EVENT, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        SchedulerEventFilter filter = SchedulerEventFilter.builder()
+                .customerId(currentUser.getCustomerId())
+                .type(SCHEDULED_REPORT_EVENT_TYPE)
+                .build();
+        PageData<SchedulerEventWithCustomerInfo> events =
+                schedulerEventService.findSchedulerEventsByTenantIdAndFilter(currentUser.getTenantId(), filter, pageLink);
+        if (reportTemplateId == null && userId == null) {
+            return events;
+        }
+        // reportTemplateId/userId live inside the event configuration JSON, which the info
+        // projection omits — so the full event is loaded for the rows of this page only
+        // (bounded by pageSize). Totals still describe all scheduled reports.
+        TenantId tenantId = currentUser.getTenantId();
+        List<SchedulerEventWithCustomerInfo> filtered = events.getData().stream()
+                .filter(event -> {
+                    SchedulerEvent full = schedulerEventService.findSchedulerEventById(tenantId, event.getId());
+                    return full != null
+                            && matchesConfigId(full.getConfiguration(), "reportTemplateId", reportTemplateId)
+                            && matchesConfigId(full.getConfiguration(), "userId", userId);
+                })
+                .toList();
+        return new PageData<>(filtered, events.getTotalPages(), events.getTotalElements(), events.hasNext());
+    }
+
+    /** Matches an id nested at configuration.msgBody.{field}.id; a null filter always matches. */
+    private boolean matchesConfigId(JsonNode configuration, String field, String expectedId) {
+        if (expectedId == null) {
+            return true;
+        }
+        if (configuration == null) {
+            return false;
+        }
+        JsonNode node = configuration.path("msgBody").path(field).path("id");
+        return node.isTextual() && expectedId.equals(node.asText());
     }
 
     @ApiOperation(value = "Get scheduler events by time range (getSchedulerEventsByTime)",

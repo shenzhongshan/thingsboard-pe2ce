@@ -91,6 +91,7 @@ public class EntityIdFactory {
             case GROUP_PERMISSION -> new GroupPermissionId(uuid);
             case REPORT_TEMPLATE -> new ReportTemplateId(uuid);
             case REPORT -> new ReportId(uuid);
+            case BLOB_ENTITY -> new BlobEntityId(uuid);
             case SECRET -> new SecretId(uuid);
         };
     }

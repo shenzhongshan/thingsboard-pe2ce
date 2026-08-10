@@ -283,6 +283,14 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
 
   select(node: HierarchyNode) {
     this.selectedNode = node;
+    if (node.kind === 'customer') {
+      // Selecting a customer just reveals its group folders — the right panel keeps
+      // showing whatever was already open instead of going blank.
+      if (!node.expanded) {
+        this.toggle(node);
+      }
+      return;
+    }
     this.tableConfig = null;
     this.folderNode = null;
     switch (node.kind) {
@@ -292,12 +300,6 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
           config.onManageRelatedGroup = (groupType, customerId) => this.navigateToGroupFolder(node, customerId, groupType);
           this.tableConfig = config;
         });
-        break;
-      case 'customer':
-        // selecting a customer just reveals its group folders
-        if (!node.expanded) {
-          this.toggle(node);
-        }
         break;
       case 'typeFolder':
         this.folderNode = node;

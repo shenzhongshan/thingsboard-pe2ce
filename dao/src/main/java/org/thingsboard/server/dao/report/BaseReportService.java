@@ -33,6 +33,7 @@ import org.thingsboard.server.common.data.report.ReportTemplate;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.model.sql.ReportEntity;
+import org.thingsboard.server.dao.sql.report.ReportInfoRepository;
 import org.thingsboard.server.dao.sql.report.ReportRepository;
 import org.thingsboard.server.dao.sql.report.ReportTemplateRepository;
 import org.thingsboard.server.dao.user.UserService;
@@ -49,6 +50,7 @@ public class BaseReportService implements ReportService {
     private static final int MAX_REPORT_SIZE_BYTES = 50 * 1024 * 1024;
 
     private final ReportRepository reportRepository;
+    private final ReportInfoRepository reportInfoRepository;
     private final ReportTemplateRepository reportTemplateRepository;
     private final UserService userService;
     private final CustomerService customerService;
@@ -83,32 +85,14 @@ public class BaseReportService implements ReportService {
 
     @Override
     public PageData<ReportInfo> findReportInfos(TenantId tenantId, ReportTemplateId templateId, UserId userId, PageLink pageLink) {
-        Page<ReportEntity> page = reportRepository.findByTenantId(
+        // Backed by report_info_view, which joins template/user/customer names in one query.
+        // Previously this enriched each row with three separate lookups (N+1 on large pages).
+        return DaoUtil.toPageData(reportInfoRepository.findByTenantId(
                 tenantId.getId(),
                 templateId != null ? templateId.getId() : null,
                 userId != null ? userId.getId() : null,
                 pageLink.getTextSearch(),
-                DaoUtil.toPageable(pageLink));
-        PageData<Report> reports = DaoUtil.toPageData(page);
-        List<ReportInfo> infos = reports.getData().stream().map(this::toInfo).toList();
-        return new PageData<>(infos, reports.getTotalPages(), reports.getTotalElements(), reports.hasNext());
-    }
-
-    private ReportInfo toInfo(Report report) {
-        ReportInfo info = new ReportInfo(report);
-        if (report.getTemplateId() != null) {
-            reportTemplateRepository.findById(report.getTemplateId().getId())
-                    .ifPresent(t -> info.setTemplateName(t.getName()));
-        }
-        if (report.getUserId() != null) {
-            User user = userService.findUserById(report.getTenantId(), report.getUserId());
-            info.setUserName(user != null ? user.getName() : null);
-        }
-        if (report.getCustomerId() != null && !report.getCustomerId().isNullUid()) {
-            Customer customer = customerService.findCustomerById(report.getTenantId(), report.getCustomerId());
-            info.setCustomerTitle(customer != null ? customer.getTitle() : null);
-        }
-        return info;
+                DaoUtil.toPageable(pageLink)));
     }
 
     @Override

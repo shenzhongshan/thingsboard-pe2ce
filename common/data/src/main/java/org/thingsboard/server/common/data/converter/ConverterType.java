@@ -15,7 +15,19 @@
  */
 package org.thingsboard.server.common.data.converter;
 
+import lombok.Getter;
+
+@Getter
 public enum ConverterType {
-    UPLINK,
-    DOWNLINK
+
+    UPLINK("uplink"),
+    DOWNLINK("downlink");
+
+    /** Sub-directory holding this direction's converters in the data-converters library. */
+    private final String directory;
+
+    ConverterType(String directory) {
+        this.directory = directory;
+    }
+
 }

@@ -23,6 +23,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -49,6 +50,7 @@ import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.dao.entity.CachedVersionedEntityService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.exception.DataValidationException;
@@ -88,6 +90,10 @@ public class EntityViewServiceImpl extends CachedVersionedEntityService<EntityVi
 
     @Autowired
     protected JpaExecutorService service;
+
+    @Autowired
+    @Lazy
+    private EntityGroupService entityGroupService;
 
     @TransactionalEventListener(classes = EntityViewEvictEvent.class)
     @Override
@@ -138,6 +144,12 @@ public class EntityViewServiceImpl extends CachedVersionedEntityService<EntityVi
             publishEvictEvent(new EntityViewEvictEvent(saved.getTenantId(), saved.getId(), saved.getEntityId(), old != null ? old.getEntityId() : null, saved.getName(), old != null ? old.getName() : null, saved));
             eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(saved.getTenantId())
                     .entityId(saved.getId()).entity(saved).created(entityView.getId() == null).build());
+            if (entityView.getId() == null) {
+                entityGroupService.ensureAllGroupMembership(saved.getTenantId(), null, EntityType.ENTITY_VIEW, saved.getId());
+                if (saved.getCustomerId() != null && !saved.getCustomerId().isNullUid()) {
+                    entityGroupService.ensureAllGroupMembership(saved.getTenantId(), saved.getCustomerId(), EntityType.ENTITY_VIEW, saved.getId());
+                }
+            }
             return saved;
         } catch (Exception t) {
             checkConstraintViolation(t,
@@ -152,8 +164,11 @@ public class EntityViewServiceImpl extends CachedVersionedEntityService<EntityVi
         if (customerId.equals(entityView.getCustomerId())) {
             return entityView;
         }
+        CustomerId oldCustomerId = entityView.getCustomerId() != null && !entityView.getCustomerId().isNullUid() ? entityView.getCustomerId() : null;
         entityView.setCustomerId(customerId);
-        return saveEntityView(entityView);
+        EntityView saved = saveEntityView(entityView);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, customerId, EntityType.ENTITY_VIEW, entityViewId);
+        return saved;
     }
 
     @Override
@@ -162,8 +177,11 @@ public class EntityViewServiceImpl extends CachedVersionedEntityService<EntityVi
         if (entityView.getCustomerId() == null) {
             return entityView;
         }
+        CustomerId oldCustomerId = !entityView.getCustomerId().isNullUid() ? entityView.getCustomerId() : null;
         entityView.setCustomerId(null);
-        return saveEntityView(entityView);
+        EntityView saved = saveEntityView(entityView);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, null, EntityType.ENTITY_VIEW, entityViewId);
+        return saved;
     }
 
     @Override

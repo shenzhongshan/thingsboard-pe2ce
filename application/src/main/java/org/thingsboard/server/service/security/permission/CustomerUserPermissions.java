@@ -15,13 +15,16 @@
  */
 package org.thingsboard.server.service.security.permission;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.DashboardInfo;
 import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.ApiKeyId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -30,6 +33,7 @@ import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.pat.ApiKeyInfo;
 import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.service.cf.OwnerService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 /**
@@ -46,15 +50,23 @@ import org.thingsboard.server.service.security.model.SecurityUser;
  * bootstrap step, and returning false-by-default here would silently lock every existing
  * tenant-admin/customer-user out the moment this port is deployed. Additive enforcement makes the
  * already-built Role/GroupPermission UI have real effect without that regression risk.
+ * <p>
+ * One limit on "additive": a GENERIC grant is confined to the user's own owner scope (their
+ * customer and its sub-customers), matching PE. Only a GROUP grant may reach across owners, since
+ * sharing an entity group is precisely how access is meant to be extended beyond one's own scope.
+ * Without that distinction the stock "Customer User" role — which grants {@code {"ALL":["READ"]}}
+ * — would let any customer user read every other customer's data in the tenant.
  */
 @Component
 public class CustomerUserPermissions extends AbstractPermissions {
 
     private final EntityGroupService entityGroupService;
+    private final OwnerService ownerService;
 
-    public CustomerUserPermissions(EntityGroupService entityGroupService) {
+    public CustomerUserPermissions(EntityGroupService entityGroupService, @Lazy OwnerService ownerService) {
         super();
         this.entityGroupService = entityGroupService;
+        this.ownerService = ownerService;
         put(Resource.WHITE_LABELING, PermissionChecker.allowAllPermissionChecker);
         put(Resource.SCHEDULER_EVENT, PermissionChecker.allowAllPermissionChecker);
         put(Resource.ALARM, customerAlarmPermissionChecker);
@@ -73,15 +85,36 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.TB_RESOURCE, customerResourcePermissionChecker);
         put(Resource.MOBILE_APP_SETTINGS, new PermissionChecker.GenericPermissionChecker(Operation.READ));
         put(Resource.API_KEY, apiKeysPermissionChecker);
+        // Blobs are tenant/customer-scoped like devices and assets, so the same checker applies.
+        put(Resource.BLOB_ENTITY, customerEntityPermissionChecker);
     }
 
-    /** True if the user's MergedUserPermissions (generic, or group-scoped via the entity's groups) cover this operation. */
-    private boolean hasGroupOrGenericPermission(SecurityUser user, Resource resource, Operation operation, EntityId entityId) {
+    /**
+     * True if the user's MergedUserPermissions cover this operation, either generically or via a
+     * group the entity belongs to.
+     * <p>
+     * {@code entityOwnerId} scopes the GENERIC branch: a generic grant only applies to entities at
+     * or below the user's own owner in the customer hierarchy. Without that gate a customer user
+     * holding a broad generic role (the stock "Customer User" role grants {@code {"ALL":["READ"]}})
+     * could read every other customer's data in the tenant. PE applies the same rule — see its
+     * customerStandaloneEntityPermissionChecker, which only consults hasGenericPermission when
+     * {@code getOwners(entity).contains(user.getOwnerId())}.
+     * <p>
+     * The GROUP branch is intentionally NOT scoped: sharing an entity group across owners is
+     * exactly what group permissions are for.
+     *
+     * @param entityOwnerId owner of the entity being checked, or null when it cannot be determined
+     *                      (the generic branch is then skipped rather than assumed to apply)
+     */
+    private boolean hasGroupOrGenericPermission(SecurityUser user, Resource resource, Operation operation,
+                                                EntityId entityId, EntityId entityOwnerId) {
         MergedUserPermissions perms = user.getUserPermissions();
         if (perms == null) {
             return false;
         }
-        if (perms.hasGenericPermission(resource, operation)) {
+        if (entityOwnerId != null
+                && ownerService.isOwnedBy(user.getTenantId(), user.getOwnerId(), entityOwnerId)
+                && perms.hasGenericPermission(resource, operation)) {
             return true;
         }
         if (!operation.isAllowedForGroupRole()) {
@@ -93,6 +126,15 @@ public class CustomerUserPermissions extends AbstractPermissions {
             }
         }
         return false;
+    }
+
+    /** The owner an entity belongs to: its customer when customer-assigned, else the tenant. */
+    private EntityId ownerOf(SecurityUser user, Object entity) {
+        if (entity instanceof HasCustomerId hasCustomerId) {
+            CustomerId customerId = hasCustomerId.getCustomerId();
+            return customerId != null && !customerId.isNullUid() ? customerId : user.getTenantId();
+        }
+        return null;
     }
 
     private final PermissionChecker customerAlarmPermissionChecker = new PermissionChecker() {
@@ -107,7 +149,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
             if (user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId())) {
                 return true;
             }
-            return hasGroupOrGenericPermission(user, Resource.ALARM, operation, entityId);
+            return hasGroupOrGenericPermission(user, Resource.ALARM, operation, entityId, ownerOf(user, entity));
         }
     };
 
@@ -130,7 +172,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     if (baseline) {
                         return true;
                     }
-                    return hasGroupOrGenericPermission(user, Resource.of(entityId.getEntityType()), operation, entityId);
+                    return hasGroupOrGenericPermission(user, Resource.of(entityId.getEntityType()), operation, entityId, ownerOf(user, entity));
                 }
             };
 
@@ -143,7 +185,8 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     if (super.hasPermission(user, operation, entityId, entity) && user.getCustomerId().equals(entityId)) {
                         return true;
                     }
-                    return hasGroupOrGenericPermission(user, Resource.CUSTOMER, operation, entityId);
+                    // A customer IS its own owner, so scoping resolves to "self or an ancestor of it".
+                    return hasGroupOrGenericPermission(user, Resource.CUSTOMER, operation, entityId, entityId);
                 }
 
             };
@@ -180,7 +223,17 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     if (super.hasPermission(user, operation, dashboardId, dashboard) && dashboard.isAssignedToCustomer(user.getCustomerId())) {
                         return true;
                     }
-                    return hasGroupOrGenericPermission(user, Resource.DASHBOARD, operation, dashboardId);
+                    // A dashboard can be assigned to several customers; it counts as in-scope if any
+                    // of them is at or below the user's owner. Unassigned (tenant-only) dashboards
+                    // are out of scope for a customer user's generic grant.
+                    EntityId dashboardOwnerId = null;
+                    if (dashboard.getAssignedCustomers() != null) {
+                        dashboardOwnerId = dashboard.getAssignedCustomers().stream()
+                                .map(ShortCustomerInfo::getCustomerId)
+                                .filter(customerId -> ownerService.isOwnedBy(user.getTenantId(), user.getOwnerId(), customerId))
+                                .findFirst().orElse(null);
+                    }
+                    return hasGroupOrGenericPermission(user, Resource.DASHBOARD, operation, dashboardId, dashboardOwnerId);
                 }
 
             };
@@ -202,7 +255,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
                 }
             }
 
-            return hasGroupOrGenericPermission(user, Resource.USER, operation, userId);
+            return hasGroupOrGenericPermission(user, Resource.USER, operation, userId, ownerOf(user, userEntity));
         }
 
     };

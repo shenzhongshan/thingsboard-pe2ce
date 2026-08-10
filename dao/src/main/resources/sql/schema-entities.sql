@@ -389,6 +389,45 @@ CREATE TABLE IF NOT EXISTS rule_chain_debug_event (
     e_error varchar
 ) PARTITION BY RANGE (ts);
 
+CREATE TABLE IF NOT EXISTS raw_data_event (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    ts bigint NOT NULL,
+    entity_id uuid NOT NULL,
+    service_id varchar NOT NULL,
+    e_uuid varchar,
+    e_message_type varchar,
+    e_message varchar
+) PARTITION BY RANGE (ts);
+
+CREATE TABLE IF NOT EXISTS converter_debug_event (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    ts bigint NOT NULL,
+    entity_id uuid NOT NULL,
+    service_id varchar NOT NULL,
+    e_type varchar,
+    e_in_message_type varchar,
+    e_in_message varchar,
+    e_out_message_type varchar,
+    e_out_message varchar,
+    e_metadata varchar,
+    e_error varchar
+) PARTITION BY RANGE (ts);
+
+CREATE TABLE IF NOT EXISTS integration_debug_event (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    ts bigint NOT NULL,
+    entity_id uuid NOT NULL,
+    service_id varchar NOT NULL,
+    e_type varchar,
+    e_message_type varchar,
+    e_message varchar,
+    e_status varchar,
+    e_error varchar
+) PARTITION BY RANGE (ts);
+
 CREATE TABLE IF NOT EXISTS stats_event (
     id uuid NOT NULL,
     tenant_id uuid NOT NULL,
@@ -719,6 +758,8 @@ CREATE TABLE IF NOT EXISTS api_key (
     enabled boolean NOT NULL DEFAULT TRUE,
     expiration_time bigint DEFAULT 0,
     description varchar(255),
+    internal boolean NOT NULL DEFAULT FALSE,
+    permissions json,
     CONSTRAINT api_key_value_unq_key UNIQUE (value)
 );
 
@@ -1073,13 +1114,16 @@ ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
 CREATE TABLE IF NOT EXISTS entity_group (
     id UUID NOT NULL CONSTRAINT entity_group_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
+    version BIGINT NOT NULL DEFAULT 0,
     type VARCHAR(255) NOT NULL,
     name VARCHAR(255),
     tenant_id UUID,
     owner_id UUID,
+    owner_type VARCHAR(255),
     additional_info VARCHAR,
     configuration VARCHAR(10000000),
-    CONSTRAINT group_name_per_owner_unq_key UNIQUE (owner_id, type, name)
+    external_id UUID,
+    CONSTRAINT group_name_per_owner_unq_key UNIQUE (owner_id, owner_type, type, name)
 );
 
 CREATE TABLE IF NOT EXISTS role (
@@ -1160,3 +1204,17 @@ CREATE TABLE IF NOT EXISTS report (
 CREATE INDEX IF NOT EXISTS idx_report_template_tenant_id ON report_template(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_report_tenant_id_created_time ON report(tenant_id, created_time DESC);
 CREATE INDEX IF NOT EXISTS idx_report_template_id ON report(template_id);
+
+-- Binary artifacts (generated report files and similar). Partitioned by created_time like the
+-- other high-volume tables, so old blobs can be dropped a partition at a time.
+CREATE TABLE IF NOT EXISTS blob_entity (
+    id uuid NOT NULL,
+    created_time bigint NOT NULL,
+    tenant_id uuid,
+    customer_id uuid,
+    name varchar(255),
+    type varchar(255),
+    content_type varchar(255),
+    data varchar(10485760),
+    additional_info varchar
+) PARTITION BY RANGE (created_time);

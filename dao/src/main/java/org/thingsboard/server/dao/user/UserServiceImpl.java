@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -66,6 +67,7 @@ import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.pat.ApiKeyService;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.service.PaginatedRemover;
@@ -120,6 +122,8 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
     private final ApplicationEventPublisher eventPublisher;
     private final EntityCountService countService;
     private final JpaExecutorService executor;
+    @Lazy
+    private final EntityGroupService entityGroupService;
 
     @Override
     @TransactionalEventListener
@@ -202,6 +206,10 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
         try {
             savedUser = userDao.saveAndFlush(user.getTenantId(), user);
             publishEvictEvent(evictEvent);
+            CustomerId oldCustomerId = oldUser != null && oldUser.getCustomerId() != null && !oldUser.getCustomerId().isNullUid()
+                    ? oldUser.getCustomerId() : null;
+            CustomerId newCustomerId = savedUser.getCustomerId() != null && !savedUser.getCustomerId().isNullUid()
+                    ? savedUser.getCustomerId() : null;
             if (user.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedUser.getTenantId(), EntityType.USER);
                 UserCredentials userCredentials = new UserCredentials();
@@ -210,6 +218,12 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
                 userCredentials.setAdditionalInfo(JacksonUtil.newObjectNode());
                 userCredentials = generateUserActivationToken(userCredentials);
                 userCredentialsDao.save(user.getTenantId(), userCredentials);
+                entityGroupService.ensureAllGroupMembership(savedUser.getTenantId(), null, EntityType.USER, savedUser.getId());
+                if (newCustomerId != null) {
+                    entityGroupService.ensureAllGroupMembership(savedUser.getTenantId(), newCustomerId, EntityType.USER, savedUser.getId());
+                }
+            } else if (!Objects.equals(oldCustomerId, newCustomerId)) {
+                entityGroupService.moveAllGroupMembership(savedUser.getTenantId(), oldCustomerId, newCustomerId, EntityType.USER, savedUser.getId());
             }
             eventPublisher.publishEvent(SaveEntityEvent.builder()
                     .tenantId(savedUser.getTenantId())

@@ -29,6 +29,9 @@ public interface ApiKeyDao extends Dao<ApiKey> {
 
     ApiKey findByValue(String value);
 
+    /** Internal keys only: they are looked up by the fixed description the platform gave them. */
+    ApiKey findInternalByDescription(TenantId tenantId, String description);
+
     PageData<ApiKey> findByTenantId(TenantId tenantId, PageLink pageLink);
 
     List<ApiKey> findByTenantIdAndUserId(TenantId tenantId, UserId userId);

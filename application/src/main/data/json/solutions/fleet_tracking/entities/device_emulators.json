@@ -1,0 +1,531 @@
+[
+  {
+    "name": "loadingExcavator",
+    "publishPeriodInDays": 1,
+    "publishFrequencyInSeconds": 300,
+    "publishPauseInMillis": 1,
+    "telemetryProfiles": [
+      {
+        "key": "latitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 36.214206
+        }
+      },
+      {
+        "key": "longitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": -88.666720
+        }
+      },
+      {
+        "key": "speed",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 2
+        }
+      },
+      {
+        "key": "fuelLevel",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 75,
+          "maxStartValue": 85,
+          "minLowValue": 15,
+          "maxLowValue": 25,
+          "minHighValue": 90,
+          "maxHighValue": 100,
+          "minIncrement": 55.0,
+          "maxIncrement": 75.0,
+          "minDecrement": 0.32,
+          "maxDecrement": 0.52,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.1,
+          "nightHoursMultiplier": 0.15
+        }
+      },
+      {
+        "key": "hydraulicPressure",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 0,
+          "minStartValue": 2800,
+          "maxStartValue": 3400,
+          "minLowValue": 2400,
+          "maxLowValue": 3400,
+          "minHighValue": 3400,
+          "maxHighValue": 4600,
+          "minIncrement": 40.0,
+          "maxIncrement": 100,
+          "minDecrement": 40.0,
+          "maxDecrement": 180.0,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.08,
+          "nightHoursMultiplier": 0.92
+        }
+      }
+    ]
+  },
+  {
+    "name": "unloadingExcavator",
+    "publishPeriodInDays": 1,
+    "publishFrequencyInSeconds": 300,
+    "publishPauseInMillis": 1,
+    "telemetryProfiles": [
+      {
+        "key": "latitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 36.215323
+        }
+      },
+      {
+        "key": "longitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": -88.66485940013885
+        }
+      },
+      {
+        "key": "speed",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 5
+        }
+      },
+      {
+        "key": "fuelLevel",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 75,
+          "maxStartValue": 85,
+          "minLowValue": 15,
+          "maxLowValue": 25,
+          "minHighValue": 90,
+          "maxHighValue": 100,
+          "minIncrement": 55.0,
+          "maxIncrement": 75.0,
+          "minDecrement": 0.32,
+          "maxDecrement": 0.52,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.1,
+          "nightHoursMultiplier": 0.15
+        }
+      },
+      {
+        "key": "hydraulicPressure",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 0,
+          "minStartValue": 1400,
+          "maxStartValue": 2200,
+          "minLowValue": 1200,
+          "maxLowValue": 2200,
+          "minHighValue": 2400,
+          "maxHighValue": 4100,
+          "minIncrement": 40.0,
+          "maxIncrement": 160.0,
+          "minDecrement": 40.0,
+          "maxDecrement": 180.0,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.08,
+          "nightHoursMultiplier": 0.92
+        }
+      }
+    ]
+  },
+  {
+    "name": "outsideMineSiteHaulTruck",
+    "publishPeriodInDays": 1,
+    "publishFrequencyInSeconds": 300,
+    "publishPauseInMillis": 1,
+    "telemetryProfiles": [
+      {
+        "key": "latitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 36.212697
+        }
+      },
+      {
+        "key": "longitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": -88.661942
+        }
+      },
+      {
+        "key": "speed",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 0
+        }
+      },
+      {
+        "key": "fuelLevel",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 19
+        }
+      },
+      {
+        "key": "loadWeight",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "loadingToUnloadingHaulTruck",
+    "publishPeriodInDays": 1,
+    "publishFrequencyInSeconds": 300,
+    "publishPauseInMillis": 1,
+    "telemetryProfiles": [
+      {
+        "key": "coordinates",
+        "valueStrategy": {
+          "type": "sequence",
+          "random": false,
+          "telemetry": {
+            "latitude": [
+              36.2141024030202,
+              36.2141024030202,
+              36.2141024030202,
+              36.2141024030202,
+              36.2141024030202,
+              36.2141283715332,
+              36.2141500119601,
+              36.2141759804702,
+              36.2141586681311,
+              36.2141586681311,
+              36.2142668701593,
+              36.2143577597461,
+              36.2144529772952,
+              36.2145135702207,
+              36.2146217717566,
+              36.2146866926046,
+              36.2148035499639,
+              36.2148944389208,
+              36.2149636875825,
+              36.2150242801091,
+              36.2150762165232,
+              36.2151844172750,
+              36.2152753057835,
+              36.2153272420338,
+              36.2153315700514,
+              36.2153445541038,
+              36.2153229140085,
+              36.2152969458841,
+              36.2152969458841,
+              36.2152969458834,
+              36.2152969458834,
+              36.2152450096101,
+              36.2152450096101,
+              36.2152450096101,
+              36.2152969458834,
+              36.2152969458834,
+              36.2152969458841,
+              36.2152969458841,
+              36.2153229140085,
+              36.2153445541038,
+              36.2153315700514,
+              36.2153272420338,
+              36.2152753057835,
+              36.2151844172750,
+              36.2150762165232,
+              36.2150242801091,
+              36.2149636875825,
+              36.2148944389208,
+              36.2148035499639,
+              36.2146866926046,
+              36.2146217717566,
+              36.2145135702207,
+              36.2144529772952,
+              36.2143577597461,
+              36.2142668701593,
+              36.2141586681311,
+              36.2141586681311,
+              36.2141759804702,
+              36.2141500119601,
+              36.2141283715332
+            ],
+            "longitude": [
+              -88.6666943296773,
+              -88.6666943296773,
+              -88.6666943296773,
+              -88.6666943296773,
+              -88.6666943296773,
+              -88.6665870413167,
+              -88.6664475664480,
+              -88.6663027271612,
+              -88.6661632522924,
+              -88.6660559639318,
+              -88.6660345062597,
+              -88.6659915909154,
+              -88.6659594044073,
+              -88.6659111246450,
+              -88.6658360227926,
+              -88.6658306583746,
+              -88.6658789381368,
+              -88.6659862264975,
+              -88.6660720571859,
+              -88.6661471590384,
+              -88.6662437185629,
+              -88.6662651762350,
+              -88.6662383541449,
+              -88.6660774216040,
+              -88.6659325823172,
+              -88.6657501921042,
+              -88.6656375393256,
+              -88.6655570730551,
+              -88.6654068693503,
+              -88.6652513012274,
+              -88.6650957331045,
+              -88.6650313600882,
+              -88.6650313600882,
+              -88.6650313600882,
+              -88.6650957331045,
+              -88.6652513012274,
+              -88.6654068693503,
+              -88.6655570730551,
+              -88.6656375393256,
+              -88.6657501921042,
+              -88.6659325823172,
+              -88.6660774216040,
+              -88.6662383541449,
+              -88.6662651762350,
+              -88.6662437185629,
+              -88.6661471590384,
+              -88.6660720571859,
+              -88.6659862264975,
+              -88.6658789381368,
+              -88.6658306583746,
+              -88.6658360227926,
+              -88.6659111246450,
+              -88.6659594044073,
+              -88.6659915909154,
+              -88.6660345062597,
+              -88.6660559639318,
+              -88.6661632522924,
+              -88.6663027271612,
+              -88.6664475664480,
+              -88.6665870413167
+            ]
+          }
+        }
+      },
+      {
+        "key": "speed",
+        "valueStrategy": {
+          "type": "sequence",
+          "random": false,
+          "telemetry": {
+            "speed": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1.5,
+              2.5,
+              2.7,
+              3,
+              3.3,
+              2.2,
+              4.2,
+              4.8,
+              5.4,
+              6,
+              12,
+              16,
+              20,
+              26,
+              26,
+              20,
+              16,
+              12,
+              8,
+              6,
+              5.4,
+              4.8,
+              4.2,
+              3,
+              2.7,
+              2.5,
+              0,
+              0,
+              0,
+              2.5,
+              2.7,
+              3,
+              4.2,
+              4.8,
+              5.4,
+              6,
+              8,
+              12,
+              16,
+              20,
+              24,
+              20,
+              16,
+              12,
+              8,
+              6,
+              5.4,
+              4.8,
+              4.2,
+              2.2,
+              3.3,
+              3,
+              2.7,
+              2.5,
+              0
+            ]
+          }
+        }
+      },
+      {
+        "key": "fuelLevel",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 75,
+          "maxStartValue": 85,
+          "minLowValue": 15,
+          "maxLowValue": 25,
+          "minHighValue": 90,
+          "maxHighValue": 100,
+          "minIncrement": 55.0,
+          "maxIncrement": 75.0,
+
+          "minDecrement": 0.28,
+          "maxDecrement": 0.46,
+
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.3,
+          "nightHoursMultiplier": 0.20
+        }
+      },
+      {
+        "key": "loadWeight",
+        "valueStrategy": {
+          "type": "sequence",
+          "random": false,
+          "telemetry": {
+            "loadWeight": [
+              0,
+              15000,
+              30000,
+              45000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              54000,
+              40000,
+              20000,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "insideRestrictedZoneHaulTruck",
+    "publishPeriodInDays": 1,
+    "publishFrequencyInSeconds": 300,
+    "publishPauseInMillis": 1,
+    "telemetryProfiles": [
+      {
+        "key": "latitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 36.214250
+        }
+      },
+      {
+        "key": "longitude",
+        "valueStrategy": {
+          "type": "constant",
+          "value": -88.664864
+        }
+      },
+      {
+        "key": "speed",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 0
+        }
+      },
+      {
+        "key": "fuelLevel",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 55
+        }
+      },
+      {
+        "key": "loadWeight",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 62000
+        }
+      }
+    ]
+  }
+]

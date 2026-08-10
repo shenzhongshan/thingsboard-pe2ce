@@ -18,6 +18,7 @@ package org.thingsboard.server.service.security.permission;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public enum Operation {
 
@@ -51,6 +52,24 @@ public enum Operation {
             ALL, READ, WRITE, CREATE, DELETE, READ_ATTRIBUTES, WRITE_ATTRIBUTES, READ_TELEMETRY, WRITE_TELEMETRY,
             ADD_TO_GROUP, REMOVE_FROM_GROUP, SHARE_GROUP));
     public static final Set<Operation> crudOperations = new HashSet<>(Arrays.asList(ALL, READ, WRITE, CREATE, DELETE));
+    /** defaultEntityOperations plus calculated-field access, for entity types that support CFs. */
+    public static final Set<Operation> defaultCFEntityOperations;
+
+    static {
+        Set<Operation> cfOps = new HashSet<>(defaultEntityOperations);
+        cfOps.add(READ_CALCULATED_FIELD);
+        cfOps.add(WRITE_CALCULATED_FIELD);
+        defaultCFEntityOperations = Set.copyOf(cfOps);
+    }
+
+    // PE parity: static vocabularies exposed via /api/permissions/allowedPermissions so the UI can
+    // reason about which operations a group role may grant. Derived from the per-constant flags.
+    public static final Set<Operation> allowedForGroupRoleOperations =
+            Arrays.stream(values()).filter(Operation::isAllowedForGroupRole).collect(Collectors.toUnmodifiableSet());
+    public static final Set<Operation> allowedForGroupOwnerOnlyOperations =
+            Arrays.stream(values()).filter(Operation::isAllowedForGroupOwnerOnly).collect(Collectors.toUnmodifiableSet());
+    public static final Set<Operation> allowedForGroupOwnerOnlyGroupOperations =
+            Arrays.stream(values()).filter(Operation::isGroupOperationAllowedForGroupOwnerOnly).collect(Collectors.toUnmodifiableSet());
 
     private final boolean allowedForGroupRole;
     private final boolean allowedForGroupOwnerOnly;

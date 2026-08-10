@@ -15,10 +15,13 @@
  */
 package org.thingsboard.server.common.data.integration;
 
+import lombok.Getter;
+
 /**
  * Full PE protocol list (29 types). Runtime implementations live under
  * org.thingsboard.server.service.integration, registered per-type in IntegrationRuntimeFactory.
  */
+@Getter
 public enum IntegrationType {
     HTTP,
     MQTT,
@@ -26,7 +29,7 @@ public enum IntegrationType {
     UDP,
     COAP,
     OPC_UA,
-    CUSTOM,
+    CUSTOM(null),
     AWS_IOT,
     AZURE_IOT_HUB,
     TTN,
@@ -48,5 +51,20 @@ public enum IntegrationType {
     OCEANCONNECT,
     THINGPARK,
     TPE,
-    TMOBILE_IOT_CDP
+    TMOBILE_IOT_CDP(null);
+
+    /**
+     * Directory this type occupies in the data-converters library, or null when the library ships
+     * nothing for it. Defaults to the enum name, which is how the repository is laid out.
+     */
+    private final String directory;
+
+    IntegrationType() {
+        this.directory = name();
+    }
+
+    IntegrationType(String directory) {
+        this.directory = directory;
+    }
+
 }

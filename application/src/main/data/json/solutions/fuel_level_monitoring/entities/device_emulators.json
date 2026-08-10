@@ -1,0 +1,169 @@
+[
+  {
+    "name": "Tank Emulator",
+    "publishPeriodInDays": 7,
+    "publishFrequencyInSeconds": 3600,
+    "publishPauseInMillis": 1,
+    "activityPeriodInMillis": 720000,
+    "telemetryProfiles": [
+      {
+        "key": "battery",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 99,
+          "maxStartValue": 99,
+          "minLowValue": 21,
+          "maxLowValue": 21,
+          "minHighValue": 21,
+          "maxHighValue": 100,
+          "minIncrement": 100.0,
+          "maxIncrement": 100.0,
+          "minDecrement": 0.1,
+          "maxDecrement": 0.2,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      },
+      {
+        "key": "temperature",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 21,
+          "maxStartValue": 21,
+          "minLowValue": 1,
+          "maxLowValue": 5,
+          "minHighValue": 55,
+          "maxHighValue": 79,
+          "minIncrement": 0.5,
+          "maxIncrement": 1,
+          "minDecrement": 0.5,
+          "maxDecrement": 1,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "name": "Horizontal Ellipse Tank Emulator",
+    "extendz": "Tank Emulator",
+    "telemetryProfiles": [
+      {
+        "key": "fuelHeight",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 90,
+          "maxStartValue": 96,
+          "minLowValue": 21,
+          "maxLowValue": 23,
+          "minHighValue": 90,
+          "maxHighValue": 96,
+          "minIncrement": 88,
+          "maxIncrement": 90,
+          "minDecrement": 1,
+          "maxDecrement": 2.5,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "name": "Vertical Cylinder Tank Emulator",
+    "extendz": "Tank Emulator",
+    "telemetryProfiles": [
+      {
+        "key": "fuelHeight",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 21,
+          "maxStartValue": 25,
+          "minLowValue": 21,
+          "maxLowValue": 25,
+          "minHighValue": 350,
+          "maxHighValue": 368,
+          "minIncrement": 2,
+          "maxIncrement": 4,
+          "minDecrement": 350,
+          "maxDecrement": 368,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "name": "Horizontal Capsule Tank Emulator",
+    "extendz": "Tank Emulator",
+    "telemetryProfiles": [
+      {
+        "key": "temperature",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 82.4
+        }
+      },
+      {
+        "key": "fuelHeight",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 4,
+          "maxStartValue": 5,
+          "minLowValue": 4,
+          "maxLowValue": 5,
+          "minHighValue": 50,
+          "maxHighValue": 51,
+          "minIncrement": 1,
+          "maxIncrement": 2,
+          "minDecrement": 94,
+          "maxDecrement": 96,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "name": "Horizontal Oval Tank Emulator",
+    "extendz": "Tank Emulator",
+    "telemetryProfiles": [
+      {
+        "key": "battery",
+        "valueStrategy": {
+          "type": "constant",
+          "value": 11
+        }
+      },
+      {
+        "key": "fuelHeight",
+        "valueStrategy": {
+          "type": "natural",
+          "precision": 1,
+          "minStartValue": 1100,
+          "maxStartValue": 1200,
+          "minLowValue": 1100,
+          "maxLowValue": 1200,
+          "minHighValue": 10400,
+          "maxHighValue": 10550,
+          "minIncrement": 40,
+          "maxIncrement": 50,
+          "minDecrement": 10400,
+          "maxDecrement": 10450,
+          "holidayMultiplier": 1.0,
+          "workHoursMultiplier": 1.0,
+          "nightHoursMultiplier": 1.0
+        }
+      }
+    ]
+  }
+]

@@ -15,13 +15,18 @@
  */
 package org.thingsboard.server.dao.integration;
 
+import com.google.common.util.concurrent.FluentFuture;
+import com.google.common.util.concurrent.Futures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.DebugModeUtil;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.ConverterId;
+import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.id.HasId;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
@@ -131,6 +136,31 @@ public class BaseIntegrationService implements IntegrationService {
         for (IntegrationEntity entity : integrationRepository.findByTenantId(tenantId.getId())) {
             integrationRepository.deleteById(entity.getUuid());
         }
+    }
+
+    @Override
+    public Optional<HasId<?>> findEntity(TenantId tenantId, EntityId entityId) {
+        return Optional.ofNullable(findIntegrationById(tenantId, new IntegrationId(entityId.getId())));
+    }
+
+    @Override
+    public FluentFuture<Optional<HasId<?>>> findEntityAsync(TenantId tenantId, EntityId entityId) {
+        return FluentFuture.from(Futures.immediateFuture(findEntity(tenantId, entityId)));
+    }
+
+    @Override
+    public void deleteEntity(TenantId tenantId, EntityId id, boolean force) {
+        deleteIntegration(tenantId, new IntegrationId(id.getId()));
+    }
+
+    @Override
+    public void deleteByTenantId(TenantId tenantId) {
+        deleteIntegrationsByTenantId(tenantId);
+    }
+
+    @Override
+    public EntityType getEntityType() {
+        return EntityType.INTEGRATION;
     }
 
 }

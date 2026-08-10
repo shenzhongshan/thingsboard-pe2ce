@@ -28,6 +28,7 @@ import { EntityTableColumn, EntityTableConfig } from '@home/models/entity/entiti
 import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
 import { EntityGroupService } from '@core/http/entity-group.service';
 import { EntityGroup, EntityGroupSettings, isGroupAll } from '@shared/models/entity-group.models';
+import { EntityType } from '@shared/models/entity-type.models';
 import { BaseData, HasId } from '@shared/models/base-data';
 import { DeviceInfo, Device } from '@shared/models/device.models';
 import { AssetInfo } from '@shared/models/asset.models';
@@ -163,7 +164,7 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
     config.entitiesFetchFunction = pageLink =>
       this.entityGroupService.getEntityGroupEntities<T>(group.id.id, pageLink);
     this.applySettings(config, group);
-    if (isGroupAll(group) && group.ownerId) {
+    if (isGroupAll(group) && group.ownerId?.entityType === EntityType.CUSTOMER) {
       // A customer's "All" group lists entities assigned to the customer — group MEMBERSHIP is
       // managed through assignment on the main tables, not from here (no add-existing, no
       // remove-from-group). But creating a NEW entity from here should still preset its owner to
@@ -208,7 +209,7 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
     if (!entity) {
       return of(entity);
     }
-    const assign$: Observable<any> = group.ownerId
+    const assign$: Observable<any> = group.ownerId?.entityType === EntityType.CUSTOMER
       ? this.assignToOwner(group.ownerId.id, entity.id.id as string) : of(null);
     return assign$.pipe(
       mergeMap(() => this.entityGroupService.addEntitiesToEntityGroup(group.id.id, [entity.id.id as string])),
@@ -474,7 +475,8 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
   }
 
   protected configureGroupAdd(config: EntityTableConfig<UserInfo>, group: EntityGroup): void {
-    config.addEntity = () => this.addUser(group.ownerId?.id).pipe(mergeMap(user => this.addToGroup(group, user)));
+    const ownerCustomerId = group.ownerId?.entityType === EntityType.CUSTOMER ? group.ownerId.id : undefined;
+    config.addEntity = () => this.addUser(ownerCustomerId).pipe(mergeMap(user => this.addToGroup(group, user)));
   }
 }
 

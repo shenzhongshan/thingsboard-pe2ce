@@ -16,14 +16,26 @@
 package org.thingsboard.server.dao.trendz;
 
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.trendz.TrendzIntegrationSettings;
 import org.thingsboard.server.common.data.trendz.TrendzSettings;
 
+/**
+ * Trendz settings at two levels: per-tenant widget configuration, and the system-wide integration
+ * state written by the connect/healthcheck flow.
+ */
 public interface TrendzSettingsService {
 
-    void saveTrendzSettings(TenantId tenantId, TrendzSettings settings);
+    TrendzSettings saveTrendzSettings(TenantId tenantId, TrendzSettings settings);
 
     TrendzSettings findTrendzSettings(TenantId tenantId);
 
     void deleteTrendzSettings(TenantId tenantId);
+
+    void saveTrendzIntegrationSettings(TrendzIntegrationSettings settings);
+
+    /** Null until the first connect attempt. */
+    TrendzIntegrationSettings findTrendzIntegrationSettings();
+
+    void deleteTrendzIntegrationSettings();
 
 }

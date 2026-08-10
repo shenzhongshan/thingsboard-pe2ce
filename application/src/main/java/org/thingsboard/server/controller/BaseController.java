@@ -81,7 +81,17 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.AiModelId;
 import org.thingsboard.server.common.data.id.AlarmCommentId;
 import org.thingsboard.server.common.data.id.AlarmId;
+import org.thingsboard.server.common.data.blob.BlobEntity;
+import org.thingsboard.server.common.data.blob.BlobEntityWithCustomerInfo;
+import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.id.ApiKeyId;
+import org.thingsboard.server.common.data.id.BlobEntityId;
+import org.thingsboard.server.common.data.id.ConverterId;
+import org.thingsboard.server.common.data.id.IntegrationId;
+import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.dao.blob.BlobEntityService;
+import org.thingsboard.server.dao.converter.ConverterService;
+import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.CalculatedFieldId;
@@ -401,6 +411,15 @@ public abstract class BaseController {
     @Autowired
     protected ApiKeyService apiKeyService;
 
+    @Autowired
+    protected ConverterService converterService;
+
+    @Autowired
+    protected IntegrationService integrationService;
+
+    @Autowired
+    protected BlobEntityService blobEntityService;
+
     @Value("${server.log_controller_error_stack_trace}")
     @Getter
     private boolean logControllerErrorStackTrace;
@@ -664,6 +683,9 @@ public abstract class BaseController {
                 case AI_MODEL -> checkAiModelId(new AiModelId(entityId.getId()), operation);
                 case SECRET -> checkSecretId(new SecretId(entityId.getId()), operation);
                 case API_KEY -> checkApiKeyId(new ApiKeyId(entityId.getId()), operation);
+                case CONVERTER -> checkConverterId(new ConverterId(entityId.getId()), operation);
+                case INTEGRATION -> checkIntegrationId(new IntegrationId(entityId.getId()), operation);
+                case BLOB_ENTITY -> checkBlobEntityInfoId(new BlobEntityId(entityId.getId()), operation);
                 default -> (HasId<? extends EntityId>) checkEntityId(entityId, entitiesService::findEntityByTenantIdAndId, operation);
             };
         } catch (Exception e) {
@@ -888,6 +910,25 @@ public abstract class BaseController {
 
     ApiKey checkApiKeyId(ApiKeyId apiKeyId, Operation operation) throws ThingsboardException {
         return checkEntityId(apiKeyId, apiKeyService::findApiKeyById, operation);
+    }
+
+    Converter checkConverterId(ConverterId converterId, Operation operation) throws ThingsboardException {
+        return checkEntityId(converterId, converterService::findConverterById, operation);
+    }
+
+    Integration checkIntegrationId(IntegrationId integrationId, Operation operation) throws ThingsboardException {
+        return checkEntityId(integrationId, integrationService::findIntegrationById, operation);
+    }
+
+    /** Permission check on blob metadata — never loads the payload. */
+    BlobEntityWithCustomerInfo checkBlobEntityInfoId(BlobEntityId blobEntityId, Operation operation) throws ThingsboardException {
+        return checkEntityId(blobEntityId, blobEntityService::findBlobEntityWithCustomerInfoById, operation);
+    }
+
+    /** Permission check that also returns the payload; use only when the data is needed. */
+    BlobEntity checkBlobEntityId(BlobEntityId blobEntityId, Operation operation) throws ThingsboardException {
+        checkBlobEntityInfoId(blobEntityId, operation);
+        return checkNotNull(blobEntityService.findBlobEntityById(getTenantId(), blobEntityId));
     }
 
     protected <I extends EntityId> I emptyId(EntityType entityType) {

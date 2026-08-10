@@ -24,46 +24,87 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.AdminSettings;
 import org.thingsboard.server.common.data.CacheConstants;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.trendz.TrendzIntegrationSettings;
 import org.thingsboard.server.common.data.trendz.TrendzSettings;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
 
 import java.util.Optional;
 
+/**
+ * Both kinds of Trendz settings live in {@code admin_settings}, under separate keys so the
+ * per-tenant widget configuration and the system-wide integration state cannot overwrite each other
+ * at the system tenant.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class DefaultTrendzSettingsService implements TrendzSettingsService {
+
+    private static final String SETTINGS_KEY = "trendz";
+    private static final String INTEGRATION_SETTINGS_KEY = "trendzIntegration";
 
     private final AdminSettingsService adminSettingsService;
 
-    private static final String SETTINGS_KEY = "trendz";
-
-    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
     @Override
-    public void saveTrendzSettings(TenantId tenantId, TrendzSettings settings) {
-        AdminSettings adminSettings = Optional.ofNullable(adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, SETTINGS_KEY))
+    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
+    public TrendzSettings saveTrendzSettings(TenantId tenantId, TrendzSettings settings) {
+        log.trace("Executing saveTrendzSettings [{}][{}]", tenantId, settings);
+        save(tenantId, SETTINGS_KEY, settings);
+        return settings;
+    }
+
+    @Override
+    @Cacheable(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
+    public TrendzSettings findTrendzSettings(TenantId tenantId) {
+        log.trace("Executing findTrendzSettings [{}]", tenantId);
+        return find(tenantId, SETTINGS_KEY, TrendzSettings.class);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
+    public void deleteTrendzSettings(TenantId tenantId) {
+        log.trace("Executing deleteTrendzSettings [{}]", tenantId);
+        adminSettingsService.deleteAdminSettingsByTenantIdAndKey(tenantId, SETTINGS_KEY);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "'integration'")
+    public void saveTrendzIntegrationSettings(TrendzIntegrationSettings settings) {
+        log.trace("Executing saveTrendzIntegrationSettings [{}]", settings);
+        save(TenantId.SYS_TENANT_ID, INTEGRATION_SETTINGS_KEY, settings);
+    }
+
+    @Override
+    @Cacheable(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "'integration'")
+    public TrendzIntegrationSettings findTrendzIntegrationSettings() {
+        log.trace("Executing findTrendzIntegrationSettings");
+        return find(TenantId.SYS_TENANT_ID, INTEGRATION_SETTINGS_KEY, TrendzIntegrationSettings.class);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "'integration'")
+    public void deleteTrendzIntegrationSettings() {
+        log.trace("Executing deleteTrendzIntegrationSettings");
+        adminSettingsService.deleteAdminSettingsByTenantIdAndKey(TenantId.SYS_TENANT_ID, INTEGRATION_SETTINGS_KEY);
+    }
+
+    private void save(TenantId tenantId, String key, Object value) {
+        AdminSettings adminSettings = Optional.ofNullable(adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, key))
                 .orElseGet(() -> {
-                    AdminSettings newAdminSettings = new AdminSettings();
-                    newAdminSettings.setTenantId(tenantId);
-                    newAdminSettings.setKey(SETTINGS_KEY);
-                    return newAdminSettings;
+                    AdminSettings created = new AdminSettings();
+                    created.setTenantId(tenantId);
+                    created.setKey(key);
+                    return created;
                 });
-        adminSettings.setJsonValue(JacksonUtil.valueToTree(settings));
+        adminSettings.setJsonValue(JacksonUtil.valueToTree(value));
         adminSettingsService.saveAdminSettings(tenantId, adminSettings);
     }
 
-    @Cacheable(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
-    @Override
-    public TrendzSettings findTrendzSettings(TenantId tenantId) {
-        return Optional.ofNullable(adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, SETTINGS_KEY))
-                .map(adminSettings -> JacksonUtil.treeToValue(adminSettings.getJsonValue(), TrendzSettings.class))
-                .orElseGet(TrendzSettings::new);
-    }
-
-    @CacheEvict(cacheNames = CacheConstants.TRENDZ_SETTINGS_CACHE, key = "#tenantId")
-    @Override
-    public void deleteTrendzSettings(TenantId tenantId) {
-        adminSettingsService.deleteAdminSettingsByTenantIdAndKey(tenantId, SETTINGS_KEY);
+    private <T> T find(TenantId tenantId, String key, Class<T> type) {
+        return Optional.ofNullable(adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, key))
+                .map(AdminSettings::getJsonValue)
+                .map(json -> JacksonUtil.treeToValue(json, type))
+                .orElse(null);
     }
 
 }

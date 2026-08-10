@@ -46,6 +46,7 @@ import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.service.DataValidator;
@@ -58,6 +59,7 @@ import org.thingsboard.server.dao.user.UserService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -102,6 +104,10 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
 
     @Autowired
     private JpaExecutorService executor;
+
+    @Autowired
+    @Lazy
+    private EntityGroupService entityGroupService;
 
     @TransactionalEventListener(classes = CustomerCacheEvictEvent.class)
     @Override
@@ -175,8 +181,18 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
             if (!savedCustomer.isPublic()) {
                 dashboardService.updateCustomerDashboards(savedCustomer.getTenantId(), savedCustomer.getId());
             }
+            CustomerId oldParentId = oldCustomer != null && oldCustomer.getParentCustomerId() != null && !oldCustomer.getParentCustomerId().isNullUid()
+                    ? oldCustomer.getParentCustomerId() : null;
+            CustomerId newParentId = savedCustomer.getParentCustomerId() != null && !savedCustomer.getParentCustomerId().isNullUid()
+                    ? savedCustomer.getParentCustomerId() : null;
             if (customer.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedCustomer.getTenantId(), EntityType.CUSTOMER);
+                entityGroupService.ensureAllGroupMembership(savedCustomer.getTenantId(), null, EntityType.CUSTOMER, savedCustomer.getId());
+                if (newParentId != null) {
+                    entityGroupService.ensureAllGroupMembership(savedCustomer.getTenantId(), newParentId, EntityType.CUSTOMER, savedCustomer.getId());
+                }
+            } else if (!Objects.equals(oldParentId, newParentId)) {
+                entityGroupService.moveAllGroupMembership(savedCustomer.getTenantId(), oldParentId, newParentId, EntityType.CUSTOMER, savedCustomer.getId());
             }
             publishEvictEvent(evictEvent);
             eventPublisher.publishEvent(SaveEntityEvent.builder()
@@ -228,6 +244,8 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
         edgeService.unassignCustomerEdges(customer.getTenantId(), customerId);
         userService.deleteCustomerUsers(customer.getTenantId(), customerId);
         apiUsageStateService.deleteApiUsageStateByEntityId(customerId);
+        // Last, after everything that could still be moved out of those groups has been unassigned.
+        entityGroupService.deleteEntityGroupsByOwner(customer.getTenantId(), customerId);
         customerDao.removeById(tenantId, customerId.getId());
         publishEvictEvent(new CustomerCacheEvictEvent(customer.getTenantId(), customer.getTitle(), null));
         countService.publishCountEntityEvictEvent(tenantId, EntityType.CUSTOMER);
@@ -387,6 +405,15 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
         Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         Validator.validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
         return customerDao.findAncestors(tenantId.getId(), customerId.getId());
+    }
+
+    @Override
+    public List<CustomerId> findCustomerDescendantIds(TenantId tenantId, CustomerId customerId) {
+        log.trace("Executing findCustomerDescendantIds, tenantId [{}], customerId [{}]", tenantId, customerId);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        Validator.validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
+        return customerDao.findDescendantIds(tenantId.getId(), customerId.getId()).stream()
+                .map(CustomerId::new).toList();
     }
 
 }

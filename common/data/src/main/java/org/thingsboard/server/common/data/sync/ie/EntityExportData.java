@@ -38,6 +38,7 @@ import org.thingsboard.server.common.data.ai.AiModel;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
 import org.thingsboard.server.common.data.cf.CalculatedField;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.notification.rule.NotificationRule;
 import org.thingsboard.server.common.data.notification.targets.NotificationTarget;
@@ -67,7 +68,8 @@ import java.util.Map;
         @Type(name = "NOTIFICATION_TEMPLATE", value = EntityExportData.NotificationTemplateExportData.class),
         @Type(name = "NOTIFICATION_TARGET", value = EntityExportData.NotificationTargetExportData.class),
         @Type(name = "NOTIFICATION_RULE", value = EntityExportData.NotificationRuleExportData.class),
-        @Type(name = "AI_MODEL", value = EntityExportData.AiModelExportData.class)
+        @Type(name = "AI_MODEL", value = EntityExportData.AiModelExportData.class),
+        @Type(name = "ENTITY_GROUP", value = EntityExportData.EntityGroupExportData.class)
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(
@@ -89,7 +91,8 @@ import java.util.Map;
                 @DiscriminatorMapping(value = "NOTIFICATION_TEMPLATE", schema = EntityExportData.NotificationTemplateExportData.class),
                 @DiscriminatorMapping(value = "NOTIFICATION_TARGET", schema = EntityExportData.NotificationTargetExportData.class),
                 @DiscriminatorMapping(value = "NOTIFICATION_RULE", schema = EntityExportData.NotificationRuleExportData.class),
-                @DiscriminatorMapping(value = "AI_MODEL", schema = EntityExportData.AiModelExportData.class)
+                @DiscriminatorMapping(value = "AI_MODEL", schema = EntityExportData.AiModelExportData.class),
+                @DiscriminatorMapping(value = "ENTITY_GROUP", schema = EntityExportData.EntityGroupExportData.class)
         }
 )
 @Data
@@ -143,6 +146,7 @@ public abstract class EntityExportData<E extends ExportableEntity<? extends Enti
             case NOTIFICATION_TARGET -> new NotificationTargetExportData();
             case NOTIFICATION_RULE -> new NotificationRuleExportData();
             case AI_MODEL -> new AiModelExportData();
+            case ENTITY_GROUP -> new EntityGroupExportData();
             default -> throw new IllegalArgumentException("Unsupported entity type: " + entityType);
         };
     }
@@ -222,6 +226,14 @@ public abstract class EntityExportData<E extends ExportableEntity<? extends Enti
         @Override
         public EntityType getEntityType() {
             return EntityType.ASSET;
+        }
+    }
+
+    @Schema
+    public static class EntityGroupExportData extends EntityExportData<EntityGroup> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.ENTITY_GROUP;
         }
     }
 

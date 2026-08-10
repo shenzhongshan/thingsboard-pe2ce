@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -48,6 +49,7 @@ import org.thingsboard.server.dao.edge.EdgeDao;
 import org.thingsboard.server.dao.entity.AbstractEntityService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.exception.DataValidationException;
@@ -106,6 +108,10 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
 
     @Autowired
     private JpaExecutorService executor;
+
+    @Autowired
+    @Lazy
+    private EntityGroupService entityGroupService;
 
     protected void publishEvictEvent(DashboardTitleEvictEvent event) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -183,6 +189,7 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
                     .entityId(saved.getId()).entity(saved).created(dashboard.getId() == null).build());
             if (dashboard.getId() == null) {
                 countService.publishCountEntityEvictEvent(tenantId, EntityType.DASHBOARD);
+                entityGroupService.ensureAllGroupMembership(tenantId, null, EntityType.DASHBOARD, saved.getId());
             }
             return saved;
         } catch (Exception e) {
@@ -211,7 +218,9 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
                 log.warn("[{}] Failed to create dashboard relation. Customer Id: [{}]", dashboardId, customerId);
                 throw new RuntimeException(e);
             }
-            return saveDashboard(dashboard);
+            Dashboard saved = saveDashboard(dashboard);
+            entityGroupService.moveAllGroupMembership(tenantId, null, customerId, EntityType.DASHBOARD, dashboardId);
+            return saved;
         } else {
             return dashboard;
         }
@@ -231,7 +240,9 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
                 log.warn("[{}] Failed to delete dashboard relation. Customer Id: [{}]", dashboardId, customerId);
                 throw new RuntimeException(e);
             }
-            return saveDashboard(dashboard);
+            Dashboard saved = saveDashboard(dashboard);
+            entityGroupService.moveAllGroupMembership(tenantId, customerId, null, EntityType.DASHBOARD, dashboardId);
+            return saved;
         } else {
             return dashboard;
         }

@@ -1,0 +1,12 @@
+{
+  "name": "AQI City",
+  "description": "Default asset profile",
+  "image": null,
+  "defaultRuleChainId": null,
+  "defaultEdgeRuleChainId": null,
+  "defaultDashboardId": null,
+  "defaultQueueName": null,
+  "externalId": null,
+  "default": false,
+  "jsonId": "6fa4e7a9-5645-45ca-b91c-ce5ae27ed4ee"
+}

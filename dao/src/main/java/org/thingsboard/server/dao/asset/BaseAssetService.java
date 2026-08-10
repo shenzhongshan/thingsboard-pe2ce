@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -51,6 +52,7 @@ import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.exception.DataValidationException;
@@ -97,6 +99,10 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
 
     @Autowired
     private JpaExecutorService executor;
+
+    @Autowired
+    @Lazy
+    private EntityGroupService entityGroupService;
 
     @Override
     @TransactionalEventListener
@@ -197,6 +203,10 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
                     .entity(savedAsset).oldEntity(oldAsset).created(asset.getId() == null).build());
             if (asset.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedAsset.getTenantId(), EntityType.ASSET);
+                entityGroupService.ensureAllGroupMembership(savedAsset.getTenantId(), null, EntityType.ASSET, savedAsset.getId());
+                if (savedAsset.getCustomerId() != null && !savedAsset.getCustomerId().isNullUid()) {
+                    entityGroupService.ensureAllGroupMembership(savedAsset.getTenantId(), savedAsset.getCustomerId(), EntityType.ASSET, savedAsset.getId());
+                }
             }
         } catch (Exception t) {
             handleEvictEvent(evictEvent);
@@ -214,8 +224,11 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         if (customerId.equals(asset.getCustomerId())) {
             return asset;
         }
+        CustomerId oldCustomerId = asset.getCustomerId() != null && !asset.getCustomerId().isNullUid() ? asset.getCustomerId() : null;
         asset.setCustomerId(customerId);
-        return saveAsset(asset);
+        Asset savedAsset = saveAsset(asset);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, customerId, EntityType.ASSET, assetId);
+        return savedAsset;
     }
 
     @Override
@@ -224,8 +237,11 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         if (asset.getCustomerId() == null) {
             return asset;
         }
+        CustomerId oldCustomerId = !asset.getCustomerId().isNullUid() ? asset.getCustomerId() : null;
         asset.setCustomerId(null);
-        return saveAsset(asset);
+        Asset savedAsset = saveAsset(asset);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, null, EntityType.ASSET, assetId);
+        return savedAsset;
     }
 
     @Override

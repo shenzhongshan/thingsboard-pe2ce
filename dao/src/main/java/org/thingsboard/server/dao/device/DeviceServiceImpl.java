@@ -22,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -77,6 +78,7 @@ import org.thingsboard.server.dao.device.provision.ProvisionResponseStatus;
 import org.thingsboard.server.dao.entity.CachedVersionedEntityService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.event.EventService;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
@@ -118,6 +120,8 @@ public class DeviceServiceImpl extends CachedVersionedEntityService<DeviceCacheK
     private final DeviceDataValidator deviceValidator;
     private final EntityCountService countService;
     private final JpaExecutorService executor;
+    @Lazy
+    private final EntityGroupService entityGroupService;
 
     @Override
     public DeviceInfo findDeviceInfoById(TenantId tenantId, DeviceId deviceId) {
@@ -270,6 +274,10 @@ public class DeviceServiceImpl extends CachedVersionedEntityService<DeviceCacheK
             publishEvictEvent(deviceCacheEvictEvent);
             if (device.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedDevice.getTenantId(), EntityType.DEVICE);
+                entityGroupService.ensureAllGroupMembership(savedDevice.getTenantId(), null, EntityType.DEVICE, savedDevice.getId());
+                if (savedDevice.getCustomerId() != null && !savedDevice.getCustomerId().isNullUid()) {
+                    entityGroupService.ensureAllGroupMembership(savedDevice.getTenantId(), savedDevice.getCustomerId(), EntityType.DEVICE, savedDevice.getId());
+                }
             }
             eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(savedDevice.getTenantId()).entityId(savedDevice.getId())
                     .entity(savedDevice).oldEntity(oldDevice).created(device.getId() == null).build());
@@ -340,8 +348,12 @@ public class DeviceServiceImpl extends CachedVersionedEntityService<DeviceCacheK
         if (customerId.equals(device.getCustomerId())) {
             return device;
         }
+        CustomerId oldCustomerId = device.getCustomerId();
+        oldCustomerId = oldCustomerId != null && !oldCustomerId.isNullUid() ? oldCustomerId : null;
         device.setCustomerId(customerId);
-        return saveDevice(device);
+        Device savedDevice = saveDevice(device);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, customerId, EntityType.DEVICE, deviceId);
+        return savedDevice;
     }
 
     @Transactional
@@ -351,8 +363,11 @@ public class DeviceServiceImpl extends CachedVersionedEntityService<DeviceCacheK
         if (device.getCustomerId() == null) {
             return device;
         }
+        CustomerId oldCustomerId = device.getCustomerId();
         device.setCustomerId(null);
-        return saveDevice(device);
+        Device savedDevice = saveDevice(device);
+        entityGroupService.moveAllGroupMembership(tenantId, oldCustomerId, null, EntityType.DEVICE, deviceId);
+        return savedDevice;
     }
 
     @Transactional

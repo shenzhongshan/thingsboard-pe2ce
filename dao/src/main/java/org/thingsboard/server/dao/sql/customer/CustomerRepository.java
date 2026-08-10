@@ -119,6 +119,16 @@ public interface CustomerRepository extends JpaRepository<CustomerEntity, UUID>,
             nativeQuery = true)
     List<CustomerEntity> findAncestors(@Param("tenantId") UUID tenantId, @Param("customerId") UUID customerId);
 
+    /** Ids of all transitive sub-customers of the given customer (excluding itself). */
+    @Query(value = "WITH RECURSIVE sub_customers(id) AS (" +
+            "  SELECT id FROM customer WHERE tenant_id = :tenantId AND id = :customerId " +
+            "  UNION " +
+            "  SELECT c.id FROM customer c, sub_customers sc WHERE c.tenant_id = :tenantId AND c.parent_customer_id = sc.id" +
+            ") " +
+            "SELECT id FROM sub_customers WHERE id <> :customerId",
+            nativeQuery = true)
+    List<UUID> findDescendantIds(@Param("tenantId") UUID tenantId, @Param("customerId") UUID customerId);
+
     @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
             "WHERE r.toId IN :ids AND r.toType = 'CUSTOMER' AND eg.type = org.thingsboard.server.common.data.EntityType.CUSTOMER " +
             "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")

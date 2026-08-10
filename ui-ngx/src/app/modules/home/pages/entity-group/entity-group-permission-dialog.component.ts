@@ -54,9 +54,11 @@ export class EntityGroupPermissionDialogComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.ownerLabel = this.data.entityGroup.ownerId ? 'entity-group.owner-customer' : 'entity-group.owner-tenant';
+    const ownerCustomerId = this.data.entityGroup.ownerId?.entityType === EntityType.CUSTOMER
+      ? this.data.entityGroup.ownerId.id : undefined;
+    this.ownerLabel = ownerCustomerId ? 'entity-group.owner-customer' : 'entity-group.owner-tenant';
     this.roleService.getRoles(new PageLink(1024, 0)).subscribe(page => this.roles = page.data);
-    this.entityGroupService.getEntityGroupsByType(EntityType.USER, new PageLink(1024, 0), this.data.entityGroup.ownerId?.id)
+    this.entityGroupService.getEntityGroupsByType(EntityType.USER, new PageLink(1024, 0), ownerCustomerId)
       .subscribe(page => this.userGroups = page.data);
   }
 

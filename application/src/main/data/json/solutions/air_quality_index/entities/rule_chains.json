@@ -1,0 +1,12 @@
+[
+  {
+    "name": "AQI Sensor",
+    "file": "aqi_sensor.json",
+    "jsonId": "c657b470-6419-11ed-90f3-052710537c9f"
+  },
+  {
+    "name": "AQI Sensor (Remote Location)",
+    "file": "remote_location_aqi_sensor.json",
+    "jsonId": "3bc41c36-776c-4d4f-b53f-b7ed7f9a76f3"
+  }
+]

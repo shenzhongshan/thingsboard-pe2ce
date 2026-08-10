@@ -1,0 +1,11 @@
+{
+  "name": "Swimming pool SCADA system",
+  "description": null,
+  "image": null,
+  "defaultRuleChainId": null,
+  "defaultDashboardId": null,
+  "defaultQueueName": null,
+  "defaultEdgeRuleChainId": null,
+  "default": false,
+  "jsonId": "9df4c2dd-8b79-4f72-a6c9-38118fa49e13"
+}

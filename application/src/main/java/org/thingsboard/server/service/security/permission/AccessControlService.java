@@ -18,7 +18,10 @@ package org.thingsboard.server.service.security.permission;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.service.security.model.SecurityUser;
+
+import java.util.Set;
 
 public interface AccessControlService {
 
@@ -29,5 +32,12 @@ public interface AccessControlService {
     <I extends EntityId, T extends HasTenantId> void checkPermission(SecurityUser user, Resource resource, Operation operation, I entityId, T entity) throws ThingsboardException;
 
     <I extends EntityId, T extends HasTenantId> boolean hasPermission(SecurityUser user, Resource resource, Operation operation, I entityId, T entity) throws ThingsboardException;
+
+    /**
+     * All resources the given authority may ever access. Derived from the registered
+     * {@link Permissions} implementation, so it cannot drift from actual enforcement.
+     * Exposed via /api/permissions/allowedPermissions for UI element visibility.
+     */
+    Set<Resource> getAllowedResources(Authority authority);
 
 }

@@ -22,8 +22,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.pat.ApiKey;
 import org.thingsboard.server.dao.pat.ApiKeyService;
+import org.thingsboard.server.service.security.permission.AuthorityPermissionsInfo;
 import org.thingsboard.server.service.security.auth.AbstractAuthenticationProvider;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.token.ApiKeyAuthRequest;
@@ -42,11 +45,21 @@ public class ApiKeyAuthenticationProvider extends AbstractAuthenticationProvider
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         ApiKeyAuthRequest apiKeyAuthRequest = (ApiKeyAuthRequest) authentication.getCredentials();
-        SecurityUser securityUser = authenticate(apiKeyAuthRequest.apiKey());
+        SecurityUser securityUser = authenticate(apiKeyAuthRequest.apiKey(), apiKeyAuthRequest.userId());
         return new ApiKeyAuthenticationToken(securityUser);
     }
 
     public SecurityUser authenticate(String key) {
+        return authenticate(key, null);
+    }
+
+    /**
+     * {@code impersonatedUserId} is only honoured for internal keys: those are issued by the platform
+     * to a trusted companion service (Trendz), which acts on behalf of whichever user is browsing.
+     * For an ordinary key the header is ignored, so a leaked personal token cannot become a way to
+     * act as somebody else.
+     */
+    public SecurityUser authenticate(String key, UserId impersonatedUserId) {
         if (StringUtils.isEmpty(key)) {
             throw new BadCredentialsException("Empty API key");
         }
@@ -59,6 +72,10 @@ public class ApiKeyAuthenticationProvider extends AbstractAuthenticationProvider
         }
         if (apiKey.getExpirationTime() != 0 && apiKey.getExpirationTime() < System.currentTimeMillis()) {
             throw new CredentialsExpiredException("API key is expired");
+        }
+        if (apiKey.isInternal()) {
+            UserId userId = impersonatedUserId != null && !impersonatedUserId.isNullUid() ? impersonatedUserId : apiKey.getUserId();
+            return super.authenticateByUserId(TenantId.SYS_TENANT_ID, userId, AuthorityPermissionsInfo.fromJson(apiKey.getPermissions()));
         }
         return super.authenticateByUserId(apiKey.getTenantId(), apiKey.getUserId());
     }

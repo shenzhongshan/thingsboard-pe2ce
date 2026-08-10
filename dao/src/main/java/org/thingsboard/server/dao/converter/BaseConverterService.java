@@ -15,14 +15,19 @@
  */
 package org.thingsboard.server.dao.converter;
 
+import com.google.common.util.concurrent.FluentFuture;
+import com.google.common.util.concurrent.Futures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.DebugModeUtil;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.id.ConverterId;
+import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.id.HasId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.common.data.page.PageData;
@@ -34,6 +39,7 @@ import org.thingsboard.server.dao.sql.integration.IntegrationRepository;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.exception.DataValidationException;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -108,6 +114,31 @@ public class BaseConverterService implements ConverterService {
         for (UUID id : converterRepository.findIdsByTenantId(tenantId.getId())) {
             converterRepository.deleteById(id);
         }
+    }
+
+    @Override
+    public Optional<HasId<?>> findEntity(TenantId tenantId, EntityId entityId) {
+        return Optional.ofNullable(findConverterById(tenantId, new ConverterId(entityId.getId())));
+    }
+
+    @Override
+    public FluentFuture<Optional<HasId<?>>> findEntityAsync(TenantId tenantId, EntityId entityId) {
+        return FluentFuture.from(Futures.immediateFuture(findEntity(tenantId, entityId)));
+    }
+
+    @Override
+    public void deleteEntity(TenantId tenantId, EntityId id, boolean force) {
+        deleteConverter(tenantId, new ConverterId(id.getId()));
+    }
+
+    @Override
+    public void deleteByTenantId(TenantId tenantId) {
+        deleteConvertersByTenantId(tenantId);
+    }
+
+    @Override
+    public EntityType getEntityType() {
+        return EntityType.CONVERTER;
     }
 
 }

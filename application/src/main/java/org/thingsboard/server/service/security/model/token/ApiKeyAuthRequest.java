@@ -15,4 +15,17 @@
  */
 package org.thingsboard.server.service.security.model.token;
 
-public record ApiKeyAuthRequest(String apiKey) {}
+import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.UserId;
+
+/**
+ * An API key plus, for internal keys only, the user the caller is asking to act as. The ids come
+ * from request headers and are honoured only when the key is marked internal.
+ */
+public record ApiKeyAuthRequest(String apiKey, UserId userId, CustomerId customerId) {
+
+    public ApiKeyAuthRequest(String apiKey) {
+        this(apiKey, null, null);
+    }
+
+}

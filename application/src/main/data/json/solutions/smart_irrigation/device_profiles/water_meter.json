@@ -1,0 +1,36 @@
+{
+  "name": "SI Water Meter",
+  "description": "",
+  "image": null,
+  "type": "DEFAULT",
+  "transportType": "DEFAULT",
+  "provisionType": "DISABLED",
+  "defaultRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "cd629220-398b-11ed-af17-3d7337747e91"
+  },
+  "defaultEdgeRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "53190790-9676-11ed-b5e1-392bb934190c"
+  },
+  "defaultDashboardId": null,
+  "defaultQueueName": null,
+  "profileData": {
+    "configuration": {
+      "type": "DEFAULT"
+    },
+    "transportConfiguration": {
+      "type": "DEFAULT"
+    },
+    "provisionConfiguration": {
+      "type": "DISABLED",
+      "provisionDeviceSecret": null
+    }
+  },
+  "provisionDeviceKey": null,
+  "firmwareId": null,
+  "softwareId": null,
+  "externalId": null,
+  "default": false,
+  "jsonId": "190454f3-0d03-4cc9-904a-7d18f5673504"
+}

@@ -21,6 +21,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.dao.entity.EntityDaoService;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,8 +29,11 @@ import java.util.Optional;
 /**
  * CE port of PE's integration persistence service. Dropped vs PE: remote integrations, edge
  * assignment/templates, integration infos with stats, async lookups.
+ * <p>
+ * Extends {@link EntityDaoService} (as in PE) so INTEGRATION resolves through
+ * EntityServiceRegistry — required by generic entity lookups such as the events API.
  */
-public interface IntegrationService {
+public interface IntegrationService extends EntityDaoService {
 
     Integration saveIntegration(Integration integration);
 

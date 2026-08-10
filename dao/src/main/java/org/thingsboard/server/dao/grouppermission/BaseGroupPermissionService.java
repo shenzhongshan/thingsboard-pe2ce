@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -110,7 +111,7 @@ public class BaseGroupPermissionService implements GroupPermissionService {
                 EntityGroup userGroup = entityGroupService.findEntityGroupById(tenantId, gp.getUserGroupId());
                 if (userGroup != null) {
                     info.put("userGroupName", userGroup.getName());
-                    info.put("userGroupOwnerName", userGroup.getOwnerId() != null ? "customer" : "tenant");
+                    info.put("userGroupOwnerName", userGroup.getOwnerId() instanceof CustomerId ? "customer" : "tenant");
                 }
             }
             result.add(info);

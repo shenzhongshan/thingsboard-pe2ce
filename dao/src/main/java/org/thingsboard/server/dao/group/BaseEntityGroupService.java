@@ -51,10 +51,13 @@ import org.thingsboard.server.dao.sql.group.EntityGroupRepository;
 import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.exception.DataValidationException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -90,9 +93,16 @@ public class BaseEntityGroupService implements EntityGroupService {
             if (entityGroup.getOwnerId() == null) {
                 entityGroup.setOwnerId(existing.getOwnerId());
             }
+            if (entityGroup.getVersion() == null) {
+                // save() below goes through a plain repository.save(), not the JpaAbstractDao
+                // insert/update dance that manages @Version itself — a null version on an existing
+                // row makes Hibernate treat it as transient and attempt an INSERT, colliding on the
+                // primary key. Carry the existing row's version forward when the caller omits it.
+                entityGroup.setVersion(existing.getVersion());
+            }
         } else {
-            if (entityGroup.getOwnerId() != null
-                    && customerService.findCustomerById(tenantId, entityGroup.getOwnerId()) == null) {
+            if (entityGroup.getOwnerId() instanceof CustomerId customerOwnerId
+                    && customerService.findCustomerById(tenantId, customerOwnerId) == null) {
                 throw new DataValidationException("Group owner customer not found!");
             }
             UUID ownerUuid = entityGroup.getOwnerId() != null ? entityGroup.getOwnerId().getId() : tenantId.getId();
@@ -182,14 +192,24 @@ public class BaseEntityGroupService implements EntityGroupService {
     }
 
     @Override
+    @Transactional
+    public void deleteEntityGroupsByOwner(TenantId tenantId, EntityId ownerId) {
+        // Goes through the repository rather than deleteEntityGroup because the owner's "All"
+        // groups have to go too, and those are deliberately undeletable one at a time.
+        for (EntityGroupEntity entity : entityGroupRepository.findAllByOwnerId(ownerId.getId())) {
+            relationService.deleteEntityRelations(tenantId, new EntityGroupId(entity.getUuid()));
+            entityGroupRepository.deleteById(entity.getUuid());
+        }
+    }
+
+    @Override
     public void addEntitiesToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds) {
         EntityGroup entityGroup = getExistingNonAll(tenantId, entityGroupId, "add entities to");
         for (EntityId entityId : entityIds) {
             if (entityId.getEntityType() != entityGroup.getType()) {
                 throw new DataValidationException("Entity type does not match the entity group type!");
             }
-            relationService.saveRelation(tenantId,
-                    new EntityRelation(entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP));
+            addRelation(tenantId, entityGroupId, entityId);
         }
     }
 
@@ -197,7 +217,43 @@ public class BaseEntityGroupService implements EntityGroupService {
     public void removeEntitiesFromEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds) {
         getExistingNonAll(tenantId, entityGroupId, "remove entities from");
         for (EntityId entityId : entityIds) {
-            relationService.deleteRelation(tenantId, entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP);
+            removeRelation(tenantId, entityGroupId, entityId);
+        }
+    }
+
+    // Internal — bypasses getExistingNonAll, since ensureAllGroupMembership/moveAllGroupMembership
+    // are exactly the programmatic paths allowed to maintain "All" group relations. The public
+    // add/removeEntitiesToEntityGroup (REST-driven, manual editing) stay guarded against "All".
+    private void addRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
+        relationService.saveRelation(tenantId,
+                new EntityRelation(entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP));
+    }
+
+    private void removeRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
+        relationService.deleteRelation(tenantId, entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP);
+    }
+
+    @Override
+    public void ensureAllGroupMembership(TenantId tenantId, CustomerId ownerId, EntityType groupType, EntityId entityId) {
+        EntityGroupId allGroupId = findOrCreateAllGroupId(tenantId, ownerId, groupType);
+        if (allGroupId != null) {
+            addRelation(tenantId, allGroupId, entityId);
+        }
+    }
+
+    @Override
+    public void moveAllGroupMembership(TenantId tenantId, CustomerId oldOwnerId, CustomerId newOwnerId, EntityType groupType, EntityId entityId) {
+        if (Objects.equals(oldOwnerId, newOwnerId)) {
+            return;
+        }
+        if (oldOwnerId != null) {
+            EntityGroupId oldAllGroupId = findOrCreateAllGroupId(tenantId, oldOwnerId, groupType);
+            if (oldAllGroupId != null) {
+                removeRelation(tenantId, oldAllGroupId, entityId);
+            }
+        }
+        if (newOwnerId != null) {
+            ensureAllGroupMembership(tenantId, newOwnerId, groupType, entityId);
         }
     }
 
@@ -219,8 +275,8 @@ public class BaseEntityGroupService implements EntityGroupService {
             throw new DataValidationException("Entity group not found!");
         }
         if (entityGroup.isGroupAll()) {
-            if (entityGroup.getOwnerId() != null) {
-                return findAllCustomerEntities(tenantId, entityGroup.getOwnerId(), entityGroup.getType(), pageLink);
+            if (entityGroup.getOwnerId() instanceof CustomerId customerOwnerId) {
+                return findAllCustomerEntities(tenantId, customerOwnerId, entityGroup.getType(), pageLink);
             }
             return findAllTenantEntities(tenantId, entityGroup.getType(), pageLink);
         }
@@ -293,7 +349,10 @@ public class BaseEntityGroupService implements EntityGroupService {
 
     @Override
     public List<EntityGroupId> findEntityGroupsForEntity(TenantId tenantId, EntityId entityId, CustomerId customerId) {
-        List<EntityGroupId> result = new java.util.ArrayList<>();
+        // LinkedHashSet, not List: "All" membership is now backed by a real relation, so the
+        // relation scan below re-yields the same "All" groups the block above ensures. The
+        // explicit block still matters for entities whose relations predate that change.
+        Set<EntityGroupId> result = new LinkedHashSet<>();
         EntityType type = entityId.getEntityType();
         if (Arrays.asList(EntityGroup.groupTypes).contains(type)) {
             EntityGroupId tenantAll = findOrCreateAllGroupId(tenantId, null, type);
@@ -311,7 +370,7 @@ public class BaseEntityGroupService implements EntityGroupService {
                 .map(EntityRelation::getFrom)
                 .map(from -> new EntityGroupId(from.getId()))
                 .forEach(result::add);
-        return result;
+        return new ArrayList<>(result);
     }
 
     @Override
@@ -322,8 +381,8 @@ public class BaseEntityGroupService implements EntityGroupService {
         }
         if (group.isGroupAll()) {
             PageLink pageLink = new PageLink(1000);
-            PageData<? extends HasName> page = group.getOwnerId() != null
-                    ? findAllCustomerEntities(tenantId, group.getOwnerId(), EntityType.USER, pageLink)
+            PageData<? extends HasName> page = group.getOwnerId() instanceof CustomerId customerOwnerId
+                    ? findAllCustomerEntities(tenantId, customerOwnerId, EntityType.USER, pageLink)
                     : findAllTenantEntities(tenantId, EntityType.USER, pageLink);
             return page.getData().stream()
                     .map(u -> ((org.thingsboard.server.common.data.User) u).getId())
@@ -359,8 +418,8 @@ public class BaseEntityGroupService implements EntityGroupService {
         }
         if (entityGroup.isGroupAll()) {
             PageLink pageLink = new PageLink(Integer.MAX_VALUE);
-            PageData<? extends HasName> page = entityGroup.getOwnerId() != null
-                    ? findAllCustomerEntities(tenantId, entityGroup.getOwnerId(), entityGroup.getType(), pageLink)
+            PageData<? extends HasName> page = entityGroup.getOwnerId() instanceof CustomerId customerOwnerId
+                    ? findAllCustomerEntities(tenantId, customerOwnerId, entityGroup.getType(), pageLink)
                     : findAllTenantEntities(tenantId, entityGroup.getType(), pageLink);
             return page.getData().stream()
                     .map(e -> (EntityId) ((org.thingsboard.server.common.data.id.HasId<?>) e).getId())

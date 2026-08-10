@@ -30,6 +30,7 @@ import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.ai.AiModel;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.notification.rule.NotificationRule;
 import org.thingsboard.server.common.data.notification.targets.NotificationTarget;
 import org.thingsboard.server.common.data.notification.template.NotificationTemplate;
@@ -62,7 +63,8 @@ import java.lang.annotation.Target;
         @Type(name = "NOTIFICATION_RULE", value = NotificationRule.class),
         @Type(name = "TB_RESOURCE", value = TbResource.class),
         @Type(name = "OTA_PACKAGE", value = OtaPackage.class),
-        @Type(name = "AI_MODEL", value = AiModel.class)
+        @Type(name = "AI_MODEL", value = AiModel.class),
+        @Type(name = "ENTITY_GROUP", value = EntityGroup.class)
 })
 @JsonIgnoreProperties(value = {"tenantId", "createdTime", "version"}, ignoreUnknown = true)
 public @interface JsonTbEntity {}

@@ -465,6 +465,8 @@ sql:
     partition_size: "${SQL_ALARM_COMMENTS_PARTITION_SIZE_HOURS:168}" # Default value - 1 week
   notifications:
     partition_size: "${SQL_NOTIFICATIONS_PARTITION_SIZE_HOURS:168}" # Default value - 1 week
+  blob_entities:
+    partition_size: "${SQL_BLOB_ENTITIES_PARTITION_SIZE_HOURS:168}" # Default value - 1 week
   # Specify whether to sort entities before batch update. Should be enabled for cluster mode to avoid deadlocks
   batch_sort: "${SQL_BATCH_SORT:true}"
   # Specify whether to remove null characters from strValue of attributes and timeseries before insert
@@ -662,6 +664,35 @@ actors:
       enabled: "${ACTORS_CONVERTER_DEBUG_MODE_RATE_LIMITS_PER_TENANT_ENABLED:true}"
       # The value of DEBUG mode rate limit. By default, no more than 50 thousand events per hour
       configuration: "${ACTORS_CONVERTER_DEBUG_MODE_RATE_LIMITS_PER_TENANT_CONFIGURATION:50000:3600}"
+
+# Trendz parameters
+# Trendz is a separate analytics service; these settings describe how to reach it and how it reaches back.
+trendz:
+  # Enable/disable the Trendz integration entirely
+  enabled: "${TRENDZ_ENABLED:true}"
+  # Trendz URL used when nothing has been configured through the UI yet
+  default_trendz_url: "${TRENDZ_DEFAULT_URL:}"
+  # ThingsBoard URL Trendz should call back on (often an internal address); used as the initial value
+  default_tb_url: "${TRENDZ_DEFAULT_TB_URL:}"
+  # Timeout for regular Trendz requests
+  request_timeout_ms: "${TRENDZ_REQUEST_TIMEOUT_MS:15000}"
+  # Shorter timeout for the usage badge, which must not hold up a page render
+  usage_request_timeout_ms: "${TRENDZ_USAGE_REQUEST_TIMEOUT_MS:3000}"
+
+# Integrations parameters
+integrations:
+  converters:
+    library:
+      # Enable/disable the data converters library
+      enabled: "${TB_INTEGRATIONS_CONVERTERS_LIBRARY_ENABLED:true}"
+      # URL of the data converters repository
+      url: "${TB_INTEGRATIONS_CONVERTERS_LIBRARY_REPO_URL:https://github.com/thingsboard/data-converters.git}"
+      # Branch of the data converters repository to use. By default, a release branch with compatible version.
+      # Whenever non-backward-compatible changes are needed in the library - a new branch with min supported TB version
+      # should be created, and the default branch here - updated.
+      branch: "${TB_INTEGRATIONS_CONVERTERS_LIBRARY_REPO_BRANCH:release/4.0.0}"
+      # Fetch frequency in hours for data converters repository
+      fetch_frequency: "${TB_INTEGRATIONS_CONVERTERS_LIBRARY_REPO_FETCH_FREQUENCY:24}"
 
 # Debug settings parameters
 # Configures the global default duration for debug mode used by rule chains and calculated fields.

@@ -16,6 +16,7 @@
 package org.thingsboard.server.common.data.pat;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -56,6 +57,16 @@ public class ApiKeyInfo extends BaseData<ApiKeyId> implements HasTenantId {
     @Schema(description = "Enabled/disabled API key.", example = "true")
     private boolean enabled;
 
+    @Schema(description = "Internal API key flag. Internal keys may impersonate a user via request headers " +
+            "and are created by the platform itself, not through the API.",
+            example = "false", accessMode = Schema.AccessMode.READ_ONLY, hidden = true)
+    private boolean internal;
+
+    @Schema(description = "Ceiling on what this internal key may do, keyed by authority. Kept as raw JSON " +
+            "because the Resource and Operation enums live in the application module.",
+            accessMode = Schema.AccessMode.READ_ONLY, hidden = true)
+    private JsonNode permissions;
+
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     @Schema(description = "Indicates if the API key is expired based on current time. Returns false if expirationTime is 0 (no expiry).",
             example = "false",
@@ -91,6 +102,8 @@ public class ApiKeyInfo extends BaseData<ApiKeyId> implements HasTenantId {
         this.expirationTime = apiKeyInfo.getExpirationTime();
         this.enabled = apiKeyInfo.isEnabled();
         this.description = apiKeyInfo.getDescription();
+        this.internal = apiKeyInfo.isInternal();
+        this.permissions = apiKeyInfo.getPermissions();
     }
 
 }

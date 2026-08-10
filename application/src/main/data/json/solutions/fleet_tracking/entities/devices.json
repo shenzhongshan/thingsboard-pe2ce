@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Excavator A",
+    "type": "Excavator",
+    "label": "Excavator A",
+    "group": "Machines",
+    "emulator": "loadingExcavator",
+    "attributes": {
+      "hydraulicPressureWarningThreshold": 4000,
+      "hydraulicPressureCriticalThreshold": 4500
+    },
+    "relations": []
+  },
+  {
+    "name": "Excavator B",
+    "type": "Excavator",
+    "label": "Excavator B",
+    "group": "Machines",
+    "emulator": "unloadingExcavator",
+    "attributes": {
+      "hydraulicPressureWarningThreshold": 4000,
+      "hydraulicPressureCriticalThreshold": 4500
+    },
+    "relations": []
+  },
+  {
+    "name": "Haul truck A",
+    "type": "Haul truck",
+    "label": "Haul truck A",
+    "group": "Machines",
+    "emulator": "loadingToUnloadingHaulTruck",
+    "attributes": {
+      "loadWeightWarningThreshold": 55000,
+      "loadWeightCriticalThreshold": 60000
+    },
+    "relations": []
+  },
+  {
+    "name": "Haul truck B",
+    "type": "Haul truck",
+    "label": "Haul truck B",
+    "group": "Machines",
+    "emulator": "insideRestrictedZoneHaulTruck",
+    "attributes": {
+      "loadWeightWarningThreshold": 55000,
+      "loadWeightCriticalThreshold": 60000
+    },
+    "relations": []
+  },
+  {
+    "name": "Haul truck C",
+    "type": "Haul truck",
+    "label": "Haul truck C",
+    "group": "Machines",
+    "emulator": "outsideMineSiteHaulTruck",
+    "attributes": {
+      "loadWeightWarningThreshold": 55000,
+      "loadWeightCriticalThreshold": 60000
+    },
+    "relations": []
+  }
+]

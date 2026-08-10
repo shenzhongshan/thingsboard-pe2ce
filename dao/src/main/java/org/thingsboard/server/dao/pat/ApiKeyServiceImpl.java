@@ -183,6 +183,12 @@ public class ApiKeyServiceImpl extends AbstractCachedEntityService<ApiKeyCacheKe
     }
 
     @Override
+    public ApiKey findInternalApiKeyByDescription(TenantId tenantId, String description) {
+        log.trace("Executing findInternalApiKeyByDescription [{}][{}]", tenantId, description);
+        return apiKeyDao.findInternalByDescription(tenantId, description);
+    }
+
+    @Override
     public ApiKey findApiKeyByValue(String value) {
         log.trace("Executing findApiKeyByValue [{}]", value);
         var cacheKey = ApiKeyCacheKey.of(value);

@@ -15,11 +15,13 @@
  */
 package org.thingsboard.server.service.security.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.service.security.permission.MergedUserPermissions;
 
@@ -41,6 +43,13 @@ public class SecurityUser extends User {
     private String sessionId = UUID.randomUUID().toString();
     @Getter @Setter
     private MergedUserPermissions userPermissions;
+    /**
+     * Set when the caller authenticated with an internal API key that declares a permission
+     * ceiling. Those permissions then cap the request on top of the usual authority checks, which
+     * on their own would grant a tenant admin everything within the tenant.
+     */
+    @Getter @Setter
+    private boolean permissionsRestricted;
 
     public SecurityUser() {
         super();
@@ -61,6 +70,15 @@ public class SecurityUser extends User {
         this.enabled = enabled;
         this.userPrincipal = userPrincipal;
         this.userPermissions = userPermissions;
+    }
+
+    /**
+     * The entity that owns this user: its customer when customer-scoped, otherwise its tenant.
+     * Mirrors the {@code getOwnerId()} convention used by Device/Asset/etc.
+     */
+    @JsonIgnore
+    public EntityId getOwnerId() {
+        return getCustomerId() != null && !getCustomerId().isNullUid() ? getCustomerId() : getTenantId();
     }
 
     public Collection<GrantedAuthority> getAuthorities() {

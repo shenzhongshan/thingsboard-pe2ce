@@ -69,4 +69,7 @@ public interface CustomerService extends EntityDaoService {
     /** The ancestor chain of the given customer, root-first (excludes the customer itself). */
     List<Customer> findCustomerAncestors(TenantId tenantId, CustomerId customerId);
 
+    /** Ids of all descendants (any depth) of the given customer. Cheaper than loading full entities. */
+    List<CustomerId> findCustomerDescendantIds(TenantId tenantId, CustomerId customerId);
+
 }

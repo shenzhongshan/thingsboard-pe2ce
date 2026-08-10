@@ -26,10 +26,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.thingsboard.server.common.data.event.CalculatedFieldDebugEvent;
+import org.thingsboard.server.common.data.event.ConverterDebugEvent;
 import org.thingsboard.server.common.data.event.ErrorEvent;
 import org.thingsboard.server.common.data.event.Event;
 import org.thingsboard.server.common.data.event.EventType;
+import org.thingsboard.server.common.data.event.IntegrationDebugEvent;
 import org.thingsboard.server.common.data.event.LifecycleEvent;
+import org.thingsboard.server.common.data.event.RawDataEvent;
 import org.thingsboard.server.common.data.event.RuleChainDebugEvent;
 import org.thingsboard.server.common.data.event.RuleNodeDebugEvent;
 import org.thingsboard.server.common.data.event.StatisticsEvent;
@@ -85,6 +88,15 @@ public class EventInsertRepository {
         insertStmtMap.put(EventType.DEBUG_CALCULATED_FIELD, "INSERT INTO " + EventType.DEBUG_CALCULATED_FIELD.getTable() +
                 " (id, tenant_id, ts, entity_id, service_id, cf_id, e_entity_id, e_entity_type, e_msg_id, e_msg_type, e_args, e_result, e_error) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING;");
+        insertStmtMap.put(EventType.RAW_DATA, "INSERT INTO " + EventType.RAW_DATA.getTable() +
+                " (id, tenant_id, ts, entity_id, service_id, e_uuid, e_message_type, e_message) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING;");
+        insertStmtMap.put(EventType.DEBUG_CONVERTER, "INSERT INTO " + EventType.DEBUG_CONVERTER.getTable() +
+                " (id, tenant_id, ts, entity_id, service_id, e_type, e_in_message_type, e_in_message, e_out_message_type, e_out_message, e_metadata, e_error) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING;");
+        insertStmtMap.put(EventType.DEBUG_INTEGRATION, "INSERT INTO " + EventType.DEBUG_INTEGRATION.getTable() +
+                " (id, tenant_id, ts, entity_id, service_id, e_type, e_message, e_message_type, e_status, e_error) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING;");
     }
 
     public void save(List<Event> entities) {
@@ -113,9 +125,75 @@ public class EventInsertRepository {
                 return getRuleChainEventSetter(events);
             case DEBUG_CALCULATED_FIELD:
                 return getCalculatedFieldEventSetter(events);
+            case RAW_DATA:
+                return getRawDataEventSetter(events);
+            case DEBUG_CONVERTER:
+                return getConverterEventSetter(events);
+            case DEBUG_INTEGRATION:
+                return getIntegrationEventSetter(events);
             default:
                 throw new RuntimeException(eventType + " support is not implemented!");
         }
+    }
+
+    private BatchPreparedStatementSetter getRawDataEventSetter(List<Event> events) {
+        return new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                RawDataEvent event = (RawDataEvent) events.get(i);
+                setCommonEventFields(ps, event);
+                safePutString(ps, 6, event.getUuid());
+                safePutString(ps, 7, event.getMessageType());
+                safePutString(ps, 8, event.getMessage());
+            }
+
+            @Override
+            public int getBatchSize() {
+                return events.size();
+            }
+        };
+    }
+
+    private BatchPreparedStatementSetter getConverterEventSetter(List<Event> events) {
+        return new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                ConverterDebugEvent event = (ConverterDebugEvent) events.get(i);
+                setCommonEventFields(ps, event);
+                safePutString(ps, 6, event.getEventType());
+                safePutString(ps, 7, event.getInMsgType());
+                safePutString(ps, 8, event.getInMsg());
+                safePutString(ps, 9, event.getOutMsgType());
+                safePutString(ps, 10, event.getOutMsg());
+                safePutString(ps, 11, event.getMetadata());
+                safePutString(ps, 12, event.getError());
+            }
+
+            @Override
+            public int getBatchSize() {
+                return events.size();
+            }
+        };
+    }
+
+    private BatchPreparedStatementSetter getIntegrationEventSetter(List<Event> events) {
+        return new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                IntegrationDebugEvent event = (IntegrationDebugEvent) events.get(i);
+                setCommonEventFields(ps, event);
+                safePutString(ps, 6, event.getEventType());
+                safePutString(ps, 7, event.getMessage());
+                safePutString(ps, 8, event.getMessageType());
+                safePutString(ps, 9, event.getStatus());
+                safePutString(ps, 10, event.getError());
+            }
+
+            @Override
+            public int getBatchSize() {
+                return events.size();
+            }
+        };
     }
 
     private BatchPreparedStatementSetter getErrorEventSetter(List<Event> events) {

@@ -15,19 +15,33 @@
  */
 package org.thingsboard.server.common.data.trendz;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
+/**
+ * Per-tenant pointer to a Trendz instance, used to embed Trendz views in dashboards.
+ * <p>
+ * Distinct from {@link TrendzIntegrationSettings}, which is the system-wide handshake state.
+ */
+@Schema
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class TrendzSettings implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
+    @Schema(description = "Whether Trendz widgets are enabled for this tenant.")
     private boolean enabled;
+
+    @Schema(description = "Base URL of the Trendz instance.", example = "https://trendz.domain.com")
     private String baseUrl;
+
+    @Schema(description = "API key used by the Trendz widgets.")
     private String apiKey;
 
 }

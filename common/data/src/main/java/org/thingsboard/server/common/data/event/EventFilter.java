@@ -29,7 +29,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
                 @DiscriminatorMapping(value = "ERROR", schema = ErrorEventFilter.class),
                 @DiscriminatorMapping(value = "LC_EVENT", schema = LifeCycleEventFilter.class),
                 @DiscriminatorMapping(value = "STATS", schema = StatisticsEventFilter.class),
-                @DiscriminatorMapping(value = "DEBUG_CALCULATED_FIELD", schema = CalculatedFieldDebugEventFilter.class)
+                @DiscriminatorMapping(value = "DEBUG_CALCULATED_FIELD", schema = CalculatedFieldDebugEventFilter.class),
+                @DiscriminatorMapping(value = "RAW_DATA", schema = RawDataEventFilter.class),
+                @DiscriminatorMapping(value = "DEBUG_CONVERTER", schema = DebugConverterEventFilter.class),
+                @DiscriminatorMapping(value = "DEBUG_INTEGRATION", schema = DebugIntegrationEventFilter.class)
         }
 )
 @JsonTypeInfo(
@@ -42,7 +45,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
         @JsonSubTypes.Type(value = ErrorEventFilter.class, name = "ERROR"),
         @JsonSubTypes.Type(value = LifeCycleEventFilter.class, name = "LC_EVENT"),
         @JsonSubTypes.Type(value = StatisticsEventFilter.class, name = "STATS"),
-        @JsonSubTypes.Type(value = CalculatedFieldDebugEventFilter.class, name = "DEBUG_CALCULATED_FIELD")
+        @JsonSubTypes.Type(value = CalculatedFieldDebugEventFilter.class, name = "DEBUG_CALCULATED_FIELD"),
+        @JsonSubTypes.Type(value = RawDataEventFilter.class, name = "RAW_DATA"),
+        @JsonSubTypes.Type(value = DebugConverterEventFilter.class, name = "DEBUG_CONVERTER"),
+        @JsonSubTypes.Type(value = DebugIntegrationEventFilter.class, name = "DEBUG_INTEGRATION")
 })
 public interface EventFilter {
 

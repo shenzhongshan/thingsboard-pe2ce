@@ -90,6 +90,8 @@ public interface CustomerDao extends Dao<Customer>, TenantEntityDao<Customer>, E
 
     List<Customer> findAncestors(UUID tenantId, UUID customerId);
 
+    List<UUID> findDescendantIds(UUID tenantId, UUID customerId);
+
     /**
      * Find, for each of the given customer ids, the comma-joined names of the Entity Groups it belongs to.
      *

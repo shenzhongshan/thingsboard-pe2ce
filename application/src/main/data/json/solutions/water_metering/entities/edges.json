@@ -1,0 +1,36 @@
+[
+  {
+    "name": "Remote Facility W1",
+    "type": "facility",
+    "customer": "Water Metering Customer A",
+    "attributes": {},
+    "relations": [],
+    "userGroups": [
+      {
+        "name": "Customer Administrators",
+        "customer": "Water Metering Customer A"
+      },
+      {
+        "name": "Customer Users",
+        "customer": "Water Metering Customer A"
+      }
+    ],
+    "assetGroups": [],
+    "deviceGroups": [
+      {
+        "name": "Water Meters",
+        "customer": "Water Metering Customer A"
+      }
+    ],
+    "dashboardGroups": [
+      {
+        "name": "Water Metering",
+        "customer": null
+      },
+      {
+        "name": "Water Metering Shared",
+        "customer": null
+      }
+    ]
+  }
+]

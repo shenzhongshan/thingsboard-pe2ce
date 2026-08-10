@@ -1,0 +1,36 @@
+{
+  "name": "SI Soil Moisture Sensor",
+  "description": null,
+  "image": null,
+  "type": "DEFAULT",
+  "transportType": "DEFAULT",
+  "provisionType": "DISABLED",
+  "defaultRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "cd629220-398b-11ed-af17-3d7337747e91"
+  },
+  "defaultEdgeRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "53190790-9676-11ed-b5e1-392bb934190c"
+  },
+  "defaultDashboardId": null,
+  "defaultQueueName": null,
+  "profileData": {
+    "configuration": {
+      "type": "DEFAULT"
+    },
+    "transportConfiguration": {
+      "type": "DEFAULT"
+    },
+    "provisionConfiguration": {
+      "type": "DISABLED",
+      "provisionDeviceSecret": null
+    }
+  },
+  "provisionDeviceKey": null,
+  "firmwareId": null,
+  "softwareId": null,
+  "externalId": null,
+  "default": false,
+  "jsonId": "475738e7-143c-47b1-8e41-c3514563eadc"
+}

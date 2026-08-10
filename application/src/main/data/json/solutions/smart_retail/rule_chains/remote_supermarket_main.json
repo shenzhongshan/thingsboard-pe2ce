@@ -1,0 +1,324 @@
+{
+  "ruleChain": {
+    "name": "Supermarket Devices (Remote Supermarket)",
+    "type": "EDGE",
+    "firstRuleNodeId": null,
+    "root": false,
+    "debugMode": false,
+    "configuration": null,
+    "additionalInfo": {
+      "description": ""
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 2,
+    "nodes": [
+      {
+        "type": "org.thingsboard.rule.engine.telemetry.TbMsgTimeseriesNode",
+        "name": "Save Timeseries",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 1,
+        "configuration": {
+          "defaultTTL": 0,
+          "useServerTs": false,
+          "processingSettings": {
+            "type": "ON_EVERY_MESSAGE"
+          }
+        },
+        "additionalInfo": {
+          "layoutX": 839,
+          "layoutY": 272
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.telemetry.TbMsgAttributesNode",
+        "name": "Save Client Attributes",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 3,
+        "configuration": {
+          "processingSettings": {
+            "type": "ON_EVERY_MESSAGE"
+          },
+          "scope": "CLIENT_SCOPE",
+          "notifyDevice": false,
+          "sendAttributesUpdatedNotification": false,
+          "updateAttributesOnlyOnValueChange": false
+        },
+        "additionalInfo": {
+          "layoutX": 841,
+          "layoutY": 135
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbMsgTypeSwitchNode",
+        "name": "Message Type Switch",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "version": 0
+        },
+        "additionalInfo": {
+          "layoutX": 110,
+          "layoutY": 697
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbLogNode",
+        "name": "Log RPC from Device",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "jsScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);"
+        },
+        "additionalInfo": {
+          "layoutX": 858,
+          "layoutY": 457
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.action.TbLogNode",
+        "name": "Log Other",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "jsScript": "return '\\nIncoming message:\\n' + JSON.stringify(msg) + '\\nIncoming metadata:\\n' + JSON.stringify(metadata);"
+        },
+        "additionalInfo": {
+          "layoutX": 853,
+          "layoutY": 560
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.rpc.TbSendRPCRequestNode",
+        "name": "RPC Call Request",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "timeoutInSeconds": 60
+        },
+        "additionalInfo": {
+          "layoutX": 857,
+          "layoutY": 642
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.edge.TbMsgPushToCloudNode",
+        "name": "Push to cloud",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scope": "SERVER_SCOPE"
+        },
+        "additionalInfo": {
+          "layoutX": 1140,
+          "layoutY": 196
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.analytics.latest.alarm.TbAlarmsCountNodeV2",
+        "name": "Alarms Count",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": "Main",
+        "configurationVersion": 2,
+        "configuration": {
+          "alarmsCountMappings": [
+            {
+              "target": "criticalAlarmsCount",
+              "typesList": [
+                "High Temperature Alarm",
+                "Low Temperature Alarm",
+                "Door left open",
+                "Low Battery",
+                "Motion Detected",
+                "Prolonged occupation",
+                "Bin is full",
+                "Low on items",
+                "Fire Alarm",
+                "Low Liquid Level",
+                "Door was broken"
+              ],
+              "severityList": [
+                "CRITICAL"
+              ],
+              "statusList": [
+                "ACTIVE_UNACK",
+                "ACTIVE_ACK"
+              ]
+            },
+            {
+              "target": "majorAlarmsCount",
+              "typesList": [
+                "High Temperature Alarm",
+                "Low Temperature Alarm",
+                "Door left open",
+                "Door was broken",
+                "Low Battery",
+                "Low Liquid Level",
+                "Motion Detected",
+                "Prolonged occupation",
+                "Bin is full",
+                "Low on items",
+                "Fire Alarm"
+              ],
+              "severityList": [
+                "MAJOR"
+              ],
+              "statusList": [
+                "ACTIVE_UNACK",
+                "ACTIVE_ACK"
+              ]
+            }
+          ],
+          "countAlarmsForPropagationEntities": true,
+          "propagationEntityTypes": [],
+          "outMsgType": "POST_TELEMETRY_REQUEST"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 349,
+          "layoutY": 182
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.filter.TbOriginatorTypeFilterNode",
+        "name": "isDeviceOrAsset",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "originatorTypes": [
+            "DEVICE",
+            "ASSET"
+          ]
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 378,
+          "layoutY": 377
+        }
+      },
+      {
+        "type": "org.thingsboard.rule.engine.transform.TbTransformMsgNode",
+        "name": "Update state attributes",
+        "debugSettings": null,
+        "singletonMode": false,
+        "queueName": null,
+        "configurationVersion": 0,
+        "configuration": {
+          "scriptLang": "TBEL",
+          "jsScript": "return {msg: msg, metadata: metadata, msgType: msgType};",
+          "tbelScript": "var criticalAlarmsCount = msg.criticalAlarmsCount;\nvar majorAlarmsCount = msg.majorAlarmsCount;\n\nvar state = 'normal';\n\nif (criticalAlarmsCount != null && criticalAlarmsCount > 0) {\n    state = 'critical';\n} else if (majorAlarmsCount != null && majorAlarmsCount > 0) {\n    state = 'major';\n}\n\nreturn {\n    msg: {\n        state: state\n    },\n    metadata: {\n        scope: 'SERVER_SCOPE'\n    },\n    msgType: 'POST_ATTRIBUTES_REQUEST'\n};"
+        },
+        "additionalInfo": {
+          "description": "",
+          "layoutX": 547,
+          "layoutY": 286
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromIndex": 0,
+        "toIndex": 6,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 1,
+        "toIndex": 6,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 0,
+        "type": "Post telemetry"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 1,
+        "type": "Post attributes"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 3,
+        "type": "RPC Request from Device"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 4,
+        "type": "Other"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 5,
+        "type": "RPC Request to Device"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 6,
+        "type": "Attributes Deleted"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 6,
+        "type": "Attributes Updated"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 7,
+        "type": "Alarm Cleared"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 7,
+        "type": "Alarm Created"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 7,
+        "type": "Alarm Severity Updated"
+      },
+      {
+        "fromIndex": 2,
+        "toIndex": 8,
+        "type": "Entity Created"
+      },
+      {
+        "fromIndex": 7,
+        "toIndex": 0,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 7,
+        "toIndex": 8,
+        "type": "Success"
+      },
+      {
+        "fromIndex": 8,
+        "toIndex": 9,
+        "type": "True"
+      },
+      {
+        "fromIndex": 9,
+        "toIndex": 1,
+        "type": "Success"
+      }
+    ],
+    "ruleChainConnections": null
+  }
+}

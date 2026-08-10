@@ -38,6 +38,12 @@ public interface ApiKeyService extends EntityDaoService {
 
     ApiKey findApiKeyByValue(String value);
 
+    /**
+     * Internal keys are created by the platform (not through the API) and are addressed by the fixed
+     * description they were given, since nothing else knows their id.
+     */
+    ApiKey findInternalApiKeyByDescription(TenantId tenantId, String description);
+
     ApiKey findApiKeyById(TenantId tenantId, ApiKeyId apiKeyId);
 
     PageData<ApiKeyInfo> findApiKeysByUserId(TenantId tenantId, UserId userId, PageLink pageLink);

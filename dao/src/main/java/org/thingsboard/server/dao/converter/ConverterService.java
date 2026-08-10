@@ -21,12 +21,16 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.dao.entity.EntityDaoService;
 
 /**
  * CE port of PE's converter persistence service. Dropped vs PE: edge templates, async lookups,
  * converter type maps, VC export.
+ * <p>
+ * Extends {@link EntityDaoService} (as in PE) so CONVERTER resolves through
+ * EntityServiceRegistry — required by generic entity lookups such as the events API.
  */
-public interface ConverterService {
+public interface ConverterService extends EntityDaoService {
 
     Converter saveConverter(Converter converter);
 

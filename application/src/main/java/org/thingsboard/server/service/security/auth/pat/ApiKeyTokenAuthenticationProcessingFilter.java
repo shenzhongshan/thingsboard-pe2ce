@@ -29,7 +29,16 @@ import org.springframework.security.web.authentication.AbstractAuthenticationPro
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.thingsboard.server.service.security.auth.extractor.TokenExtractor;
+import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.service.security.model.token.ApiKeyAuthRequest;
+
+import java.util.UUID;
+import java.util.function.Function;
+
+import static org.thingsboard.server.service.trendz.TrendzClient.TRENDZ_CUSTOMER_ID_HEADER;
+import static org.thingsboard.server.service.trendz.TrendzClient.TRENDZ_USER_ID_HEADER;
 
 import java.io.IOException;
 
@@ -53,8 +62,23 @@ public class ApiKeyTokenAuthenticationProcessingFilter extends AbstractAuthentic
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         String apiKeyValue = tokenExtractor.extract(request);
-        ApiKeyAuthRequest apiKeyAuthRequest = new ApiKeyAuthRequest(apiKeyValue);
+        // Passed on unvalidated: the provider ignores them unless the key turns out to be internal.
+        ApiKeyAuthRequest apiKeyAuthRequest = new ApiKeyAuthRequest(apiKeyValue,
+                toId(request.getHeader(TRENDZ_USER_ID_HEADER), UserId::new),
+                toId(request.getHeader(TRENDZ_CUSTOMER_ID_HEADER), CustomerId::new));
         return getAuthenticationManager().authenticate(new ApiKeyAuthenticationToken(apiKeyAuthRequest));
+    }
+
+    private static <T> T toId(String value, Function<UUID, T> factory) {
+        if (StringUtils.isEmpty(value)) {
+            return null;
+        }
+        try {
+            return factory.apply(UUID.fromString(value));
+        } catch (IllegalArgumentException e) {
+            // A malformed header is treated as absent rather than as an authentication failure.
+            return null;
+        }
     }
 
     @Override

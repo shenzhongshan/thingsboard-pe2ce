@@ -1,0 +1,39 @@
+{
+  "type": "SIMPLE",
+  "name": "Output power",
+  "entityId": {
+    "id": "c9163c32-76bb-49ad-aabb-7e0181dca116",
+    "entityType": "DEVICE_PROFILE"
+  },
+  "debugSettings": {
+    "failuresEnabled": true,
+    "allEnabled": false,
+    "allEnabledUntil": 1744037684134
+  },
+  "configurationVersion": 0,
+  "configuration": {
+    "type": "SIMPLE",
+    "arguments": {
+      "outputPowerDischarge": {
+        "refEntityKey": {
+          "key": "dischargeCurrent",
+          "type": "TS_LATEST"
+        },
+        "defaultValue": ""
+      },
+      "outputPowerVoltage": {
+        "refEntityKey": {
+          "key": "voltage",
+          "type": "TS_LATEST"
+        },
+        "defaultValue": ""
+      }
+    },
+    "expression": "outputPowerDischarge*outputPowerVoltage",
+    "output": {
+      "name": "outputPower",
+      "type": "TIME_SERIES",
+      "decimalsByDefault": 0
+    }
+  }
+}

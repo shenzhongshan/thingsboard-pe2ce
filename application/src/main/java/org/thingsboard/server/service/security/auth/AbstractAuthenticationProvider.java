@@ -32,6 +32,14 @@ import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.service.security.model.SecurityUser;
+import org.thingsboard.server.service.security.permission.AuthorityPermissionsInfo;
+import org.thingsboard.server.service.security.permission.MergedUserPermissions;
+import org.thingsboard.server.service.security.permission.Operation;
+import org.thingsboard.server.service.security.permission.Resource;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 import org.thingsboard.server.service.user.cache.UserAuthDetailsCache;
 
@@ -75,6 +83,15 @@ public abstract class AbstractAuthenticationProvider implements AuthenticationPr
     }
 
     protected SecurityUser authenticateByUserId(TenantId tenantId, UserId userId) {
+        return authenticateByUserId(tenantId, userId, null);
+    }
+
+    /**
+     * When {@code permissionsInfo} is present it <em>replaces</em> the user's own permissions rather
+     * than adding to them: an internal API key is a ceiling on what may be done, while the user
+     * identity still decides whose data is in scope.
+     */
+    protected SecurityUser authenticateByUserId(TenantId tenantId, UserId userId, AuthorityPermissionsInfo permissionsInfo) {
         UserAuthDetails userAuthDetails = userAuthDetailsCache.getUserAuthDetails(tenantId, userId);
         if (userAuthDetails == null) {
             throw new UsernameNotFoundException("User with credentials not found");
@@ -89,6 +106,15 @@ public abstract class AbstractAuthenticationProvider implements AuthenticationPr
         }
 
         UserPrincipal userPrincipal = new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail());
+        if (permissionsInfo != null) {
+            Map<Resource, Set<Operation>> permissions = permissionsInfo.getPermissionsForAuthority(user.getAuthority());
+            if (permissions != null && !permissions.isEmpty()) {
+                SecurityUser securityUser = new SecurityUser(user, true, userPrincipal,
+                        new MergedUserPermissions(permissions, Collections.emptyMap()));
+                securityUser.setPermissionsRestricted(true);
+                return securityUser;
+            }
+        }
         return new SecurityUser(user, true, userPrincipal);
     }
 

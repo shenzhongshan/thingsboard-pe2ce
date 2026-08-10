@@ -27,6 +27,7 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -47,9 +48,31 @@ public class DefaultAccessControlService implements AccessControlService {
     }
 
     @Override
+    public Set<Resource> getAllowedResources(Authority authority) {
+        Permissions permissions = authorityPermissions.get(authority);
+        if (permissions instanceof AbstractPermissions abstractPermissions) {
+            return Set.copyOf(abstractPermissions.keySet());
+        }
+        return Set.of();
+    }
+
+    @Override
     public void checkPermission(SecurityUser user, Resource resource, Operation operation) throws ThingsboardException {
+        checkRestriction(user, resource, operation);
         PermissionChecker permissionChecker = getPermissionChecker(user.getAuthority(), resource);
         if (!permissionChecker.hasPermission(user, operation)) {
+            permissionDenied();
+        }
+    }
+
+    /**
+     * An internal API key declares what it may do; that list caps the request regardless of how
+     * powerful the impersonated user is. Applied before the normal authority check, never instead
+     * of it, so a restricted caller can only ever do less than the user it acts as.
+     */
+    private void checkRestriction(SecurityUser user, Resource resource, Operation operation) throws ThingsboardException {
+        if (user.isPermissionsRestricted()
+                && (user.getUserPermissions() == null || !user.getUserPermissions().hasGenericPermission(resource, operation))) {
             permissionDenied();
         }
     }
@@ -57,6 +80,7 @@ public class DefaultAccessControlService implements AccessControlService {
     @Override
     @SuppressWarnings("unchecked")
     public boolean hasPermission(SecurityUser user, Resource resource, Operation operation) throws ThingsboardException {
+        checkRestriction(user, resource, operation);
         var permissionChecker = getPermissionChecker(user.getAuthority(), resource);
         return permissionChecker.hasPermission(user, operation);
     }
@@ -65,6 +89,7 @@ public class DefaultAccessControlService implements AccessControlService {
     @SuppressWarnings("unchecked")
     public <I extends EntityId, T extends HasTenantId> void checkPermission(SecurityUser user, Resource resource,
                                                                             Operation operation, I entityId, T entity) throws ThingsboardException {
+        checkRestriction(user, resource, operation);
         PermissionChecker permissionChecker = getPermissionChecker(user.getAuthority(), resource);
         if (!permissionChecker.hasPermission(user, operation, entityId, entity)) {
             permissionDenied();
@@ -74,6 +99,7 @@ public class DefaultAccessControlService implements AccessControlService {
     @Override
     @SuppressWarnings("unchecked")
     public <I extends EntityId, T extends HasTenantId> boolean hasPermission(SecurityUser user, Resource resource, Operation operation, I entityId, T entity) throws ThingsboardException {
+        checkRestriction(user, resource, operation);
         var permissionChecker = getPermissionChecker(user.getAuthority(), resource);
         return permissionChecker.hasPermission(user, operation, entityId, entity);
     }

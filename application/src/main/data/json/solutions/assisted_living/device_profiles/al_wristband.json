@@ -1,0 +1,36 @@
+{
+  "name": "AL_Wristband",
+  "description": null,
+  "image": null,
+  "type": "DEFAULT",
+  "transportType": "DEFAULT",
+  "provisionType": "DISABLED",
+  "defaultRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "54ec7690-9d9e-11ed-9390-d159ada3209f"
+  },
+  "defaultEdgeRuleChainId": {
+    "entityType": "RULE_CHAIN",
+    "id": "4af7b2d0-cf94-11ed-89f0-1539199f4c4d"
+  },
+  "defaultDashboardId": null,
+  "defaultQueueName": null,
+  "profileData": {
+    "configuration": {
+      "type": "DEFAULT"
+    },
+    "transportConfiguration": {
+      "type": "DEFAULT"
+    },
+    "provisionConfiguration": {
+      "type": "DISABLED",
+      "provisionDeviceSecret": null
+    }
+  },
+  "provisionDeviceKey": null,
+  "firmwareId": null,
+  "softwareId": null,
+  "externalId": null,
+  "default": false,
+  "jsonId": "827d55ab-da1b-4c50-a721-32ec778182ef"
+}

@@ -112,3 +112,16 @@ SELECT t.*,
            ORDER BY b.title
        )) AS bundles
 FROM widget_type t;
+
+-- PE parity: enriches report rows with template/user/customer names in a single join,
+-- replacing per-row lookups when listing reports.
+DROP VIEW IF EXISTS report_info_view CASCADE;
+CREATE OR REPLACE VIEW report_info_view AS
+SELECT r.*,
+       c.title AS customer_title,
+       rt.name AS report_template_name,
+       u.email AS user_name
+FROM report r
+         LEFT JOIN report_template rt ON rt.id = r.template_id
+         LEFT JOIN tb_user u ON u.id = r.user_id
+         LEFT JOIN customer c ON c.id = r.customer_id;

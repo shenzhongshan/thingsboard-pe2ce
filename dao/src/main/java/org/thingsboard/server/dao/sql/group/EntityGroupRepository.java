@@ -21,13 +21,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.dao.ExportableEntityRepository;
 import org.thingsboard.server.dao.model.sql.EntityGroupEntity;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, UUID> {
+public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, UUID>, ExportableEntityRepository<EntityGroupEntity> {
 
     // owner_id = tenant_id for tenant-owned groups, a customer id for customer-owned groups
     @Query("SELECT g FROM EntityGroupEntity g WHERE g.ownerId = :ownerId AND g.type = :type " +
@@ -40,5 +41,16 @@ public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, 
     Optional<EntityGroupEntity> findByOwnerIdAndTypeAndName(UUID ownerId, EntityType type, String name);
 
     List<EntityGroupEntity> findAllByTenantId(UUID tenantId);
+
+    List<EntityGroupEntity> findAllByOwnerId(UUID ownerId);
+
+    @Query("SELECT g FROM EntityGroupEntity g WHERE g.tenantId = :tenantId " +
+            "AND (:textSearch IS NULL OR ilike(g.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<EntityGroupEntity> findByTenantId(@Param("tenantId") UUID tenantId,
+                                            @Param("textSearch") String textSearch,
+                                            Pageable pageable);
+
+    @Query("SELECT externalId FROM EntityGroupEntity WHERE id = :id")
+    UUID getExternalIdById(@Param("id") UUID id);
 
 }

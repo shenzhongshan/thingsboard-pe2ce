@@ -28,10 +28,11 @@ import org.thingsboard.server.common.data.page.PageLink;
 import java.util.List;
 
 /**
- * CE port of PE's entity group service. Groups are tenant-owned; membership is stored as
- * relations (FROM group TO entity, type "Contains", group FROM_ENTITY_GROUP). The "All" group
- * is virtual: it is auto-seeded per tenant per type and its member listing is the plain tenant
- * entity list.
+ * CE port of PE's entity group service. Groups are tenant- or customer-owned; membership is
+ * stored as relations (FROM group TO entity, type "Contains", group FROM_ENTITY_GROUP) — this
+ * includes the "All" group, matching PE: it is auto-seeded per owner per type and its membership
+ * is maintained via the same relations as any named group (see ensureAllGroupMembership /
+ * moveAllGroupMembership), not computed on the fly.
  */
 public interface EntityGroupService {
 
@@ -47,6 +48,9 @@ public interface EntityGroupService {
     PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, CustomerId ownerId, EntityType groupType, PageLink pageLink);
 
     void deleteEntityGroup(TenantId tenantId, EntityGroupId entityGroupId);
+
+    /** Removes every group the owner holds, including its "All" groups. Call when deleting the owner. */
+    void deleteEntityGroupsByOwner(TenantId tenantId, EntityId ownerId);
 
     void addEntitiesToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds);
 
@@ -78,5 +82,20 @@ public interface EntityGroupService {
 
     /** Raw member entity ids of a group (including the virtual "All" group). */
     List<EntityId> findAllEntityIds(TenantId tenantId, EntityGroupId entityGroupId);
+
+    /**
+     * Adds entityId as a member of the "All" group for groupType, owned by ownerId (null =
+     * tenant-owned) — creating the group row first if needed. Idempotent: safe to call for an
+     * entity that's already a member. Call at entity creation, and again whenever an entity's
+     * customer assignment changes (in addition to moveAllGroupMembership, which also detaches
+     * the old owner's relation).
+     */
+    void ensureAllGroupMembership(TenantId tenantId, CustomerId ownerId, EntityType groupType, EntityId entityId);
+
+    /**
+     * Moves entityId's "All"-group membership from oldOwnerId's group to newOwnerId's group for
+     * groupType (either may be null for tenant-owned). No-op if oldOwnerId equals newOwnerId.
+     */
+    void moveAllGroupMembership(TenantId tenantId, CustomerId oldOwnerId, CustomerId newOwnerId, EntityType groupType, EntityId entityId);
 
 }

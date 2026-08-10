@@ -32,6 +32,8 @@ public interface ApiKeyRepository extends JpaRepository<ApiKeyEntity, UUID> {
 
     ApiKeyEntity findByValue(String value);
 
+    ApiKeyEntity findByTenantIdAndDescriptionAndInternalTrue(UUID tenantId, String description);
+
     Page<ApiKeyEntity> findByTenantId(UUID tenantId, Pageable pageable);
 
     List<ApiKeyEntity> findByTenantIdAndUserId(UUID tenantId, UUID userId);

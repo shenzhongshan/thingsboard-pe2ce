@@ -1,0 +1,78 @@
+[
+  {
+    "name": "Smart sensor",
+    "type": "smart-sensor",
+    "group": "Office sensors",
+    "emulator": "smart-sensor",
+    "attributes": {
+      "type": "smart-sensor",
+      "xPos": 0.71,
+      "yPos": 0.39
+    },
+    "relations": [
+      {
+        "entityType": "ASSET",
+        "entityName": "Office",
+        "direction": "FROM",
+        "type": "Contains"
+      }
+    ]
+  },
+  {
+    "name": "HVAC",
+    "type": "hvac",
+    "group": "Office sensors",
+    "emulator": "hvac",
+    "attributes": {
+      "type": "hvac",
+      "xPos": 0.29,
+      "yPos": 0.84
+    },
+    "relations": [
+      {
+        "entityType": "ASSET",
+        "entityName": "Office",
+        "direction": "FROM",
+        "type": "Contains"
+      }
+    ]
+  },
+  {
+    "name": "Energy meter",
+    "type": "energy-meter",
+    "group": "Office sensors",
+    "emulator": "energy-meter",
+    "attributes": {
+      "type": "energy-meter",
+      "xPos": 0.49,
+      "yPos": 0.53
+    },
+    "relations": [
+      {
+        "entityType": "ASSET",
+        "entityName": "Office",
+        "direction": "FROM",
+        "type": "Contains"
+      }
+    ]
+  },
+  {
+    "name": "Water meter",
+    "type": "water-meter",
+    "group": "Office sensors",
+    "emulator": "water-meter",
+    "attributes": {
+      "type": "water-meter",
+      "xPos": 0.75,
+      "yPos": 0.94
+    },
+    "relations": [
+      {
+        "entityType": "ASSET",
+        "entityName": "Office",
+        "direction": "FROM",
+        "type": "Contains"
+      }
+    ]
+  }
+]

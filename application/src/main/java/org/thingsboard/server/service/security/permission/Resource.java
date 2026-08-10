@@ -18,6 +18,8 @@ package org.thingsboard.server.service.security.permission;
 import org.thingsboard.server.common.data.EntityType;
 
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Set;
 
 public enum Resource {
@@ -65,7 +67,74 @@ public enum Resource {
     GROUP_PERMISSION(EntityType.GROUP_PERMISSION),
     REPORT_TEMPLATE(EntityType.REPORT_TEMPLATE),
     REPORT(EntityType.REPORT),
+    BLOB_ENTITY(EntityType.BLOB_ENTITY),
     SECRET(EntityType.SECRET);
+
+    /**
+     * PE parity: static vocabulary of which operations are meaningful for each resource.
+     * Purely descriptive — it drives UI role-editor choices and is exposed via
+     * /api/permissions/allowedPermissions. Actual enforcement lives in the Permissions classes.
+     */
+    public static final Map<Resource, Set<Operation>> operationsByResource;
+
+    static {
+        Map<Resource, Set<Operation>> map = new EnumMap<>(Resource.class);
+        map.put(ALL, Set.of(Operation.values()));
+        map.put(ADMIN_SETTINGS, Set.of(Operation.ALL, Operation.READ, Operation.WRITE));
+        map.put(OAUTH2_CLIENT, Operation.crudOperations);
+        map.put(DOMAIN, Operation.crudOperations);
+        map.put(MOBILE_APP, Operation.crudOperations);
+        map.put(MOBILE_APP_BUNDLE, Operation.crudOperations);
+        map.put(OAUTH2_CONFIGURATION_TEMPLATE, Operation.crudOperations);
+        map.put(ALARM, Set.of(Operation.ALL, Operation.READ, Operation.WRITE, Operation.CREATE));
+        map.put(DEVICE, Set.of(Operation.ALL, Operation.READ, Operation.WRITE, Operation.CREATE, Operation.DELETE,
+                Operation.RPC_CALL, Operation.READ_CREDENTIALS, Operation.WRITE_CREDENTIALS,
+                Operation.READ_ATTRIBUTES, Operation.WRITE_ATTRIBUTES, Operation.READ_TELEMETRY,
+                Operation.WRITE_TELEMETRY, Operation.CLAIM_DEVICES, Operation.CHANGE_OWNER,
+                Operation.ASSIGN_TO_TENANT, Operation.READ_CALCULATED_FIELD, Operation.WRITE_CALCULATED_FIELD));
+        map.put(DEVICE_PROFILE, Operation.defaultCFEntityOperations);
+        map.put(ASSET_PROFILE, Operation.defaultCFEntityOperations);
+        map.put(OTA_PACKAGE, Operation.defaultEntityOperations);
+        map.put(ASSET, Operation.defaultCFEntityOperations);
+        map.put(CUSTOMER, Operation.defaultCFEntityOperations);
+        map.put(DASHBOARD, Operation.defaultEntityOperations);
+        map.put(ENTITY_VIEW, Operation.defaultEntityOperations);
+        map.put(EDGE, Operation.defaultEntityOperations);
+        map.put(TENANT, Operation.defaultEntityOperations);
+        map.put(TENANT_PROFILE, Operation.defaultEntityOperations);
+        map.put(API_USAGE_STATE, Set.of(Operation.ALL, Operation.READ, Operation.READ_TELEMETRY));
+        map.put(RULE_CHAIN, Operation.defaultEntityOperations);
+        map.put(USER, Operation.defaultEntityOperations);
+        map.put(WIDGETS_BUNDLE, Operation.crudOperations);
+        map.put(WIDGET_TYPE, Operation.crudOperations);
+        map.put(TB_RESOURCE, Operation.defaultEntityOperations);
+        map.put(CONVERTER, Operation.defaultEntityOperations);
+        map.put(INTEGRATION, Operation.defaultEntityOperations);
+        map.put(SCHEDULER_EVENT, Operation.defaultEntityOperations);
+        // CE models entity groups with a single ENTITY_GROUP resource rather than PE's
+        // per-type CUSTOMER_GROUP/DEVICE_GROUP/... resources.
+        map.put(ENTITY_GROUP, Operation.defaultEntityGroupOperations);
+        map.put(ROLE, Operation.defaultEntityOperations);
+        map.put(GROUP_PERMISSION, Operation.crudOperations);
+        map.put(WHITE_LABELING, Set.of(Operation.ALL, Operation.READ, Operation.WRITE));
+        map.put(QUEUE, Set.of(Operation.ALL, Operation.READ));
+        map.put(VERSION_CONTROL, Set.of(Operation.ALL, Operation.READ, Operation.WRITE, Operation.DELETE));
+        map.put(NOTIFICATION, Operation.crudOperations);
+        map.put(MOBILE_APP_SETTINGS, Set.of(Operation.ALL, Operation.READ, Operation.WRITE));
+        map.put(JOB, Operation.crudOperations);
+        map.put(SECRET, Operation.crudOperations);
+        map.put(REPORT_TEMPLATE, Operation.crudOperations);
+        map.put(REPORT, Operation.crudOperations);
+        map.put(BLOB_ENTITY, Operation.defaultEntityOperations);
+        map.put(AI_MODEL, Operation.crudOperations);
+        map.put(API_KEY, Operation.crudOperations);
+        map.put(RPC, Operation.crudOperations);
+        operationsByResource = Collections.unmodifiableMap(map);
+    }
+
+    public static Set<Operation> operationsForResource(Resource resource) {
+        return operationsByResource.getOrDefault(resource, Set.of());
+    }
 
     private final Set<EntityType> entityTypes;
 

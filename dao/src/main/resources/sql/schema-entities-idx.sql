@@ -116,4 +116,11 @@ CREATE INDEX IF NOT EXISTS idx_job_tenant_id ON job(tenant_id);
 
 CREATE INDEX IF NOT EXISTS idx_ai_model_tenant_id ON ai_model(tenant_id);
 
+CREATE INDEX IF NOT EXISTS idx_entity_group_by_type_name_and_owner_id ON entity_group(type, name, owner_id);
+
+CREATE INDEX IF NOT EXISTS idx_entity_group_external_id ON entity_group(external_id);
+
 CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_blob_entity_id ON blob_entity(id);
+CREATE INDEX IF NOT EXISTS idx_blob_entity_created_time ON blob_entity(tenant_id, created_time DESC);
