@@ -120,7 +120,18 @@ CREATE INDEX IF NOT EXISTS idx_entity_group_by_type_name_and_owner_id ON entity_
 
 CREATE INDEX IF NOT EXISTS idx_entity_group_external_id ON entity_group(external_id);
 
+-- VC external id lookups (ExportableEntityRepository.findByTenantIdAndExternalId) for the PE-ported
+-- entity types. Same shape as idx_entity_group_external_id above.
+CREATE INDEX IF NOT EXISTS idx_converter_external_id ON converter(external_id);
+CREATE INDEX IF NOT EXISTS idx_integration_external_id ON integration(external_id);
+CREATE INDEX IF NOT EXISTS idx_role_external_id ON role(external_id);
+CREATE INDEX IF NOT EXISTS idx_scheduler_event_external_id ON scheduler_event(external_id);
+CREATE INDEX IF NOT EXISTS idx_report_template_external_id ON report_template(external_id);
+
 CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
+-- Every ApiKeyRepository lookup is tenant-scoped (findByTenantId, findByTenantIdAndUserId and the two
+-- native queries); idx_api_key_user_id above serves none of them because it omits the leading tenant_id.
+CREATE INDEX IF NOT EXISTS idx_api_key_tenant_id_user_id ON api_key(tenant_id, user_id);
 
 CREATE INDEX IF NOT EXISTS idx_blob_entity_id ON blob_entity(id);
 CREATE INDEX IF NOT EXISTS idx_blob_entity_created_time ON blob_entity(tenant_id, created_time DESC);

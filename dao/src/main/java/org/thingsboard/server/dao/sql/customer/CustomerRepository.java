@@ -131,7 +131,8 @@ public interface CustomerRepository extends JpaRepository<CustomerEntity, UUID>,
 
     @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
             "WHERE r.toId IN :ids AND r.toType = 'CUSTOMER' AND eg.type = org.thingsboard.server.common.data.EntityType.CUSTOMER " +
-            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains' " +
+            "AND eg.name <> 'All'")
     List<Object[]> findGroupNamesByCustomerIds(@Param("ids") List<UUID> ids);
 
     @Query("SELECT c.id, p.title FROM CustomerEntity c JOIN CustomerEntity p ON p.id = c.parentCustomerId " +

@@ -47,6 +47,8 @@ import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.DeviceInfoFilter;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.NameConflictPolicy;
 import org.thingsboard.server.common.data.NameConflictStrategy;
@@ -77,6 +79,7 @@ import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.device.DeviceBulkImportService;
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.entitiy.device.TbDeviceService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -140,6 +143,8 @@ public class DeviceController extends BaseController {
     private final DeviceBulkImportService deviceBulkImportService;
 
     private final TbDeviceService tbDeviceService;
+
+    private final UserEntitiesService userEntitiesService;
 
     @ApiOperation(value = "Get Device (getDeviceById)",
             notes = "Fetch the Device object based on the provided Device Id. " +
@@ -373,6 +378,22 @@ public class DeviceController extends BaseController {
         } else {
             return checkNotNull(deviceService.findDevicesByTenantId(tenantId, pageLink));
         }
+    }
+
+    @ApiOperation(value = "Get User Devices (getUserDevices)",
+            notes = "Returns a page of devices available to the current user: everything in their own owner scope " +
+                    "when they hold a generic role for devices, plus the members of any device group shared with " +
+                    "them through a group role — those may belong to other owners. Users granted neither get an " +
+                    "empty page rather than an error. " + PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/devices", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserDevices(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = DEVICE_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return userEntitiesService.findUserEntities(getCurrentUser(), EntityType.DEVICE, Operation.READ, pageLink);
     }
 
     @ApiOperation(value = "Get Tenant Device Infos (getTenantDeviceInfos)",

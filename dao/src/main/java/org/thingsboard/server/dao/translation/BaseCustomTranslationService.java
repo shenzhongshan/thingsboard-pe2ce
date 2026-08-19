@@ -31,8 +31,10 @@ import org.thingsboard.server.dao.model.sql.CustomTranslationEntity;
 import org.thingsboard.server.dao.sql.translation.CustomTranslationRepository;
 import org.thingsboard.server.exception.DataValidationException;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -57,6 +59,18 @@ public class BaseCustomTranslationService implements CustomTranslationService {
         UUID ownerCustomerId = ownerCustomerId(customerId);
         return customTranslationRepository.findAllByTenantIdAndCustomerId(tenantId.getId(), ownerCustomerId).stream()
                 .map(CustomTranslationEntity::getLocaleCode).toList();
+    }
+
+    @Override
+    public Set<String> getMergedCustomizedLocales(TenantId tenantId, CustomerId customerId) {
+        Set<String> locales = new HashSet<>(getCustomizedLocales(TenantId.SYS_TENANT_ID, null));
+        if (!tenantId.isSysTenantId()) {
+            locales.addAll(getCustomizedLocales(tenantId, null));
+        }
+        if (customerId != null) {
+            locales.addAll(getCustomizedLocales(tenantId, customerId));
+        }
+        return locales;
     }
 
     @Override

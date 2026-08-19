@@ -51,6 +51,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -204,6 +205,85 @@ public class JacksonUtil {
         }
     }
 
+    public static String writeValueAsStringWithDefaultPrettyPrinter(Object value) {
+        try {
+            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("The given Json object value: "
+                    + value + " cannot be transformed to a String", e);
+        }
+    }
+
+    /**
+     * Flattens a JSON tree into the set of dot-separated paths of its leaf (non-container) nodes.
+     * Array elements are addressed as {@code parent[i]}. Used to compare the key coverage of two
+     * translation trees.
+     */
+    public static Set<String> extractKeys(JsonNode jsonNode) {
+        Set<String> keyPaths = new HashSet<>();
+        extractKeyPathsRecursively("", jsonNode, keyPaths);
+        return keyPaths;
+    }
+
+    private static void extractKeyPathsRecursively(String currentPath, JsonNode jsonNode, Set<String> keyPaths) {
+        if (jsonNode == null) {
+            return;
+        }
+        if (jsonNode.isObject()) {
+            Iterator<String> fieldNames = jsonNode.fieldNames();
+            while (fieldNames.hasNext()) {
+                String fieldName = fieldNames.next();
+                String newPath = currentPath.isEmpty() ? fieldName : currentPath + "." + fieldName;
+                extractKeyPathsRecursively(newPath, jsonNode.get(fieldName), keyPaths);
+            }
+        } else if (jsonNode.isArray()) {
+            for (int i = 0; i < jsonNode.size(); i++) {
+                String newPath = currentPath.isEmpty() ? "[" + i + "]" : currentPath + "[" + i + "]";
+                extractKeyPathsRecursively(newPath, jsonNode.get(i), keyPaths);
+            }
+        } else {
+            keyPaths.add(currentPath);
+        }
+    }
+
+    /**
+     * Deep-merges {@code updateNode} into {@code mainNode} in place (update wins) and returns {@code mainNode}.
+     * Objects are merged recursively; scalars are replaced; arrays are merged element-wise by index.
+     * Explicit nulls in {@code updateNode} never introduce new keys.
+     */
+    public static JsonNode merge(JsonNode mainNode, JsonNode updateNode) {
+        mergeNodes(mainNode, updateNode);
+        return mainNode;
+    }
+
+    public static void mergeNodes(JsonNode mainNode, JsonNode updateNode) {
+        if (mainNode == null || updateNode == null) {
+            return;
+        }
+        Iterator<String> fieldNames = updateNode.fieldNames();
+        while (fieldNames.hasNext()) {
+            String fieldName = fieldNames.next();
+            JsonNode mainValue = mainNode.get(fieldName);
+            if (mainValue != null) {
+                if (mainValue.isObject()) {
+                    mergeNodes(mainValue, updateNode.get(fieldName));
+                } else if (mainValue.isArray()) {
+                    JsonNode updateValue = updateNode.get(fieldName);
+                    for (int i = 0; i < mainValue.size() && i < updateValue.size(); i++) {
+                        mergeNodes(mainValue.get(i), updateValue.get(i));
+                    }
+                } else if (mainNode instanceof ObjectNode) {
+                    ((ObjectNode) mainNode).set(fieldName, updateNode.get(fieldName));
+                }
+            } else if (mainNode instanceof ObjectNode) {
+                JsonNode value = updateNode.get(fieldName);
+                if (!value.isNull()) {
+                    ((ObjectNode) mainNode).set(fieldName, value);
+                }
+            }
+        }
+    }
+
     public static String toPlainText(String data) {
         if (data == null) {
             return null;
@@ -249,6 +329,15 @@ public class JacksonUtil {
         } catch (IOException e) {
             throw new IllegalArgumentException("Can't convert value: " + node.toString(), e);
         }
+    }
+
+    /**
+     * Resolves a dot-separated path ({@code "a.b.c"}) against the node, returning a missing node
+     * rather than null when any segment is absent. Used by the report engine to pull alarm and
+     * entity fields addressed by configuration strings.
+     */
+    public static JsonNode getByKeyPath(JsonNode node, String keyPath) {
+        return node.at("/" + keyPath.replace('.', '/'));
     }
 
     public static JsonNode toJsonNode(String value) {

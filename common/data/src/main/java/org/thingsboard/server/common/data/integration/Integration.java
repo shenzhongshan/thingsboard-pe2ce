@@ -24,9 +24,11 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasDebugSettings;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.debug.DebugSettings;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.IntegrationId;
@@ -35,15 +37,15 @@ import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
- * CE port of PE's integration entity. Dropped vs PE: remote integrations (isRemote always false),
- * edge templates, VC external id / version.
+ * CE port of PE's integration entity. Dropped vs PE: edge templates.
  * Configuration JSON is type-specific (MQTT: host/port/credentials/topicFilters; HTTP: none —
  * inbound endpoint is derived from the routing key).
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Integration extends BaseData<IntegrationId> implements HasName, HasTenantId, HasDebugSettings {
+public class Integration extends BaseData<IntegrationId> implements HasName, HasTenantId, HasDebugSettings,
+        HasVersion, ExportableEntity<IntegrationId> {
 
     private static final long serialVersionUID = 1L;
 
@@ -89,6 +91,12 @@ public class Integration extends BaseData<IntegrationId> implements HasName, Has
     @Schema(description = "allow the integration to create devices or assets for unknown uplink entities", example = "true")
     private boolean allowCreateDevicesOrAssets;
 
+    @Getter @Setter
+    @Schema(description = "Whether the integration is executed by a separate remote process that connects back " +
+            "to the platform over gRPC using this integration's routingKey and secret, instead of running inside " +
+            "the platform.")
+    private boolean remote;
+
     @Deprecated
     @Schema(description = "enable persisting debug events", example = "false", deprecated = true)
     private boolean debugMode;
@@ -105,6 +113,12 @@ public class Integration extends BaseData<IntegrationId> implements HasName, Has
     @NoXss
     @Schema(description = "Additional parameters of the integration", implementation = JsonNode.class)
     private transient JsonNode additionalInfo;
+
+    @Getter @Setter
+    private IntegrationId externalId;
+
+    @Getter @Setter
+    private Long version;
 
     public Integration() {
         super();
@@ -125,10 +139,13 @@ public class Integration extends BaseData<IntegrationId> implements HasName, Has
         this.secret = integration.getSecret();
         this.enabled = integration.isEnabled();
         this.allowCreateDevicesOrAssets = integration.isAllowCreateDevicesOrAssets();
+        this.remote = integration.isRemote();
         this.debugMode = integration.debugMode;
         this.debugSettings = integration.debugSettings;
         this.configuration = integration.getConfiguration() != null ? integration.getConfiguration().deepCopy() : null;
         this.additionalInfo = integration.getAdditionalInfo();
+        this.externalId = integration.getExternalId();
+        this.version = integration.getVersion();
     }
 
     @Override

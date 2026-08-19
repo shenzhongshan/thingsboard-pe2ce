@@ -16,5 +16,6 @@
 package org.thingsboard.script.api;
 
 public enum ScriptType {
-    RULE_NODE_SCRIPT, CALCULATED_FIELD_SCRIPT
+    RULE_NODE_SCRIPT,
+    REPORT_DATA_KEY_SCRIPT, CALCULATED_FIELD_SCRIPT
 }

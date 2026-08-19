@@ -1088,9 +1088,13 @@ CREATE TABLE IF NOT EXISTS converter (
     debug_mode BOOLEAN DEFAULT false,
     debug_settings VARCHAR(1024),
     configuration VARCHAR(10000000),
-    additional_info VARCHAR
+    additional_info VARCHAR,
+    external_id UUID,
+    version BIGINT NOT NULL DEFAULT 1
 );
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS integration (
     id UUID NOT NULL CONSTRAINT integration_pkey PRIMARY KEY,
@@ -1104,12 +1108,19 @@ CREATE TABLE IF NOT EXISTS integration (
     secret VARCHAR(255),
     enabled BOOLEAN,
     allow_create_devices_or_assets BOOLEAN,
+    is_remote BOOLEAN DEFAULT false,
     debug_mode BOOLEAN DEFAULT false,
     debug_settings VARCHAR(1024),
     configuration VARCHAR(10000000),
-    additional_info VARCHAR
+    additional_info VARCHAR,
+    external_id UUID,
+    version BIGINT NOT NULL DEFAULT 1
 );
 ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+-- remote integrations run in a separate process and connect back over gRPC
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_remote BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS entity_group (
     id UUID NOT NULL CONSTRAINT entity_group_pkey PRIMARY KEY,
@@ -1133,8 +1144,12 @@ CREATE TABLE IF NOT EXISTS role (
     name VARCHAR(255),
     type VARCHAR(255),
     permissions VARCHAR(10000000),
-    additional_info VARCHAR
+    additional_info VARCHAR,
+    external_id UUID,
+    version BIGINT NOT NULL DEFAULT 1
 );
+ALTER TABLE role ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE role ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS group_permission (
     id UUID NOT NULL CONSTRAINT group_permission_pkey PRIMARY KEY,
@@ -1170,8 +1185,12 @@ CREATE TABLE IF NOT EXISTS scheduler_event (
     schedule VARCHAR,
     configuration VARCHAR(10000000),
     additional_info VARCHAR,
-    enabled BOOLEAN
+    enabled BOOLEAN,
+    external_id UUID,
+    version BIGINT NOT NULL DEFAULT 1
 );
+ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 -- CE port of PE's report engine. Simplifications vs PE: report.configuration is opaque JSON
 -- (no ~260-class strongly-typed config hierarchy — see ReportComponentType javadoc); no FK on
@@ -1186,8 +1205,12 @@ CREATE TABLE IF NOT EXISTS report_template (
     format VARCHAR(32),
     type VARCHAR(32),
     description VARCHAR(1024),
-    configuration VARCHAR(1000000)
+    configuration VARCHAR(1000000),
+    external_id UUID,
+    version BIGINT NOT NULL DEFAULT 1
 );
+ALTER TABLE report_template ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE report_template ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS report (
     id UUID NOT NULL CONSTRAINT report_pkey PRIMARY KEY,
@@ -1204,6 +1227,19 @@ CREATE TABLE IF NOT EXISTS report (
 CREATE INDEX IF NOT EXISTS idx_report_template_tenant_id ON report_template(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_report_tenant_id_created_time ON report(tenant_id, created_time DESC);
 CREATE INDEX IF NOT EXISTS idx_report_template_id ON report(template_id);
+
+-- Indexes for PE-ported tables that were missed during the ports. Column choices follow this
+-- codebase's actual repository queries, not PE's DDL verbatim (CE's tables differ from PE's).
+-- group_permission had no index at all; all three GroupPermissionRepository finders lead with tenant_id.
+CREATE INDEX IF NOT EXISTS idx_group_permission_tenant_id ON group_permission(tenant_id);
+-- Covers CustomMenuRepository findByTenantId / ...AndScope / ...AndScopeAndAssigneeType as leading
+-- prefixes. PE indexes (tenant_id, customer_id) instead, but CE's custom_menu has no customer_id.
+CREATE INDEX IF NOT EXISTS idx_custom_menu ON custom_menu(tenant_id, scope, assignee_type);
+-- Deliberately NOT ported from PE, each would be dead weight here:
+--   idx_rule_node_type            - redundant, idx_rule_node_type_id_configuration_version leads with type;
+--   idx_encryption_key_tenant_id  - redundant, CE adds a UNIQUE (tenant_id) constraint that PE lacks;
+--   idx_report_id                 - redundant with the primary key;
+--   idx_scheduler_event_originator_id - no CE query filters scheduler_event by originator_id.
 
 -- Binary artifacts (generated report files and similar). Partitioned by created_time like the
 -- other high-volume tables, so old blobs can be dropped a partition at a time.

@@ -17,7 +17,11 @@ package org.thingsboard.server.dao.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -42,6 +46,9 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class BaseSchedulerEventService implements SchedulerEventService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final SchedulerEventDao schedulerEventDao;
     private final DataValidator<SchedulerEvent> schedulerEventValidator;
@@ -118,13 +125,18 @@ public class BaseSchedulerEventService implements SchedulerEventService {
     public SchedulerEvent saveSchedulerEvent(SchedulerEvent schedulerEvent) {
         log.trace("Executing saveSchedulerEvent [{}]", schedulerEvent);
         schedulerEventValidator.validate(schedulerEvent, SchedulerEventInfo::getTenantId);
-        return schedulerEventDao.save(schedulerEvent.getTenantId(), schedulerEvent);
+        boolean created = schedulerEvent.getId() == null;
+        SchedulerEvent saved = schedulerEventDao.save(schedulerEvent.getTenantId(), schedulerEvent);
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(saved.getTenantId()).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
     public void deleteSchedulerEvent(TenantId tenantId, SchedulerEventId schedulerEventId) {
         log.trace("Executing deleteSchedulerEvent [{}]", schedulerEventId);
         schedulerEventDao.removeById(tenantId, schedulerEventId);
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(schedulerEventId).build());
     }
 
     @Override

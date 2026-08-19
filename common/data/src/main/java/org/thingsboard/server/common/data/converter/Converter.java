@@ -24,9 +24,11 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasDebugSettings;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.debug.DebugSettings;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -35,14 +37,15 @@ import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
- * CE port of PE's data converter. Dropped vs PE: edge templates, VC external id / version.
+ * CE port of PE's data converter. Dropped vs PE: edge templates, converter_version.
  * Configuration JSON carries the decoder/encoder script:
  * {"scriptLang":"TBEL"|"JS","decoder":"...","encoder":"..."}.
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Converter extends BaseData<ConverterId> implements HasName, HasTenantId, HasDebugSettings {
+public class Converter extends BaseData<ConverterId> implements HasName, HasTenantId, HasDebugSettings,
+        HasVersion, ExportableEntity<ConverterId> {
 
     private static final long serialVersionUID = 1L;
 
@@ -81,6 +84,12 @@ public class Converter extends BaseData<ConverterId> implements HasName, HasTena
     @Schema(description = "Additional parameters of the converter", implementation = JsonNode.class)
     private transient JsonNode additionalInfo;
 
+    @Getter @Setter
+    private ConverterId externalId;
+
+    @Getter @Setter
+    private Long version;
+
     public Converter() {
         super();
     }
@@ -99,6 +108,8 @@ public class Converter extends BaseData<ConverterId> implements HasName, HasTena
         this.debugSettings = converter.debugSettings;
         this.configuration = converter.getConfiguration();
         this.additionalInfo = converter.getAdditionalInfo();
+        this.externalId = converter.getExternalId();
+        this.version = converter.getVersion();
     }
 
     @Override

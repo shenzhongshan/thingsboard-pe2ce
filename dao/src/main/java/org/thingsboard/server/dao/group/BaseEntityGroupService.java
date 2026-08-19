@@ -18,7 +18,11 @@ package org.thingsboard.server.dao.group;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.DeviceInfoFilter;
@@ -64,6 +68,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class BaseEntityGroupService implements EntityGroupService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final EntityGroupRepository entityGroupRepository;
     private final RelationService relationService;
@@ -116,7 +123,11 @@ public class BaseEntityGroupService implements EntityGroupService {
             entityGroup.setCreatedTime(System.currentTimeMillis());
         }
         try {
-            return entityGroupRepository.save(new EntityGroupEntity(entityGroup)).toData();
+            boolean created = entityGroup.getId() == null;
+            EntityGroup saved = entityGroupRepository.save(new EntityGroupEntity(entityGroup)).toData();
+            eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(tenantId).entityId(saved.getId())
+                    .entity(saved).created(created).broadcastEvent(true).build());
+            return saved;
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains("group_name_per_owner_unq_key")
                     || e.getCause() != null && String.valueOf(e.getCause().getMessage()).contains("group_name_per_owner_unq_key")) {
@@ -142,6 +153,22 @@ public class BaseEntityGroupService implements EntityGroupService {
         UUID ownerUuid = ownerId != null ? ownerId.getId() : tenantId.getId();
         return DaoUtil.toPageData(entityGroupRepository.findByOwnerIdAndType(
                 ownerUuid, groupType, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public PageData<EntityGroup> findEntityGroupsByOwnersAndType(TenantId tenantId, List<EntityId> ownerIds, EntityType groupType, PageLink pageLink) {
+        if (ownerIds == null || ownerIds.isEmpty()) {
+            return PageData.emptyPageData();
+        }
+        List<UUID> ownerUuids = new ArrayList<>(ownerIds.size());
+        for (EntityId ownerId : ownerIds) {
+            // Same normalisation as the single-owner overload, which expects null for the tenant.
+            CustomerId customerId = tenantId.getId().equals(ownerId.getId()) ? null : new CustomerId(ownerId.getId());
+            ensureDefaultGroups(tenantId, customerId, groupType);
+            ownerUuids.add(ownerId.getId());
+        }
+        return DaoUtil.toPageData(entityGroupRepository.findByOwnerIdsAndType(
+                ownerUuids, groupType, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
     }
 
     private void ensureDefaultGroups(TenantId tenantId, CustomerId ownerId, EntityType groupType) {
@@ -189,6 +216,7 @@ public class BaseEntityGroupService implements EntityGroupService {
         }
         relationService.deleteEntityRelations(tenantId, entityGroupId);
         entityGroupRepository.deleteById(entityGroupId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(entityGroupId).build());
     }
 
     @Override
@@ -320,6 +348,52 @@ public class BaseEntityGroupService implements EntityGroupService {
             case DASHBOARD -> dashboardService.findDashboardsByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
+    }
+
+    @Override
+    public PageData<? extends HasName> findUserGroupEntities(TenantId tenantId, EntityType groupType, CustomerId ownerId,
+                                                             List<EntityGroupId> groupIds, boolean includeOwnerScope,
+                                                             PageLink pageLink) {
+        boolean hasGroups = groupIds != null && !groupIds.isEmpty();
+        if (!includeOwnerScope && !hasGroups) {
+            return new PageData<>(List.of(), 0, 0, false);
+        }
+        if (includeOwnerScope && !hasGroups) {
+            // Pure owner scope — stay on the DB-paginated path.
+            return ownerId != null && !ownerId.isNullUid()
+                    ? findAllCustomerEntities(tenantId, ownerId, groupType, pageLink)
+                    : findAllTenantEntities(tenantId, groupType, pageLink);
+        }
+        // A union of owner scope and shared groups cannot be expressed as one paginated query here
+        // (group membership lives in the relation table), so it is merged in memory — the same
+        // trade-off findGroupEntities already makes. Owner scope is pulled through the "All" group
+        // so the per-type switch is not duplicated.
+        Set<EntityId> memberIds = new LinkedHashSet<>();
+        if (includeOwnerScope) {
+            EntityGroupId allGroupId = findOrCreateAllGroupId(tenantId, ownerId, groupType);
+            if (allGroupId != null) {
+                memberIds.addAll(findAllEntityIds(tenantId, allGroupId));
+            }
+        }
+        for (EntityGroupId groupId : groupIds) {
+            EntityGroup group = findEntityGroupById(tenantId, groupId);
+            if (group == null || group.getType() != groupType) {
+                continue; // stale grant, or a role pointing at a group of a different type
+            }
+            memberIds.addAll(findAllEntityIds(tenantId, groupId));
+        }
+        String textSearch = pageLink.getTextSearch() != null ? pageLink.getTextSearch().toLowerCase() : null;
+        List<HasName> entities = memberIds.stream()
+                .map(id -> loadGroupEntity(tenantId, id))
+                .filter(Objects::nonNull) // deleted entities leave stale relations behind
+                .filter(e -> textSearch == null || e.getName().toLowerCase().contains(textSearch))
+                .sorted(Comparator.comparing(HasName::getName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        int total = entities.size();
+        int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
+        int to = Math.min(from + pageLink.getPageSize(), total);
+        int totalPages = (int) Math.ceil((double) total / pageLink.getPageSize());
+        return new PageData<>(entities.subList(from, to), totalPages, total, to < total);
     }
 
     private HasName loadGroupEntity(TenantId tenantId, EntityId entityId) {

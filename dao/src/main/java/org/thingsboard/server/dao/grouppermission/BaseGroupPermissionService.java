@@ -19,7 +19,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -42,6 +46,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class BaseGroupPermissionService implements GroupPermissionService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final GroupPermissionRepository groupPermissionRepository;
     private final RoleService roleService;
@@ -66,7 +73,11 @@ public class BaseGroupPermissionService implements GroupPermissionService {
         if (groupPermission.getId() == null) {
             groupPermission.setCreatedTime(System.currentTimeMillis());
         }
-        return groupPermissionRepository.save(new GroupPermissionEntity(groupPermission)).toData();
+        boolean created = groupPermission.getId() == null;
+        GroupPermission saved = groupPermissionRepository.save(new GroupPermissionEntity(groupPermission)).toData();
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(tenantId).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
@@ -122,6 +133,7 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     @Override
     public void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId) {
         groupPermissionRepository.deleteById(groupPermissionId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(groupPermissionId).build());
     }
 
     @Override

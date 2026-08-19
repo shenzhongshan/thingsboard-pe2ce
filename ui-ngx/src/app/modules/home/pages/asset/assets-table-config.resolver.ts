@@ -175,7 +175,10 @@ export class AssetsTableConfigResolver  {
           entity => {
             return checkBoxCell(entity.customerIsPublic);
           }, () => ({}), false),
-        new EntityTableColumn<AssetInfo>('groups', 'asset.groups', '25%'),
+        // Not sortable: groups is stitched in after the query (BaseAssetService.withGroups), so
+        // it is not a queryable property — sortProperty=groups would blow up in the JPQL.
+        new EntityTableColumn<AssetInfo>('groups', 'asset.groups', '25%',
+          entity => entity.groups ?? '', () => ({}), false),
       );
     }
     return columns;

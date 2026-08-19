@@ -105,6 +105,14 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
             "FROM AssetEntity a WHERE a.tenantId = :tenantId AND a.name LIKE CONCAT(:prefix, '%')")
     List<EntityInfo> findEntityInfosByNamePrefix(UUID tenantId, String prefix);
 
+    @Query("SELECT new org.thingsboard.server.common.data.EntityInfo(a.id, 'ASSET', a.name) " +
+            "FROM AssetEntity a WHERE a.id = :id")
+    EntityInfo findEntityInfoById(@Param("id") UUID id);
+
+    @Query("SELECT new org.thingsboard.server.common.data.EntityInfo(a.id, 'ASSET', a.name) " +
+            "FROM AssetEntity a WHERE a.tenantId = :tenantId AND a.assetProfileId = :profileId")
+    Page<EntityInfo> findEntityInfosByTenantIdAndProfileId(@Param("tenantId") UUID tenantId, @Param("profileId") UUID profileId, Pageable pageable);
+
     @Query("SELECT a FROM AssetEntity a WHERE a.tenantId = :tenantId " +
             "AND a.type = :type " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
@@ -236,7 +244,8 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
 
     @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
             "WHERE r.toId IN :ids AND r.toType = 'ASSET' AND eg.type = org.thingsboard.server.common.data.EntityType.ASSET " +
-            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains' " +
+            "AND eg.name <> 'All'")
     List<Object[]> findGroupNamesByAssetIds(@Param("ids") List<UUID> ids);
 
 }

@@ -73,17 +73,24 @@ public enum EntityType {
         }
     },
     API_KEY(44),
-    // PE feature ports. Proto numbers match PE's enum (100-106) so payloads stay compatible
+    // PE feature ports. Proto numbers match PE's enum (100-109) so payloads stay compatible
     // with PE exports; all are above CE's contiguous range on purpose.
+    // Every value here must also exist in EntityTypeProto (queue.proto): ProtoUtils.toProto
+    // resolves via forNumber(), which returns null for unlisted numbers and then NPEs the setter.
+    // Declaration order is a persisted contract - alarm.originator_type stores ordinal()
+    // (JpaAlarmDao/AlarmDataAdapter), so append only, never reorder.
     ENTITY_GROUP(100),
     CONVERTER(101),
     INTEGRATION(102),
     BLOB_ENTITY(104),
     ROLE(105),
     GROUP_PERMISSION(106),
-    REPORT_TEMPLATE(107),
-    REPORT(108),
-    SECRET(109);
+    REPORT_TEMPLATE(108),
+    REPORT(109),
+    SECRET(107),
+    // Appended last on purpose: proto number matches PE's 103, but the declaration order is a
+    // persisted contract (see above), so new values go at the end regardless of their number.
+    SCHEDULER_EVENT(103);
 
     @Getter
     private final int protoNumber; // Corresponds to EntityTypeProto

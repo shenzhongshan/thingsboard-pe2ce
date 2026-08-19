@@ -21,6 +21,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.translation.CustomTranslation;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * CE port of PE's custom translation service. Owner level is encoded the same way as
@@ -35,6 +36,9 @@ public interface CustomTranslationService {
 
     /** Locale codes customized at exactly this owner level. */
     List<String> getCustomizedLocales(TenantId tenantId, CustomerId customerId);
+
+    /** Locale codes customized at this owner level or at any parent level (SYSTEM -> TENANT -> CUSTOMER). */
+    Set<String> getMergedCustomizedLocales(TenantId tenantId, CustomerId customerId);
 
     /** Deep-merged effective override JSON for this owner level (walks parent levels), never null (empty object if none). */
     JsonNode getMergedCustomTranslation(TenantId tenantId, CustomerId customerId, String localeCode);

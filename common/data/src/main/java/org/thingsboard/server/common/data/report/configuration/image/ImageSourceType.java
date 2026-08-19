@@ -1,0 +1,37 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  com.fasterxml.jackson.annotation.JsonCreator
+ *  com.fasterxml.jackson.annotation.JsonValue
+ */
+package org.thingsboard.server.common.data.report.configuration.image;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+public enum ImageSourceType {
+    IMAGE("image"),
+    ENTITY_KEY("entityKey");
+
+    private final String value;
+
+    private ImageSourceType(String label) {
+        this.value = label;
+    }
+
+    @JsonValue
+    public String getValue() {
+        return this.value;
+    }
+
+    @JsonCreator
+    public static ImageSourceType fromLabel(String value) {
+        for (ImageSourceType type : ImageSourceType.values()) {
+            if (!type.value.equalsIgnoreCase(value)) continue;
+            return type;
+        }
+        throw new IllegalArgumentException("Unknown ImageSourceType: " + value);
+    }
+}
+

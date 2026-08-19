@@ -16,15 +16,17 @@
 package org.thingsboard.server.common.data.report;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
+import org.thingsboard.server.common.data.report.configuration.ReportTemplateConfig;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.ReportTemplateId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -32,18 +34,15 @@ import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
- * CE port of PE's report template. Configuration shape (all stored as opaque JSON, see the class
- * javadoc on {@link ReportComponentType} for why): {@code {
- *   pageSize, pageOrientation, pageMargins, header, footer,
- *   components: [ {type: ReportComponentType, ...type-specific fields} ]
- * }}. Each component's data-source fields follow the widget-datasource shape already used
- * elsewhere in this codebase (entityAlias-based, entityIds, dataKeys) so the rendering engine can
- * reuse existing telemetry/entity query services.
+ * A report template. The configuration is PE's typed model ({@link ReportTemplateConfig}), which is
+ * polymorphic on its own {@code format} property - so the persisted JSON carries {@code "format"}
+ * in addition to the {@code format} column, and the two must agree.
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ReportTemplate extends BaseData<ReportTemplateId> implements HasName, HasTenantId, HasCustomerId {
+public class ReportTemplate extends BaseData<ReportTemplateId> implements HasName, HasTenantId, HasCustomerId,
+        HasVersion, ExportableEntity<ReportTemplateId> {
 
     private static final long serialVersionUID = 1L;
 
@@ -76,8 +75,14 @@ public class ReportTemplate extends BaseData<ReportTemplateId> implements HasNam
     private String description;
 
     @Getter @Setter
-    @Schema(description = "a JSON value with report template configuration (components, page layout)", implementation = JsonNode.class)
-    private transient JsonNode configuration;
+    @Schema(description = "Report template configuration: page layout plus the ordered list of report components.")
+    private ReportTemplateConfig configuration;
+
+    @Getter @Setter
+    private ReportTemplateId externalId;
+
+    @Getter @Setter
+    private Long version;
 
     public ReportTemplate() {
         super();
@@ -96,6 +101,8 @@ public class ReportTemplate extends BaseData<ReportTemplateId> implements HasNam
         this.type = reportTemplate.getType();
         this.description = reportTemplate.getDescription();
         this.configuration = reportTemplate.getConfiguration();
+        this.externalId = reportTemplate.getExternalId();
+        this.version = reportTemplate.getVersion();
     }
 
     @Override

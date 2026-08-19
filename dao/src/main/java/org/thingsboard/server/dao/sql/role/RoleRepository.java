@@ -20,12 +20,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.thingsboard.server.dao.ExportableEntityRepository;
 import org.thingsboard.server.dao.model.sql.RoleEntity;
 
 import java.util.Optional;
 import java.util.UUID;
 
-public interface RoleRepository extends JpaRepository<RoleEntity, UUID> {
+public interface RoleRepository extends JpaRepository<RoleEntity, UUID>, ExportableEntityRepository<RoleEntity> {
 
     @Query("SELECT r FROM RoleEntity r WHERE r.tenantId = :tenantId " +
             "AND (:textSearch IS NULL OR ilike(r.name, CONCAT('%', :textSearch, '%')) = true)")
@@ -34,5 +35,8 @@ public interface RoleRepository extends JpaRepository<RoleEntity, UUID> {
                                     Pageable pageable);
 
     Optional<RoleEntity> findByTenantIdAndName(UUID tenantId, String name);
+
+    @Query("SELECT externalId FROM RoleEntity WHERE id = :id")
+    UUID getExternalIdById(@Param("id") UUID id);
 
 }

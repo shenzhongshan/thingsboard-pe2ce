@@ -22,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 @Getter
 public enum JobType {
 
+    CF_REPROCESSING("Calculated field reprocessing"),
+    REPORT("Report generation"),
     DUMMY("Dummy job");
 
     private final String title;

@@ -66,6 +66,22 @@ import org.thingsboard.server.service.edge.rpc.EdgeRpcService;
 import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.ai.AiModelProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.apikey.ApiKeyProcessor;
+import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.service.edge.rpc.processor.group.EntityGroupProcessor;
+import org.thingsboard.server.dao.role.RoleService;
+import org.thingsboard.server.service.edge.rpc.processor.role.RoleProcessor;
+import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
+import org.thingsboard.server.service.edge.rpc.processor.grouppermission.GroupPermissionProcessor;
+import org.thingsboard.server.dao.converter.ConverterService;
+import org.thingsboard.server.service.edge.rpc.processor.converter.ConverterProcessor;
+import org.thingsboard.server.dao.integration.IntegrationService;
+import org.thingsboard.server.service.edge.rpc.processor.integration.IntegrationProcessor;
+import org.thingsboard.server.dao.scheduler.SchedulerEventService;
+import org.thingsboard.server.service.edge.rpc.processor.scheduler.SchedulerEventProcessor;
+import org.thingsboard.server.dao.report.ReportTemplateService;
+import org.thingsboard.server.service.edge.rpc.processor.report.ReportTemplateProcessor;
+import org.thingsboard.server.dao.secret.SecretService;
+import org.thingsboard.server.service.edge.rpc.processor.secret.SecretProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.AlarmProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.comment.AlarmCommentProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.asset.AssetEdgeProcessor;
@@ -307,5 +323,63 @@ public class EdgeContextComponent {
         }
         return processor;
     }
+
+
+    // PE-parity entities synced to edge
+    @Autowired
+    private EntityGroupService entityGroupService;
+
+    @Autowired
+    private RoleService roleService;
+
+    @Autowired
+    private GroupPermissionService groupPermissionService;
+
+    @Autowired
+    private ConverterService converterService;
+
+    @Autowired
+    private IntegrationService integrationService;
+
+    @Autowired
+    private SchedulerEventService schedulerEventService;
+
+    @Autowired
+    private ReportTemplateService reportTemplateService;
+
+    @Autowired
+    private SecretService secretService;
+
+    @Autowired
+    @Lazy
+    private EntityGroupProcessor entityGroupProcessor;
+
+    @Autowired
+    @Lazy
+    private RoleProcessor roleProcessor;
+
+    @Autowired
+    @Lazy
+    private GroupPermissionProcessor groupPermissionProcessor;
+
+    @Autowired
+    @Lazy
+    private ConverterProcessor converterProcessor;
+
+    @Autowired
+    @Lazy
+    private IntegrationProcessor integrationProcessor;
+
+    @Autowired
+    @Lazy
+    private SchedulerEventProcessor schedulerEventProcessor;
+
+    @Autowired
+    @Lazy
+    private ReportTemplateProcessor reportTemplateProcessor;
+
+    @Autowired
+    @Lazy
+    private SecretProcessor secretProcessor;
 
 }

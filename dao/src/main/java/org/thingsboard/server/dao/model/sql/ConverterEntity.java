@@ -32,7 +32,7 @@ import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.dao.model.BaseEntity;
-import org.thingsboard.server.dao.model.BaseSqlEntity;
+import org.thingsboard.server.dao.model.BaseVersionedEntity;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
 
 import java.util.UUID;
@@ -41,7 +41,7 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "converter")
-public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEntity<Converter> {
+public class ConverterEntity extends BaseVersionedEntity<Converter> implements BaseEntity<Converter> {
 
     @Column(name = "tenant_id")
     private UUID tenantId;
@@ -71,15 +71,15 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
     @Column(name = "additional_info")
     private JsonNode additionalInfo;
 
+    @Column(name = "external_id")
+    private UUID externalId;
+
     public ConverterEntity() {
         super();
     }
 
     public ConverterEntity(Converter converter) {
-        if (converter.getId() != null) {
-            this.setUuid(converter.getId().getId());
-        }
-        this.setCreatedTime(converter.getCreatedTime());
+        super(converter);
         if (converter.getTenantId() != null) {
             this.tenantId = converter.getTenantId().getId();
         }
@@ -90,12 +90,16 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
         this.debugSettings = JacksonUtil.toString(converter.getDebugSettings());
         this.configuration = converter.getConfiguration();
         this.additionalInfo = converter.getAdditionalInfo();
+        if (converter.getExternalId() != null) {
+            this.externalId = converter.getExternalId().getId();
+        }
     }
 
     @Override
     public Converter toData() {
         Converter converter = new Converter(new ConverterId(id));
         converter.setCreatedTime(createdTime);
+        converter.setVersion(version);
         if (tenantId != null) {
             converter.setTenantId(TenantId.fromUUID(tenantId));
         }
@@ -106,6 +110,9 @@ public class ConverterEntity extends BaseSqlEntity<Converter> implements BaseEnt
         converter.setDebugSettings(JacksonUtil.fromString(debugSettings, DebugSettings.class));
         converter.setConfiguration(configuration);
         converter.setAdditionalInfo(additionalInfo);
+        if (externalId != null) {
+            converter.setExternalId(new ConverterId(externalId));
+        }
         return converter;
     }
 

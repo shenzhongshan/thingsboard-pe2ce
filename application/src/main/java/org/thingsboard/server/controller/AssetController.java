@@ -49,6 +49,8 @@ import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.TimePageLink;
@@ -59,6 +61,7 @@ import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.asset.AssetBulkImportService;
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.entitiy.asset.TbAssetService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -102,8 +105,25 @@ import static org.thingsboard.server.controller.EdgeController.EDGE_ID;
 public class AssetController extends BaseController {
     private final AssetBulkImportService assetBulkImportService;
     private final TbAssetService tbAssetService;
+    private final UserEntitiesService userEntitiesService;
 
     public static final String ASSET_ID = "assetId";
+
+    @ApiOperation(value = "Get User Assets (getUserAssets)",
+            notes = "Returns a page of assets available to the current user: their own owner scope when they hold a " +
+                    "generic role for assets, plus the members of any asset group shared with them — those may " +
+                    "belong to other owners. Users granted neither get an empty page rather than an error. " +
+                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/assets", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserAssets(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = ASSET_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return userEntitiesService.findUserEntities(getCurrentUser(), EntityType.ASSET, Operation.READ, pageLink);
+    }
 
     @ApiOperation(value = "Get Asset (getAssetById)",
             notes = "Fetch the Asset object based on the provided Asset Id. " +

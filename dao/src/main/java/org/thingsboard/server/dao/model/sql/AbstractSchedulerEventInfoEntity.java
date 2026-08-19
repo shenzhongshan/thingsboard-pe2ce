@@ -30,7 +30,7 @@ import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventInfo;
 import org.thingsboard.server.dao.model.BaseEntity;
-import org.thingsboard.server.dao.model.BaseSqlEntity;
+import org.thingsboard.server.dao.model.BaseVersionedEntity;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
 
 import java.util.UUID;
@@ -38,7 +38,7 @@ import java.util.UUID;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @MappedSuperclass
-public abstract class AbstractSchedulerEventInfoEntity<T extends SchedulerEventInfo> extends BaseSqlEntity<T> implements BaseEntity<T> {
+public abstract class AbstractSchedulerEventInfoEntity<T extends SchedulerEventInfo> extends BaseVersionedEntity<T> implements BaseEntity<T> {
 
     @Column(name = "tenant_id")
     private UUID tenantId;
@@ -70,15 +70,21 @@ public abstract class AbstractSchedulerEventInfoEntity<T extends SchedulerEventI
     @Column(name = "enabled")
     private boolean enabled;
 
+    @Column(name = "external_id")
+    private UUID externalId;
+
     public AbstractSchedulerEventInfoEntity() {
         super();
     }
 
     public AbstractSchedulerEventInfoEntity(SchedulerEventInfo schedulerEventInfo) {
+        // Not super(schedulerEventInfo): BaseVersionedEntity's domain constructor is typed on the
+        // generic D, which does not accept a plain SchedulerEventInfo here.
         if (schedulerEventInfo.getId() != null) {
             this.setUuid(schedulerEventInfo.getId().getId());
         }
         this.setCreatedTime(schedulerEventInfo.getCreatedTime());
+        this.setVersion(schedulerEventInfo.getVersion());
         if (schedulerEventInfo.getTenantId() != null) {
             this.tenantId = schedulerEventInfo.getTenantId().getId();
         }
@@ -94,11 +100,13 @@ public abstract class AbstractSchedulerEventInfoEntity<T extends SchedulerEventI
         this.additionalInfo = schedulerEventInfo.getAdditionalInfo();
         this.schedule = schedulerEventInfo.getSchedule();
         this.enabled = schedulerEventInfo.isEnabled();
+        if (schedulerEventInfo.getExternalId() != null) {
+            this.externalId = schedulerEventInfo.getExternalId().getId();
+        }
     }
 
     public AbstractSchedulerEventInfoEntity(AbstractSchedulerEventInfoEntity<?> other) {
-        this.setId(other.getId());
-        this.setCreatedTime(other.getCreatedTime());
+        super(other);
         this.tenantId = other.getTenantId();
         this.customerId = other.getCustomerId();
         this.originatorId = other.getOriginatorId();
@@ -108,11 +116,16 @@ public abstract class AbstractSchedulerEventInfoEntity<T extends SchedulerEventI
         this.additionalInfo = other.getAdditionalInfo();
         this.schedule = other.getSchedule();
         this.enabled = other.isEnabled();
+        this.externalId = other.getExternalId();
     }
 
     protected SchedulerEventInfo toSchedulerEventInfo() {
         SchedulerEventInfo schedulerEventInfo = new SchedulerEventInfo(new SchedulerEventId(id));
         schedulerEventInfo.setCreatedTime(createdTime);
+        schedulerEventInfo.setVersion(version);
+        if (externalId != null) {
+            schedulerEventInfo.setExternalId(new SchedulerEventId(externalId));
+        }
         if (tenantId != null) {
             schedulerEventInfo.setTenantId(TenantId.fromUUID(tenantId));
         }

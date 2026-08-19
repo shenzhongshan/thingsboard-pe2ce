@@ -29,7 +29,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.role.RoleType;
 import org.thingsboard.server.dao.model.BaseEntity;
-import org.thingsboard.server.dao.model.BaseSqlEntity;
+import org.thingsboard.server.dao.model.BaseVersionedEntity;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
 
 import java.util.UUID;
@@ -38,7 +38,7 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "role")
-public class RoleEntity extends BaseSqlEntity<Role> implements BaseEntity<Role> {
+public class RoleEntity extends BaseVersionedEntity<Role> implements BaseEntity<Role> {
 
     @Column(name = "tenant_id")
     private UUID tenantId;
@@ -58,15 +58,15 @@ public class RoleEntity extends BaseSqlEntity<Role> implements BaseEntity<Role> 
     @Column(name = "additional_info")
     private JsonNode additionalInfo;
 
+    @Column(name = "external_id")
+    private UUID externalId;
+
     public RoleEntity() {
         super();
     }
 
     public RoleEntity(Role role) {
-        if (role.getId() != null) {
-            this.setUuid(role.getId().getId());
-        }
-        this.setCreatedTime(role.getCreatedTime());
+        super(role);
         if (role.getTenantId() != null) {
             this.tenantId = role.getTenantId().getId();
         }
@@ -74,12 +74,16 @@ public class RoleEntity extends BaseSqlEntity<Role> implements BaseEntity<Role> 
         this.type = role.getType();
         this.permissions = role.getPermissions();
         this.additionalInfo = role.getAdditionalInfo();
+        if (role.getExternalId() != null) {
+            this.externalId = role.getExternalId().getId();
+        }
     }
 
     @Override
     public Role toData() {
         Role role = new Role(new RoleId(id));
         role.setCreatedTime(createdTime);
+        role.setVersion(version);
         if (tenantId != null) {
             role.setTenantId(TenantId.fromUUID(tenantId));
         }
@@ -87,6 +91,9 @@ public class RoleEntity extends BaseSqlEntity<Role> implements BaseEntity<Role> 
         role.setType(type);
         role.setPermissions(permissions);
         role.setAdditionalInfo(additionalInfo);
+        if (externalId != null) {
+            role.setExternalId(new RoleId(externalId));
+        }
         return role;
     }
 

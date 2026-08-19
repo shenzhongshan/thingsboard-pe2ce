@@ -63,12 +63,28 @@ public enum Resource {
     CONVERTER(EntityType.CONVERTER),
     INTEGRATION(EntityType.INTEGRATION),
     ENTITY_GROUP(EntityType.ENTITY_GROUP),
+    // PE parity: per-group-type resources, so a GENERIC role can grant "READ device groups" without
+    // also granting "READ user groups". Resolve them with groupResourceFromGroupType(), never with
+    // of() — they deliberately carry no entityTypes so that of(ENTITY_GROUP) stays unambiguous and
+    // keeps returning the ENTITY_GROUP umbrella below. (PE maps all seven to EntityType.ENTITY_GROUP
+    // and then has to special-case ENTITY_GROUP out of its resourceByEntityType loop.)
+    CUSTOMER_GROUP,
+    DEVICE_GROUP,
+    ASSET_GROUP,
+    USER_GROUP,
+    ENTITY_VIEW_GROUP,
+    EDGE_GROUP,
+    DASHBOARD_GROUP,
     ROLE(EntityType.ROLE),
     GROUP_PERMISSION(EntityType.GROUP_PERMISSION),
     REPORT_TEMPLATE(EntityType.REPORT_TEMPLATE),
     REPORT(EntityType.REPORT),
     BLOB_ENTITY(EntityType.BLOB_ENTITY),
-    SECRET(EntityType.SECRET);
+    SECRET(EntityType.SECRET),
+    AUDIT_LOG,
+    CUSTOM_MENU,
+    PROFILE,
+    QUEUE_STATS(EntityType.QUEUE_STATS);
 
     /**
      * PE parity: static vocabulary of which operations are meaningful for each resource.
@@ -77,7 +93,20 @@ public enum Resource {
      */
     public static final Map<Resource, Set<Operation>> operationsByResource;
 
+    /** Entity group member type (the group's {@code type} column) to its per-type resource. */
+    private static final Map<EntityType, Resource> groupResourceByGroupType;
+
     static {
+        Map<EntityType, Resource> groupMap = new EnumMap<>(EntityType.class);
+        groupMap.put(EntityType.CUSTOMER, CUSTOMER_GROUP);
+        groupMap.put(EntityType.DEVICE, DEVICE_GROUP);
+        groupMap.put(EntityType.ASSET, ASSET_GROUP);
+        groupMap.put(EntityType.USER, USER_GROUP);
+        groupMap.put(EntityType.ENTITY_VIEW, ENTITY_VIEW_GROUP);
+        groupMap.put(EntityType.EDGE, EDGE_GROUP);
+        groupMap.put(EntityType.DASHBOARD, DASHBOARD_GROUP);
+        groupResourceByGroupType = Collections.unmodifiableMap(groupMap);
+
         Map<Resource, Set<Operation>> map = new EnumMap<>(Resource.class);
         map.put(ALL, Set.of(Operation.values()));
         map.put(ADMIN_SETTINGS, Set.of(Operation.ALL, Operation.READ, Operation.WRITE));
@@ -104,16 +133,26 @@ public enum Resource {
         map.put(TENANT_PROFILE, Operation.defaultEntityOperations);
         map.put(API_USAGE_STATE, Set.of(Operation.ALL, Operation.READ, Operation.READ_TELEMETRY));
         map.put(RULE_CHAIN, Operation.defaultEntityOperations);
-        map.put(USER, Operation.defaultEntityOperations);
+        Set<Operation> userOps = new java.util.HashSet<>(Operation.defaultEntityOperations);
+        userOps.add(Operation.IMPERSONATE);
+        map.put(USER, Set.copyOf(userOps));
         map.put(WIDGETS_BUNDLE, Operation.crudOperations);
         map.put(WIDGET_TYPE, Operation.crudOperations);
         map.put(TB_RESOURCE, Operation.defaultEntityOperations);
         map.put(CONVERTER, Operation.defaultEntityOperations);
         map.put(INTEGRATION, Operation.defaultEntityOperations);
         map.put(SCHEDULER_EVENT, Operation.defaultEntityOperations);
-        // CE models entity groups with a single ENTITY_GROUP resource rather than PE's
-        // per-type CUSTOMER_GROUP/DEVICE_GROUP/... resources.
+        // ENTITY_GROUP is the umbrella resource; the seven per-type resources below narrow it.
+        // A grant on ENTITY_GROUP implies all seven (see MergedUserPermissions.hasGenericPermission),
+        // which keeps roles written before the per-type split working unchanged.
         map.put(ENTITY_GROUP, Operation.defaultEntityGroupOperations);
+        for (Resource groupResource : groupResourceByGroupType.values()) {
+            map.put(groupResource, Operation.defaultEntityGroupOperations);
+        }
+        map.put(AUDIT_LOG, Set.of(Operation.ALL, Operation.READ));
+        map.put(CUSTOM_MENU, Set.of(Operation.ALL, Operation.READ, Operation.WRITE, Operation.DELETE));
+        map.put(PROFILE, Set.of(Operation.ALL, Operation.WRITE));
+        map.put(QUEUE_STATS, Set.of(Operation.ALL, Operation.READ));
         map.put(ROLE, Operation.defaultEntityOperations);
         map.put(GROUP_PERMISSION, Operation.crudOperations);
         map.put(WHITE_LABELING, Set.of(Operation.ALL, Operation.READ, Operation.WRITE));
@@ -134,6 +173,20 @@ public enum Resource {
 
     public static Set<Operation> operationsForResource(Resource resource) {
         return operationsByResource.getOrDefault(resource, Set.of());
+    }
+
+    /**
+     * The per-type resource guarding entity groups whose members are {@code groupType}, e.g.
+     * {@link #DEVICE_GROUP} for a group of devices. Falls back to the {@link #ENTITY_GROUP} umbrella
+     * for group types that have no dedicated resource, so callers never have to null-check.
+     */
+    public static Resource groupResourceFromGroupType(EntityType groupType) {
+        return groupType == null ? ENTITY_GROUP : groupResourceByGroupType.getOrDefault(groupType, ENTITY_GROUP);
+    }
+
+    /** The seven per-type group resources implied by a grant on the {@link #ENTITY_GROUP} umbrella. */
+    public static Set<Resource> groupResources() {
+        return Set.copyOf(groupResourceByGroupType.values());
     }
 
     private final Set<EntityType> entityTypes;

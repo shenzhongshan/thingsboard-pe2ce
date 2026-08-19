@@ -17,7 +17,11 @@ package org.thingsboard.server.dao.role;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.RoleId;
@@ -37,6 +41,9 @@ import org.thingsboard.server.exception.DataValidationException;
 @RequiredArgsConstructor
 public class BaseRoleService implements RoleService {
 
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
+
     private final RoleRepository roleRepository;
     private final GroupPermissionRepository groupPermissionRepository;
 
@@ -52,7 +59,11 @@ public class BaseRoleService implements RoleService {
         if (role.getId() == null) {
             role.setCreatedTime(System.currentTimeMillis());
         }
-        return roleRepository.save(new RoleEntity(role)).toData();
+        boolean created = role.getId() == null;
+        Role saved = roleRepository.save(new RoleEntity(role)).toData();
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(tenantId).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
@@ -73,6 +84,7 @@ public class BaseRoleService implements RoleService {
             throw new DataValidationException("The role is referenced by group permissions and cannot be deleted!");
         }
         roleRepository.deleteById(roleId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(roleId).build());
     }
 
     /** PE parity: names of the canonical share roles, matching PE's RoleServiceImpl. */

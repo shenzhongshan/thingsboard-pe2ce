@@ -23,9 +23,11 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.server.common.data.BaseDataWithAdditionalInfo;
+import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
@@ -35,13 +37,13 @@ import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
  * CE port of PE's scheduler event metadata (no configuration payload — see {@link SchedulerEvent}).
- * CE simplifications: no EntityType.SCHEDULER_EVENT, no external id / version (no VC export),
- * no edge assignment.
+ * CE simplification: no edge assignment.
  */
 @Slf4j
 @Schema
 @EqualsAndHashCode(callSuper = true)
-public class SchedulerEventInfo extends BaseDataWithAdditionalInfo<SchedulerEventId> implements HasName, HasTenantId, HasCustomerId {
+public class SchedulerEventInfo extends BaseDataWithAdditionalInfo<SchedulerEventId> implements HasName, HasTenantId,
+        HasCustomerId, HasVersion, ExportableEntity<SchedulerEventId> {
 
     private static final long serialVersionUID = 2807343040519549363L;
 
@@ -77,6 +79,12 @@ public class SchedulerEventInfo extends BaseDataWithAdditionalInfo<SchedulerEven
     @Schema(description = "Enable/disable scheduler", example = "true")
     private boolean enabled = true;
 
+    @Getter @Setter
+    private SchedulerEventId externalId;
+
+    @Getter @Setter
+    private Long version;
+
     public SchedulerEventInfo() {
         super();
     }
@@ -94,6 +102,8 @@ public class SchedulerEventInfo extends BaseDataWithAdditionalInfo<SchedulerEven
         this.type = schedulerEventInfo.getType();
         this.enabled = schedulerEventInfo.isEnabled();
         this.schedule = schedulerEventInfo.getSchedule();
+        this.externalId = schedulerEventInfo.getExternalId();
+        this.version = schedulerEventInfo.getVersion();
     }
 
     @Override

@@ -63,6 +63,7 @@ public class DefaultTbCalculatedFieldService extends AbstractTbEntityService imp
     private static final int TIMEOUT = 20;
 
     private final CalculatedFieldService calculatedFieldService;
+    private final CalculatedFieldReprocessingValidator reprocessingValidator;
 
     @Autowired(required = false)
     private TbelInvokeService tbelInvokeService;
@@ -179,6 +180,11 @@ public class DefaultTbCalculatedFieldService extends AbstractTbEntityService imp
             }
         }
         return lastUpdateTimestamp == -1 ? System.currentTimeMillis() : lastUpdateTimestamp;
+    }
+
+    @Override
+    public CalculatedFieldReprocessingValidator.CfReprocessingValidationResult validateForReprocessing(CalculatedField calculatedField) {
+        return reprocessingValidator.validate(calculatedField);
     }
 
     private void checkForEntityChange(CalculatedField oldCalculatedField, CalculatedField newCalculatedField) {

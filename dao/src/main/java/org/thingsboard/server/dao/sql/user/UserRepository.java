@@ -89,7 +89,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
             "WHERE r.toId IN :ids AND r.toType = 'USER' AND eg.type = org.thingsboard.server.common.data.EntityType.USER " +
-            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains' " +
+            "AND eg.name <> 'All'")
     List<Object[]> findGroupNamesByUserIds(@Param("ids") List<UUID> ids);
 
 }

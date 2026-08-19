@@ -38,4 +38,6 @@ public interface TbCalculatedFieldService {
 
     JsonNode executeTestScript(TenantId tenantId, JsonNode inputParams);
 
+    CalculatedFieldReprocessingValidator.CfReprocessingValidationResult validateForReprocessing(CalculatedField calculatedField);
+
 }

@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.thingsboard.server.common.data.EntityInfo;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.NameConflictPolicy;
@@ -349,6 +350,22 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         validateId(assetProfileId, id -> INCORRECT_ASSET_PROFILE_ID + id);
         validatePageLink(pageLink);
         return assetDao.findAssetIdsByTenantIdAndAssetProfileId(tenantId.getId(), assetProfileId.getId(), pageLink);
+    }
+
+    @Override
+    public EntityInfo findAssetEntityInfoById(TenantId tenantId, AssetId assetId) {
+        log.trace("Executing findAssetEntityInfoById, tenantId [{}], assetId [{}]", tenantId, assetId);
+        validateId(assetId, id -> INCORRECT_ASSET_ID + id);
+        return assetDao.findAssetEntityInfoById(tenantId, assetId);
+    }
+
+    @Override
+    public PageData<EntityInfo> findAssetEntityInfosByTenantIdAndAssetProfileId(TenantId tenantId, AssetProfileId assetProfileId, PageLink pageLink) {
+        log.trace("Executing findAssetEntityInfosByTenantIdAndAssetProfileId, tenantId [{}], assetProfileId [{}], pageLink [{}]", tenantId, assetProfileId, pageLink);
+        validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        validateId(assetProfileId, id -> INCORRECT_ASSET_PROFILE_ID + id);
+        validatePageLink(pageLink);
+        return assetDao.findAssetEntityInfosByTenantIdAndAssetProfileId(tenantId, assetProfileId, pageLink);
     }
 
     @Override

@@ -26,9 +26,11 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.id.EntityIdFactory;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.permission.QueryContext;
+import org.thingsboard.server.common.data.query.AliasEntityId;
 import org.thingsboard.server.common.data.query.ApiUsageStateFilter;
 import org.thingsboard.server.common.data.query.AssetSearchQueryFilter;
 import org.thingsboard.server.common.data.query.ComplexOperation;
@@ -37,6 +39,7 @@ import org.thingsboard.server.common.data.query.DeviceSearchQueryFilter;
 import org.thingsboard.server.common.data.query.DeviceTypeFilter;
 import org.thingsboard.server.common.data.query.EdgeSearchQueryFilter;
 import org.thingsboard.server.common.data.query.EdgeTypeFilter;
+import org.thingsboard.server.common.data.query.EntitiesByGroupNameFilter;
 import org.thingsboard.server.common.data.query.EntityCountQuery;
 import org.thingsboard.server.common.data.query.EntityData;
 import org.thingsboard.server.common.data.query.EntityDataPageLink;
@@ -44,6 +47,7 @@ import org.thingsboard.server.common.data.query.EntityDataQuery;
 import org.thingsboard.server.common.data.query.EntityDataSortOrder;
 import org.thingsboard.server.common.data.query.EntityFilter;
 import org.thingsboard.server.common.data.query.EntityFilterType;
+import org.thingsboard.server.common.data.query.EntityGroupFilter;
 import org.thingsboard.server.common.data.query.EntityKeyType;
 import org.thingsboard.server.common.data.query.EntityListFilter;
 import org.thingsboard.server.common.data.query.EntityNameFilter;
@@ -52,9 +56,14 @@ import org.thingsboard.server.common.data.query.EntityTypeFilter;
 import org.thingsboard.server.common.data.query.EntityViewSearchQueryFilter;
 import org.thingsboard.server.common.data.query.EntityViewTypeFilter;
 import org.thingsboard.server.common.data.query.RelationsQueryFilter;
+import org.thingsboard.server.common.data.query.SchedulerEventFilter;
 import org.thingsboard.server.common.data.query.SingleEntityFilter;
+import org.thingsboard.server.common.data.query.StateEntityFilter;
+import org.thingsboard.server.common.data.query.StateEntityOwnerFilter;
 import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationEntityTypeFilter;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.thingsboard.common.util.JacksonUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -250,6 +259,8 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         entityTableMap.put(EntityType.ASSET_PROFILE, "asset_profile");
         entityTableMap.put(EntityType.TENANT_PROFILE, "tenant_profile");
         entityTableMap.put(EntityType.QUEUE_STATS, "queue_stats");
+        entityTableMap.put(EntityType.SCHEDULER_EVENT, "scheduler_event");
+        entityTableMap.put(EntityType.ENTITY_GROUP, "entity_group");
 
         entityNameColumns.put(EntityType.DEVICE, "name");
         entityNameColumns.put(EntityType.CUSTOMER, "title");
@@ -269,6 +280,8 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         entityNameColumns.put(EntityType.EDGE, "name");
         entityNameColumns.put(EntityType.QUEUE, "name");
         entityNameColumns.put(EntityType.QUEUE_STATS, "queue_name");
+        entityNameColumns.put(EntityType.SCHEDULER_EVENT, "name");
+        entityNameColumns.put(EntityType.ENTITY_GROUP, "name");
     }
 
     public static EntityType[] RELATION_QUERY_ENTITY_TYPES = new EntityType[]{
@@ -356,7 +369,7 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
 
     @Override
     public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query) {
-        EntityType entityType = resolveEntityType(query.getEntityFilter());
+        EntityType entityType = resolveEntityTypeForContext(tenantId, query.getEntityFilter());
         SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, TenantId.SYS_TENANT_ID.equals(tenantId)));
         if (query.getKeyFilters() == null || query.getKeyFilters().isEmpty()) {
             ctx.append("select count(e.id) from ");
@@ -469,7 +482,7 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
 
     public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, boolean ignorePermissionCheck) {
         return transactionTemplate.execute(status -> {
-            EntityType entityType = resolveEntityType(query.getEntityFilter());
+            EntityType entityType = resolveEntityTypeForContext(tenantId, query.getEntityFilter());
             SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, ignorePermissionCheck));
             EntityDataPageLink pageLink = query.getPageLink();
             ComplexOperation operation = query.getKeyFiltersOperationOrDefault();
@@ -716,9 +729,92 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
             case API_USAGE_STATE:
             case ENTITY_TYPE:
                 return "";
+            case STATE_ENTITY:
+                return this.stateEntityQuery(ctx, (StateEntityFilter) entityFilter);
+            case STATE_ENTITY_OWNER:
+                return this.stateEntityOwnerQuery(ctx, (StateEntityOwnerFilter) entityFilter);
+            case SCHEDULER_EVENT:
+                return this.schedulerEventQuery(ctx, (SchedulerEventFilter) entityFilter);
+            case ENTITY_GROUP:
+                return this.entityGroupMembershipQuery(ctx, ((EntityGroupFilter) entityFilter).getEntityGroup());
+            case ENTITIES_BY_GROUP_NAME:
+                return this.entitiesByGroupNameQuery(ctx, (EntitiesByGroupNameFilter) entityFilter);
             default:
-                throw new RuntimeException("Not implemented!");
+                throw new RuntimeException("Entity filter type " + entityFilter.getType()
+                        + " is not supported by the SQL entity query engine!");
         }
+    }
+
+    private String stateEntityQuery(SqlQueryContext ctx, StateEntityFilter filter) {
+        // resolveEntityTypeForContext already rejected an unresolved placeholder before this runs.
+        ctx.addUuidParameter("entity_filter_state_entity_id", filter.getDefaultStateEntity().getId());
+        return "e.id=:entity_filter_state_entity_id";
+    }
+
+    private String stateEntityOwnerQuery(SqlQueryContext ctx, StateEntityOwnerFilter filter) {
+        AliasEntityId target = filter.getSingleEntity() != null ? filter.getSingleEntity() : filter.getDefaultStateEntity();
+        EntityId ownerId = resolveOwnerId(ctx.getTenantId(), target);
+        ctx.addUuidParameter("entity_filter_owner_id", ownerId.getId());
+        return "e.id=:entity_filter_owner_id";
+    }
+
+    private String schedulerEventQuery(SqlQueryContext ctx, SchedulerEventFilter filter) {
+        List<String> clauses = new ArrayList<>();
+        if (filter.getOriginator() != null && !filter.getOriginator().isAliasEntityId()) {
+            ctx.addUuidParameter("entity_filter_se_originator_id", filter.getOriginator().getId());
+            ctx.addStringParameter("entity_filter_se_originator_type", filter.getOriginator().getEntityType().name());
+            clauses.add("e.originator_id=:entity_filter_se_originator_id and e.originator_type=:entity_filter_se_originator_type");
+        }
+        if (StringUtils.isNotEmpty(filter.getEventType())) {
+            ctx.addStringParameter("entity_filter_se_type", filter.getEventType());
+            clauses.add("e.type=:entity_filter_se_type");
+        }
+        return clauses.isEmpty() ? "1=1" : String.join(" and ", clauses);
+    }
+
+    /**
+     * Membership in one specific group, addressed by id - including the auto-created "All" group,
+     * whose membership is backed by real relation rows too (see
+     * BaseEntityGroupService#ensureAllGroupMembership), so no separate owner-scope branch is needed
+     * here: one EXISTS clause against the relation table covers every group the same way
+     * EntityGroupService#findGroupEntities's relation-based branch does.
+     */
+    private String entityGroupMembershipQuery(SqlQueryContext ctx, String entityGroupIdStr) {
+        if (StringUtils.isEmpty(entityGroupIdStr)) {
+            // groupStateEntity with nothing resolved yet - an empty group id must mean an empty
+            // result, not "return every entity of this type" (which omitting the clause would do).
+            return "1=0";
+        }
+        ctx.addUuidParameter("entity_filter_group_id", UUID.fromString(entityGroupIdStr));
+        ctx.addStringParameter("entity_filter_group_member_type", ctx.getEntityType().name());
+        return "exists (select 1 from relation r where r.from_id=:entity_filter_group_id " +
+                "and r.from_type='ENTITY_GROUP' and r.relation_type_group='FROM_ENTITY_GROUP' " +
+                "and r.to_id=e.id and r.to_type=:entity_filter_group_member_type)";
+    }
+
+    /**
+     * Union of every group of the given type and owner whose name matches the filter, rather than
+     * one specific group. ownerId defaults to the tenant when unset, matching how an omitted
+     * customer scope defaults to tenant-wide everywhere else in this class.
+     */
+    private String entitiesByGroupNameQuery(SqlQueryContext ctx, EntitiesByGroupNameFilter filter) {
+        EntityId ownerId = filter.getOwnerId() != null ? filter.getOwnerId() : ctx.getTenantId();
+        ctx.addUuidParameter("entity_filter_gbn_owner_id", ownerId.getId());
+        ctx.addStringParameter("entity_filter_gbn_group_type", filter.getGroupType().name());
+        ctx.addStringParameter("entity_filter_gbn_member_type", ctx.getEntityType().name());
+        String nameFilter = filter.getEntityGroupNameFilter();
+        StringBuilder sql = new StringBuilder(
+                "exists (select 1 from entity_group g join relation r on r.from_id=g.id " +
+                        "and r.from_type='ENTITY_GROUP' and r.relation_type_group='FROM_ENTITY_GROUP' " +
+                        "where g.owner_id=:entity_filter_gbn_owner_id and g.type=:entity_filter_gbn_group_type " +
+                        "and r.to_id=e.id and r.to_type=:entity_filter_gbn_member_type");
+        if (StringUtils.isNotEmpty(nameFilter)) {
+            ctx.addStringParameter("entity_filter_gbn_name", nameFilter);
+            sql.append(nameFilter.startsWith("%") || nameFilter.endsWith("%")
+                    ? " and g.name ilike :entity_filter_gbn_name"
+                    : " and g.name ilike concat(:entity_filter_gbn_name, '%')");
+        }
+        return sql.append(")").toString();
     }
 
     private String addEntityTableQuery(SqlQueryContext ctx, EntityFilter entityFilter) {
@@ -1047,8 +1143,111 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
                 return rgf.isMultiRoot() ? rgf.getMultiRootEntitiesType() : rgf.getRootEntity().getEntityType();
             case API_USAGE_STATE:
                 return EntityType.API_USAGE_STATE;
+            // The result set of an ENTITY_GROUP / ENTITIES_BY_GROUP_NAME query is the group's member
+            // type, which both filters already carry as a plain field - no DB lookup needed.
+            case ENTITY_GROUP:
+                return ((EntityGroupFilter) entityFilter).getGroupType();
+            case ENTITIES_BY_GROUP_NAME:
+                return ((EntitiesByGroupNameFilter) entityFilter).getGroupType();
+            case SCHEDULER_EVENT:
+                return EntityType.SCHEDULER_EVENT;
+            // Only reachable when a caller queries STATE_ENTITY directly instead of going through a
+            // report/dashboard alias (those always resolve it down to SINGLE_ENTITY before the SQL
+            // layer ever sees it - see ReportQueryUtils.buildAliasBasedFilter). Treat it the same way
+            // a resolved single entity would be treated.
+            case STATE_ENTITY:
+                AliasEntityId stateEntity = ((StateEntityFilter) entityFilter).getDefaultStateEntity();
+                if (stateEntity == null || stateEntity.isAliasEntityId()) {
+                    throw new IllegalArgumentException(
+                            "StateEntityFilter reached the SQL query engine with no concrete defaultStateEntity; " +
+                                    "resolve it (EntityFilter.resolveEntityFilter) before querying.");
+                }
+                return stateEntity.getEntityType();
+            // STATE_ENTITY_OWNER's result type is whatever entity type the resolved owner turns out
+            // to be (always TENANT or CUSTOMER) - that requires a DB lookup and so cannot be answered
+            // by this static method. Callers must go through resolveEntityTypeForContext instead.
+            case STATE_ENTITY_OWNER:
+                throw new IllegalStateException(
+                        "STATE_ENTITY_OWNER requires an instance-level lookup; call resolveEntityTypeForContext, not resolveEntityType.");
             default:
-                throw new RuntimeException("Not implemented!");
+                throw new RuntimeException("Entity filter type " + entityFilter.getType()
+                        + " is not supported by the SQL entity query engine!");
+        }
+    }
+
+    /**
+     * Same contract as {@link #resolveEntityType}, extended to cover STATE_ENTITY_OWNER, whose
+     * result type can only be known by looking up the resolved entity's actual owner in the DB.
+     * The two call sites that build a query's {@code QueryContext} go through this method instead
+     * of the static one so that path is covered too.
+     */
+    private EntityType resolveEntityTypeForContext(TenantId tenantId, EntityFilter filter) {
+        if (filter.getType() != EntityFilterType.STATE_ENTITY_OWNER) {
+            return resolveEntityType(filter);
+        }
+        StateEntityOwnerFilter ownerFilter = (StateEntityOwnerFilter) filter;
+        AliasEntityId target = ownerFilter.getSingleEntity() != null
+                ? ownerFilter.getSingleEntity() : ownerFilter.getDefaultStateEntity();
+        if (target == null || target.isAliasEntityId()) {
+            throw new IllegalArgumentException(
+                    "StateEntityOwnerFilter reached the SQL query engine with no concrete singleEntity/" +
+                            "defaultStateEntity; resolve it before querying.");
+        }
+        return resolveOwnerId(tenantId, target).getEntityType();
+    }
+
+    /**
+     * The immediate owner (tenant or customer) of any entity, backing STATE_ENTITY_OWNER.
+     * <p>
+     * Mirrors {@code application/.../service/cf/OwnerService.getOwner} - that class cannot be reused
+     * here because {@code dao} cannot depend on {@code application} - but works from raw SQL against
+     * a single column per type rather than loaded domain objects, since this repository has no
+     * per-entity-type DAOs of its own. DASHBOARD is deliberately not covered: it has no customer_id
+     * column at all (ownership is derived from assigned_customers, a JSON list of assignments, and
+     * duplicating that resolution here would be exactly the kind of second implementation that goes
+     * quietly out of sync with OwnerService's).
+     */
+    private EntityId resolveOwnerId(TenantId tenantId, EntityId entityId) {
+        EntityType type = entityId.getEntityType();
+        UUID id = entityId.getId();
+        switch (type) {
+            case TENANT:
+                return tenantId;
+            case CUSTOMER: {
+                UUID parentId = queryForNullableUuid("select parent_customer_id from customer where id = :id", id);
+                return parentId != null ? new CustomerId(parentId) : tenantId;
+            }
+            case ENTITY_GROUP: {
+                Map<String, Object> row;
+                try {
+                    row = jdbcTemplate.queryForMap("select owner_id, owner_type from entity_group where id = :id",
+                            Collections.singletonMap("id", id));
+                } catch (EmptyResultDataAccessException e) {
+                    throw new IllegalArgumentException("Entity group not found: " + id);
+                }
+                return EntityIdFactory.getByTypeAndUuid((String) row.get("owner_type"), (UUID) row.get("owner_id"));
+            }
+            case DEVICE:
+            case ASSET:
+            case ENTITY_VIEW:
+            case EDGE:
+            case USER:
+            case SCHEDULER_EVENT: {
+                String table = entityTableMap.getOrDefault(type, type == EntityType.SCHEDULER_EVENT ? "scheduler_event" : null);
+                UUID customerId = queryForNullableUuid("select customer_id from " + table + " where id = :id", id);
+                return customerId != null && !EntityId.NULL_UUID.equals(customerId) ? new CustomerId(customerId) : tenantId;
+            }
+            default:
+                throw new IllegalArgumentException("Owner lookup is not supported for entity type " + type
+                        + " (STATE_ENTITY_OWNER filter)");
+        }
+    }
+
+    private UUID queryForNullableUuid(String namedParamSql, UUID id) {
+        try {
+            return jdbcTemplate.queryForObject(namedParamSql, Collections.singletonMap("id", id), UUID.class);
+        } catch (EmptyResultDataAccessException e) {
+            return null;
         }
     }
 }

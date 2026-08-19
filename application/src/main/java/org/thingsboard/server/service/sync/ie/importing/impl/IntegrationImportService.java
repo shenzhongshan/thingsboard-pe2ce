@@ -1,0 +1,65 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.thingsboard.server.service.sync.ie.importing.impl;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.id.IntegrationId;
+import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.data.sync.ie.EntityExportData;
+import org.thingsboard.server.dao.integration.IntegrationService;
+import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.sync.vc.data.EntitiesImportCtx;
+
+@Service
+@TbCoreComponent
+@RequiredArgsConstructor
+public class IntegrationImportService extends BaseEntityImportService<IntegrationId, Integration, EntityExportData<Integration>> {
+
+    private final IntegrationService integrationService;
+
+    @Override
+    protected void setOwner(TenantId tenantId, Integration integration, IdProvider idProvider) {
+        integration.setTenantId(tenantId);
+    }
+
+    @Override
+    protected Integration prepare(EntitiesImportCtx ctx, Integration integration, Integration old,
+                                  EntityExportData<Integration> exportData, IdProvider idProvider) {
+        integration.setDefaultConverterId(idProvider.getInternalId(integration.getDefaultConverterId()));
+        integration.setDownlinkConverterId(idProvider.getInternalId(integration.getDownlinkConverterId(), false));
+        return integration;
+    }
+
+    @Override
+    protected Integration deepCopy(Integration integration) {
+        return new Integration(integration);
+    }
+
+    @Override
+    protected Integration saveOrUpdate(EntitiesImportCtx ctx, Integration integration, EntityExportData<Integration> exportData,
+                                       IdProvider idProvider, CompareResult compareResult) {
+        return integrationService.saveIntegration(integration);
+    }
+
+    @Override
+    public EntityType getEntityType() {
+        return EntityType.INTEGRATION;
+    }
+
+}

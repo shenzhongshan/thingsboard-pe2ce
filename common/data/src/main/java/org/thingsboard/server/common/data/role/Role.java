@@ -21,8 +21,10 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseDataWithAdditionalInfo;
+import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.id.RoleId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
@@ -36,7 +38,8 @@ import org.thingsboard.server.common.data.validation.NoXss;
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
-public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName, HasTenantId {
+public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName, HasTenantId,
+        HasVersion, ExportableEntity<RoleId> {
 
     private static final long serialVersionUID = 5582010124562018986L;
 
@@ -58,6 +61,12 @@ public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName,
     @Schema(description = "Role permissions: {resource: [operations]} for GENERIC, [operations] for GROUP", implementation = JsonNode.class)
     private JsonNode permissions;
 
+    @Getter @Setter
+    private RoleId externalId;
+
+    @Getter @Setter
+    private Long version;
+
     public Role() {
         super();
     }
@@ -72,6 +81,8 @@ public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName,
         this.name = role.getName();
         this.type = role.getType();
         this.permissions = role.getPermissions();
+        this.externalId = role.getExternalId();
+        this.version = role.getVersion();
     }
 
     @Override

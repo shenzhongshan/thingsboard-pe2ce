@@ -681,6 +681,11 @@ trendz:
 
 # Integrations parameters
 integrations:
+  # Remote integrations: the integration runs in a separate process and connects back over gRPC
+  rpc:
+    enabled: "${INTEGRATIONS_RPC_ENABLED:false}"
+    port: "${INTEGRATIONS_RPC_PORT:9090}"
+    client_max_keep_alive_time_sec: "${INTEGRATIONS_RPC_CLIENT_MAX_KEEP_ALIVE_TIME_SEC:300}"
   converters:
     library:
       # Enable/disable the data converters library
@@ -704,6 +709,24 @@ debug:
 
 # Cache settings parameters
 # Configures cache type (Caffeine or Redis), pool size, and per-entity TTL and max-size limits for all caches.
+# Report engine (PE port). The renderer itself runs in-process; web_report points at PE's separate
+# dashboard-screenshot service, which only DASHBOARD report components need.
+reports:
+  web_report:
+    # Report (dashboard screenshot) server endpoint
+    base_url: "${REPORTS_SERVER_ENDPOINT_URL:http://localhost:8383}"
+    # Maximum response size. The default value is set to 50 mb
+    max_response_size: "${MAX_RESPONSE_SIZE:52428800}"
+  # Timeout in milliseconds for generating a report, 2 minutes by default
+  generation_timeout_ms: "${REPORT_GENERATION_TIMEOUT_MS:120000}"
+  # Thread pool size used for test report generation
+  test_report_pool_size: "${TEST_REPORT_GENERATION_POOL_SIZE:12}"
+  # SSRF protection for resources a report fetches. Only applied when the report engine runs as its
+  # own service (see ReportServiceConfiguration); kept here so the knobs are discoverable.
+  ssrf_protection_enabled: "${REPORTS_SSRF_PROTECTION_ENABLED:false}"
+  ssrf_additional_blocked_hosts: "${REPORTS_SSRF_ADDITIONAL_BLOCKED_HOSTS:}"
+  ssrf_allowed_hosts: "${REPORTS_SSRF_ALLOWED_HOSTS:}"
+
 cache:
   # caffeine or redis(7.2 - latest compatible version)
   type: "${CACHE_TYPE:caffeine}"

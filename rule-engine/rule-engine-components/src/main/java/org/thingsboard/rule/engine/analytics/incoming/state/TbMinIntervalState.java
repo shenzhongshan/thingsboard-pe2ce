@@ -1,0 +1,63 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.thingsboard.rule.engine.analytics.incoming.state;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class TbMinIntervalState extends TbBaseIntervalState {
+
+    private BigDecimal min;
+
+    public TbMinIntervalState(JsonElement stateJson) {
+        this.min = stateJson.getAsJsonObject().get("min").getAsBigDecimal();
+    }
+
+    @Override
+    protected boolean doUpdate(JsonElement data) {
+        BigDecimal value = data.getAsBigDecimal();
+        if (min == null || value.compareTo(min) < 0) {
+            min = value;
+            return true;
+        }
+        return false; // a larger sample cannot change the minimum
+    }
+
+    @Override
+    public String toValueJson(Gson gson, String outputValueKey) {
+        JsonObject json = new JsonObject();
+        // min stays null until the first sample arrives; report nothing rather than NPE.
+        json.addProperty(outputValueKey, min == null ? null : min.doubleValue());
+        return gson.toJson(json);
+    }
+
+    @Override
+    public String toStateJson(Gson gson) {
+        JsonObject object = new JsonObject();
+        object.addProperty("min", min);
+        return gson.toJson(object);
+    }
+
+}

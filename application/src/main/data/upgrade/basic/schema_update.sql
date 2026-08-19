@@ -49,3 +49,34 @@ CREATE TABLE IF NOT EXISTS encryption_key (
 );
 
 -- SECRET TABLE ADDITION END
+
+-- VC SUPPORT FOR PE-PORTED ENTITIES START
+
+-- external_id backs version-control export/import; version backs JPA optimistic locking. The
+-- entities now extend BaseVersionedEntity, so the version column must exist before startup.
+-- scheduler_event gets the columns for schema parity only — SchedulerEventId is not an EntityId in
+-- CE, so scheduler events cannot take part in version control yet.
+ALTER TABLE converter       ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE converter       ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE integration     ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE integration     ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE role            ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE role            ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE report_template ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE report_template ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS external_id UUID;
+ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
+
+CREATE INDEX IF NOT EXISTS idx_converter_external_id       ON converter(external_id);
+CREATE INDEX IF NOT EXISTS idx_integration_external_id     ON integration(external_id);
+CREATE INDEX IF NOT EXISTS idx_role_external_id            ON role(external_id);
+CREATE INDEX IF NOT EXISTS idx_report_template_external_id ON report_template(external_id);
+CREATE INDEX IF NOT EXISTS idx_scheduler_event_external_id ON scheduler_event(external_id);
+
+-- Indexes missed by the original ports. See the matching block in schema-entities.sql for why the
+-- remaining PE indexes were deliberately not brought over.
+CREATE INDEX IF NOT EXISTS idx_group_permission_tenant_id  ON group_permission(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_custom_menu                 ON custom_menu(tenant_id, scope, assignee_type);
+CREATE INDEX IF NOT EXISTS idx_api_key_tenant_id_user_id   ON api_key(tenant_id, user_id);
+
+-- VC SUPPORT FOR PE-PORTED ENTITIES END

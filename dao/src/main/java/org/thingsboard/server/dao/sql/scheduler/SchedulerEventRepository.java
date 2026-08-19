@@ -15,11 +15,28 @@
  */
 package org.thingsboard.server.dao.sql.scheduler;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.thingsboard.server.dao.ExportableEntityRepository;
 import org.thingsboard.server.dao.model.sql.SchedulerEventEntity;
 
 import java.util.UUID;
 
-public interface SchedulerEventRepository extends JpaRepository<SchedulerEventEntity, UUID> {
+public interface SchedulerEventRepository extends JpaRepository<SchedulerEventEntity, UUID>,
+        ExportableEntityRepository<SchedulerEventEntity> {
+
+    SchedulerEventEntity findByTenantIdAndName(UUID tenantId, String name);
+
+    @Query("SELECT s FROM SchedulerEventEntity s WHERE s.tenantId = :tenantId " +
+            "AND (:textSearch IS NULL OR ilike(s.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<SchedulerEventEntity> findByTenantId(@Param("tenantId") UUID tenantId,
+                                              @Param("textSearch") String textSearch,
+                                              Pageable pageable);
+
+    @Query("SELECT externalId FROM SchedulerEventEntity WHERE id = :id")
+    UUID getExternalIdById(@Param("id") UUID id);
 
 }

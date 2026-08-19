@@ -18,7 +18,11 @@ package org.thingsboard.server.dao.report;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -40,6 +44,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class BaseReportTemplateService implements ReportTemplateService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final ReportTemplateRepository reportTemplateRepository;
     private final CustomerService customerService;
@@ -64,7 +71,11 @@ public class BaseReportTemplateService implements ReportTemplateService {
         if (reportTemplate.getId() == null) {
             reportTemplate.setCreatedTime(System.currentTimeMillis());
         }
-        return reportTemplateRepository.save(new ReportTemplateEntity(reportTemplate)).toData();
+        boolean created = reportTemplate.getId() == null;
+        ReportTemplate saved = reportTemplateRepository.save(new ReportTemplateEntity(reportTemplate)).toData();
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(tenantId).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
@@ -110,6 +121,7 @@ public class BaseReportTemplateService implements ReportTemplateService {
         // Previously generated reports are a historical record and are kept (matches PE's
         // ON DELETE SET NULL FK intent) — only the template row itself is removed.
         reportTemplateRepository.deleteById(reportTemplateId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(reportTemplateId).build());
     }
 
     @Override

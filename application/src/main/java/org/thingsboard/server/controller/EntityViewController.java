@@ -47,6 +47,8 @@ import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.TimePageLink;
@@ -54,6 +56,7 @@ import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.entitiy.entityview.TbEntityViewService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -99,7 +102,25 @@ public class EntityViewController extends BaseController {
 
     public final TbEntityViewService tbEntityViewService;
 
+    private final UserEntitiesService userEntitiesService;
+
     public static final String ENTITY_VIEW_ID = "entityViewId";
+
+    @ApiOperation(value = "Get User Entity Views (getUserEntityViews)",
+            notes = "Returns a page of entity views available to the current user: their own owner scope when they " +
+                    "hold a generic role for entity views, plus the members of any entity view group shared with " +
+                    "them — those may belong to other owners. Users granted neither get an empty page. " +
+                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/entityViews", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserEntityViews(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = ENTITY_VIEW_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return userEntitiesService.findUserEntities(getCurrentUser(), EntityType.ENTITY_VIEW, Operation.READ, pageLink);
+    }
 
     @ApiOperation(value = "Get entity view (getEntityViewById)",
             notes = "Fetch the EntityView object based on the provided entity view id. "

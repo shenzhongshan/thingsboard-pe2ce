@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.MailService;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.UserActivationLink;
 import org.thingsboard.server.common.data.UserEmailInfo;
@@ -72,6 +73,7 @@ import org.thingsboard.server.common.data.settings.UserSettingsType;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.entity.EntityService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.entitiy.user.TbUserService;
 import org.thingsboard.server.service.query.EntityQueryService;
 import org.thingsboard.server.service.security.model.SecurityUser;
@@ -130,6 +132,23 @@ public class UserController extends BaseController {
     private final TbUserService tbUserService;
     private final EntityQueryService entityQueryService;
     private final EntityService entityService;
+    private final UserEntitiesService userEntitiesService;
+
+    @ApiOperation(value = "Get User Users (getUserUsers)",
+            notes = "Returns a page of users available to the current user: their own owner scope when they hold a " +
+                    "generic role for users, plus the members of any user group shared with them — those may belong " +
+                    "to other owners. Users granted neither get an empty page rather than an error. " +
+                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/users", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserUsers(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = USER_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return userEntitiesService.findUserEntities(getCurrentUser(), EntityType.USER, Operation.READ, pageLink);
+    }
 
     @ApiOperation(value = "Get User (getUserById)",
             notes = "Fetch the User object based on the provided User Id. " +
@@ -174,7 +193,10 @@ public class UserController extends BaseController {
         }
         UserId userId = new UserId(toUUID(strUserId));
         SecurityUser authUser = getCurrentUser();
-        User user = checkUserId(userId, Operation.READ);
+        // IMPERSONATE rather than READ, matching PE: the sys-admin/tenant-admin checkers ignore the
+        // operation, but a restricted API key granting only USER:READ must not be able to act as
+        // another user.
+        User user = checkUserId(userId, Operation.IMPERSONATE);
         UserPrincipal principal = new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail());
         UserCredentials credentials = userService.findUserCredentialsByUserId(authUser.getTenantId(), userId);
         SecurityUser securityUser = new SecurityUser(user, credentials.isEnabled(), principal);

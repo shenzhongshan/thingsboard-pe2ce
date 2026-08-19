@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.cf.CalculatedField;
 import org.thingsboard.server.common.data.cf.CalculatedFieldLink;
@@ -40,7 +41,10 @@ import org.thingsboard.server.common.msg.plugin.ComponentLifecycleMsg;
 import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.cf.CalculatedFieldService;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.entityview.EntityViewService;
+import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
@@ -53,6 +57,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -76,13 +81,20 @@ public class DefaultCalculatedFieldCacheTest {
     private AssetService assetService;
     @Mock
     private CustomerService customerService;
+    @Mock
+    private EntityViewService entityViewService;
+    @Mock
+    private DashboardService dashboardService;
+    @Mock
+    private UserService userService;
 
     private DefaultCalculatedFieldCache cache;
 
     @BeforeEach
     public void setUp() {
         // ActorSystemContext is only used in getCalculatedFieldCtx (not tested here), so null is safe
-        OwnerService ownerService = new OwnerService(deviceService, assetService, customerService);
+        OwnerService ownerService = new OwnerService(deviceService, assetService, customerService,
+                entityViewService, dashboardService, userService);
         cache = new DefaultCalculatedFieldCache(calculatedFieldService, assetProfileCache,
                 deviceProfileCache, tenantProfileCache, null, ownerService);
 
@@ -467,6 +479,14 @@ public class DefaultCalculatedFieldCacheTest {
         when(assetService.findAssetsByTenantIdAndCustomerId(any(), any(), any())).thenReturn(PageData.emptyPageData());
         if (ownerId instanceof TenantId) {
             when(customerService.findCustomersByTenantId(any(), any())).thenReturn(PageData.emptyPageData());
+        }
+        if (ownerId instanceof CustomerId customerId) {
+            // OwnerService.getOwner(CUSTOMER) reads parentCustomerId; a top-level customer is owned by the tenant
+            Customer customer = new Customer();
+            customer.setId(customerId);
+            customer.setTenantId(tenantId);
+            // lenient: only the evictOwner tests actually resolve the customer's own owner
+            lenient().when(customerService.findCustomerById(tenantId, customerId)).thenReturn(customer);
         }
     }
 

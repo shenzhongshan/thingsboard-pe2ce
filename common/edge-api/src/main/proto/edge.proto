@@ -159,6 +159,62 @@ message ApiKeyUpdateMsg{
   string entity = 4;
 }
 
+message EntityGroupUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message RoleUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message GroupPermissionUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message ConverterUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message IntegrationUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message SchedulerEventUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message ReportTemplateUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message SecretUpdateMsg{
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
 message EntityDataProto {
   int64 entityIdMSB = 1;
   int64 entityIdLSB = 2;
@@ -470,6 +526,14 @@ message UplinkMsg {
   repeated UserUpdateMsg userUpdateMsg = 28;
   repeated UserCredentialsUpdateMsg userCredentialsUpdateMsg = 29;
   repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 30;
+  repeated EntityGroupUpdateMsg entityGroupUpdateMsg = 31;
+  repeated RoleUpdateMsg roleUpdateMsg = 32;
+  repeated GroupPermissionUpdateMsg groupPermissionUpdateMsg = 33;
+  repeated ConverterUpdateMsg converterUpdateMsg = 34;
+  repeated IntegrationUpdateMsg integrationUpdateMsg = 35;
+  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 36;
+  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 37;
+  repeated SecretUpdateMsg secretUpdateMsg = 38;
 }
 
 message UplinkResponseMsg {
@@ -522,4 +586,12 @@ message DownlinkMsg {
   repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 35;
   repeated AiModelUpdateMsg aiModelUpdateMsg = 36;
   repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 37;
+  repeated EntityGroupUpdateMsg entityGroupUpdateMsg = 38;
+  repeated RoleUpdateMsg roleUpdateMsg = 39;
+  repeated GroupPermissionUpdateMsg groupPermissionUpdateMsg = 40;
+  repeated ConverterUpdateMsg converterUpdateMsg = 41;
+  repeated IntegrationUpdateMsg integrationUpdateMsg = 42;
+  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 43;
+  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 44;
+  repeated SecretUpdateMsg secretUpdateMsg = 45;
 }

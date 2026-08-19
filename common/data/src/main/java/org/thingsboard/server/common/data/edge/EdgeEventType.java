@@ -49,7 +49,15 @@ public enum EdgeEventType {
     DOMAIN(true, EntityType.DOMAIN),
     CALCULATED_FIELD(false, EntityType.CALCULATED_FIELD),
     AI_MODEL(true, EntityType.AI_MODEL),
-    API_KEY(true, EntityType.API_KEY);
+    API_KEY(true, EntityType.API_KEY),
+    ENTITY_GROUP(true, EntityType.ENTITY_GROUP),
+    ROLE(true, EntityType.ROLE),
+    GROUP_PERMISSION(true, EntityType.GROUP_PERMISSION),
+    CONVERTER(true, EntityType.CONVERTER),
+    INTEGRATION(true, EntityType.INTEGRATION),
+    SCHEDULER_EVENT(true, EntityType.SCHEDULER_EVENT),
+    REPORT_TEMPLATE(true, EntityType.REPORT_TEMPLATE),
+    SECRET(true, EntityType.SECRET);
 
     private final boolean allEdgesRelated;
 

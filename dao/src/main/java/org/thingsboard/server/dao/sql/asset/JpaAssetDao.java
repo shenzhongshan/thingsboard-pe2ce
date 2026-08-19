@@ -29,6 +29,7 @@ import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetInfo;
 import org.thingsboard.server.common.data.edqs.fields.AssetFields;
 import org.thingsboard.server.common.data.id.AssetId;
+import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
@@ -174,6 +175,17 @@ public class JpaAssetDao extends JpaAbstractDao<AssetEntity, Asset> implements A
                         pageLink.getTextSearch(),
                         DaoUtil.toPageable(pageLink)))
                 .mapData(AssetId::new);
+    }
+
+    @Override
+    public EntityInfo findAssetEntityInfoById(TenantId tenantId, AssetId assetId) {
+        return assetRepository.findEntityInfoById(assetId.getId());
+    }
+
+    @Override
+    public PageData<EntityInfo> findAssetEntityInfosByTenantIdAndAssetProfileId(TenantId tenantId, AssetProfileId assetProfileId, PageLink pageLink) {
+        return DaoUtil.pageToPageData(assetRepository.findEntityInfosByTenantIdAndProfileId(
+                tenantId.getId(), assetProfileId.getId(), DaoUtil.toPageable(pageLink)));
     }
 
     @Override

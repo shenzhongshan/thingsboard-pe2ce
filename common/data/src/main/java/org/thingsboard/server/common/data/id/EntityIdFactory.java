@@ -38,6 +38,10 @@ public class EntityIdFactory {
         return getByTypeAndUuid(EntityType.valueOf(type), UUID.fromString(uuid));
     }
 
+    public static EntityId getByTypeAndId(EntityType type, String uuid) {
+        return getByTypeAndUuid(type, UUID.fromString(uuid));
+    }
+
     public static EntityId getByTypeAndUuid(String type, UUID uuid) {
         return getByTypeAndUuid(EntityType.valueOf(type), uuid);
     }
@@ -93,6 +97,7 @@ public class EntityIdFactory {
             case REPORT -> new ReportId(uuid);
             case BLOB_ENTITY -> new BlobEntityId(uuid);
             case SECRET -> new SecretId(uuid);
+            case SCHEDULER_EVENT -> new SchedulerEventId(uuid);
         };
     }
 
@@ -125,6 +130,14 @@ public class EntityIdFactory {
             case AI_MODEL -> new AiModelId(uuid);
             case API_KEY -> new ApiKeyId(uuid);
             case ADMIN_SETTINGS -> new AdminSettingsId(uuid);
+            case ENTITY_GROUP -> new EntityGroupId(uuid);
+            case ROLE -> new RoleId(uuid);
+            case GROUP_PERMISSION -> new GroupPermissionId(uuid);
+            case CONVERTER -> new ConverterId(uuid);
+            case INTEGRATION -> new IntegrationId(uuid);
+            case SCHEDULER_EVENT -> new SchedulerEventId(uuid);
+            case REPORT_TEMPLATE -> new ReportTemplateId(uuid);
+            case SECRET -> new SecretId(uuid);
             default -> throw new IllegalArgumentException("EdgeEventType " + edgeEventType + " is not supported!");
         };
     }

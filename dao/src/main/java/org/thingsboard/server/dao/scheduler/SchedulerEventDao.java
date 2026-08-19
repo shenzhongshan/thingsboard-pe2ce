@@ -23,11 +23,18 @@ import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventFilter;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventInfo;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventWithCustomerInfo;
+import org.thingsboard.server.dao.Dao;
+import org.thingsboard.server.dao.ExportableEntityDao;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface SchedulerEventDao {
+/**
+ * Also a {@link Dao}/{@link ExportableEntityDao} so the version-control export/import framework —
+ * which scans Dao&lt;?&gt; beans by getEntityType() — can resolve scheduler events. The bespoke
+ * methods below stay; the generic Dao contract is served by JpaAbstractDao.
+ */
+public interface SchedulerEventDao extends Dao<SchedulerEvent>, ExportableEntityDao<SchedulerEventId, SchedulerEvent> {
 
     SchedulerEvent save(TenantId tenantId, SchedulerEvent schedulerEvent);
 

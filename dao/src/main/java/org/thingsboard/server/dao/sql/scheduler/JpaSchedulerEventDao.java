@@ -25,22 +25,63 @@ import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventFilter;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventInfo;
 import org.thingsboard.server.common.data.scheduler.SchedulerEventWithCustomerInfo;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.model.sql.SchedulerEventEntity;
 import org.thingsboard.server.dao.model.sql.SchedulerEventWithCustomerInfoEntity;
 import org.thingsboard.server.dao.scheduler.SchedulerEventDao;
+import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
 @SqlDao
 @RequiredArgsConstructor
-public class JpaSchedulerEventDao implements SchedulerEventDao {
+public class JpaSchedulerEventDao extends JpaAbstractDao<SchedulerEventEntity, SchedulerEvent> implements SchedulerEventDao {
 
     private final SchedulerEventRepository schedulerEventRepository;
     private final SchedulerEventInfoRepository schedulerEventInfoRepository;
+
+    @Override
+    protected Class<SchedulerEventEntity> getEntityClass() {
+        return SchedulerEventEntity.class;
+    }
+
+    @Override
+    protected JpaRepository<SchedulerEventEntity, UUID> getRepository() {
+        return schedulerEventRepository;
+    }
+
+    @Override
+    public SchedulerEvent findByTenantIdAndExternalId(UUID tenantId, UUID externalId) {
+        return DaoUtil.getData(schedulerEventRepository.findByTenantIdAndExternalId(tenantId, externalId));
+    }
+
+    @Override
+    public SchedulerEvent findByTenantIdAndName(UUID tenantId, String name) {
+        return DaoUtil.getData(schedulerEventRepository.findByTenantIdAndName(tenantId, name));
+    }
+
+    @Override
+    public PageData<SchedulerEvent> findByTenantId(UUID tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(schedulerEventRepository.findByTenantId(
+                tenantId, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public SchedulerEventId getExternalIdByInternal(SchedulerEventId internalId) {
+        return Optional.ofNullable(schedulerEventRepository.getExternalIdById(internalId.getId()))
+                .map(SchedulerEventId::new).orElse(null);
+    }
+
+    @Override
+    public EntityType getEntityType() {
+        return EntityType.SCHEDULER_EVENT;
+    }
 
     @Override
     public SchedulerEvent save(TenantId tenantId, SchedulerEvent schedulerEvent) {

@@ -38,6 +38,7 @@ import org.thingsboard.server.common.data.DeviceInfoFilter;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.DeviceProfileType;
 import org.thingsboard.server.common.data.DeviceTransportType;
+import org.thingsboard.server.common.data.EntityInfo;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.EntityView;
@@ -460,6 +461,22 @@ public class DeviceServiceImpl extends CachedVersionedEntityService<DeviceCacheK
         validateId(deviceProfileId, id -> INCORRECT_DEVICE_PROFILE_ID + id);
         validatePageLink(pageLink);
         return deviceDao.findDeviceIdsByTenantIdAndDeviceProfileId(tenantId.getId(), deviceProfileId.getId(), pageLink);
+    }
+
+    @Override
+    public EntityInfo findDeviceEntityInfoById(TenantId tenantId, DeviceId deviceId) {
+        log.trace("Executing findDeviceEntityInfoById, tenantId [{}], deviceId [{}]", tenantId, deviceId);
+        validateId(deviceId, id -> INCORRECT_DEVICE_ID + id);
+        return deviceDao.findDeviceEntityInfoById(tenantId, deviceId);
+    }
+
+    @Override
+    public PageData<EntityInfo> findDeviceEntityInfosByTenantIdAndDeviceProfileId(TenantId tenantId, DeviceProfileId deviceProfileId, PageLink pageLink) {
+        log.trace("Executing findDeviceEntityInfosByTenantIdAndDeviceProfileId, tenantId [{}], deviceProfileId [{}], pageLink [{}]", tenantId, deviceProfileId, pageLink);
+        validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        validateId(deviceProfileId, id -> INCORRECT_DEVICE_PROFILE_ID + id);
+        validatePageLink(pageLink);
+        return deviceDao.findDeviceEntityInfosByTenantIdAndDeviceProfileId(tenantId, deviceProfileId, pageLink);
     }
 
     @Override

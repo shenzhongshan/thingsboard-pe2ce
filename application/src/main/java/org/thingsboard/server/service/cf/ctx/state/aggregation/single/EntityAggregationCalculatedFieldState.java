@@ -312,6 +312,28 @@ public class EntityAggregationCalculatedFieldState extends BaseCalculatedFieldSt
         return result;
     }
 
+    /**
+     * Historical reprocessing counterpart of {@link #performCalculation}: aggregates exactly one explicitly
+     * supplied interval instead of deriving the set of live intervals from the wall clock, and never expires
+     * intervals (the caller walks the whole reprocessing window interval by interval).
+     */
+    public ListenableFuture<CalculatedFieldResult> performAggregationDuringInterval(AggIntervalEntry aggInterval) {
+        Map<AggIntervalEntry, Map<String, ArgumentEntry>> results = new HashMap<>();
+        ctx.getArguments().keySet().forEach(argName -> processArgument(aggInterval, argName, false, results));
+
+        Output output = ctx.getOutput();
+        ArrayNode result = toResult(results, output.getDecimalsByDefault());
+        if (result.isEmpty()) {
+            return Futures.immediateFuture(TelemetryCalculatedFieldResult.EMPTY);
+        }
+        return Futures.immediateFuture(TelemetryCalculatedFieldResult.builder()
+                .outputStrategy(output.getStrategy())
+                .type(output.getType())
+                .scope(output.getScope())
+                .result(result)
+                .build());
+    }
+
     @Override
     public JsonNode getArgumentsJson() {
         if (debugTracker == null) {

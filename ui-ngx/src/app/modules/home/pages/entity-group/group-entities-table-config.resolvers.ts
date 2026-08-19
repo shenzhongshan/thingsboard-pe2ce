@@ -448,7 +448,10 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     config.componentsData = config.componentsData || {};
     config.componentsData.includeCustomerEntities = true;
     config.headerComponent = UserTableHeaderComponent;
-    config.columns.push(new EntityTableColumn<UserInfo>('groups', 'user.groups', '25%'));
+    // Not sortable: groups is stitched in after the query (UserServiceImpl.toUserInfos), so it is
+    // not a queryable property — sortProperty=groups would blow up in the JPQL.
+    config.columns.push(new EntityTableColumn<UserInfo>('groups', 'user.groups', '25%',
+      entity => entity.groups ?? '', () => ({}), false));
     // "包含客户实体" ON (default) = tenant admins + all customer users (getUsers already merges both
     // for a TENANT_ADMIN caller); OFF = tenant admins only, via the same endpoint UsersTableConfigResolver uses.
     config.entitiesFetchFunction = pageLink => config.componentsData.includeCustomerEntities === false ?

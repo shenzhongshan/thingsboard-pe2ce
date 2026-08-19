@@ -156,6 +156,14 @@ public interface DeviceRepository extends JpaRepository<DeviceEntity, UUID>, Exp
             "FROM DeviceEntity a WHERE a.tenantId = :tenantId AND a.name LIKE CONCAT(:prefix, '%')")
     List<EntityInfo> findEntityInfosByNamePrefix(UUID tenantId, String prefix);
 
+    @Query("SELECT new org.thingsboard.server.common.data.EntityInfo(d.id, 'DEVICE', d.name) " +
+            "FROM DeviceEntity d WHERE d.id = :id")
+    EntityInfo findEntityInfoById(@Param("id") UUID id);
+
+    @Query("SELECT new org.thingsboard.server.common.data.EntityInfo(d.id, 'DEVICE', d.name) " +
+            "FROM DeviceEntity d WHERE d.tenantId = :tenantId AND d.deviceProfileId = :profileId")
+    Page<EntityInfo> findEntityInfosByTenantIdAndProfileId(@Param("tenantId") UUID tenantId, @Param("profileId") UUID profileId, Pageable pageable);
+
     List<DeviceEntity> findDevicesByTenantIdAndCustomerIdAndIdIn(UUID tenantId, UUID customerId, List<UUID> deviceIds);
 
     List<DeviceEntity> findDevicesByTenantIdAndIdIn(UUID tenantId, List<UUID> deviceIds);

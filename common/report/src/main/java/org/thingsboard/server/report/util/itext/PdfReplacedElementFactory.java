@@ -1,0 +1,96 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  org.xhtmlrenderer.extend.FSImage
+ *  org.xhtmlrenderer.extend.ReplacedElement
+ *  org.xhtmlrenderer.extend.ReplacedElementFactory
+ *  org.xhtmlrenderer.extend.UserAgentCallback
+ *  org.xhtmlrenderer.layout.LayoutContext
+ *  org.xhtmlrenderer.pdf.BookmarkElement
+ *  org.xhtmlrenderer.pdf.CheckboxFormField
+ *  org.xhtmlrenderer.pdf.EmptyReplacedElement
+ *  org.xhtmlrenderer.pdf.ITextImageElement
+ *  org.xhtmlrenderer.pdf.TextFormField
+ *  org.xhtmlrenderer.render.BlockBox
+ *  org.xhtmlrenderer.render.Box
+ *  org.xhtmlrenderer.simple.extend.FormSubmissionListener
+ */
+package org.thingsboard.server.report.util.itext;
+
+import org.w3c.dom.Element;
+import org.xhtmlrenderer.extend.FSImage;
+import org.xhtmlrenderer.extend.ReplacedElement;
+import org.xhtmlrenderer.extend.ReplacedElementFactory;
+import org.xhtmlrenderer.extend.UserAgentCallback;
+import org.xhtmlrenderer.layout.LayoutContext;
+import org.xhtmlrenderer.pdf.BookmarkElement;
+import org.xhtmlrenderer.pdf.CheckboxFormField;
+import org.xhtmlrenderer.pdf.EmptyReplacedElement;
+import org.xhtmlrenderer.pdf.ITextImageElement;
+import org.xhtmlrenderer.pdf.TextFormField;
+import org.xhtmlrenderer.render.BlockBox;
+import org.xhtmlrenderer.render.Box;
+import org.xhtmlrenderer.simple.extend.FormSubmissionListener;
+
+public class PdfReplacedElementFactory
+implements ReplacedElementFactory {
+    public ReplacedElement createReplacedElement(LayoutContext c, BlockBox box, UserAgentCallback uac, int cssWidth, int cssHeight) {
+        String nodeName;
+        Element e = box.getElement();
+        if (e == null) {
+            return null;
+        }
+        switch (nodeName = e.getNodeName()) {
+            case "img": {
+                String srcAttr = e.getAttribute("src");
+                if (srcAttr.isEmpty()) {
+                    srcAttr = "/assets/report/components/image-placeholder.svg";
+                }
+                if (srcAttr.equals("noImage")) {
+                    return null;
+                }
+                FSImage fsImage = uac.getImageResource(srcAttr).getImage();
+                if (fsImage == null) break;
+                if (cssWidth != -1 || cssHeight != -1) {
+                    fsImage = fsImage.scale(cssWidth, cssHeight);
+                }
+                return new ITextImageElement(fsImage);
+            }
+            case "input": {
+                String type;
+                switch (type = e.getAttribute("type")) {
+                    case "hidden": {
+                        return new EmptyReplacedElement(1, 1);
+                    }
+                    case "checkbox": {
+                        return new CheckboxFormField(c, box, cssWidth, cssHeight);
+                    }
+                }
+                return new TextFormField(c, box, cssWidth, cssHeight);
+            }
+            case "bookmark": {
+                if (e.hasAttribute("name")) {
+                    String name = e.getAttribute("name");
+                    c.addBoxId(name, (Box)box);
+                    return new BookmarkElement(name);
+                }
+                return new BookmarkElement(null);
+            }
+        }
+        return null;
+    }
+
+    public void reset() {
+    }
+
+    public void remove(Element e) {
+    }
+
+    public void remove(String fieldName) {
+    }
+
+    public void setFormSubmissionListener(FormSubmissionListener listener) {
+    }
+}
+

@@ -57,6 +57,8 @@ public class TimeseriesSaveRequest implements CalculatedFieldSystemAwareRequest 
         public static final Strategy LATEST_AND_WS = new Strategy(false, true, true, false);
         public static final Strategy SKIP_ALL = new Strategy(false, false, false, false);
         public static final Strategy CF_ONLY = new Strategy(false, false, false, true);
+        // backfilling historical points: persist them, but do not disturb "latest", WS subscribers or downstream CFs
+        public static final Strategy TIME_SERIES_ONLY = new Strategy(true, false, false, false);
 
     }
 

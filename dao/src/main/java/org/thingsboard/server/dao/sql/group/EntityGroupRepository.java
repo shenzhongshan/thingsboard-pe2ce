@@ -38,6 +38,15 @@ public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, 
                                                  @Param("textSearch") String textSearch,
                                                  Pageable pageable);
 
+    // Same as above across a set of owners, used to list an owner's groups together with those of
+    // its ancestors (see EntityGroupService.findEntityGroupsByOwnersAndType).
+    @Query("SELECT g FROM EntityGroupEntity g WHERE g.ownerId IN :ownerIds AND g.type = :type " +
+            "AND (:textSearch IS NULL OR ilike(g.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<EntityGroupEntity> findByOwnerIdsAndType(@Param("ownerIds") List<UUID> ownerIds,
+                                                  @Param("type") EntityType type,
+                                                  @Param("textSearch") String textSearch,
+                                                  Pageable pageable);
+
     Optional<EntityGroupEntity> findByOwnerIdAndTypeAndName(UUID ownerId, EntityType type, String name);
 
     List<EntityGroupEntity> findAllByTenantId(UUID tenantId);

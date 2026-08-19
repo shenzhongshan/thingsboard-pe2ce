@@ -42,10 +42,13 @@ import org.thingsboard.server.common.data.UniquifyStrategy;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.entitiy.customer.TbCustomerService;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
@@ -78,8 +81,25 @@ import static org.thingsboard.server.controller.ControllerConstants.UUID_WIKI_LI
 public class CustomerController extends BaseController {
 
     private final TbCustomerService tbCustomerService;
+    private final UserEntitiesService userEntitiesService;
 
     public static final String IS_PUBLIC = "isPublic";
+
+    @ApiOperation(value = "Get User Customers (getUserCustomers)",
+            notes = "Returns a page of customers available to the current user: their own owner scope when they hold " +
+                    "a generic role for customers, plus the members of any customer group shared with them. " +
+                    "Users granted neither get an empty page rather than an error. " +
+                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/customers", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserCustomers(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = CUSTOMER_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return userEntitiesService.findUserEntities(getCurrentUser(), EntityType.CUSTOMER, Operation.READ, pageLink);
+    }
     public static final String CUSTOMER_SECURITY_CHECK = "If the user has the authority of 'Tenant Administrator', the server checks that the customer is owned by the same tenant. " +
             "If the user has the authority of 'Customer User', the server checks that the user belongs to the customer.";
 

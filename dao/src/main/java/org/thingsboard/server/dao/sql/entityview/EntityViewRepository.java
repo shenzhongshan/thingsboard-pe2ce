@@ -158,6 +158,7 @@ public interface EntityViewRepository extends JpaRepository<EntityViewEntity, UU
 
     @Query("SELECT r.toId, eg.name FROM RelationEntity r JOIN EntityGroupEntity eg ON eg.id = r.fromId " +
             "WHERE r.toId IN :ids AND r.toType = 'ENTITY_VIEW' AND eg.type = org.thingsboard.server.common.data.EntityType.ENTITY_VIEW " +
-            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains'")
+            "AND r.relationTypeGroup = 'FROM_ENTITY_GROUP' AND r.relationType = 'Contains' " +
+            "AND eg.name <> 'All'")
     List<Object[]> findGroupNamesByEntityViewIds(@Param("ids") List<UUID> ids);
 }

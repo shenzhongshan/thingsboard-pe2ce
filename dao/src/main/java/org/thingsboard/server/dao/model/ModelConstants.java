@@ -833,4 +833,7 @@ public class ModelConstants {
         }
     }
 
+
+    public static final String INTEGRATION_IS_REMOTE_PROPERTY = "is_remote";
+
 }

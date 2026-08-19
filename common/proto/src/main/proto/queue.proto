@@ -67,6 +67,19 @@ enum EntityTypeProto {
   ADMIN_SETTINGS        = 42;
   AI_MODEL              = 43;
   API_KEY               = 44;
+  // PE feature ports. Numbers match PE's own EntityTypeProto so payloads stay wire-compatible.
+  // Must be kept in sync with EntityType.protoNumber - ProtoUtils.toProto(EntityType) resolves
+  // via forNumber(), which returns null (and then NPEs the setter) for any value missing here.
+  ENTITY_GROUP          = 100;
+  CONVERTER             = 101;
+  INTEGRATION           = 102;
+  SCHEDULER_EVENT       = 103;
+  BLOB_ENTITY           = 104;
+  ROLE                  = 105;
+  GROUP_PERMISSION      = 106;
+  SECRET                = 107;
+  REPORT_TEMPLATE       = 108;
+  REPORT                = 109;
 }
 
 enum ApiUsageRecordKeyProto {

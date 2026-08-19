@@ -38,7 +38,14 @@ public class TenantAdminPermissions extends AbstractPermissions {
         put(Resource.CONVERTER, tenantEntityPermissionChecker);
         put(Resource.INTEGRATION, tenantEntityPermissionChecker);
         put(Resource.ENTITY_GROUP, tenantEntityPermissionChecker);
+        // Every per-type group resource resolves to the same tenant-scoped checker; the narrowing
+        // happens in the roles a user is granted, not in what a tenant admin may reach.
+        Resource.groupResources().forEach(groupResource -> put(groupResource, tenantEntityPermissionChecker));
         put(Resource.ROLE, tenantEntityPermissionChecker);
+        put(Resource.AUDIT_LOG, new PermissionChecker.GenericPermissionChecker(Operation.READ));
+        put(Resource.CUSTOM_MENU, tenantEntityPermissionChecker);
+        put(Resource.PROFILE, PermissionChecker.allowAllPermissionChecker);
+        put(Resource.QUEUE_STATS, new PermissionChecker.GenericPermissionChecker(Operation.READ));
         put(Resource.GROUP_PERMISSION, tenantEntityPermissionChecker);
         put(Resource.REPORT_TEMPLATE, tenantEntityPermissionChecker);
         put(Resource.REPORT, tenantEntityPermissionChecker);

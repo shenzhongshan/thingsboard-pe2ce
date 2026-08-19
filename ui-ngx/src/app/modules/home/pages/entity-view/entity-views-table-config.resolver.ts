@@ -174,7 +174,10 @@ export class EntityViewsTableConfigResolver  {
           entity => {
             return checkBoxCell(entity.customerIsPublic);
           }, () => ({}), false),
-        new EntityTableColumn<EntityViewInfo>('groups', 'entity-view.groups', '25%'),
+        // Not sortable: groups is stitched in after the query (EntityViewServiceImpl.toEntityViewInfos),
+        // so it is not a queryable property — sortProperty=groups would blow up in the JPQL.
+        new EntityTableColumn<EntityViewInfo>('groups', 'entity-view.groups', '25%',
+          entity => entity.groups ?? '', () => ({}), false),
       );
     }
     return columns;

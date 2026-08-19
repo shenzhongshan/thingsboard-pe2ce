@@ -101,6 +101,30 @@ import org.thingsboard.server.common.data.widget.WidgetsBundle;
 import org.thingsboard.server.common.transport.util.JsonUtils;
 import org.thingsboard.server.gen.edge.v1.AiModelUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
+import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.EntityGroupId;
+import org.thingsboard.server.gen.edge.v1.EntityGroupUpdateMsg;
+import org.thingsboard.server.common.data.role.Role;
+import org.thingsboard.server.common.data.id.RoleId;
+import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.common.data.permission.GroupPermission;
+import org.thingsboard.server.common.data.id.GroupPermissionId;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.common.data.converter.Converter;
+import org.thingsboard.server.common.data.id.ConverterId;
+import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
+import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.data.id.IntegrationId;
+import org.thingsboard.server.gen.edge.v1.IntegrationUpdateMsg;
+import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
+import org.thingsboard.server.common.data.id.SchedulerEventId;
+import org.thingsboard.server.gen.edge.v1.SchedulerEventUpdateMsg;
+import org.thingsboard.server.common.data.report.ReportTemplate;
+import org.thingsboard.server.common.data.id.ReportTemplateId;
+import org.thingsboard.server.gen.edge.v1.ReportTemplateUpdateMsg;
+import org.thingsboard.server.common.data.secret.Secret;
+import org.thingsboard.server.common.data.id.SecretId;
+import org.thingsboard.server.gen.edge.v1.SecretUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AlarmCommentUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AlarmUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AssetProfileUpdateMsg;
@@ -755,6 +779,110 @@ public class EdgeMsgConstructorUtils {
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(apiKeyId.getId().getMostSignificantBits())
                 .setIdLSB(apiKeyId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static EntityGroupUpdateMsg constructEntityGroupUpdatedMsg(UpdateMsgType msgType, EntityGroup entityGroup) {
+        return EntityGroupUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(entityGroup))
+                .setIdMSB(entityGroup.getId().getId().getMostSignificantBits())
+                .setIdLSB(entityGroup.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static EntityGroupUpdateMsg constructEntityGroupDeleteMsg(EntityGroupId entityGroupId) {
+        return EntityGroupUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(entityGroupId.getId().getMostSignificantBits())
+                .setIdLSB(entityGroupId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static RoleUpdateMsg constructRoleUpdatedMsg(UpdateMsgType msgType, Role role) {
+        return RoleUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(role))
+                .setIdMSB(role.getId().getId().getMostSignificantBits())
+                .setIdLSB(role.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static RoleUpdateMsg constructRoleDeleteMsg(RoleId roleId) {
+        return RoleUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(roleId.getId().getMostSignificantBits())
+                .setIdLSB(roleId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static GroupPermissionUpdateMsg constructGroupPermissionUpdatedMsg(UpdateMsgType msgType, GroupPermission groupPermission) {
+        return GroupPermissionUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(groupPermission))
+                .setIdMSB(groupPermission.getId().getId().getMostSignificantBits())
+                .setIdLSB(groupPermission.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static GroupPermissionUpdateMsg constructGroupPermissionDeleteMsg(GroupPermissionId groupPermissionId) {
+        return GroupPermissionUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(groupPermissionId.getId().getMostSignificantBits())
+                .setIdLSB(groupPermissionId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static ConverterUpdateMsg constructConverterUpdatedMsg(UpdateMsgType msgType, Converter converter) {
+        return ConverterUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(converter))
+                .setIdMSB(converter.getId().getId().getMostSignificantBits())
+                .setIdLSB(converter.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static ConverterUpdateMsg constructConverterDeleteMsg(ConverterId converterId) {
+        return ConverterUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(converterId.getId().getMostSignificantBits())
+                .setIdLSB(converterId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static IntegrationUpdateMsg constructIntegrationUpdatedMsg(UpdateMsgType msgType, Integration integration) {
+        return IntegrationUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(integration))
+                .setIdMSB(integration.getId().getId().getMostSignificantBits())
+                .setIdLSB(integration.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static IntegrationUpdateMsg constructIntegrationDeleteMsg(IntegrationId integrationId) {
+        return IntegrationUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(integrationId.getId().getMostSignificantBits())
+                .setIdLSB(integrationId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static SchedulerEventUpdateMsg constructSchedulerEventUpdatedMsg(UpdateMsgType msgType, SchedulerEvent schedulerEvent) {
+        return SchedulerEventUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(schedulerEvent))
+                .setIdMSB(schedulerEvent.getId().getId().getMostSignificantBits())
+                .setIdLSB(schedulerEvent.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static SchedulerEventUpdateMsg constructSchedulerEventDeleteMsg(SchedulerEventId schedulerEventId) {
+        return SchedulerEventUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(schedulerEventId.getId().getMostSignificantBits())
+                .setIdLSB(schedulerEventId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static ReportTemplateUpdateMsg constructReportTemplateUpdatedMsg(UpdateMsgType msgType, ReportTemplate reportTemplate) {
+        return ReportTemplateUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(reportTemplate))
+                .setIdMSB(reportTemplate.getId().getId().getMostSignificantBits())
+                .setIdLSB(reportTemplate.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static ReportTemplateUpdateMsg constructReportTemplateDeleteMsg(ReportTemplateId reportTemplateId) {
+        return ReportTemplateUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(reportTemplateId.getId().getMostSignificantBits())
+                .setIdLSB(reportTemplateId.getId().getLeastSignificantBits()).build();
+    }
+
+    public static SecretUpdateMsg constructSecretUpdatedMsg(UpdateMsgType msgType, Secret secret) {
+        return SecretUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(secret))
+                .setIdMSB(secret.getId().getId().getMostSignificantBits())
+                .setIdLSB(secret.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    public static SecretUpdateMsg constructSecretDeleteMsg(SecretId secretId) {
+        return SecretUpdateMsg.newBuilder()
+                .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
+                .setIdMSB(secretId.getId().getMostSignificantBits())
+                .setIdLSB(secretId.getId().getLeastSignificantBits()).build();
     }
 
     public static List<EdgeEvent> mergeAndFilterDownlinkDuplicates(List<EdgeEvent> edgeEvents) {

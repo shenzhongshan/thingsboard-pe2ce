@@ -39,6 +39,11 @@ import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
 import org.thingsboard.server.common.data.cf.CalculatedField;
 import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.converter.Converter;
+import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.data.report.ReportTemplate;
+import org.thingsboard.server.common.data.role.Role;
+import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.notification.rule.NotificationRule;
 import org.thingsboard.server.common.data.notification.targets.NotificationTarget;
@@ -69,7 +74,12 @@ import java.util.Map;
         @Type(name = "NOTIFICATION_TARGET", value = EntityExportData.NotificationTargetExportData.class),
         @Type(name = "NOTIFICATION_RULE", value = EntityExportData.NotificationRuleExportData.class),
         @Type(name = "AI_MODEL", value = EntityExportData.AiModelExportData.class),
-        @Type(name = "ENTITY_GROUP", value = EntityExportData.EntityGroupExportData.class)
+        @Type(name = "ENTITY_GROUP", value = EntityExportData.EntityGroupExportData.class),
+        @Type(name = "ROLE", value = EntityExportData.RoleExportData.class),
+        @Type(name = "REPORT_TEMPLATE", value = EntityExportData.ReportTemplateExportData.class),
+        @Type(name = "CONVERTER", value = EntityExportData.ConverterExportData.class),
+        @Type(name = "INTEGRATION", value = EntityExportData.IntegrationExportData.class),
+        @Type(name = "SCHEDULER_EVENT", value = EntityExportData.SchedulerEventExportData.class)
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(
@@ -92,7 +102,12 @@ import java.util.Map;
                 @DiscriminatorMapping(value = "NOTIFICATION_TARGET", schema = EntityExportData.NotificationTargetExportData.class),
                 @DiscriminatorMapping(value = "NOTIFICATION_RULE", schema = EntityExportData.NotificationRuleExportData.class),
                 @DiscriminatorMapping(value = "AI_MODEL", schema = EntityExportData.AiModelExportData.class),
-                @DiscriminatorMapping(value = "ENTITY_GROUP", schema = EntityExportData.EntityGroupExportData.class)
+                @DiscriminatorMapping(value = "ENTITY_GROUP", schema = EntityExportData.EntityGroupExportData.class),
+                @DiscriminatorMapping(value = "ROLE", schema = EntityExportData.RoleExportData.class),
+                @DiscriminatorMapping(value = "REPORT_TEMPLATE", schema = EntityExportData.ReportTemplateExportData.class),
+                @DiscriminatorMapping(value = "CONVERTER", schema = EntityExportData.ConverterExportData.class),
+                @DiscriminatorMapping(value = "INTEGRATION", schema = EntityExportData.IntegrationExportData.class),
+                @DiscriminatorMapping(value = "SCHEDULER_EVENT", schema = EntityExportData.SchedulerEventExportData.class)
         }
 )
 @Data
@@ -147,6 +162,11 @@ public abstract class EntityExportData<E extends ExportableEntity<? extends Enti
             case NOTIFICATION_RULE -> new NotificationRuleExportData();
             case AI_MODEL -> new AiModelExportData();
             case ENTITY_GROUP -> new EntityGroupExportData();
+            case ROLE -> new RoleExportData();
+            case REPORT_TEMPLATE -> new ReportTemplateExportData();
+            case CONVERTER -> new ConverterExportData();
+            case INTEGRATION -> new IntegrationExportData();
+            case SCHEDULER_EVENT -> new SchedulerEventExportData();
             default -> throw new IllegalArgumentException("Unsupported entity type: " + entityType);
         };
     }
@@ -282,6 +302,46 @@ public abstract class EntityExportData<E extends ExportableEntity<? extends Enti
         @Override
         public EntityType getEntityType() {
             return EntityType.AI_MODEL;
+        }
+    }
+
+    @Schema
+    public static class RoleExportData extends EntityExportData<Role> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.ROLE;
+        }
+    }
+
+    @Schema
+    public static class ReportTemplateExportData extends EntityExportData<ReportTemplate> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.REPORT_TEMPLATE;
+        }
+    }
+
+    @Schema
+    public static class ConverterExportData extends EntityExportData<Converter> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.CONVERTER;
+        }
+    }
+
+    @Schema
+    public static class IntegrationExportData extends EntityExportData<Integration> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.INTEGRATION;
+        }
+    }
+
+    @Schema
+    public static class SchedulerEventExportData extends EntityExportData<SchedulerEvent> {
+        @Override
+        public EntityType getEntityType() {
+            return EntityType.SCHEDULER_EVENT;
         }
     }
 

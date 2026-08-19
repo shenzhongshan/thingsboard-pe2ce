@@ -82,4 +82,50 @@ public class JacksonUtilTest {
         assertThat(JacksonUtil.writeValueAsString(Set.of(Optional.empty()))).isEqualTo("[null]");
     }
 
+    @Test
+    public void extractKeysReturnsLeafPathsTest() {
+        JsonNode node = JacksonUtil.toJsonNode("{\"a\":{\"b\":\"1\",\"c\":{\"d\":\"2\"}},\"e\":\"3\"}");
+        assertThat(JacksonUtil.extractKeys(node)).containsExactlyInAnyOrder("a.b", "a.c.d", "e");
+    }
+
+    @Test
+    public void extractKeysIndexesArrayElementsTest() {
+        JsonNode node = JacksonUtil.toJsonNode("{\"a\":[\"x\",\"y\"],\"b\":[{\"c\":\"z\"}]}");
+        assertThat(JacksonUtil.extractKeys(node)).containsExactlyInAnyOrder("a[0]", "a[1]", "b[0].c");
+    }
+
+    @Test
+    public void extractKeysCountsEmptyContainersAsNoKeysTest() {
+        assertThat(JacksonUtil.extractKeys(JacksonUtil.toJsonNode("{\"a\":{},\"b\":[]}"))).isEmpty();
+    }
+
+    @Test
+    public void mergeOverridesLeavesAndAddsMissingKeysTest() {
+        JsonNode main = JacksonUtil.toJsonNode("{\"a\":{\"b\":\"1\",\"c\":\"2\"}}");
+        JsonNode update = JacksonUtil.toJsonNode("{\"a\":{\"b\":\"9\",\"d\":\"4\"},\"e\":\"5\"}");
+        assertThat(JacksonUtil.merge(main, update))
+                .isEqualTo(JacksonUtil.toJsonNode("{\"a\":{\"b\":\"9\",\"c\":\"2\",\"d\":\"4\"},\"e\":\"5\"}"));
+    }
+
+    @Test
+    public void mergeIgnoresExplicitNullsOfNewKeysTest() {
+        JsonNode main = JacksonUtil.toJsonNode("{\"a\":\"1\"}");
+        JsonNode update = JacksonUtil.toJsonNode("{\"b\":null}");
+        assertThat(JacksonUtil.merge(main, update)).isEqualTo(JacksonUtil.toJsonNode("{\"a\":\"1\"}"));
+    }
+
+    @Test
+    public void mergeDoesNotOverrunShorterUpdateArrayTest() {
+        // the update array is shorter than the main one - the surplus main elements must survive untouched
+        JsonNode main = JacksonUtil.toJsonNode("{\"a\":[{\"b\":\"1\"},{\"b\":\"2\"}]}");
+        JsonNode update = JacksonUtil.toJsonNode("{\"a\":[{\"b\":\"9\"}]}");
+        assertThat(JacksonUtil.merge(main, update)).isEqualTo(JacksonUtil.toJsonNode("{\"a\":[{\"b\":\"9\"},{\"b\":\"2\"}]}"));
+    }
+
+    @Test
+    public void writeValueAsStringWithDefaultPrettyPrinterTest() {
+        String pretty = JacksonUtil.writeValueAsStringWithDefaultPrettyPrinter(JacksonUtil.toJsonNode("{\"a\":\"1\"}"));
+        assertThat(pretty.replace("\r", "")).isEqualTo("{\n  \"a\" : \"1\"\n}");
+    }
+
 }

@@ -44,7 +44,9 @@ public enum Operation {
     ADD_TO_GROUP,
     REMOVE_FROM_GROUP,
     CHANGE_OWNER,
-    SHARE_GROUP(true);
+    SHARE_GROUP(true),
+    /** Act as another user — guards GET /api/user/{userId}/token. PE checks this on checkUserId. */
+    IMPERSONATE;
 
     public static final Set<Operation> defaultEntityOperations = new HashSet<>(Arrays.asList(
             ALL, READ, WRITE, CREATE, DELETE, READ_ATTRIBUTES, WRITE_ATTRIBUTES, READ_TELEMETRY, WRITE_TELEMETRY, CHANGE_OWNER));

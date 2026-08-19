@@ -20,12 +20,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.thingsboard.server.dao.ExportableEntityRepository;
 import org.thingsboard.server.dao.model.sql.ReportTemplateEntity;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface ReportTemplateRepository extends JpaRepository<ReportTemplateEntity, UUID> {
+public interface ReportTemplateRepository extends JpaRepository<ReportTemplateEntity, UUID>,
+        ExportableEntityRepository<ReportTemplateEntity> {
 
     ReportTemplateEntity findByTenantIdAndName(UUID tenantId, String name);
 
@@ -44,5 +46,8 @@ public interface ReportTemplateRepository extends JpaRepository<ReportTemplateEn
 
     @Query("SELECT t.id FROM ReportTemplateEntity t WHERE t.tenantId = :tenantId")
     List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query("SELECT externalId FROM ReportTemplateEntity WHERE id = :id")
+    UUID getExternalIdById(@Param("id") UUID id);
 
 }

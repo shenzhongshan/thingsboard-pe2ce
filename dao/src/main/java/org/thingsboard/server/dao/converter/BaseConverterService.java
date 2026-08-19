@@ -20,7 +20,11 @@ import com.google.common.util.concurrent.Futures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
@@ -46,6 +50,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class BaseConverterService implements ConverterService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final ConverterRepository converterRepository;
     private final IntegrationRepository integrationRepository;
@@ -79,7 +86,11 @@ public class BaseConverterService implements ConverterService {
         DebugModeUtil.migrateDebugSettings(converter,
                 tbTenantProfileCache.get(converter.getTenantId()).getDefaultProfileConfiguration().getMaxDebugModeDurationMinutes(),
                 defaultDebugDurationMinutes, System.currentTimeMillis());
-        return converterRepository.save(new ConverterEntity(converter)).toData();
+        boolean created = converter.getId() == null;
+        Converter saved = converterRepository.save(new ConverterEntity(converter)).toData();
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(saved.getTenantId()).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
@@ -107,6 +118,7 @@ public class BaseConverterService implements ConverterService {
             throw new DataValidationException("The converter is referenced by an integration and cannot be deleted!");
         }
         converterRepository.deleteById(converterId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(converterId).build());
     }
 
     @Override

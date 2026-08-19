@@ -33,12 +33,15 @@ import java.util.List;
 @Schema(
         discriminatorProperty = "type",
         discriminatorMapping = {
+                @DiscriminatorMapping(value = "CF_REPROCESSING", schema = CfReprocessingJobConfiguration.class),
                 @DiscriminatorMapping(value = "DUMMY", schema = DummyJobConfiguration.class)
         }
 )
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
+        @Type(name = "CF_REPROCESSING", value = CfReprocessingJobConfiguration.class),
+        @Type(name = "REPORT", value = ReportJobConfiguration.class),
         @Type(name = "DUMMY", value = DummyJobConfiguration.class),
 })
 @Data

@@ -47,6 +47,14 @@ public interface EntityGroupService {
     /** ownerId = null → tenant-owned groups; otherwise the customer's groups of that type. */
     PageData<EntityGroup> findEntityGroupsByType(TenantId tenantId, CustomerId ownerId, EntityType groupType, PageLink pageLink);
 
+    /**
+     * Groups of the given type held by any of the owners, in one page. Used to present an owner
+     * together with its ancestors, which is how a sub-customer sees the groups it inherits.
+     *
+     * @param ownerIds tenant ids and/or customer ids; an empty list yields an empty page
+     */
+    PageData<EntityGroup> findEntityGroupsByOwnersAndType(TenantId tenantId, List<EntityId> ownerIds, EntityType groupType, PageLink pageLink);
+
     void deleteEntityGroup(TenantId tenantId, EntityGroupId entityGroupId);
 
     /** Removes every group the owner holds, including its "All" groups. Call when deleting the owner. */
@@ -57,6 +65,23 @@ public interface EntityGroupService {
     void removeEntitiesFromEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds);
 
     PageData<? extends HasName> findGroupEntities(TenantId tenantId, EntityGroupId entityGroupId, PageLink pageLink);
+
+    /**
+     * Entities of {@code groupType} a user may see: the union of their owner scope (when
+     * {@code includeOwnerScope}, i.e. they hold a generic grant) and the entity groups granted to
+     * them through GROUP roles, which may belong to other owners.
+     * <p>
+     * Takes plain ids rather than the permission model, because that lives in the application module
+     * and is not visible from here; callers resolve it with
+     * {@code MergedUserPermissions.getGroupPermissionsByEntityTypeAndOperation}.
+     *
+     * @param ownerId           owner whose scope to include, or null for the whole tenant
+     * @param groupIds          additional groups granted to the user; may be empty
+     * @param includeOwnerScope whether the owner scope itself is reachable
+     */
+    PageData<? extends HasName> findUserGroupEntities(TenantId tenantId, EntityType groupType, CustomerId ownerId,
+                                                      List<EntityGroupId> groupIds, boolean includeOwnerScope,
+                                                      PageLink pageLink);
 
     EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId, boolean isPublic);
 

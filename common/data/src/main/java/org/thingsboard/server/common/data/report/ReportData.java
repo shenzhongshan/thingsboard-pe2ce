@@ -16,10 +16,12 @@
 package org.thingsboard.server.common.data.report;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 /** Transient carrier for freshly-rendered report bytes — not a persisted entity, see {@link Report}. */
 @Data
+@Builder
 @AllArgsConstructor
 public class ReportData {
     private byte[] data;

@@ -41,6 +41,7 @@ import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.integration.rpc.TbRemoteIntegrationRpcService;
 import org.thingsboard.server.service.partition.AbstractPartitionBasedService;
 
 import java.time.LocalDate;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,6 +78,8 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     private final DeviceService deviceService;
     private final TbClusterService clusterService;
     private final List<IntegrationRuntimeFactory> runtimeFactories;
+    // present only when integrations.rpc.enabled=true
+    private final Optional<TbRemoteIntegrationRpcService> remoteIntegrationRpcService;
 
     private final Map<IntegrationType, IntegrationRuntimeFactory> factoryByType = new ConcurrentHashMap<>();
 
@@ -167,6 +171,13 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     @Override
     public void onIntegrationUpdated(Integration integration) {
+        if (integration.isRemote()) {
+            // executed by a separate process: never start it in-process, just push the new config
+            // down the gRPC stream so the remote picks it up without restarting
+            stopIntegration(integration.getId());
+            remoteIntegrationRpcService.ifPresent(rpc -> rpc.onIntegrationUpdated(integration));
+            return;
+        }
         scheduledExecutor.submit(() -> {
             stopIntegration(integration.getId());
             if (integration.isEnabled()) {
@@ -200,6 +211,10 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     }
 
     private void startIntegration(Integration integration) {
+        if (integration.isRemote()) {
+            statuses.put(integration.getId(), new IntegrationStatus("REMOTE", null));
+            return;
+        }
         try {
             IntegrationType type = integration.getType();
             if (!PASSIVE_TYPES.contains(type)) {

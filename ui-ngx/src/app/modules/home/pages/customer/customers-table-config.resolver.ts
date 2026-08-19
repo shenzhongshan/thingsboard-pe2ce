@@ -71,7 +71,10 @@ export class CustomersTableConfigResolver  {
       new EntityTableColumn<CustomerInfo>('country', 'contact.country', '25%'),
       new EntityTableColumn<CustomerInfo>('city', 'contact.city', '25%'),
       new EntityTableColumn<CustomerInfo>('parentCustomerName', 'customer.parent-customer-name', '25%'),
-      new EntityTableColumn<CustomerInfo>('groups', 'customer.groups', '25%')
+      // Not sortable: groups is stitched in after the query (CustomerServiceImpl.toCustomerInfos),
+      // so it is not a queryable property — sortProperty=groups would blow up in the JPQL.
+      new EntityTableColumn<CustomerInfo>('groups', 'customer.groups', '25%',
+        entity => entity.groups ?? '', () => ({}), false)
     );
     this.config.cellActionDescriptors.push(
       {

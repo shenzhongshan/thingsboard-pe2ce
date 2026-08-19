@@ -26,7 +26,7 @@ import java.util.Map;
  * no integration executor microservice); change notifications are direct in-JVM calls (monolith),
  * same pattern as the scheduler port.
  */
-public interface PlatformIntegrationService {
+public interface PlatformIntegrationService extends IntegrationUplinkSink {
 
     void onIntegrationUpdated(Integration integration);
 
@@ -34,6 +34,7 @@ public interface PlatformIntegrationService {
 
     JsonNode getIntegrationStatus(IntegrationId integrationId);
 
+    @Override
     void processUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception;
 
     /**

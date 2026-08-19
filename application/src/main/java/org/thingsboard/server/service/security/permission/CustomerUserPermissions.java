@@ -23,6 +23,7 @@ import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.ApiKeyId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
@@ -87,7 +88,61 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.API_KEY, apiKeysPermissionChecker);
         // Blobs are tenant/customer-scoped like devices and assets, so the same checker applies.
         put(Resource.BLOB_ENTITY, customerEntityPermissionChecker);
+        // Entity groups were previously unreachable for customer users (no checker registered at
+        // all), so every EntityGroupController call 403'd for them regardless of their roles.
+        put(Resource.ENTITY_GROUP, entityGroupPermissionChecker);
+        Resource.groupResources().forEach(groupResource -> put(groupResource, entityGroupPermissionChecker));
+        put(Resource.PROFILE, PermissionChecker.allowAllPermissionChecker);
     }
+
+    /**
+     * Entity groups are checked against the group itself, not against groups containing it, so this
+     * cannot reuse {@link #hasGroupOrGenericPermission}: the GROUP branch consults the permission
+     * granted directly on this group id, and the GENERIC branch uses the per-member-type resource
+     * ({@link Resource#groupResourceFromGroupType}) so a role may grant device groups without also
+     * granting user groups. Owner scoping matches every other entity — GENERIC only reaches the
+     * user's own owner subtree, GROUP may cross owners because that is what sharing a group means.
+     */
+    private final PermissionChecker<EntityGroupId, EntityGroup> entityGroupPermissionChecker =
+            new PermissionChecker<>() {
+
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation) {
+                    // No group in hand yet (list endpoints). Allow through if any group grant could
+                    // apply; the per-group check below still runs once a group is resolved.
+                    MergedUserPermissions perms = user.getUserPermissions();
+                    if (perms == null) {
+                        return false;
+                    }
+                    if (perms.hasGenericPermission(Resource.ENTITY_GROUP, operation)) {
+                        return true;
+                    }
+                    for (Resource groupResource : Resource.groupResources()) {
+                        if (perms.hasGenericPermission(groupResource, operation)) {
+                            return true;
+                        }
+                    }
+                    return operation.isAllowedForGroupRole() && !perms.getGroupPermissions().isEmpty();
+                }
+
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation, EntityGroupId entityGroupId, EntityGroup entityGroup) {
+                    if (!user.getTenantId().equals(entityGroup.getTenantId())) {
+                        return false;
+                    }
+                    MergedUserPermissions perms = user.getUserPermissions();
+                    if (perms == null) {
+                        return false;
+                    }
+                    if (operation.isAllowedForGroupRole() && perms.hasGroupPermissions(entityGroupId, operation)) {
+                        return true;
+                    }
+                    EntityId ownerId = entityGroup.getOwnerId();
+                    return ownerId != null
+                            && ownerService.isOwnedBy(user.getTenantId(), user.getOwnerId(), ownerId)
+                            && perms.hasGenericPermission(Resource.groupResourceFromGroupType(entityGroup.getType()), operation);
+                }
+            };
 
     /**
      * True if the user's MergedUserPermissions cover this operation, either generically or via a

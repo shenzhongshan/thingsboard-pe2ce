@@ -75,6 +75,8 @@ public class Job extends BaseData<JobId> implements HasTenantId {
 
     public void presetResult() {
         this.result = switch (type) {
+            case CF_REPROCESSING -> new CfReprocessingJobResult();
+            case REPORT -> new ReportJobResult();
             case DUMMY -> new DummyJobResult();
         };
     }

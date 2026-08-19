@@ -32,7 +32,8 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.dao.model.BaseEntity;
-import org.thingsboard.server.dao.model.BaseSqlEntity;
+import org.thingsboard.server.dao.model.BaseVersionedEntity;
+import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
 
 import java.util.UUID;
@@ -41,7 +42,7 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "integration")
-public class IntegrationEntity extends BaseSqlEntity<Integration> implements BaseEntity<Integration> {
+public class IntegrationEntity extends BaseVersionedEntity<Integration> implements BaseEntity<Integration> {
 
     @Column(name = "tenant_id")
     private UUID tenantId;
@@ -71,6 +72,9 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
     @Column(name = "allow_create_devices_or_assets")
     private boolean allowCreateDevicesOrAssets;
 
+    @Column(name = ModelConstants.INTEGRATION_IS_REMOTE_PROPERTY)
+    private boolean remote;
+
     @Column(name = "debug_mode")
     private boolean debugMode;
 
@@ -85,15 +89,15 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
     @Column(name = "additional_info")
     private JsonNode additionalInfo;
 
+    @Column(name = "external_id")
+    private UUID externalId;
+
     public IntegrationEntity() {
         super();
     }
 
     public IntegrationEntity(Integration integration) {
-        if (integration.getId() != null) {
-            this.setUuid(integration.getId().getId());
-        }
-        this.setCreatedTime(integration.getCreatedTime());
+        super(integration);
         if (integration.getTenantId() != null) {
             this.tenantId = integration.getTenantId().getId();
         }
@@ -109,16 +113,21 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
         this.secret = integration.getSecret();
         this.enabled = integration.isEnabled();
         this.allowCreateDevicesOrAssets = integration.isAllowCreateDevicesOrAssets();
+        this.remote = integration.isRemote();
         this.debugMode = integration.isDebugMode();
         this.debugSettings = JacksonUtil.toString(integration.getDebugSettings());
         this.configuration = integration.getConfiguration();
         this.additionalInfo = integration.getAdditionalInfo();
+        if (integration.getExternalId() != null) {
+            this.externalId = integration.getExternalId().getId();
+        }
     }
 
     @Override
     public Integration toData() {
         Integration integration = new Integration(new IntegrationId(id));
         integration.setCreatedTime(createdTime);
+        integration.setVersion(version);
         if (tenantId != null) {
             integration.setTenantId(TenantId.fromUUID(tenantId));
         }
@@ -134,10 +143,14 @@ public class IntegrationEntity extends BaseSqlEntity<Integration> implements Bas
         integration.setSecret(secret);
         integration.setEnabled(enabled);
         integration.setAllowCreateDevicesOrAssets(allowCreateDevicesOrAssets);
+        integration.setRemote(remote);
         integration.setDebugMode(debugMode);
         integration.setDebugSettings(JacksonUtil.fromString(debugSettings, DebugSettings.class));
         integration.setConfiguration(configuration);
         integration.setAdditionalInfo(additionalInfo);
+        if (externalId != null) {
+            integration.setExternalId(new IntegrationId(externalId));
+        }
         return integration;
     }
 

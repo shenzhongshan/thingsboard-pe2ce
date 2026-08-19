@@ -290,7 +290,9 @@ public abstract class AbstractCalculatedFieldProcessingService {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))), MoreExecutors.directExecutor());
     }
 
-    private List<ListenableFuture<Map.Entry<EntityId, AttributeKvEntry>>> fetchGeofencingEntityIdToKvEntriesFutures(TenantId tenantId, List<EntityId> geofencingEntities, Argument argument, long startTs) {
+    // protected: the reprocessing service overrides these three to fall back to the reprocessing start
+    // timestamp instead of "now" when an entity has no stored value yet
+    protected List<ListenableFuture<Map.Entry<EntityId, AttributeKvEntry>>> fetchGeofencingEntityIdToKvEntriesFutures(TenantId tenantId, List<EntityId> geofencingEntities, Argument argument, long startTs) {
         return geofencingEntities.stream()
                 .map(entityId -> {
                     AttributeScope scope = argument.getRefEntityKey().getScope();
@@ -349,7 +351,7 @@ public abstract class AbstractCalculatedFieldProcessingService {
         return fetchTimeSeriesInternal(tenantId, entityId, query, tsRolling -> transformTsRollingArgument(tsRolling, query.getLimit(), argTimeWindow));
     }
 
-    private ListenableFuture<ArgumentEntry> fetchAttribute(TenantId tenantId, EntityId entityId, Argument argument, long defaultLastUpdateTs) {
+    protected ListenableFuture<ArgumentEntry> fetchAttribute(TenantId tenantId, EntityId entityId, Argument argument, long defaultLastUpdateTs) {
         log.trace("[{}][{}] Fetching attribute for key {}", tenantId, entityId, argument.getRefEntityKey());
         var attributeOptFuture = attributesService.find(tenantId, entityId, argument.getRefEntityKey().getScope(), argument.getRefEntityKey().getKey());
 
@@ -359,7 +361,7 @@ public abstract class AbstractCalculatedFieldProcessingService {
         }, calculatedFieldCallbackExecutor);
     }
 
-    private ListenableFuture<ArgumentEntry> fetchTsLatest(TenantId tenantId, EntityId entityId, Argument argument, long defaultTs) {
+    protected ListenableFuture<ArgumentEntry> fetchTsLatest(TenantId tenantId, EntityId entityId, Argument argument, long defaultTs) {
         String timeseriesKey = argument.getRefEntityKey().getKey();
         log.trace("[{}][{}] Fetching latest timeseries {}", tenantId, entityId, timeseriesKey);
         return Futures.transform(timeseriesService.findLatest(tenantId, entityId, timeseriesKey), result -> {
@@ -504,6 +506,16 @@ public abstract class AbstractCalculatedFieldProcessingService {
             TimeseriesSaveRequest.Strategy strategy = new TimeseriesSaveRequest.Strategy(tsOutputStrategy.isSaveTimeSeries(), tsOutputStrategy.isSaveLatest(), tsOutputStrategy.isSendWsUpdate(), tsOutputStrategy.isProcessCfs());
             saveTimeSeriesInternal(tenantId, entityId, jsonResult, tsOutputStrategy.getTtl(), cfIds, ts, strategy, callback);
         }
+    }
+
+    /**
+     * Historical re-computation of a calculated field: the caller owns the save strategy (so it can turn off
+     * "latest"/WS/downstream-CF processing while backfilling), no TTL is applied and no previous-CF chain is
+     * recorded, since the result is being written at a past timestamp rather than as part of a live chain.
+     */
+    protected void saveReprocessingTimeSeriesResult(TenantId tenantId, EntityId entityId, JsonElement jsonResult, long ts, TimeseriesSaveRequest.Strategy strategy, TbCallback callback) {
+        log.trace("[{}][{}] Saving CF reprocessing result: {}", tenantId, entityId, jsonResult);
+        saveTimeSeriesInternal(tenantId, entityId, jsonResult, null, null, ts, strategy, callback);
     }
 
     private void saveTimeSeriesInternal(TenantId tenantId, EntityId entityId, JsonElement jsonResult, Long ttl, List<CalculatedFieldId> cfIds, long ts, TimeseriesSaveRequest.Strategy strategy, TbCallback callback) {

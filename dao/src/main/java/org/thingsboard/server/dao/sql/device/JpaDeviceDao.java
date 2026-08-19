@@ -35,6 +35,7 @@ import org.thingsboard.server.common.data.ProfileEntityIdInfo;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.edqs.fields.DeviceFields;
 import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.ota.OtaPackageType;
 import org.thingsboard.server.common.data.ota.OtaPackageUtil;
@@ -191,6 +192,17 @@ public class JpaDeviceDao extends JpaAbstractDao<DeviceEntity, Device> implement
                                 pageLink.getTextSearch(),
                                 DaoUtil.toPageable(pageLink)))
                 .mapData(DeviceId::new);
+    }
+
+    @Override
+    public EntityInfo findDeviceEntityInfoById(TenantId tenantId, DeviceId deviceId) {
+        return deviceRepository.findEntityInfoById(deviceId.getId());
+    }
+
+    @Override
+    public PageData<EntityInfo> findDeviceEntityInfosByTenantIdAndDeviceProfileId(TenantId tenantId, DeviceProfileId deviceProfileId, PageLink pageLink) {
+        return DaoUtil.pageToPageData(deviceRepository.findEntityInfosByTenantIdAndProfileId(
+                tenantId.getId(), deviceProfileId.getId(), DaoUtil.toPageable(pageLink)));
     }
 
     @Override

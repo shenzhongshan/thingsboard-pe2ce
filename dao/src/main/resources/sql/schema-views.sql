@@ -24,7 +24,8 @@ SELECT d.*
        , (SELECT string_agg(eg.name, ', ' ORDER BY eg.name)
           FROM relation r JOIN entity_group eg ON eg.id = r.from_id
           WHERE r.to_id = d.id AND r.to_type = 'DEVICE' AND eg.type = 'DEVICE'
-            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains') as groups
+            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains'
+            AND eg.name <> 'All') as groups
 FROM device d
          LEFT JOIN customer c ON c.id = d.customer_id
          LEFT JOIN attribute_kv da ON da.entity_id = d.id AND da.attribute_type = 2 AND da.attribute_key = (select key_id from key_dictionary  where key = 'active');
@@ -39,7 +40,8 @@ SELECT d.*
        , (SELECT string_agg(eg.name, ', ' ORDER BY eg.name)
           FROM relation r JOIN entity_group eg ON eg.id = r.from_id
           WHERE r.to_id = d.id AND r.to_type = 'DEVICE' AND eg.type = 'DEVICE'
-            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains') as groups
+            AND r.relation_type_group = 'FROM_ENTITY_GROUP' AND r.relation_type = 'Contains'
+            AND eg.name <> 'All') as groups
 FROM device d
          LEFT JOIN customer c ON c.id = d.customer_id
          LEFT JOIN ts_kv_latest dt ON dt.entity_id = d.id and dt.key = (select key_id from key_dictionary where key = 'active');

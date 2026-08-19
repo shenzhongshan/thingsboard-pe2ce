@@ -15,10 +15,13 @@
  */
 package org.thingsboard.server.service.security.permission;
 
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,8 +63,14 @@ public final class MergedUserPermissions implements Serializable {
     }
 
     public boolean hasGenericPermission(Resource resource, Operation operation) {
-        return checkOperation(genericPermissions.get(Resource.ALL), operation)
-                || checkOperation(genericPermissions.get(resource), operation);
+        if (checkOperation(genericPermissions.get(Resource.ALL), operation)
+                || checkOperation(genericPermissions.get(resource), operation)) {
+            return true;
+        }
+        // A grant on the ENTITY_GROUP umbrella covers every per-type group resource, so roles
+        // authored before the per-type split (and the stock roles) keep working unchanged.
+        return Resource.groupResources().contains(resource)
+                && checkOperation(genericPermissions.get(Resource.ENTITY_GROUP), operation);
     }
 
     public boolean hasGroupPermissions(EntityGroupId entityGroupId, Operation operation) {
@@ -71,6 +80,38 @@ public final class MergedUserPermissions implements Serializable {
 
     private static boolean checkOperation(Set<Operation> operations, Operation operation) {
         return operations != null && (operations.contains(Operation.ALL) || operations.contains(operation));
+    }
+
+    /**
+     * Resolves what this user may reach for one entity type and operation: either a blanket generic
+     * grant, or the specific entity groups whose GROUP role covers the operation. This is the input
+     * to permission-aware entity listing (PE calls the equivalent MergedGroupTypePermissionInfo).
+     */
+    public GroupTypePermissions getGroupPermissionsByEntityTypeAndOperation(EntityType entityType, Operation operation) {
+        boolean genericRead = hasGenericPermission(Resource.of(entityType), operation);
+        List<EntityGroupId> groupIds = new ArrayList<>();
+        if (operation.isAllowedForGroupRole()) {
+            groupPermissions.forEach((groupId, info) -> {
+                if (entityType.equals(info.getEntityType()) && checkOperation(info.getOperations(), operation)) {
+                    groupIds.add(groupId);
+                }
+            });
+        }
+        return new GroupTypePermissions(genericRead, List.copyOf(groupIds));
+    }
+
+    /**
+     * @param hasGenericRead the user holds a generic grant for the type — everything in their owner
+     *                       scope is reachable, and {@code entityGroupIds} only widens that
+     * @param entityGroupIds groups of this type the user was granted through a GROUP role; these may
+     *                       belong to other owners, which is the point of sharing a group
+     */
+    public record GroupTypePermissions(boolean hasGenericRead, List<EntityGroupId> entityGroupIds) {
+
+        public boolean isEmpty() {
+            return !hasGenericRead && entityGroupIds.isEmpty();
+        }
+
     }
 
 }

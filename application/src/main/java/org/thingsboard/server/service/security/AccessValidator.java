@@ -355,7 +355,8 @@ public class AccessValidator {
                 callback.onSuccess(ValidationResult.entityNotFound("Entity group with requested id wasn't found!"));
             } else {
                 try {
-                    accessControlService.checkPermission(currentUser, Resource.ENTITY_GROUP, operation, entityId, entityGroup);
+                    accessControlService.checkPermission(currentUser,
+                            Resource.groupResourceFromGroupType(entityGroup.getType()), operation, entityId, entityGroup);
                 } catch (ThingsboardException e) {
                     callback.onSuccess(ValidationResult.accessDenied(e.getMessage()));
                     return;

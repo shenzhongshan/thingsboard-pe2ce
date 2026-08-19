@@ -27,6 +27,14 @@ import org.thingsboard.server.gen.edge.v1.AiModelUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AlarmCommentUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AlarmUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.EntityGroupUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.IntegrationUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.SchedulerEventUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.ReportTemplateUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.SecretUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AssetProfileUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AssetUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AttributesRequestMsg;
@@ -221,6 +229,86 @@ public class EdgeUplinkMessageDispatcher {
                     state.lockSequenceDependency();
                     try {
                         result.add(ctx.getApiKeyProcessor().processApiKeyMsgFromEdge(edge.getTenantId(), edge, apiKeyUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getEntityGroupUpdateMsgCount() > 0) {
+                for (EntityGroupUpdateMsg entityGroupUpdateMsg : uplinkMsg.getEntityGroupUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getEntityGroupProcessor().processEntityGroupMsgFromEdge(edge.getTenantId(), edge, entityGroupUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getRoleUpdateMsgCount() > 0) {
+                for (RoleUpdateMsg roleUpdateMsg : uplinkMsg.getRoleUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getRoleProcessor().processRoleMsgFromEdge(edge.getTenantId(), edge, roleUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getGroupPermissionUpdateMsgCount() > 0) {
+                for (GroupPermissionUpdateMsg groupPermissionUpdateMsg : uplinkMsg.getGroupPermissionUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getGroupPermissionProcessor().processGroupPermissionMsgFromEdge(edge.getTenantId(), edge, groupPermissionUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getConverterUpdateMsgCount() > 0) {
+                for (ConverterUpdateMsg converterUpdateMsg : uplinkMsg.getConverterUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getConverterProcessor().processConverterMsgFromEdge(edge.getTenantId(), edge, converterUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getIntegrationUpdateMsgCount() > 0) {
+                for (IntegrationUpdateMsg integrationUpdateMsg : uplinkMsg.getIntegrationUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getIntegrationProcessor().processIntegrationMsgFromEdge(edge.getTenantId(), edge, integrationUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getSchedulerEventUpdateMsgCount() > 0) {
+                for (SchedulerEventUpdateMsg schedulerEventUpdateMsg : uplinkMsg.getSchedulerEventUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getSchedulerEventProcessor().processSchedulerEventMsgFromEdge(edge.getTenantId(), edge, schedulerEventUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getReportTemplateUpdateMsgCount() > 0) {
+                for (ReportTemplateUpdateMsg reportTemplateUpdateMsg : uplinkMsg.getReportTemplateUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getReportTemplateProcessor().processReportTemplateMsgFromEdge(edge.getTenantId(), edge, reportTemplateUpdateMsg));
+                    } finally {
+                        state.unlockSequenceDependency();
+                    }
+                }
+            }
+            if (uplinkMsg.getSecretUpdateMsgCount() > 0) {
+                for (SecretUpdateMsg secretUpdateMsg : uplinkMsg.getSecretUpdateMsgList()) {
+                    state.lockSequenceDependency();
+                    try {
+                        result.add(ctx.getSecretProcessor().processSecretMsgFromEdge(edge.getTenantId(), edge, secretUpdateMsg));
                     } finally {
                         state.unlockSequenceDependency();
                     }

@@ -20,7 +20,11 @@ import com.google.common.util.concurrent.Futures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
@@ -47,6 +51,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class BaseIntegrationService implements IntegrationService {
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private final IntegrationRepository integrationRepository;
     private final ConverterRepository converterRepository;
@@ -89,7 +96,11 @@ public class BaseIntegrationService implements IntegrationService {
         DebugModeUtil.migrateDebugSettings(integration,
                 tbTenantProfileCache.get(integration.getTenantId()).getDefaultProfileConfiguration().getMaxDebugModeDurationMinutes(),
                 defaultDebugDurationMinutes, System.currentTimeMillis());
-        return integrationRepository.save(new IntegrationEntity(integration)).toData();
+        boolean created = integration.getId() == null;
+        Integration saved = integrationRepository.save(new IntegrationEntity(integration)).toData();
+        eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(saved.getTenantId()).entityId(saved.getId())
+                .entity(saved).created(created).broadcastEvent(true).build());
+        return saved;
     }
 
     @Override
@@ -129,6 +140,7 @@ public class BaseIntegrationService implements IntegrationService {
     public void deleteIntegration(TenantId tenantId, IntegrationId integrationId) {
         log.trace("Executing deleteIntegration [{}]", integrationId);
         integrationRepository.deleteById(integrationId.getId());
+        eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(integrationId).build());
     }
 
     @Override

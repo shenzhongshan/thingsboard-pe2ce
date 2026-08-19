@@ -51,6 +51,8 @@
         <module>script</module>
         <module>edqs</module>
         <module>discovery-api</module>
+        <module>integration</module>
+        <module>report</module>
     </modules>
 
 </project>

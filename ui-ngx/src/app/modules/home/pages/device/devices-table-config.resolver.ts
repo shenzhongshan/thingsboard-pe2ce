@@ -233,7 +233,11 @@ export class DevicesTableConfigResolver  {
       );
     }
     columns.push(
-      new EntityTableColumn<DeviceInfo>('groups', 'device.groups', '25%'),
+      // Not sortable: device_info_view does expose groups as a real column, but sorting a
+      // comma-joined group list is meaningless and the other entity lists (asset, entity view,
+      // customer, user) cannot support it at all — keep the behaviour uniform.
+      new EntityTableColumn<DeviceInfo>('groups', 'device.groups', '25%',
+        entity => entity.groups ?? '', () => ({}), false),
       new EntityTableColumn<DeviceInfo>('gateway', 'device.is-gateway', '60px',
         entity => checkBoxCell(entity.additionalInfo && entity.additionalInfo.gateway), () => ({}), false)
     );

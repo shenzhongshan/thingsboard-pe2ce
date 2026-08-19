@@ -24,10 +24,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
+
+import org.thingsboard.server.common.data.util.TbPair;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -163,6 +166,65 @@ public class AggIntervalTest {
                         (Function<ZonedDateTime, ZonedDateTime>) currentInterval -> currentInterval.plusHours(4)
                 )
         );
+    }
+
+    @Test
+    void getIntervalsBetweenShouldSplitWindowIntoAlignedIntervals() {
+        AggInterval interval = new HourInterval(TZ, null);
+        long startTs = ts("2026-01-01T00:30:00");
+        long endTs = ts("2026-01-01T03:30:00");
+
+        List<TbPair<Long, Long>> intervals = interval.getIntervalsBetween(startTs, endTs);
+
+        assertThat(intervals).containsExactly(
+                new TbPair<>(ts("2026-01-01T00:00:00"), ts("2026-01-01T01:00:00")),
+                new TbPair<>(ts("2026-01-01T01:00:00"), ts("2026-01-01T02:00:00")),
+                new TbPair<>(ts("2026-01-01T02:00:00"), ts("2026-01-01T03:00:00")));
+    }
+
+    @Test
+    void getIntervalsBetweenShouldStartFromTheIntervalContainingStartTs() {
+        AggInterval interval = new HourInterval(TZ, null);
+
+        // both bounds inside the same hour -> the interval is not complete, nothing to aggregate
+        assertThat(interval.getIntervalsBetween(ts("2026-01-01T00:10:00"), ts("2026-01-01T00:50:00"))).isEmpty();
+    }
+
+    @Test
+    void getIntervalsBetweenShouldExcludeTheIntervalContainingEndTs() {
+        AggInterval interval = new HourInterval(TZ, null);
+
+        // 02:00-03:00 contains endTs and is still open, so it must not be reported
+        assertThat(interval.getIntervalsBetween(ts("2026-01-01T00:00:00"), ts("2026-01-01T02:30:00")))
+                .containsExactly(
+                        new TbPair<>(ts("2026-01-01T00:00:00"), ts("2026-01-01T01:00:00")),
+                        new TbPair<>(ts("2026-01-01T01:00:00"), ts("2026-01-01T02:00:00")));
+    }
+
+    @Test
+    void getIntervalsBetweenShouldHonorOffset() {
+        AggInterval interval = new HourInterval(TZ, TimeUnit.MINUTES.toSeconds(15));
+
+        assertThat(interval.getIntervalsBetween(ts("2026-01-01T00:20:00"), ts("2026-01-01T02:20:00")))
+                .containsExactly(
+                        new TbPair<>(ts("2026-01-01T00:15:00"), ts("2026-01-01T01:15:00")),
+                        new TbPair<>(ts("2026-01-01T01:15:00"), ts("2026-01-01T02:15:00")));
+    }
+
+    @Test
+    void getIntervalsBetweenShouldBeContiguous() {
+        AggInterval interval = new DayInterval(TZ, null);
+        List<TbPair<Long, Long>> intervals = interval.getIntervalsBetween(ts("2026-03-01T05:00:00"), ts("2026-04-05T05:00:00"));
+
+        assertThat(intervals).hasSize(35);
+        for (int i = 1; i < intervals.size(); i++) {
+            // no gaps and no overlaps across the DST switch
+            assertThat(intervals.get(i).getFirst()).isEqualTo(intervals.get(i - 1).getSecond());
+        }
+    }
+
+    private static long ts(String localDateTime) {
+        return java.time.LocalDateTime.parse(localDateTime).atZone(ZoneId.of(TZ)).toInstant().toEpochMilli();
     }
 
 }

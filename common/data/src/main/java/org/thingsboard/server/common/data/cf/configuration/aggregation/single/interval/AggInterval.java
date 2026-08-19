@@ -22,8 +22,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.swagger.v3.oas.annotations.media.DiscriminatorMapping;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import org.thingsboard.server.common.data.util.TbPair;
+
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 @Schema(
         discriminatorProperty = "type",
@@ -78,5 +81,12 @@ public interface AggInterval {
     ZonedDateTime getNextIntervalStart(ZonedDateTime currentStart);
 
     void validate();
+
+    /**
+     * Splits the window [startTs, endTs] into the aligned intervals it spans, as (start, end) pairs.
+     * Used by calculated field reprocessing to walk a historical window interval by interval.
+     * Returns an empty list when both timestamps fall inside the same interval.
+     */
+    List<TbPair<Long, Long>> getIntervalsBetween(long startTs, long endTs);
 
 }
