@@ -102,6 +102,7 @@ export class DeviceProfileAlarmComponent implements ControlValueAccessor, OnInit
       propagate: [null],
       propagateRelationTypes: [null],
       propagateToOwner: [null],
+      propagateToOwnerHierarchy: [null],
       propagateToTenant: [null]
     }, { validators: deviceProfileAlarmValidator });
     this.alarmFormGroup.valueChanges.pipe(

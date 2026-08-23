@@ -681,6 +681,10 @@ trendz:
 
 # Integrations parameters
 integrations:
+  stats:
+    # Periodically logs per-type integration counters (uplink/downlink messages, starts, failures)
+    enabled: "${INTEGRATIONS_STATS_ENABLED:true}"
+    print_interval_ms: "${INTEGRATIONS_STATS_PRINT_INTERVAL_MS:60000}"
   # Remote integrations: the integration runs in a separate process and connects back over gRPC
   rpc:
     enabled: "${INTEGRATIONS_RPC_ENABLED:false}"
@@ -2225,6 +2229,13 @@ event:
   debug:
     # Maximum number of symbols per debug event. The event content will be truncated if needed
     max-symbols: "${TB_MAX_DEBUG_EVENT_SYMBOLS:4096}"
+    rate_limits:
+      # Enables rate limiting of integration and converter debug events
+      enabled: "${TB_DEBUG_EVENT_RATE_LIMITS_ENABLED:true}"
+      # Debug events per integration. Format: "count:periodSec,count:periodSec"
+      integration: "${TB_DEBUG_EVENT_RATE_LIMITS_INTEGRATION:50:1,1000:60}"
+      # Debug events per converter
+      converter: "${TB_DEBUG_EVENT_RATE_LIMITS_CONVERTER:50:1,1000:60}"
 
 # General service parameters
 # Sets the deployment type (monolith or microservice) and assigns tenant profiles to specific Rule Engine instances.

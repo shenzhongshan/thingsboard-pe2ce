@@ -51,9 +51,60 @@
         </dependency>
         <!-- The protocol runtimes (MQTT, OPC-UA, Kafka, ...). This module and `application` are the
              two hosts of the same runtimes; see IntegrationUplinkSink for the contract between them. -->
+        <!-- Protocol modules. The default build carries all of them; drop the ones this
+             deployment does not need and the image shrinks accordingly - that is the whole
+             point of the per-protocol split (see common/integration/pom.xml). -->
         <dependency>
             <groupId>org.thingsboard.common</groupId>
-            <artifactId>integration</artifactId>
+            <artifactId>integration-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-mqtt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-opcua</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-rabbitmq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-apache-pulsar</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-aws</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-azure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-gcloud</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-coap</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-tuya</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-tcp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thingsboard.common</groupId>
+            <artifactId>integration-udp</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

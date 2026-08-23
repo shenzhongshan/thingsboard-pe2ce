@@ -24,6 +24,7 @@ import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroup } from '@shared/models/entity-group.models';
 import { EntityInfoData } from '@shared/models/entity.models';
+import { EntityId } from '@shared/models/id/entity-id';
 import { OtaUpdateType } from '@shared/models/ota-package.models';
 
 export interface DeviceGroupOtaPackage {
@@ -97,6 +98,25 @@ export class EntityGroupService {
   public getOwners(pageLink: PageLink, config?: RequestConfig): Observable<PageData<EntityInfoData>> {
     return this.http.get<PageData<EntityInfoData>>(`/api/entityGroup/owners${pageLink.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
+  }
+
+  public getOwnerInfo(ownerId: EntityId, config?: RequestConfig): Observable<EntityInfoData> {
+    return this.http.get<EntityInfoData>(`/api/ownerInfo/${ownerId.entityType}/${ownerId.id}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  /** Groups of the given type held by a specific owner — id/name pairs only, for pickers. */
+  public getEntityGroupEntityInfosByOwnerId(pageLink: PageLink, ownerId: EntityId, groupType: EntityType,
+                                            config?: RequestConfig): Observable<PageData<EntityInfoData>> {
+    return this.http.get<PageData<EntityInfoData>>(
+      `/api/entityGroupInfos/${ownerId.entityType}/${ownerId.id}/${groupType}${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public getEntityGroupEntityInfosByIds(entityGroupIds: string[], config?: RequestConfig): Observable<EntityInfoData[]> {
+    return this.getEntityGroupsByIds(entityGroupIds, config).pipe(
+      map(groups => groups.map(group => ({id: group.id, name: group.name})))
+    );
   }
 
   public getAllGroupId(groupType: EntityType, ownerId?: string, config?: RequestConfig): Observable<string> {

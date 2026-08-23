@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.thingsboard.server.dao.eventsourcing.GroupPermissionsEvictEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.JacksonUtil;
@@ -41,6 +43,8 @@ import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -134,6 +138,35 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     public void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId) {
         groupPermissionRepository.deleteById(groupPermissionId.getId());
         eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(groupPermissionId).build());
+    }
+
+    @Override
+    @Transactional
+    public void deleteGroupPermissionsByUserGroupId(TenantId tenantId, EntityGroupId userGroupId) {
+        deleteAll(tenantId, groupPermissionRepository.findByTenantIdAndUserGroupId(tenantId.getId(), userGroupId.getId()));
+    }
+
+    @Override
+    @Transactional
+    public void deleteGroupPermissionsByEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId) {
+        deleteAll(tenantId, groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), entityGroupId.getId()));
+    }
+
+    private void deleteAll(TenantId tenantId, List<GroupPermissionEntity> entities) {
+        if (entities.isEmpty()) {
+            return;
+        }
+        List<GroupPermission> permissions = entities.stream().map(GroupPermissionEntity::toData).toList();
+        // Evict first: the caller deletes the group's membership relations right after this, and the
+        // eviction has to enumerate the group's users while they are still resolvable.
+        eventPublisher.publishEvent(GroupPermissionsEvictEvent.builder()
+                .tenantId(tenantId)
+                .userGroupIds(permissions.stream().map(GroupPermission::getUserGroupId)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()))
+                .build());
+        groupPermissionRepository.deleteAll(entities);
+        permissions.forEach(permission -> eventPublisher.publishEvent(DeleteEntityEvent.builder()
+                .tenantId(tenantId).entityId(permission.getId()).entity(permission).build()));
     }
 
     @Override

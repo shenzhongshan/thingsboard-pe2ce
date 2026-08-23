@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS alarm (
     propagate_relation_types varchar,
     type varchar(255),
     propagate_to_owner boolean,
+    propagate_to_owner_hierarchy boolean,
     propagate_to_tenant boolean,
     acknowledged boolean,
     cleared boolean

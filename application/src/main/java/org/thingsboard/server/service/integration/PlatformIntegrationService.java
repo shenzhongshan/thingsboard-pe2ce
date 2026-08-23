@@ -42,6 +42,10 @@ public interface PlatformIntegrationService extends IntegrationUplinkSink {
      * only MQTT integrations (publishes to the configured downlinkTopic) support downlink in this
      * build; other integration types throw UnsupportedOperationException.
      */
-    void pushDownlink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception;
+    /**
+     * Runs the integration's downlink converter (if one is configured) over the message and hands
+     * the encoded payload to the runtime. Without a converter the message data is sent as-is.
+     */
+    void pushDownlink(Integration integration, JsonNode msg, String msgType, Map<String, String> metadata) throws Exception;
 
 }

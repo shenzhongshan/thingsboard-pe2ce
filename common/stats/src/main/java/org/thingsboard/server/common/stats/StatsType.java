@@ -22,6 +22,7 @@ public enum StatsType {
     JS_INVOKE("jsInvoke"),
     TBEL_INVOKE("tbelInvoke"),
     RATE_EXECUTOR("rateExecutor"),
+    INTEGRATION("integration"),
     HOUSEKEEPER("housekeeper"),
     EDGE("edge"),
     EDQS("edqs");

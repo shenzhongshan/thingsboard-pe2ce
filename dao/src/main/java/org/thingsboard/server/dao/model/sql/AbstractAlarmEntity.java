@@ -54,6 +54,7 @@ import static org.thingsboard.server.dao.model.ModelConstants.ALARM_ORIGINATOR_I
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_ORIGINATOR_TYPE_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_PROPAGATE_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_PROPAGATE_RELATION_TYPES;
+import static org.thingsboard.server.dao.model.ModelConstants.ALARM_PROPAGATE_TO_OWNER_HIERARCHY_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_PROPAGATE_TO_OWNER_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_PROPAGATE_TO_TENANT_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ALARM_SEVERITY_PROPERTY;
@@ -119,6 +120,9 @@ public abstract class AbstractAlarmEntity<T extends Alarm> extends BaseSqlEntity
     @Column(name = ALARM_PROPAGATE_TO_OWNER_PROPERTY)
     private Boolean propagateToOwner;
 
+    @Column(name = ALARM_PROPAGATE_TO_OWNER_HIERARCHY_PROPERTY)
+    private Boolean propagateToOwnerHierarchy;
+
     @Column(name = ALARM_PROPAGATE_TO_TENANT_PROPERTY)
     private Boolean propagateToTenant;
 
@@ -152,6 +156,7 @@ public abstract class AbstractAlarmEntity<T extends Alarm> extends BaseSqlEntity
         }
         this.propagate = alarm.isPropagate();
         this.propagateToOwner = alarm.isPropagateToOwner();
+        this.propagateToOwnerHierarchy = alarm.isPropagateToOwnerHierarchy();
         this.propagateToTenant = alarm.isPropagateToTenant();
         this.startTs = alarm.getStartTs();
         this.endTs = alarm.getEndTs();
@@ -181,6 +186,7 @@ public abstract class AbstractAlarmEntity<T extends Alarm> extends BaseSqlEntity
         this.assigneeId = alarmEntity.getAssigneeId();
         this.propagate = alarmEntity.getPropagate();
         this.propagateToOwner = alarmEntity.getPropagateToOwner();
+        this.propagateToOwnerHierarchy = alarmEntity.getPropagateToOwnerHierarchy();
         this.propagateToTenant = alarmEntity.getPropagateToTenant();
         this.startTs = alarmEntity.getStartTs();
         this.endTs = alarmEntity.getEndTs();
@@ -210,6 +216,7 @@ public abstract class AbstractAlarmEntity<T extends Alarm> extends BaseSqlEntity
         }
         alarm.setPropagate(propagate);
         alarm.setPropagateToOwner(propagateToOwner);
+        alarm.setPropagateToOwnerHierarchy(propagateToOwnerHierarchy != null && propagateToOwnerHierarchy);
         alarm.setPropagateToTenant(propagateToTenant);
         alarm.setStartTs(startTs);
         alarm.setEndTs(endTs);

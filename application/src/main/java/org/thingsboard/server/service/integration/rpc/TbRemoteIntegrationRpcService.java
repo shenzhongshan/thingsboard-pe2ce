@@ -33,6 +33,7 @@ import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.gen.integration.IntegrationTransportGrpc;
@@ -66,6 +67,7 @@ public class TbRemoteIntegrationRpcService extends IntegrationTransportGrpc.Inte
     private final Map<IntegrationId, IntegrationGrpcSession> sessions = new ConcurrentHashMap<>();
 
     private final IntegrationService integrationService;
+    private final SecretConfigurationService secretConfigurationService;
     private final ConverterService converterService;
 
     // @Lazy breaks the cycle: PlatformIntegrationService needs this bean to push config to remotes,
@@ -158,7 +160,17 @@ public class TbRemoteIntegrationRpcService extends IntegrationTransportGrpc.Inte
 
     @Override
     public Integration findByRoutingKey(String routingKey) {
-        return integrationService.findIntegrationByRoutingKey(routingKey).orElse(null);
+        Integration integration = integrationService.findIntegrationByRoutingKey(routingKey).orElse(null);
+        if (integration == null || integration.getConfiguration() == null) {
+            return integration;
+        }
+        // Resolve ${secret:...} on a copy before the configuration leaves the platform: this object
+        // is serialized straight into the gRPC payload the remote process connects with, and the
+        // remote has no access to the secret vault. The stored entity keeps the placeholder.
+        // Mirrors PE's TbCoreIntegrationConfigurationService.getIntegration(tenantId, routingKey).
+        Integration copy = new Integration(integration);
+        secretConfigurationService.replaceSecretUsages(integration.getTenantId(), copy.getConfiguration());
+        return copy;
     }
 
     @Override

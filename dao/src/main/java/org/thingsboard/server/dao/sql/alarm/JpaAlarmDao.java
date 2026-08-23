@@ -370,6 +370,7 @@ public class JpaAlarmDao extends JpaAbstractDao<AlarmEntity, Alarm> implements A
                 getDetailsAsString(request.getDetails()),
                 ap.isPropagate(),
                 ap.isPropagateToOwner(),
+                ap.isPropagateToOwnerHierarchy(),
                 ap.isPropagateToTenant(),
                 getPropagationTypes(ap),
                 alarmCreationEnabled
@@ -391,6 +392,7 @@ public class JpaAlarmDao extends JpaAbstractDao<AlarmEntity, Alarm> implements A
                 getDetailsAsString(request.getDetails()),
                 ap.isPropagate(),
                 ap.isPropagateToOwner(),
+                ap.isPropagateToOwnerHierarchy(),
                 ap.isPropagateToTenant(),
                 getPropagationTypes(ap)
         ));
@@ -530,6 +532,11 @@ public class JpaAlarmDao extends JpaAbstractDao<AlarmEntity, Alarm> implements A
         alarm.setCleared(json.get(ModelConstants.ALARM_CLEARED_PROPERTY).asBoolean());
         alarm.setPropagate(json.get(ModelConstants.ALARM_PROPAGATE_PROPERTY).asBoolean());
         alarm.setPropagateToOwner(json.get(ModelConstants.ALARM_PROPAGATE_TO_OWNER_PROPERTY).asBoolean());
+        // Read defensively: alarm rows written before this column existed carry SQL NULL, which
+        // arrives as a null node rather than false.
+        alarm.setPropagateToOwnerHierarchy(
+                json.hasNonNull(ModelConstants.ALARM_PROPAGATE_TO_OWNER_HIERARCHY_PROPERTY)
+                        && json.get(ModelConstants.ALARM_PROPAGATE_TO_OWNER_HIERARCHY_PROPERTY).asBoolean());
         alarm.setPropagateToTenant(json.get(ModelConstants.ALARM_PROPAGATE_TO_TENANT_PROPERTY).asBoolean());
         alarm.setStartTs(json.get(ModelConstants.ALARM_START_TS_PROPERTY).asLong());
         alarm.setEndTs(json.get(ModelConstants.ALARM_END_TS_PROPERTY).asLong());

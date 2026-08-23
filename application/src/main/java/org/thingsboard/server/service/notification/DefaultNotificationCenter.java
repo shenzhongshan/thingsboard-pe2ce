@@ -63,6 +63,7 @@ import org.thingsboard.server.common.msg.tools.TbRateLimitsException;
 import org.thingsboard.server.dao.notification.NotificationRequestService;
 import org.thingsboard.server.dao.notification.NotificationService;
 import org.thingsboard.server.dao.notification.NotificationSettingsService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.notification.NotificationTargetService;
 import org.thingsboard.server.dao.notification.NotificationTemplateService;
 import org.thingsboard.server.gen.transport.TransportProtos;
@@ -98,6 +99,7 @@ public class DefaultNotificationCenter extends AbstractSubscriptionService imple
     private final NotificationService notificationService;
     private final NotificationTemplateService notificationTemplateService;
     private final NotificationSettingsService notificationSettingsService;
+    private final SecretConfigurationService secretConfigurationService;
     private final NotificationExecutorService notificationExecutor;
     private final TopicService topicService;
     private final TbQueueProducerProvider producerProvider;
@@ -184,6 +186,7 @@ public class DefaultNotificationCenter extends AbstractSubscriptionService imple
                 .template(notificationTemplate)
                 .settings(settings)
                 .systemSettings(systemSettings)
+                .secretConfigurationService(secretConfigurationService)
                 .build();
 
         processNotificationRequestAsync(ctx, targets, callback);

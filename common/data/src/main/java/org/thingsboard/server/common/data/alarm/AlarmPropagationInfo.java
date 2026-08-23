@@ -27,12 +27,13 @@ import java.util.List;
 @Data
 public class AlarmPropagationInfo {
 
-    public static AlarmPropagationInfo EMPTY = new AlarmPropagationInfo(false, false, false, Collections.emptyList());
+    public static AlarmPropagationInfo EMPTY = new AlarmPropagationInfo(false, false, false, false, Collections.emptyList());
 
     @Schema(description = "Propagation flag to specify if alarm should be propagated to parent entities of alarm originator", example = "true")
     private boolean propagate;
     @Schema(description = "Propagation flag to specify if alarm should be propagated to the owner (tenant or customer) of alarm originator", example = "true")
     private boolean propagateToOwner;
+    private boolean propagateToOwnerHierarchy;
     @Schema(description = "Propagation flag to specify if alarm should be propagated to the tenant entity", example = "true")
     private boolean propagateToTenant;
     @NoXss

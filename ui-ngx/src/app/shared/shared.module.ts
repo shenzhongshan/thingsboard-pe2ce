@@ -92,6 +92,8 @@ import { EntitySubTypeAutocompleteComponent } from '@shared/components/entity/en
 import { EntitySubTypeSelectComponent } from '@shared/components/entity/entity-subtype-select.component';
 import { EntityAutocompleteComponent } from '@shared/components/entity/entity-autocomplete.component';
 import { EntityListComponent } from '@shared/components/entity/entity-list.component';
+import { EntityGroupListComponent } from '@shared/components/entity/entity-group-list.component';
+import { OwnerAutocompleteComponent } from '@shared/components/entity/owner-autocomplete.component';
 import { EntityTypeSelectComponent } from '@shared/components/entity/entity-type-select.component';
 import { EntitySelectComponent } from '@shared/components/entity/entity-select.component';
 import { DatetimeComponent } from '@shared/components/time/datetime.component';
@@ -359,6 +361,8 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     EntitySubTypeListComponent,
     EntityAutocompleteComponent,
     EntityListComponent,
+    EntityGroupListComponent,
+    OwnerAutocompleteComponent,
     EntityTypeSelectComponent,
     EntitySelectComponent,
     EntityKeysListComponent,
@@ -582,6 +586,8 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     EntitySubTypeListComponent,
     EntityAutocompleteComponent,
     EntityListComponent,
+    EntityGroupListComponent,
+    OwnerAutocompleteComponent,
     EntityTypeSelectComponent,
     EntitySelectComponent,
     EntityKeysListComponent,

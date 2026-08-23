@@ -845,7 +845,8 @@ public class DefaultTbContext implements TbContext {
                 throw new RuntimeException("Integration not found!");
             }
             java.util.Map<String, String> metadata = new java.util.HashMap<>(msg.getMetaData().getData());
-            mainCtx.getPlatformIntegrationService().pushDownlink(integration, msg.getData().getBytes(java.nio.charset.StandardCharsets.UTF_8), metadata);
+            com.fasterxml.jackson.databind.JsonNode msgData = org.thingsboard.common.util.JacksonUtil.toJsonNode(msg.getData());
+            mainCtx.getPlatformIntegrationService().pushDownlink(integration, msgData, msg.getType(), metadata);
             return null;
         });
         com.google.common.util.concurrent.Futures.addCallback(future, new com.google.common.util.concurrent.FutureCallback<Void>() {

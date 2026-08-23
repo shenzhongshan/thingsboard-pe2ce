@@ -350,8 +350,10 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
     Slice<TbPair<UUID, Long>> findAlarmIdsByOriginatorId(@Param("originatorId") UUID originatorId,
                                                          Pageable pageable);
 
+    // Argument order here is positional against the SQL function signature - a_propagate_to_owner_hierarchy
+    // sits between a_propagate_to_owner and a_propagate_to_tenant, matching schema-functions.sql.
     @Query(value = "SELECT create_or_update_active_alarm(:t_id, :c_id, :a_id, :a_created_ts, :a_o_id, :a_o_type, :a_type, :a_severity, " +
-            ":a_start_ts, :a_end_ts, :a_details, :a_propagate, :a_propagate_to_owner, " +
+            ":a_start_ts, :a_end_ts, :a_details, :a_propagate, :a_propagate_to_owner, :a_propagate_to_owner_hierarchy, " +
             ":a_propagate_to_tenant, :a_propagation_types, :a_creation_enabled)", nativeQuery = true)
     String createOrUpdateActiveAlarm(@Param("t_id") UUID tenantId, @Param("c_id") UUID customerId,
                                      @Param("a_id") UUID alarmId, @Param("a_created_ts") long createdTime,
@@ -359,14 +361,16 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
                                      @Param("a_type") String type, @Param("a_severity") String severity,
                                      @Param("a_start_ts") long startTs, @Param("a_end_ts") long endTs, @Param("a_details") String detailsAsString,
                                      @Param("a_propagate") boolean propagate, @Param("a_propagate_to_owner") boolean propagateToOwner,
+                                     @Param("a_propagate_to_owner_hierarchy") boolean propagateToOwnerHierarchy,
                                      @Param("a_propagate_to_tenant") boolean propagateToTenant, @Param("a_propagation_types") String propagationTypes,
                                      @Param("a_creation_enabled") boolean alarmCreationEnabled);
 
     @Query(value = "SELECT update_alarm(:t_id, :a_id, :a_severity, :a_start_ts, :a_end_ts, :a_details, :a_propagate, :a_propagate_to_owner, " +
-            ":a_propagate_to_tenant, :a_propagation_types)", nativeQuery = true)
+            ":a_propagate_to_owner_hierarchy, :a_propagate_to_tenant, :a_propagation_types)", nativeQuery = true)
     String updateAlarm(@Param("t_id") UUID tenantId, @Param("a_id") UUID alarmId, @Param("a_severity") String severity,
                        @Param("a_start_ts") long startTs, @Param("a_end_ts") long endTs, @Param("a_details") String detailsAsString,
                        @Param("a_propagate") boolean propagate, @Param("a_propagate_to_owner") boolean propagateToOwner,
+                       @Param("a_propagate_to_owner_hierarchy") boolean propagateToOwnerHierarchy,
                        @Param("a_propagate_to_tenant") boolean propagateToTenant, @Param("a_propagation_types") String propagationTypes);
 
     @Query(value = "SELECT acknowledge_alarm(:t_id, :a_id, :a_ts)", nativeQuery = true)

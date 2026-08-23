@@ -51,7 +51,6 @@ import java.util.stream.Stream;
 
 import static org.thingsboard.server.common.data.StringUtils.splitByCommaWithoutQuotes;
 import static org.thingsboard.server.common.data.id.EntityId.NULL_UUID;
-import static org.thingsboard.server.dao.sql.query.DefaultEntityQueryRepository.resolveEntityType;
 
 @Data
 public class EntityKeyMapping {
@@ -531,8 +530,12 @@ public class EntityKeyMapping {
         }
     }
 
-    public static List<EntityKeyMapping> prepareEntityCountKeyMapping(EntityCountQuery query) {
-        EntityType entityType = resolveEntityType(query.getEntityFilter());
+    /**
+     * @param entityType the filter's already-resolved result type. Supplied by the caller because
+     *                   {@link DefaultEntityQueryRepository#resolveEntityType} cannot resolve
+     *                   STATE_ENTITY_OWNER without a DB lookup, and this method has no tenant context.
+     */
+    public static List<EntityKeyMapping> prepareEntityCountKeyMapping(EntityCountQuery query, EntityType entityType) {
         EntityFilterType entityFilterType = query.getEntityFilter().getType();
         ComplexOperation operation = query.getKeyFiltersOperationOrDefault();
 

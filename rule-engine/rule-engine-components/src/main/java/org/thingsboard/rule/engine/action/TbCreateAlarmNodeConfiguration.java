@@ -31,6 +31,7 @@ public class TbCreateAlarmNodeConfiguration extends TbAbstractAlarmNodeConfigura
     private String severity;
     private boolean propagate;
     private boolean propagateToOwner;
+    private boolean propagateToOwnerHierarchy;
     private boolean propagateToTenant;
     private boolean useMessageAlarmData;
     private boolean overwriteAlarmDetails = true;
@@ -48,6 +49,7 @@ public class TbCreateAlarmNodeConfiguration extends TbAbstractAlarmNodeConfigura
         configuration.setSeverity(AlarmSeverity.CRITICAL.name());
         configuration.setPropagate(false);
         configuration.setPropagateToOwner(false);
+        configuration.setPropagateToOwnerHierarchy(false);
         configuration.setPropagateToTenant(false);
         configuration.setUseMessageAlarmData(false);
         configuration.setOverwriteAlarmDetails(false);

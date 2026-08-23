@@ -389,7 +389,9 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
             ComplexOperation operation = query.getKeyFiltersOperationOrDefault();
             boolean isOr = operation == ComplexOperation.OR;
 
-            List<EntityKeyMapping> mappings = EntityKeyMapping.prepareEntityCountKeyMapping(query);
+            // Pass the type resolved above rather than letting the mapping re-derive it: the static
+            // resolver cannot answer STATE_ENTITY_OWNER, which needs a DB lookup for the owner.
+            List<EntityKeyMapping> mappings = EntityKeyMapping.prepareEntityCountKeyMapping(query, entityType);
 
             List<EntityKeyMapping> selectionMapping = new ArrayList<>(mappings.stream().filter(EntityKeyMapping::isSelection)
                     .collect(Collectors.toList()));

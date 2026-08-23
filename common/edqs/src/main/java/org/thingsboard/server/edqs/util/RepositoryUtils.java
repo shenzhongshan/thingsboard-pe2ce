@@ -30,6 +30,8 @@ import org.thingsboard.server.common.data.query.EntityFilter;
 import org.thingsboard.server.common.data.query.EntityKey;
 import org.thingsboard.server.common.data.query.EntityKeyType;
 import org.thingsboard.server.common.data.query.EntityKeyValueType;
+import org.thingsboard.server.common.data.query.EntityGroupFilter;
+import org.thingsboard.server.common.data.query.EntitiesByGroupNameFilter;
 import org.thingsboard.server.common.data.query.EntityListFilter;
 import org.thingsboard.server.common.data.query.EntityNameFilter;
 import org.thingsboard.server.common.data.query.EntityTypeFilter;
@@ -88,6 +90,13 @@ public class RepositoryUtils {
                 yield rgf.isMultiRoot() ? rgf.getMultiRootEntitiesType() : rgf.getRootEntity().getEntityType();
             }
             case API_USAGE_STATE -> EntityType.API_USAGE_STATE;
+            // PE-derived filters. EDQS has no index for entity groups or scheduler events, so these
+            // resolve to the type the filter names and are served by the SQL path, not from memory.
+            case ENTITY_GROUP -> ((EntityGroupFilter) entityFilter).getGroupType();
+            case ENTITIES_BY_GROUP_NAME -> ((EntitiesByGroupNameFilter) entityFilter).getGroupType();
+            case SCHEDULER_EVENT -> EntityType.SCHEDULER_EVENT;
+            // the concrete type is only known once the dashboard state is resolved at query time
+            case STATE_ENTITY, STATE_ENTITY_OWNER -> null;
         };
     }
 

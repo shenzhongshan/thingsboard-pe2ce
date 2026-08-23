@@ -370,6 +370,7 @@ public class AlarmCalculatedFieldState extends BaseCalculatedFieldState {
             newAlarm.setTenantId(ctx.getTenantId());
             newAlarm.setPropagate(configuration.isPropagate());
             newAlarm.setPropagateToOwner(configuration.isPropagateToOwner());
+            newAlarm.setPropagateToOwnerHierarchy(configuration.isPropagateToOwnerHierarchy());
             newAlarm.setPropagateToTenant(configuration.isPropagateToTenant());
             if (configuration.getPropagateRelationTypes() != null) {
                 newAlarm.setPropagateRelationTypes(configuration.getPropagateRelationTypes());

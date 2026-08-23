@@ -18,6 +18,7 @@ package org.thingsboard.server.service.security.permission;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.EntityGroupId;
@@ -27,6 +28,7 @@ import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.role.RoleType;
 import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.dao.eventsourcing.GroupPermissionsEvictEvent;
 import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
 import org.thingsboard.server.dao.role.RoleService;
@@ -161,6 +163,19 @@ public class DefaultUserPermissionsService implements UserPermissionsService {
     @Override
     public void onUserUpdatedOrRemoved(User user) {
         cache.remove(user.getId());
+    }
+
+    /**
+     * Handles the permission rows removed as a side effect of deleting an entity group.
+     *
+     * <p>A plain {@code @EventListener}, not a transactional one: the publisher fires this
+     * <i>before</i> it deletes the group's membership relations, precisely so
+     * {@link #evictUserGroup} can still enumerate the affected users. Running after commit would
+     * find the memberships already gone and evict nothing.
+     */
+    @EventListener
+    public void onGroupPermissionsEvict(GroupPermissionsEvictEvent event) {
+        event.getUserGroupIds().forEach(userGroupId -> evictUserGroup(event.getTenantId(), userGroupId));
     }
 
     private void evictUserGroup(TenantId tenantId, EntityGroupId userGroupId) {

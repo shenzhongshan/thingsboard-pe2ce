@@ -25,6 +25,7 @@ import { EntityComponent } from '@home/components/entity/entity.component';
 import { Type } from '@angular/core';
 import { EntityAction } from './entity-component.models';
 import { HasUUID } from '@shared/models/id/has-uuid';
+import { EntityId } from '@shared/models/id/entity-id';
 import { PageLink } from '@shared/models/page/page-link';
 import { EntityTableHeaderComponent } from '@home/components/entity/entity-table-header.component';
 import { ActivatedRoute } from '@angular/router';
@@ -189,6 +190,13 @@ export class EntityTableConfig<T extends BaseData<HasId>, P extends PageLink = P
   entityComponent: Type<EntityComponent<T, P, L>>;
   entityTabsComponent: Type<EntityTabsComponent<T, P, L>>;
   addDialogStyle = {};
+  /**
+   * Renders the "owner and groups" panel in the add dialog, so a group-owned entity can be
+   * assigned to an owner and to entity groups at creation time (PE parity).
+   */
+  addDialogOwnerAndGroups = false;
+  /** Owner the add dialog pre-selects; defaults to the current user's own owner when unset. */
+  addDialogOwnerId: EntityId = null;
   defaultSortOrder: SortOrder = {property: 'createdTime', direction: Direction.DESC};
   displayPagination = true;
   pageMode = true;

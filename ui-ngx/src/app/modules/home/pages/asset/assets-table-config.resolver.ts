@@ -39,6 +39,7 @@ import { Authority } from '@app/shared/models/authority.enum';
 import { CustomerService } from '@core/http/customer.service';
 import { Customer } from '@app/shared/models/customer.model';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
+import { CustomerId } from '@shared/models/id/customer-id';
 import { BroadcastService } from '@core/services/broadcast.service';
 import { MatDialog } from '@angular/material/dialog';
 import { DialogService } from '@core/services/dialog.service';
@@ -88,6 +89,9 @@ export class AssetsTableConfigResolver  {
     this.config.entityTabsComponent = AssetTabsComponent;
     this.config.entityTranslations = entityTypeTranslations.get(EntityType.ASSET);
     this.config.entityResources = entityTypeResources.get(EntityType.ASSET);
+    // PE parity: the add dialog carries an "owner and groups" panel instead of a bare
+    // "assign to customer" field.
+    this.config.addDialogOwnerAndGroups = true;
 
     this.config.deleteEntityTitle = asset => this.translate.instant('asset.delete-asset-title', {assetName: asset.name});
     this.config.deleteEntityContent = () => this.translate.instant('asset.delete-asset-text');
@@ -135,6 +139,8 @@ export class AssetsTableConfigResolver  {
         this.customerId ? this.customerService.getCustomer(this.customerId) : of(null as Customer)
       ),
       map((parentCustomer) => {
+        // Inside a customer's asset list the add dialog defaults its owner to that customer.
+        this.config.addDialogOwnerId = this.customerId ? new CustomerId(this.customerId) : null;
         if (parentCustomer) {
           if (parentCustomer.additionalInfo && parentCustomer.additionalInfo.isPublic) {
             this.config.tableTitle = this.translate.instant('customer.public-assets');

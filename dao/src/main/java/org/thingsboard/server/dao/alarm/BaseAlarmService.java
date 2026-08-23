@@ -42,6 +42,7 @@ import org.thingsboard.server.common.data.alarm.EntityAlarm;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.exception.ApiUsageLimitsExceededException;
 import org.thingsboard.server.common.data.id.AlarmId;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.HasId;
@@ -60,6 +61,7 @@ import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationsSearchParameters;
 import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
+import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.entity.EntityService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
@@ -71,6 +73,7 @@ import org.thingsboard.server.dao.tenant.TenantService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -96,6 +99,7 @@ public class BaseAlarmService extends AbstractCachedEntityService<TenantId, Page
     private final TenantService tenantService;
     private final AlarmDao alarmDao;
     private final EntityService entityService;
+    private final CustomerDao customerDao;
 
     @Override
     @TransactionalEventListener
@@ -240,7 +244,9 @@ public class BaseAlarmService extends AbstractCachedEntityService<TenantId, Page
         if (alarm.isPropagate()) {
             propagatedEntitiesSet.addAll(getRelatedEntities(alarm));
         }
-        if (alarm.isPropagateToOwner()) {
+        if (alarm.isPropagateToOwnerHierarchy()) {
+            propagatedEntitiesSet.addAll(getOwnerHierarchy(alarm));
+        } else if (alarm.isPropagateToOwner()) {
             propagatedEntitiesSet.add(alarm.getCustomerId() != null ? alarm.getCustomerId() : alarm.getTenantId());
         }
         if (alarm.isPropagateToTenant()) {
@@ -438,12 +444,32 @@ public class BaseAlarmService extends AbstractCachedEntityService<TenantId, Page
     }
 
     private Set<EntityId> getPropagationEntityIds(Alarm alarm) {
-        if (alarm.isPropagate() || alarm.isPropagateToOwner() || alarm.isPropagateToTenant()) {
+        if (alarm.isPropagate() || alarm.isPropagateToOwner() || alarm.isPropagateToOwnerHierarchy() || alarm.isPropagateToTenant()) {
             List<EntityAlarm> entityAlarms = alarmDao.findEntityAlarmRecords(alarm.getTenantId(), alarm.getId());
             return entityAlarms.stream().map(EntityAlarm::getEntityId).collect(Collectors.toSet());
         } else {
             return Collections.singleton(alarm.getOriginator());
         }
+    }
+
+    /**
+     * The alarm's owning customer, that customer's parent, and so on up to (and including) the
+     * tenant. Superset of propagateToOwner, which stops at the first hop.
+     *
+     * <p>Guarded against a cycle in parent_customer_id: a malformed chain would otherwise spin
+     * forever inside alarm creation, which is on the platform's hottest write path.
+     */
+    private Set<EntityId> getOwnerHierarchy(Alarm alarm) {
+        Set<EntityId> owners = new LinkedHashSet<>();
+        CustomerId customerId = alarm.getCustomerId();
+        Set<UUID> visited = new HashSet<>();
+        while (customerId != null && !customerId.isNullUid() && visited.add(customerId.getId())) {
+            owners.add(customerId);
+            Customer customer = customerDao.findById(alarm.getTenantId(), customerId.getId());
+            customerId = customer != null ? customer.getParentCustomerId() : null;
+        }
+        owners.add(alarm.getTenantId());
+        return owners;
     }
 
     private void createEntityAlarmRecord(TenantId tenantId, EntityId entityId, Alarm alarm) {

@@ -14,12 +14,16 @@
 -- limitations under the License.
 --
 
+-- Dropped explicitly: a_propagate_to_owner_hierarchy changes the signature, and CREATE OR REPLACE
+-- would leave the previous arity behind as a second overload instead of replacing it.
+DROP FUNCTION IF EXISTS create_or_update_active_alarm;
 CREATE OR REPLACE FUNCTION create_or_update_active_alarm(
                                         t_id uuid, c_id uuid, a_id uuid, a_created_ts bigint,
                                         a_o_id uuid, a_o_type integer, a_type varchar,
                                         a_severity varchar, a_start_ts bigint, a_end_ts bigint,
                                         a_details varchar,
                                         a_propagate boolean, a_propagate_to_owner boolean,
+                                        a_propagate_to_owner_hierarchy boolean,
                                         a_propagate_to_tenant boolean, a_propagation_types varchar,
                                         a_creation_enabled boolean)
     RETURNS varchar
@@ -45,7 +49,7 @@ BEGIN
              originator_id, originator_type, type,
              severity, start_ts, end_ts,
              additional_info,
-             propagate, propagate_to_owner, propagate_to_tenant, propagate_relation_types,
+             propagate, propagate_to_owner, propagate_to_owner_hierarchy, propagate_to_tenant, propagate_relation_types,
              acknowledged, ack_ts,
              cleared, clear_ts,
              assignee_id, assign_ts)
@@ -54,7 +58,7 @@ BEGIN
              a_o_id, a_o_type, a_type,
              a_severity, a_start_ts, a_end_ts,
              a_details,
-             a_propagate, a_propagate_to_owner, a_propagate_to_tenant, a_propagation_types,
+             a_propagate, a_propagate_to_owner, a_propagate_to_owner_hierarchy, a_propagate_to_tenant, a_propagation_types,
              false, 0, false, 0, NULL, 0);
         INSERT INTO alarm_types (tenant_id, type) VALUES (t_id, a_type) ON CONFLICT (tenant_id, type) DO NOTHING;
         SELECT * INTO result FROM alarm_info a WHERE a.id = a_id AND a.tenant_id = t_id;
@@ -67,12 +71,14 @@ BEGIN
             additional_info          = a_details,
             propagate                = a_propagate,
             propagate_to_owner       = a_propagate_to_owner,
+            propagate_to_owner_hierarchy = a_propagate_to_owner_hierarchy,
             propagate_to_tenant      = a_propagate_to_tenant,
             propagate_relation_types = a_propagation_types
         WHERE a.id = existing.id
           AND a.tenant_id = t_id
           AND (severity != a_severity OR start_ts != a_start_ts OR end_ts != a_end_ts OR additional_info != a_details
             OR propagate != a_propagate OR propagate_to_owner != a_propagate_to_owner OR
+               propagate_to_owner_hierarchy != a_propagate_to_owner_hierarchy OR
                propagate_to_tenant != a_propagate_to_tenant OR propagate_relation_types != a_propagation_types);
         GET DIAGNOSTICS row_count = ROW_COUNT;
         SELECT * INTO result FROM alarm_info a WHERE a.id = existing.id AND a.tenant_id = t_id;
@@ -89,6 +95,7 @@ DROP FUNCTION IF EXISTS update_alarm;
 CREATE OR REPLACE FUNCTION update_alarm(t_id uuid, a_id uuid, a_severity varchar, a_start_ts bigint, a_end_ts bigint,
                                         a_details varchar,
                                         a_propagate boolean, a_propagate_to_owner boolean,
+                                        a_propagate_to_owner_hierarchy boolean,
                                         a_propagate_to_tenant boolean, a_propagation_types varchar)
     RETURNS varchar
     LANGUAGE plpgsql
@@ -110,12 +117,14 @@ BEGIN
         additional_info          = a_details,
         propagate                = a_propagate,
         propagate_to_owner       = a_propagate_to_owner,
+        propagate_to_owner_hierarchy = a_propagate_to_owner_hierarchy,
         propagate_to_tenant      = a_propagate_to_tenant,
         propagate_relation_types = a_propagation_types
     WHERE a.id = a_id
       AND a.tenant_id = t_id
       AND (severity != a_severity OR start_ts != a_start_ts OR end_ts != a_end_ts OR additional_info != a_details
         OR propagate != a_propagate OR propagate_to_owner != a_propagate_to_owner OR
+           propagate_to_owner_hierarchy != a_propagate_to_owner_hierarchy OR
            propagate_to_tenant != a_propagate_to_tenant OR propagate_relation_types != a_propagation_types);
     GET DIAGNOSTICS row_count = ROW_COUNT;
     SELECT * INTO result FROM alarm_info a WHERE a.id = a_id AND a.tenant_id = t_id;

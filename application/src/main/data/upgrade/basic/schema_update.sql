@@ -80,3 +80,10 @@ CREATE INDEX IF NOT EXISTS idx_custom_menu                 ON custom_menu(tenant
 CREATE INDEX IF NOT EXISTS idx_api_key_tenant_id_user_id   ON api_key(tenant_id, user_id);
 
 -- VC SUPPORT FOR PE-PORTED ENTITIES END
+
+-- ALARM OWNER-HIERARCHY PROPAGATION START
+-- Alarms can now propagate up the whole customer chain, not just to the immediate owner.
+-- The create_or_update_active_alarm / update_alarm functions gained a matching parameter; they are
+-- recreated from schema-functions.sql, which DROPs them first because the signature changed.
+ALTER TABLE alarm ADD COLUMN IF NOT EXISTS propagate_to_owner_hierarchy BOOLEAN;
+-- ALARM OWNER-HIERARCHY PROPAGATION END

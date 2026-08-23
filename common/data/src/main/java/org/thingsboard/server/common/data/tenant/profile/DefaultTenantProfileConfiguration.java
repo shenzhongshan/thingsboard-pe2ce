@@ -80,6 +80,13 @@ public class DefaultTenantProfileConfiguration implements TenantProfileConfigura
     @Schema(example = "20:1,600:60")
     @RateLimit(fieldName = "Transport gateway device messages")
     private String transportGatewayDeviceMsgRateLimit;
+
+    @Schema(description = "Rate limit for messages ingested through integrations, per tenant")
+    private String integrationMsgsPerTenantRateLimit;
+    @Schema(description = "Rate limit for messages ingested through integrations, per device")
+    private String integrationMsgsPerDeviceRateLimit;
+    @Schema(description = "Rate limit for messages ingested through integrations, per asset")
+    private String integrationMsgsPerAssetRateLimit;
     @Schema(example = "20:1,600:60")
     @RateLimit(fieldName = "Transport gateway device telemetry messages")
     private String transportGatewayDeviceTelemetryMsgRateLimit;

@@ -29,6 +29,7 @@ import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.common.data.msg.TbMsgType;
 import org.thingsboard.server.common.data.script.ScriptLanguage;
@@ -40,12 +41,15 @@ import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.integration.IntegrationService;
+import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
+import org.thingsboard.server.service.integration.stats.IntegrationStatisticsService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.integration.rpc.TbRemoteIntegrationRpcService;
 import org.thingsboard.server.service.partition.AbstractPartitionBasedService;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -73,8 +77,11 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             IntegrationType.TMOBILE_IOT_CDP);
 
     private final IntegrationService integrationService;
+    private final SecretConfigurationService secretConfigurationService;
     private final ConverterService converterService;
     private final ConverterExecutorService converterExecutorService;
+    private final IntegrationRateLimitService rateLimitService;
+    private final IntegrationStatisticsService statisticsService;
     private final DeviceService deviceService;
     private final TbClusterService clusterService;
     private final List<IntegrationRuntimeFactory> runtimeFactories;
@@ -215,6 +222,34 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             statuses.put(integration.getId(), new IntegrationStatus("REMOTE", null));
             return;
         }
+        boolean started = false;
+        try {
+            started = doStartIntegration(integration);
+        } finally {
+            statisticsService.onIntegrationStateUpdate(integration.getType(),
+                    started ? ComponentLifecycleEvent.STARTED : ComponentLifecycleEvent.FAILED, started);
+        }
+    }
+
+    /**
+     * A copy of the integration with any {@code ${secret:...}} placeholders in its configuration
+     * resolved to real values.
+     *
+     * <p>Always a copy - the caller's instance is the one cached and written back, and it must keep
+     * the placeholder rather than the decrypted credential. Resolution happens here, where the
+     * config is consumed to open a connection, rather than on save, matching PE
+     * (TbCoreIntegrationConfigurationService).
+     */
+    private Integration withResolvedSecrets(Integration integration) {
+        if (integration == null || integration.getConfiguration() == null) {
+            return integration;
+        }
+        Integration copy = new Integration(integration);
+        secretConfigurationService.replaceSecretUsages(integration.getTenantId(), copy.getConfiguration());
+        return copy;
+    }
+
+    private boolean doStartIntegration(Integration integration) {
         try {
             IntegrationType type = integration.getType();
             if (!PASSIVE_TYPES.contains(type)) {
@@ -222,15 +257,17 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
                 if (factory == null) {
                     throw new UnsupportedOperationException("Integration type " + type + " is not implemented in this build!");
                 }
-                IntegrationRuntime runtime = factory.create(integration, this);
+                IntegrationRuntime runtime = factory.create(withResolvedSecrets(integration), this);
                 runtime.start();
                 runtimes.put(integration.getId(), runtime);
             }
             statuses.put(integration.getId(), new IntegrationStatus("ACTIVE", null));
             log.info("[{}][{}] Integration started", integration.getTenantId(), integration.getName());
+            return true;
         } catch (Exception e) {
             statuses.put(integration.getId(), new IntegrationStatus("FAILED", e.getMessage()));
             log.warn("[{}][{}] Failed to start integration: {}", integration.getTenantId(), integration.getName(), e.getMessage());
+            return false;
         }
     }
 
@@ -243,7 +280,19 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     @Override
     public void processUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
+        // checked before the converter runs, so an over-limit tenant does not pay for script execution
+        rateLimitService.checkLimit(integration.getTenantId(), () -> new String(payload, StandardCharsets.UTF_8));
         dailyEventCounts.computeIfAbsent(integration.getId(), id -> new DailyCounter()).increment();
+        try {
+            doProcessUplink(integration, payload, metadata);
+            statisticsService.onUplinkMsg(integration.getType(), true);
+        } catch (Exception e) {
+            statisticsService.onUplinkMsg(integration.getType(), false);
+            throw e;
+        }
+    }
+
+    private void doProcessUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
         Converter converter = converterService.findConverterById(integration.getTenantId(), integration.getDefaultConverterId());
         if (converter == null || converter.getConfiguration() == null) {
             throw new IllegalStateException("Uplink converter is not configured!");
@@ -281,6 +330,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         }
         TenantId tenantId = integration.getTenantId();
         String deviceName = data.get("deviceName").asText();
+        rateLimitService.checkLimitPerDevice(tenantId, deviceName, data::toString);
         String deviceType = data.has("deviceType") ? data.get("deviceType").asText() : "default";
         Device device = deviceService.findDeviceByTenantIdAndName(tenantId, deviceName);
         if (device == null) {
@@ -353,12 +403,54 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     }
 
     @Override
-    public void pushDownlink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception {
+    public void pushDownlink(Integration integration, JsonNode msg, String msgType, Map<String, String> metadata) throws Exception {
         IntegrationRuntime runtime = runtimes.get(integration.getId());
         if (runtime == null) {
             throw new UnsupportedOperationException("Downlink is not supported for this integration type in this build!");
         }
-        runtime.pushDownlink(payload, metadata);
+        boolean success = false;
+        try {
+            byte[] payload;
+            Map<String, String> effectiveMetadata = metadata;
+            DownlinkData converted = convertDownlink(integration, msg, msgType, metadata);
+            if (converted != null) {
+                payload = converted.data();
+                // converter-supplied metadata wins: it is what tells the runtime where to send this
+                effectiveMetadata = new HashMap<>(metadata);
+                effectiveMetadata.putAll(converted.metadata());
+            } else {
+                payload = JacksonUtil.toString(msg).getBytes(StandardCharsets.UTF_8);
+            }
+            runtime.pushDownlink(payload, effectiveMetadata);
+            success = true;
+        } finally {
+            statisticsService.onDownlinkMsg(integration.getType(), success);
+        }
+    }
+
+    /** @return the encoded downlink, or null when this integration has no downlink converter */
+    private DownlinkData convertDownlink(Integration integration, JsonNode msg, String msgType,
+                                         Map<String, String> metadata) throws Exception {
+        if (integration.getDownlinkConverterId() == null) {
+            return null;
+        }
+        Converter converter = converterService.findConverterById(integration.getTenantId(), integration.getDownlinkConverterId());
+        if (converter == null || converter.getConfiguration() == null) {
+            throw new IllegalStateException("Downlink converter is not configured!");
+        }
+        JsonNode cfg = converter.getConfiguration();
+        ScriptLanguage lang = cfg.has("scriptLang") ? ScriptLanguage.valueOf(cfg.get("scriptLang").asText()) : ScriptLanguage.TBEL;
+        if (!cfg.has("encoder")) {
+            throw new IllegalStateException("Downlink converter has no encoder script!");
+        }
+        Map<String, String> integrationMetadata = Map.of("integrationName", integration.getName());
+        JsonNode result = converterExecutorService.executeDownlink(integration.getTenantId(), lang,
+                cfg.get("encoder").asText(), msg, msgType, metadata, integrationMetadata);
+        if (result == null || result.isNull()) {
+            throw new IllegalStateException("Downlink converter returned no result!");
+        }
+        // an encoder may return either one downlink or an array of them; the runtime takes one
+        return DownlinkData.parse(result.isArray() ? result.get(0) : result);
     }
 
     private void pushMsg(TenantId tenantId, Device device, TbMsgType msgType, JsonNode body, TbMsgMetaData metaData) {

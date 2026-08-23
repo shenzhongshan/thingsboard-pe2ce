@@ -25,6 +25,7 @@ import org.thingsboard.server.common.data.notification.NotificationRequest;
 import org.thingsboard.server.common.data.notification.NotificationRequestStats;
 import org.thingsboard.server.common.data.notification.NotificationType;
 import org.thingsboard.server.common.data.notification.settings.NotificationDeliveryMethodConfig;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.common.data.notification.settings.NotificationSettings;
 import org.thingsboard.server.common.data.notification.targets.NotificationRecipient;
 import org.thingsboard.server.common.data.notification.template.DeliveryMethodNotificationTemplate;
@@ -44,6 +45,7 @@ public class NotificationProcessingContext {
     private final TenantId tenantId;
     private final NotificationSettings settings;
     private final NotificationSettings systemSettings;
+    private final SecretConfigurationService secretConfigurationService;
     @Getter
     private final NotificationRequest request;
     @Getter
@@ -59,11 +61,13 @@ public class NotificationProcessingContext {
 
     @Builder
     public NotificationProcessingContext(TenantId tenantId, NotificationRequest request, Set<NotificationDeliveryMethod> deliveryMethods,
-                                         NotificationTemplate template, NotificationSettings settings, NotificationSettings systemSettings) {
+                                         NotificationTemplate template, NotificationSettings settings, NotificationSettings systemSettings,
+                                         SecretConfigurationService secretConfigurationService) {
         this.tenantId = tenantId;
         this.request = request;
         this.deliveryMethods = deliveryMethods;
         this.settings = settings;
+        this.secretConfigurationService = secretConfigurationService;
         this.systemSettings = systemSettings;
         this.notificationTemplate = template;
         this.notificationType = template.getNotificationType();
@@ -82,14 +86,27 @@ public class NotificationProcessingContext {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public <C extends NotificationDeliveryMethodConfig> C getDeliveryMethodConfig(NotificationDeliveryMethod deliveryMethod) {
         NotificationSettings settings;
+        boolean isSystem;
         if (deliveryMethod == NotificationDeliveryMethod.MOBILE_APP) {
             settings = this.systemSettings;
+            isSystem = true;
         } else {
             settings = this.settings;
+            isSystem = tenantId.isSysTenantId();
         }
-        return (C) settings.getDeliveryMethodsConfigs().get(deliveryMethod);
+        C config = (C) settings.getDeliveryMethodsConfigs().get(deliveryMethod);
+        if (config == null || secretConfigurationService == null) {
+            // Null service means a preview/estimate context (see NotificationController and
+            // DefaultNotificationCenter's WEB-only builder) - those never open a connection, so
+            // there is nothing to resolve and no reason to fail.
+            return config;
+        }
+        // A copy is returned; the NotificationSettings held by this context keep their placeholders.
+        return (C) secretConfigurationService.replaceSecretUsages(
+                isSystem ? TenantId.SYS_TENANT_ID : tenantId, config, (Class<NotificationDeliveryMethodConfig>) config.getClass());
     }
 
     public <T extends DeliveryMethodNotificationTemplate> T getProcessedTemplate(NotificationDeliveryMethod deliveryMethod, NotificationRecipient recipient) {

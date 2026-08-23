@@ -31,6 +31,12 @@ public class TbRateLimitsException extends AbstractRateLimitException {
         this.entityType = entityType;
     }
 
+    /** Same entity attribution as above, but with a caller-supplied message. */
+    public TbRateLimitsException(EntityType entityType, String msg) {
+        super(msg);
+        this.entityType = entityType;
+    }
+
     public TbRateLimitsException(String message) {
         super(message);
         this.entityType = null;

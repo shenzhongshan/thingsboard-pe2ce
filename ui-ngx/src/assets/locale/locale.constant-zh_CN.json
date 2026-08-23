@@ -1,5 +1,14 @@
 {
   "entity-group": {
+    "owner": "所有者",
+    "owner-and-groups": "所有者和分组",
+    "owner-required": "所有者为必填项。",
+    "no-owners-text": "未找到所有者",
+    "no-owners-matching": "未找到与 '{{owner}}' 匹配的所有者。",
+    "no-entity-groups-text": "未找到实体组",
+    "no-entity-groups-matching": "未找到与 '{{entityGroup}}' 匹配的实体组。",
+    "create-new-entity-group": "创建新的实体组！",
+    "entity-group-list-empty": "未选择实体组。",
     "entity-groups": "实体组",
     "group-type-device": "设备组",
     "group-type-asset": "资产组",
@@ -3825,6 +3834,7 @@
     "unknown-error": "未知错误"
   },
   "entity": {
+    "groups": "分组",
     "entity": "实体",
     "entities": "实体",
     "entities-count": "实体数量",

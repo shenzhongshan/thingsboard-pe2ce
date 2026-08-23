@@ -1,5 +1,14 @@
 {
     "entity-group": {
+        "owner": "Owner",
+        "owner-and-groups": "Owner and groups",
+        "owner-required": "Owner is required.",
+        "no-owners-text": "No owners found",
+        "no-owners-matching": "No owners matching '{{owner}}' were found.",
+        "no-entity-groups-text": "No entity groups found",
+        "no-entity-groups-matching": "No entity groups matching '{{entityGroup}}' were found.",
+        "create-new-entity-group": "Create a new one!",
+        "entity-group-list-empty": "No entity groups selected.",
         "entity-groups": "Entity groups",
         "group-type-device": "Device groups",
         "group-type-asset": "Asset groups",
@@ -3834,6 +3843,7 @@
         "unknown-error": "Unknown error"
     },
     "entity": {
+        "groups": "Groups",
         "entity": "Entity",
         "entities": "Entities",
         "entities-count": "Entities count",

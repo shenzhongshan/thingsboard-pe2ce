@@ -90,6 +90,9 @@ public class Alarm extends BaseData<AlarmId> implements HasName, HasTenantId, Ha
     private boolean propagate;
     @Schema(description = "Propagation flag to specify if alarm should be propagated to the owner (tenant or customer) of alarm originator", example = "true")
     private boolean propagateToOwner;
+    @Schema(description = "Propagation flag to specify if alarm should be propagated to the whole owner chain of the alarm originator - " +
+            "its customer, that customer's parent customer, and so on up to the tenant. Supersedes 'propagateToOwner', which stops at the immediate owner.", example = "true")
+    private boolean propagateToOwnerHierarchy;
     @Schema(description = "Propagation flag to specify if alarm should be propagated to the tenant entity", example = "true")
     private boolean propagateToTenant;
     @Schema(description = "JSON array of relation types that should be used for propagation. " +
@@ -124,6 +127,7 @@ public class Alarm extends BaseData<AlarmId> implements HasName, HasTenantId, Ha
         this.details = alarm.getDetails();
         this.propagate = alarm.isPropagate();
         this.propagateToOwner = alarm.isPropagateToOwner();
+        this.propagateToOwnerHierarchy = alarm.isPropagateToOwnerHierarchy();
         this.propagateToTenant = alarm.isPropagateToTenant();
         this.propagateRelationTypes = alarm.getPropagateRelationTypes();
     }

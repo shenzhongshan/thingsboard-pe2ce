@@ -210,6 +210,7 @@ export class AlarmRuleDialogComponent extends DialogComponent<AlarmRuleDialogCom
       this.fieldFormGroup.get('configuration.clearRule').enable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagate').enable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateToOwner').enable({emitEvent: false});
+      this.fieldFormGroup.get('configuration.propagateToOwnerHierarchy').enable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateToTenant').enable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateRelationTypes').enable({emitEvent: false});
       this.disabledClearRuleButton = false;
@@ -218,6 +219,7 @@ export class AlarmRuleDialogComponent extends DialogComponent<AlarmRuleDialogCom
       this.fieldFormGroup.get('configuration.clearRule').disable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagate').disable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateToOwner').disable({emitEvent: false});
+      this.fieldFormGroup.get('configuration.propagateToOwnerHierarchy').disable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateToTenant').disable({emitEvent: false});
       this.fieldFormGroup.get('configuration.propagateRelationTypes').disable({emitEvent: false});
       this.disabledClearRuleButton = true;

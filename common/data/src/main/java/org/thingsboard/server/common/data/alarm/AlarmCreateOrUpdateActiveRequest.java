@@ -89,6 +89,7 @@ public class AlarmCreateOrUpdateActiveRequest implements AlarmModificationReques
                 .propagation(AlarmPropagationInfo.builder()
                         .propagate(a.isPropagate())
                         .propagateToOwner(a.isPropagateToOwner())
+                        .propagateToOwnerHierarchy(a.isPropagateToOwnerHierarchy())
                         .propagateToTenant(a.isPropagateToTenant())
                         .propagateRelationTypes(a.getPropagateRelationTypes()).build())
                 .userId(userId)

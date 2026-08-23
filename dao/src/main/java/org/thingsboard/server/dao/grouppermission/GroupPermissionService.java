@@ -38,6 +38,18 @@ public interface GroupPermissionService {
 
     void deleteGroupPermission(TenantId tenantId, GroupPermissionId groupPermissionId);
 
+    /**
+     * Deletes the permissions granted <em>to</em> a user group. Called when the user group itself is
+     * deleted - without it the rows survive their owning group and are unreachable through the API.
+     */
+    void deleteGroupPermissionsByUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
+
+    /**
+     * Deletes the permissions granted <em>on</em> an entity group (the reverse direction). Called
+     * when the target group is deleted.
+     */
+    void deleteGroupPermissionsByEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId);
+
     List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId);

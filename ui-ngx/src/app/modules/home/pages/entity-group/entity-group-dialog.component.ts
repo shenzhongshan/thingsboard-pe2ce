@@ -35,6 +35,8 @@ export interface EntityGroupDialogData {
   groupType: EntityType;
   // customer id when creating a customer-owned group (hierarchy view)
   ownerId?: string;
+  // pre-fills the name when the dialog is opened from a picker's "create a new one" action
+  name?: string;
 }
 
 @Component({
@@ -56,7 +58,8 @@ export class EntityGroupDialogComponent implements OnInit {
   private entityGroup: EntityGroup;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: EntityGroupDialogData,
-              private dialogRef: MatDialogRef<EntityGroupDialogComponent, boolean>,
+              // Closes with the saved group so a picker can select it right away; false on cancel.
+              private dialogRef: MatDialogRef<EntityGroupDialogComponent, EntityGroup | false>,
               protected store: Store<AppState>,
               private entityGroupService: EntityGroupService,
               private roleService: RoleService,
@@ -91,7 +94,7 @@ export class EntityGroupDialogComponent implements OnInit {
         this.loaded = true;
       });
     } else {
-      this.entityGroup = {type: this.data.groupType, name: '', additionalInfo: {}};
+      this.entityGroup = {type: this.data.groupType, name: this.data.name || '', additionalInfo: {}};
       if (this.data.ownerId) {
         this.entityGroup.ownerId = {entityType: 'CUSTOMER', id: this.data.ownerId};
       }
@@ -180,7 +183,7 @@ export class EntityGroupDialogComponent implements OnInit {
           ))
         );
       })
-    ).subscribe(() => this.dialogRef.close(true));
+    ).subscribe(savedGroup => this.dialogRef.close(savedGroup));
   }
 
 }

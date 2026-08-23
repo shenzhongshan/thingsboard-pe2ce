@@ -41,6 +41,7 @@ import org.thingsboard.server.common.data.sync.vc.BranchInfo;
 import org.thingsboard.server.common.data.sync.vc.EntityVersion;
 import org.thingsboard.server.common.data.sync.vc.EntityVersionsDiff;
 import org.thingsboard.server.common.data.sync.vc.RepositorySettings;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.common.data.sync.vc.VersionCreationResult;
 import org.thingsboard.server.common.data.sync.vc.VersionedEntityInfo;
 import org.thingsboard.server.common.data.sync.vc.request.create.VersionCreateRequest;
@@ -98,6 +99,7 @@ public class DefaultGitVersionControlQueueService implements GitVersionControlQu
     private final TbServiceInfoProvider serviceInfoProvider;
     private final TbClusterService clusterService;
     private final DefaultEntitiesVersionControlService entitiesVersionControlService;
+    private final SecretConfigurationService secretConfigurationService;
     private final SchedulerComponent scheduler;
     private final VersionControlExecutor executor;
 
@@ -111,12 +113,14 @@ public class DefaultGitVersionControlQueueService implements GitVersionControlQu
 
     public DefaultGitVersionControlQueueService(TbServiceInfoProvider serviceInfoProvider, TbClusterService clusterService,
                                                 @Lazy DefaultEntitiesVersionControlService entitiesVersionControlService,
-                                                SchedulerComponent scheduler, VersionControlExecutor executor) {
+                                                SchedulerComponent scheduler, VersionControlExecutor executor,
+                                                SecretConfigurationService secretConfigurationService) {
         this.serviceInfoProvider = serviceInfoProvider;
         this.clusterService = clusterService;
         this.entitiesVersionControlService = entitiesVersionControlService;
         this.scheduler = scheduler;
         this.executor = executor;
+        this.secretConfigurationService = secretConfigurationService;
     }
 
     @Override
@@ -559,6 +563,13 @@ public class DefaultGitVersionControlQueueService implements GitVersionControlQu
             vcSettings = entitiesVersionControlService.getVersionControlSettings(tenantId);
         }
         if (vcSettings != null) {
+            // Resolve ${secret:...} before the settings go into the proto: the version-control
+            // executor consumes them to authenticate against the git remote and has no vault
+            // access. replaceSecretUsages(entity, class) returns a new object, so the caller's
+            // settings (and the stored ones) keep their placeholders.
+            // PE does this in initRepository/testRepository/newRequestProto; in CE every path
+            // funnels through here, so one call covers all three.
+            vcSettings = secretConfigurationService.replaceSecretUsages(tenantId, vcSettings, RepositorySettings.class);
             builder.setVcSettings(ProtoUtils.toProto(vcSettings));
         } else if (request.requiresSettings()) {
             throw new RuntimeException("No entity version control settings provisioned!");

@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.msg.tools.TbRateLimitsException;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
@@ -77,6 +78,11 @@ public class IntegrationHttpController {
             headers.forEach((k, v) -> metadata.put("header:" + k, v));
             platformIntegrationService.processUplink(integration, body.getBytes(StandardCharsets.UTF_8), metadata);
             return ResponseEntity.ok("");
+        } catch (TbRateLimitsException e) {
+            // distinct from the 500 below on purpose: a device that is merely too fast must be able
+            // to back off, which it cannot do if throttling looks like a server fault
+            log.debug("[{}] Uplink rejected by rate limits: {}", integration.getId(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(e.getMessage());
         } catch (Exception e) {
             log.warn("[{}] Failed to process HTTP integration uplink: {}", integration.getId(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());

@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
@@ -49,6 +50,7 @@ import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
+import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
 import org.thingsboard.server.dao.model.sql.EntityGroupEntity;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.sql.group.EntityGroupRepository;
@@ -71,6 +73,13 @@ public class BaseEntityGroupService implements EntityGroupService {
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+
+    // Field-injected and @Lazy on purpose: BaseGroupPermissionService takes EntityGroupService as a
+    // constructor dependency (it resolves group names for the permissions UI), so making this one a
+    // constructor dependency too would be an unresolvable cycle at startup.
+    @Autowired
+    @Lazy
+    private GroupPermissionService groupPermissionService;
 
     private final EntityGroupRepository entityGroupRepository;
     private final RelationService relationService;
@@ -214,9 +223,21 @@ public class BaseEntityGroupService implements EntityGroupService {
         if (entityGroup.isGroupAll()) {
             throw new DataValidationException("Deletion of the 'All' entity group is prohibited!");
         }
+        deleteGroupPermissions(tenantId, entityGroupId);
         relationService.deleteEntityRelations(tenantId, entityGroupId);
         entityGroupRepository.deleteById(entityGroupId.getId());
         eventPublisher.publishEvent(DeleteEntityEvent.builder().tenantId(tenantId).entityId(entityGroupId).build());
+    }
+
+    /**
+     * A group can be referenced by a permission in either direction - as the user group being
+     * granted access, or as the entity group access is granted on - so both have to go. Must run
+     * before the relations are deleted, so the permission layer can still enumerate the group's
+     * users to evict their cached permissions.
+     */
+    private void deleteGroupPermissions(TenantId tenantId, EntityGroupId entityGroupId) {
+        groupPermissionService.deleteGroupPermissionsByUserGroupId(tenantId, entityGroupId);
+        groupPermissionService.deleteGroupPermissionsByEntityGroupId(tenantId, entityGroupId);
     }
 
     @Override
@@ -225,7 +246,9 @@ public class BaseEntityGroupService implements EntityGroupService {
         // Goes through the repository rather than deleteEntityGroup because the owner's "All"
         // groups have to go too, and those are deliberately undeletable one at a time.
         for (EntityGroupEntity entity : entityGroupRepository.findAllByOwnerId(ownerId.getId())) {
-            relationService.deleteEntityRelations(tenantId, new EntityGroupId(entity.getUuid()));
+            EntityGroupId entityGroupId = new EntityGroupId(entity.getUuid());
+            deleteGroupPermissions(tenantId, entityGroupId);
+            relationService.deleteEntityRelations(tenantId, entityGroupId);
             entityGroupRepository.deleteById(entity.getUuid());
         }
     }

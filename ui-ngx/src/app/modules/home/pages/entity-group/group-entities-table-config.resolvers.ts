@@ -36,6 +36,7 @@ import { Customer } from '@shared/models/customer.model';
 import { User, UserInfo } from '@shared/models/user.model';
 import { Authority } from '@shared/models/authority.enum';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
+import { CustomerId } from '@shared/models/id/customer-id';
 import { UserService } from '@core/http/user.service';
 import { DeviceService } from '@core/http/device.service';
 import { AssetService } from '@core/http/asset.service';
@@ -254,6 +255,11 @@ abstract class GroupEntitiesTableConfigResolver<T extends BaseData<HasId>> {
 
   /** Default create-new flow: the generic add-entity dialog, then membership. */
   protected genericDialogAdd(config: EntityTableConfig<T>, group: EntityGroup): void {
+    // An entity created from inside a group belongs to that group's owner, not to whoever is
+    // looking at it — otherwise a tenant-owned entity would land in a customer's group.
+    config.addDialogOwnerId = group.ownerId?.entityType === EntityType.CUSTOMER
+      ? new CustomerId(group.ownerId.id)
+      : null;
     config.addEntity = () => this.dialog.open<AddEntityDialogComponent, AddEntityDialogData<T>, T>(
       AddEntityDialogComponent, {
         disableClose: true,

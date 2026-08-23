@@ -71,6 +71,7 @@ import org.thingsboard.server.common.data.sync.vc.RepositorySettingsInfo;
 import org.thingsboard.server.common.data.sync.vc.VcUtils;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.audit.AuditLogService;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
@@ -108,6 +109,7 @@ public class AdminController extends BaseController {
     private final MailService mailService;
     private final SmsService smsService;
     private final AdminSettingsService adminSettingsService;
+    private final SecretConfigurationService secretConfigurationService;
     private final SystemSecurityService systemSecurityService;
     private final SecuritySettingsService securitySettingsService;
     private final JwtSettingsService jwtSettingsService;
@@ -426,7 +428,10 @@ public class AdminController extends BaseController {
 
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
         AdminSettings adminSettings = checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, MAIL_SETTINGS_KEY), "No Administration mail settings found");
-        JsonNode jsonValue = adminSettings.getJsonValue();
+        // Resolve on a copy: clientSecret may be a ${secret:...} placeholder, and the settings
+        // object is written back below with the new refresh token - it must keep the placeholder.
+        JsonNode jsonValue = adminSettings.getJsonValue().deepCopy();
+        secretConfigurationService.replaceSecretUsages(TenantId.SYS_TENANT_ID, jsonValue);
 
         String clientId = checkNotNull(jsonValue.get("clientId"), "No clientId was configured").asText();
         String authUri = checkNotNull(jsonValue.get("authUri"), "No authorization uri was configured").asText();

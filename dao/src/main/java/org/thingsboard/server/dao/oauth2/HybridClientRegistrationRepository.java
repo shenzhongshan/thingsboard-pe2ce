@@ -25,6 +25,8 @@ import org.thingsboard.server.common.data.id.OAuth2ClientId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.oauth2.OAuth2Client;
 
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
+
 import java.util.UUID;
 
 @Component
@@ -35,12 +37,20 @@ public class HybridClientRegistrationRepository implements ClientRegistrationRep
     @Autowired
     private OAuth2ClientService oAuth2ClientService;
 
+    @Autowired
+    private SecretConfigurationService secretConfigurationService;
+
     @Override
     public ClientRegistration findByRegistrationId(String registrationId) {
         OAuth2Client oAuth2Client = oAuth2ClientService.findOAuth2ClientById(TenantId.SYS_TENANT_ID, new OAuth2ClientId(UUID.fromString(registrationId)));
         if (oAuth2Client == null) {
             return null;
         }
+        // The client secret may be a ${secret:...} placeholder; resolve before handing the
+        // registration to Spring Security, which uses it verbatim in the token request.
+        // Returns a new object, so the stored client keeps its placeholder.
+        oAuth2Client = secretConfigurationService.replaceSecretUsages(
+                oAuth2Client.getTenantId(), oAuth2Client, OAuth2Client.class);
         return toSpringClientRegistration(oAuth2Client);
     }
 

@@ -57,6 +57,7 @@ export class CalculatedFieldFormService {
         arguments: this.fb.control({}, Validators.required),
         propagate: [false],
         propagateToOwner: [false],
+        propagateToOwnerHierarchy: [false],
         propagateToTenant: [false],
         propagateRelationTypes: [null],
         createRules: [null, Validators.required],

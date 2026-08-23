@@ -39,12 +39,16 @@ import org.thingsboard.server.service.edge.rpc.fetch.NotificationTemplateEdgeEve
 import org.thingsboard.server.service.edge.rpc.fetch.OAuth2EdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.OtaPackagesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.QueuesEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.ReportTemplateEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.RuleChainsEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.SecretEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.SysAdminRolesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.SystemWidgetTypesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.SystemWidgetsBundlesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantAdminUsersEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantResourcesEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.TenantRolesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantWidgetTypesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantWidgetsBundlesEdgeEventFetcher;
 
@@ -64,6 +68,9 @@ public class EdgeSyncCursor {
             fetchers.add(new TenantEdgeEventFetcher(ctx.getTenantService()));
             fetchers.add(new QueuesEdgeEventFetcher(ctx.getQueueService()));
             fetchers.add(new RuleChainsEdgeEventFetcher(ctx.getRuleChainService()));
+            // Roles before anything that references them, matching PE's ordering.
+            fetchers.add(new SysAdminRolesEdgeEventFetcher(ctx.getRoleService()));
+            fetchers.add(new TenantRolesEdgeEventFetcher(ctx.getRoleService()));
             fetchers.add(new AdminSettingsEdgeEventFetcher(ctx.getAdminSettingsService(), TenantId.SYS_TENANT_ID));
             fetchers.add(new AdminSettingsEdgeEventFetcher(ctx.getAdminSettingsService(), edge.getTenantId()));
             fetchers.add(new TenantAdminUsersEdgeEventFetcher(ctx.getUserService()));
@@ -97,6 +104,17 @@ public class EdgeSyncCursor {
             // sync device profiles twice to update software and hardware fields
             fetchers.add(new DeviceProfilesEdgeEventFetcher(ctx.getDeviceProfileService()));
             fetchers.add(new TenantResourcesEdgeEventFetcher(ctx.getResourceService()));
+            fetchers.add(new SecretEdgeEventFetcher(ctx.getSecretService()));
+            fetchers.add(new ReportTemplateEdgeEventFetcher(ctx.getReportTemplateService(), null));
+            if (edge.getCustomerId() != null && !EntityId.NULL_UUID.equals(edge.getCustomerId().getId())) {
+                fetchers.add(new ReportTemplateEdgeEventFetcher(ctx.getReportTemplateService(), edge.getCustomerId()));
+            }
+            // ENTITY_GROUP, INTEGRATION and SCHEDULER_EVENT are deliberately absent. PE fetches
+            // those per-edge (findEdgeEntityGroupsByType / findIntegrationsByTenantIdAndEdgeId /
+            // findSchedulerEventsByTenantIdAndEdgeId) because in PE they are individually assigned
+            // to an edge. CE has no such assignment, and falling back to "push every tenant one"
+            // would hand every edge all integration connection configs - so these stay unsynced
+            // until edge assignment exists for them.
         }
     }
 

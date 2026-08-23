@@ -19,8 +19,15 @@ import { ErrorStateMatcher } from '@angular/material/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
-import { UntypedFormControl, UntypedFormGroup, FormGroupDirective, NgForm } from '@angular/forms';
-import { EntityTypeResource, EntityTypeTranslation } from '@shared/models/entity-type.models';
+import {
+  FormBuilder,
+  FormGroupDirective,
+  NgForm,
+  UntypedFormControl,
+  UntypedFormGroup,
+  Validators
+} from '@angular/forms';
+import { EntityType, EntityTypeResource, EntityTypeTranslation } from '@shared/models/entity-type.models';
 import { BaseData, HasId } from '@shared/models/base-data';
 import { EntityId } from '@shared/models/id/entity-id';
 import { TbAnchorComponent } from '@shared/components/tb-anchor.component';
@@ -29,6 +36,15 @@ import { EntityTableConfig } from '@home/models/entity/entities-table-config.mod
 import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
 import { DialogComponent } from '@shared/components/dialog.component';
 import { Router } from '@angular/router';
+import { forkJoin, Observable, of } from 'rxjs';
+import { map, mergeMap } from 'rxjs/operators';
+import { CustomerId } from '@shared/models/id/customer-id';
+import { TenantId } from '@shared/models/id/tenant-id';
+import { EntityInfoData } from '@shared/models/entity.models';
+import { EntityGroupService } from '@core/http/entity-group.service';
+import { getCurrentAuthUser } from '@core/auth/auth.selectors';
+import { Authority } from '@shared/models/authority.enum';
+import { OwnerAndGroups } from './owner-and-groups.component';
 
 @Component({
     selector: 'tb-add-entity-dialog',
@@ -48,6 +64,11 @@ export class AddEntityDialogComponent extends
   resources: EntityTypeResource<BaseData<HasId>>;
   entity: BaseData<EntityId>;
 
+  entityType: EntityType;
+  ownerAndGroups = false;
+  ownerAndGroupsFormGroup: UntypedFormGroup;
+  initialOwnerId: EntityId;
+
   submitted = false;
 
   @ViewChild('entityDetailsForm', {static: true}) entityDetailsFormAnchor: TbAnchorComponent;
@@ -57,6 +78,8 @@ export class AddEntityDialogComponent extends
               @Inject(MAT_DIALOG_DATA) public data: AddEntityDialogData<BaseData<HasId>>,
               public dialogRef: MatDialogRef<AddEntityDialogComponent, BaseData<HasId>>,
               private injector: Injector,
+              private entityGroupService: EntityGroupService,
+              private fb: FormBuilder,
               @SkipSelf() private errorStateMatcher: ErrorStateMatcher) {
     super(store, router, dialogRef);
   }
@@ -65,7 +88,21 @@ export class AddEntityDialogComponent extends
     this.entitiesTableConfig = this.data.entitiesTableConfig;
     this.translations = this.entitiesTableConfig.entityTranslations;
     this.resources = this.entitiesTableConfig.entityResources;
+    this.entityType = this.entitiesTableConfig.entityType;
     this.entity = {};
+    this.ownerAndGroups = this.entitiesTableConfig.addDialogOwnerAndGroups;
+    if (this.ownerAndGroups) {
+      const authUser = getCurrentAuthUser(this.store);
+      // The table can be scoped to a customer (a customer's entity list) — that customer is then
+      // the owner being added under; otherwise it is the current user's own owner.
+      this.initialOwnerId = this.entitiesTableConfig.addDialogOwnerId
+        ?? (authUser.authority === Authority.CUSTOMER_USER
+          ? new CustomerId(authUser.customerId)
+          : new TenantId(authUser.tenantId));
+      this.ownerAndGroupsFormGroup = this.fb.group({
+        ownerAndGroups: [{owner: this.initialOwnerId, groups: []} as OwnerAndGroups, [Validators.required]]
+      });
+    }
     const viewContainerRef = this.entityDetailsFormAnchor.viewContainerRef;
     viewContainerRef.clear();
     const injector: Injector = Injector.create(
@@ -109,13 +146,42 @@ export class AddEntityDialogComponent extends
 
   add(): void {
     this.submitted = true;
-    if (this.detailsForm.valid) {
-      this.entity = {...this.entity, ...this.entityComponent.entityFormValue()};
-      this.entitiesTableConfig.saveEntity(this.entity).subscribe(
-        (entity) => {
-          this.dialogRef.close(entity);
-        }
-      );
+    if (!this.detailsForm.valid || (this.ownerAndGroups && this.ownerAndGroupsFormGroup.invalid)) {
+      return;
     }
+    this.entity = {...this.entity, ...this.entityComponent.entityFormValue()};
+    const groupIds = this.ownerAndGroups ? this.applyOwner() : [];
+    this.entitiesTableConfig.saveEntity(this.entity).pipe(
+      mergeMap(saved => this.addToGroups(saved, groupIds))
+    ).subscribe(entity => this.dialogRef.close(entity));
+  }
+
+  /**
+   * Folds the picked owner into the entity being saved and returns the picked group ids. A customer
+   * owner becomes the entity's customer assignment (its parent customer, when adding a customer);
+   * a tenant owner means "no customer", which is the default state anyway.
+   */
+  private applyOwner(): string[] {
+    const value: OwnerAndGroups = this.ownerAndGroupsFormGroup.get('ownerAndGroups').value;
+    const owner = value?.owner as EntityInfoData;
+    const ownerId = owner?.name !== undefined ? owner.id : value?.owner as EntityId;
+    if (ownerId?.entityType === EntityType.CUSTOMER) {
+      const customerId = new CustomerId(ownerId.id);
+      if (this.entityType === EntityType.CUSTOMER) {
+        (this.entity as any).parentCustomerId = customerId;
+      } else {
+        (this.entity as any).customerId = customerId;
+      }
+    }
+    return (value?.groups || []).map(group => group.id.id);
+  }
+
+  private addToGroups(entity: BaseData<HasId>, groupIds: string[]): Observable<BaseData<HasId>> {
+    if (!groupIds.length) {
+      return of(entity);
+    }
+    return forkJoin(groupIds.map(groupId =>
+      this.entityGroupService.addEntitiesToEntityGroup(groupId, [entity.id.id]))
+    ).pipe(map(() => entity));
   }
 }
