@@ -1,0 +1,83 @@
+:host {
+  width: 100%;
+  height: 100%;
+
+  .solution-template-details {
+    padding: 20px;
+
+    .title-container {
+      h2 {
+        margin-top: 0;
+      }
+
+      .level {
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 16px;
+        color: #02813e;
+        background-color: #f0f8f3;
+      }
+    }
+  }
+
+  .tb-carousel {
+    .tb-carousel-content {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%;
+      overflow: hidden;
+      border-radius: 4px;
+      background-color: rgba(0, 0, 0, .04);
+
+      .tb-carousel-item {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 0;
+        transition: opacity .4s ease;
+
+        &.active {
+          opacity: 1;
+        }
+      }
+
+      .tb-carousel-prev, .tb-carousel-next {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, .8);
+        z-index: 2;
+      }
+
+      .tb-carousel-prev {
+        left: 8px;
+      }
+
+      .tb-carousel-next {
+        right: 8px;
+      }
+    }
+
+    .tb-carousel-dots {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+
+      .tb-carousel-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, .2);
+        cursor: pointer;
+
+        &.active {
+          background: rgba(0, 0, 0, .6);
+        }
+      }
+    }
+  }
+}

@@ -121,6 +121,7 @@ export enum MenuId {
   integration_center = 'integration_center',
   integrations = 'integrations',
   converters = 'converters',
+  solution_templates = 'solution_templates',
   users = 'users',
   roles = 'roles',
   secrets = 'secrets',
@@ -879,6 +880,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
+    MenuId.solution_templates,
+    {
+      id: MenuId.solution_templates,
+      name: 'solution-template.solution-templates',
+      type: 'link',
+      path: '/solutionTemplates',
+      icon: 'apps'
+    }
+  ],
+  [
     MenuId.reporting,
     {
       id: MenuId.reporting,
@@ -1076,6 +1087,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.reports}
         ]
       },
+      {id: MenuId.solution_templates},
       {
         id: MenuId.entities,
         pages: [
@@ -1273,6 +1285,10 @@ const defaultHomeSectionMap = new Map<Authority, HomeSectionReference[]>([
       {
         name: 'dashboard.management',
         places: [MenuId.widget_library, MenuId.dashboards]
+      },
+      {
+        name: 'solution-template.management',
+        places: [MenuId.solution_templates]
       },
       {
         name: 'version-control.management',

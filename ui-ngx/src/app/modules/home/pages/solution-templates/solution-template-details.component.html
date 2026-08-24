@@ -1,0 +1,85 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="solution-template-details flex flex-col gap-5">
+  <div class="flex flex-col gt-md:flex-row gap-5">
+    <div class="title-container mat-elevation-z1 gt-md:max-w-50% gt-md:flex-full" style="padding: 20px;">
+      <div class="flex flex-row items-start justify-start">
+        <h2>{{solutionTemplateDetails.title}}</h2>
+        <span class="flex-1"></span>
+        <div class="flex flex-row items-center justify-end gap-4">
+          @if (solutionTemplateDetails.installed) {
+            <button mat-button mat-stroked-button color="primary"
+                    [disabled]="isLoading$ | async" (click)="openInstructions()">
+              <mat-icon>info_outline</mat-icon>
+              <span>{{ 'solution-template.instructions' | translate }}</span>
+            </button>
+          }
+          @if (!solutionTemplateDetails.installed) {
+            <button mat-button mat-raised-button color="accent"
+                    [disabled]="isLoading$ | async" (click)="installSolutionTemplate()">
+              {{ 'solution-template.install' | translate }}
+            </button>
+          }
+          @if (solutionTemplateDetails.installed) {
+            <button mat-button mat-raised-button color="warn"
+                    [disabled]="isLoading$ | async" (click)="deleteSolutionTemplate()">
+              {{ 'solution-template.delete' | translate }}
+            </button>
+          }
+        </div>
+      </div>
+      @if (solutionTemplateDetails.level !== SolutionTemplateLevel.MAKER) {
+        <div style="padding-bottom: 20px;">
+          <span style="font-weight: bold;">{{ 'solution-template.level' | translate }}: </span>
+          <span class="level">{{solutionTemplateDetails.level}}</span>
+        </div>
+      }
+      <mat-divider style="margin-bottom: 20px;"></mat-divider>
+      <tb-markdown lineNumbers fallbackToPlainMarkdown [data]="solutionTemplateDetails.highlights"></tb-markdown>
+    </div>
+    <div class="preview-container mat-elevation-z1 gt-md:max-w-50% gt-md:flex-full" style="padding: 20px;">
+      @if (images.length) {
+        <div class="tb-carousel">
+          <div class="tb-carousel-content">
+            @for (image of images; track image; let i = $index) {
+              <article class="tb-carousel-item" [class.active]="i === carouselIndex" [style.background-image]="'url(' + image + ')'"></article>
+            }
+            @if (images.length > 1) {
+              <button mat-icon-button class="tb-carousel-prev" type="button" (click)="prevImage()">
+                <mat-icon>keyboard_arrow_left</mat-icon>
+              </button>
+              <button mat-icon-button class="tb-carousel-next" type="button" (click)="nextImage()">
+                <mat-icon>keyboard_arrow_right</mat-icon>
+              </button>
+            }
+          </div>
+          @if (images.length > 1) {
+            <div class="tb-carousel-dots">
+              @for (image of images; track image; let i = $index) {
+                <span class="tb-carousel-dot" [class.active]="i === carouselIndex" (click)="goToImage(i)"></span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+  <div class="description-container mat-elevation-z1 flex-1" style="padding: 20px;">
+    <tb-markdown lineNumbers fallbackToPlainMarkdown [data]="solutionTemplateDetails.description"></tb-markdown>
+  </div>
+</div>

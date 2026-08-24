@@ -41,6 +41,7 @@ import {
   EntityLimitExceededDialogComponent,
   EntityLimitExceededDialogData
 } from '@shared/components/dialog/entity-limit-exceeded-dialog.component';
+import { ProgressDialogComponent, ProgressDialogData } from '@shared/components/dialog/progress-dialog.component';
 
 @Injectable({
   providedIn: 'root'
@@ -171,6 +172,17 @@ export class DialogService {
     };
     const dialogRef = this.dialog.open(TodoDialogComponent, dialogConfig);
     return dialogRef.afterClosed();
+  }
+
+  progress(obs: Observable<any>, message: string): void {
+    const dialogConfig: MatDialogConfig<ProgressDialogData> = {
+      disableClose: true,
+      data: {
+        message,
+        obs
+      }
+    };
+    this.dialog.open<ProgressDialogComponent, ProgressDialogData, void>(ProgressDialogComponent, dialogConfig);
   }
 
 }

@@ -1,0 +1,29 @@
+:host {
+  h2 {
+    .mat-icon {
+      padding-right: 8px;
+      box-sizing: initial;
+      vertical-align: sub;
+    }
+  }
+
+  ::ng-deep {
+    .mat-mdc-dialog-content tb-markdown .tb-markdown-view .table-wrapper {
+      overflow-y: auto;
+      margin: 30px 32px;
+      border: 1px solid rgba(42, 125, 236, .2);
+      border-radius: 4px;
+      padding: 0;
+      width: calc(100% - 64px);
+
+      table {
+        width: 100%;
+        table-layout: auto;
+        white-space: nowrap;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+      }
+    }
+  }
+}

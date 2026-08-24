@@ -600,6 +600,22 @@
         "friday": "Fri",
         "saturday": "Sat"
     },
+    "solution-template": {
+        "solution-template": "Solution template",
+        "solution-templates": "Solution templates",
+        "management": "Manage solution templates",
+        "details": "Details",
+        "install": "Install",
+        "level": "Level",
+        "install-title": "Solution template successfully installed",
+        "install-failed-title": "Solution template installation failed",
+        "instructions": "Instructions",
+        "goto-main-dashboard": "Go to main dashboard",
+        "delete": "Delete",
+        "delete-solution-title": "Are you sure you want to delete the solution '{{solutionTitle}}'?",
+        "delete-solution-text": "Be careful, after the confirmation the solution and all related data will become unrecoverable.",
+        "installing": "Installing solution template..."
+    },
     "task": {
         "task-manager": "Task manager",
         "type": "Type",

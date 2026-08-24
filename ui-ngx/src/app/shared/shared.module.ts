@@ -239,6 +239,7 @@ import { StringPatternAutocompleteComponent } from '@shared/components/string-pa
 import { TimeUnitInputComponent } from '@shared/components/time-unit-input.component';
 import { DateExpirationPipe } from '@shared/pipe/date-expiration.pipe';
 import { EntityLimitExceededDialogComponent } from '@shared/components/dialog/entity-limit-exceeded-dialog.component';
+import { ProgressDialogComponent } from '@shared/components/dialog/progress-dialog.component';
 import { DynamicMatDialogModule } from '@shared/components/dialog/dynamic/dynamic-dialog.module';
 import { MAT_BUTTON_TOGGLE_DEFAULT_OPTIONS } from '@angular/material/button-toggle';
 import { RgbaInputComponent } from '@shared/components/color-picker/rgba-input.component';
@@ -392,6 +393,7 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     ColorPickerDialogComponent,
     MaterialIconsDialogComponent,
     EntityLimitExceededDialogComponent,
+    ProgressDialogComponent,
     ColorInputComponent,
     MaterialIconSelectComponent,
     NodeScriptTestDialogComponent,
@@ -668,6 +670,7 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     ColorPickerDialogComponent,
     MaterialIconsDialogComponent,
     EntityLimitExceededDialogComponent,
+    ProgressDialogComponent,
     ColorInputComponent,
     MaterialIconSelectComponent,
     NodeScriptTestDialogComponent,
