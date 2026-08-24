@@ -29,6 +29,7 @@ import java.util.Arrays;
 @ComponentScan({"org.thingsboard.server.install",
         "org.thingsboard.server.service.component",
         "org.thingsboard.server.service.install",
+        "org.thingsboard.server.service.secret",
         "org.thingsboard.server.service.security.auth.jwt.settings",
         "org.thingsboard.server.dao",
         "org.thingsboard.server.common.stats",
