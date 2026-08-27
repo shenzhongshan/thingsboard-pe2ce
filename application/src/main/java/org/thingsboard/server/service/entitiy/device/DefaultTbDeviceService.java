@@ -54,6 +54,7 @@ public class DefaultTbDeviceService extends AbstractTbEntityService implements T
     private final DeviceService deviceService;
     private final DeviceCredentialsService deviceCredentialsService;
     private final ClaimDevicesService claimDevicesService;
+    private final DeviceFunctionCategoryInitializer functionCategoryInitializer;
 
     @Override
     public Device save(Device device, String accessToken, User user) throws Exception {
@@ -66,6 +67,9 @@ public class DefaultTbDeviceService extends AbstractTbEntityService implements T
         TenantId tenantId = device.getTenantId();
         try {
             Device savedDevice = checkNotNull(deviceService.saveDeviceWithAccessToken(device, accessToken, nameConflictStrategy));
+            if (actionType == ActionType.ADDED) {
+                functionCategoryInitializer.initialize(savedDevice);
+            }
             autoCommit(user, savedDevice.getId());
             logEntityActionService.logEntityAction(tenantId, savedDevice.getId(), savedDevice, savedDevice.getCustomerId(),
                     actionType, user);
@@ -88,6 +92,9 @@ public class DefaultTbDeviceService extends AbstractTbEntityService implements T
         TenantId tenantId = device.getTenantId();
         try {
             Device savedDevice = checkNotNull(deviceService.saveDeviceWithCredentials(device, credentials, nameConflictStrategy));
+            if (actionType == ActionType.ADDED) {
+                functionCategoryInitializer.initialize(savedDevice);
+            }
             logEntityActionService.logEntityAction(tenantId, savedDevice.getId(), savedDevice, savedDevice.getCustomerId(),
                     actionType, user);
 
