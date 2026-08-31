@@ -1219,6 +1219,13 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
       },
       {id: MenuId.edge_instances},
       {
+        id: MenuId.resources,
+        pages: [
+          {id: MenuId.images},
+          {id: MenuId.scada_symbols}
+        ]
+      },
+      {
         id: MenuId.notifications_center,
         pages: [
           {id: MenuId.notification_inbox}

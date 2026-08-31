@@ -246,22 +246,34 @@ public class CustomerUserPermissions extends AbstractPermissions {
 
             };
 
+    /**
+     * READ stays broad (any customer-accessible resource in the tenant, or a system one) so a
+     * customer user can view images/resources referenced by dashboards shared with them, even when
+     * those resources were uploaded by the tenant admin. CREATE/WRITE/DELETE are scoped to the
+     * caller's own {@code customerId} — this is the customer-private image/resource library: a
+     * customer user may only manage resources they themselves own, mirroring PE's per-customer
+     * image scoping (see {@code ImageController#getImages} branching on {@code isCustomerUser()}).
+     */
     private final PermissionChecker customerResourcePermissionChecker =
             new PermissionChecker<TbResourceId, TbResourceInfo>() {
 
                 @Override
                 @SuppressWarnings("unchecked")
                 public boolean hasPermission(SecurityUser user, Operation operation, TbResourceId resourceId, TbResourceInfo resource) {
-                    if (operation != Operation.READ) {
-                        return false;
-                    }
                     if (resource.getResourceType() == null || !resource.getResourceType().isCustomerAccess()) {
                         return false;
                     }
-                    if (resource.getTenantId() == null || resource.getTenantId().isNullUid()) {
-                        return true;
+                    if (operation == Operation.READ) {
+                        if (resource.getTenantId() == null || resource.getTenantId().isNullUid()) {
+                            return true;
+                        }
+                        return user.getTenantId().equals(resource.getTenantId());
                     }
-                    return user.getTenantId().equals(resource.getTenantId());
+                    if (operation == Operation.CREATE || operation == Operation.WRITE || operation == Operation.DELETE) {
+                        return resource.getTenantId() != null && user.getTenantId().equals(resource.getTenantId())
+                                && resource.getCustomerId() != null && user.getCustomerId().equals(resource.getCustomerId());
+                    }
+                    return false;
                 }
 
             };

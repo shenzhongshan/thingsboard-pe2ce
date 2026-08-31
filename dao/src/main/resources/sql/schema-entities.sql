@@ -768,6 +768,7 @@ CREATE TABLE IF NOT EXISTS resource (
     id uuid NOT NULL CONSTRAINT resource_pkey PRIMARY KEY,
     created_time bigint NOT NULL,
     tenant_id uuid NOT NULL,
+    customer_id uuid,
     title varchar(255) NOT NULL,
     resource_type varchar(32) NOT NULL,
     resource_sub_type varchar(32),

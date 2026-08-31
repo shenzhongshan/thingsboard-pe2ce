@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.ResourceSubType;
 import org.thingsboard.server.common.data.TbImageDeleteResult;
 import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.TbResourceInfo;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -39,11 +40,15 @@ public interface ImageService {
 
     TbResourceInfo getImageInfoByTenantIdAndKey(TenantId tenantId, String key);
 
+    TbResourceInfo getImageInfoByTenantIdAndCustomerIdAndKey(TenantId tenantId, CustomerId customerId, String key);
+
     Set<String> getAllImageKeysByTenantId(TenantId tenantId);
 
     TbResourceInfo getPublicImageInfoByKey(String publicResourceKey);
 
     PageData<TbResourceInfo> getImagesByTenantId(TenantId tenantId, ResourceSubType imageSubType, PageLink pageLink);
+
+    PageData<TbResourceInfo> getImagesByCustomerId(TenantId tenantId, CustomerId customerId, ResourceSubType imageSubType, PageLink pageLink);
 
     PageData<TbResourceInfo> getAllImagesByTenantId(TenantId tenantId, ResourceSubType imageSubType, PageLink pageLink);
 
@@ -55,11 +60,15 @@ public interface ImageService {
 
     TbResource toImage(TenantId tenantId, ResourceExportData imageData, boolean checkExisting);
 
+    TbResource toImage(TenantId tenantId, CustomerId customerId, ResourceExportData imageData, boolean checkExisting);
+
     TbImageDeleteResult deleteImage(TbResourceInfo imageInfo, boolean force);
 
     String calculateImageEtag(byte[] imageData);
 
     TbResourceInfo findSystemOrTenantImageByEtag(TenantId tenantId, String etag);
+
+    TbResourceInfo findSystemOrCustomerImageByEtag(TenantId tenantId, CustomerId customerId, String etag);
 
     boolean replaceBase64WithImageUrl(HasImage entity, String type);
 

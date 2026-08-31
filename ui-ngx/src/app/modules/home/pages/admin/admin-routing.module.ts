@@ -112,7 +112,7 @@ const routes: Routes = [
             path: '',
             component: ImageGalleryComponent,
             data: {
-              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN, Authority.CUSTOMER_USER],
               title: 'image.gallery',
               imageSubType: ResourceSubType.IMAGE
             }
@@ -131,7 +131,7 @@ const routes: Routes = [
             path: '',
             component: ImageGalleryComponent,
             data: {
-              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN, Authority.CUSTOMER_USER],
               title: 'scada.symbols',
               imageSubType: ResourceSubType.SCADA_SYMBOL
             }
@@ -145,7 +145,7 @@ const routes: Routes = [
                 labelFunction: scadaSymbolBreadcumbLabelFunction,
                 icon: 'view_in_ar'
               } as BreadCrumbConfig<ScadaSymbolComponent>,
-              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.SYS_ADMIN, Authority.CUSTOMER_USER],
               title: 'scada.symbol.symbol'
             },
             resolve: {

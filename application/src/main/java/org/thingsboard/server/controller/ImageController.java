@@ -97,7 +97,7 @@ public class ImageController extends BaseController {
     private static final String IMAGE_TYPE_PARAM_ALLOWABLE_VALUES = "tenant, system";
     private static final String IMAGE_KEY_PARAM_DESCRIPTION = "Image resource key, for example thermostats_dashboard_background.jpeg";
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = "/api/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public TbResourceInfo uploadImage(@RequestPart MultipartFile file,
                                       @RequestPart(required = false) String title,
@@ -105,6 +105,10 @@ public class ImageController extends BaseController {
         SecurityUser user = getCurrentUser();
         TbResource image = new TbResource();
         image.setTenantId(user.getTenantId());
+        if (user.isCustomerUser()) {
+            image.setCustomerId(user.getCustomerId());
+        }
+        image.setResourceType(ResourceType.IMAGE);
         accessControlService.checkPermission(user, Resource.TB_RESOURCE, Operation.CREATE, null, image);
         resourceValidator.validateResourceSize(user.getTenantId(), null, file.getSize());
 
@@ -120,7 +124,6 @@ public class ImageController extends BaseController {
             subType = ResourceSubType.valueOf(imageSubType);
         }
 
-        image.setResourceType(ResourceType.IMAGE);
         image.setResourceSubType(subType);
         ImageDescriptor descriptor = new ImageDescriptor();
         descriptor.setMediaType(file.getContentType());
@@ -130,7 +133,7 @@ public class ImageController extends BaseController {
         return tbImageService.save(image, user);
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(value = IMAGE_URL, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public TbResourceInfo updateImage(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                       @PathVariable String type,
@@ -150,7 +153,7 @@ public class ImageController extends BaseController {
         return tbImageService.save(image, getCurrentUser());
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(IMAGE_URL + "/info")
     public TbResourceInfo updateImageInfo(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                           @PathVariable String type,
@@ -163,7 +166,7 @@ public class ImageController extends BaseController {
         return tbImageService.save(newImageInfo, imageInfo, getCurrentUser());
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(IMAGE_URL + "/public/{isPublic}")
     public TbResourceInfo updateImagePublicStatus(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                                   @PathVariable String type,
@@ -224,7 +227,7 @@ public class ImageController extends BaseController {
                 () -> imageService.getImageInfoByTenantIdAndKey(tenantId, key));
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = IMAGE_URL + "/export")
     public ResourceExportData exportImage(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                           @PathVariable String type,
@@ -234,7 +237,7 @@ public class ImageController extends BaseController {
         return imageService.exportImage(imageInfo);
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping("/api/image/import")
     public TbResourceInfo importImage(@RequestBody ResourceExportData imageData) throws Exception {
         SecurityUser user = getCurrentUser();
@@ -252,7 +255,7 @@ public class ImageController extends BaseController {
         return downloadIfChanged(type, key, etag, acceptEncodingHeader, true);
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(IMAGE_URL + "/info")
     public TbResourceInfo getImageInfo(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                        @PathVariable String type,
@@ -261,7 +264,7 @@ public class ImageController extends BaseController {
         return checkImageInfo(type, key, Operation.READ);
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping("/api/images")
     public PageData<TbResourceInfo> getImages(@Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
                                               @RequestParam int pageSize,
@@ -277,21 +280,24 @@ public class ImageController extends BaseController {
                                               @RequestParam(required = false) String sortProperty,
                                               @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
                                               @RequestParam(required = false) String sortOrder) throws ThingsboardException {
-        // PE: generic permission
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         TenantId tenantId = getTenantId();
         ResourceSubType subType = ResourceSubType.IMAGE;
         if (StringUtils.isNotEmpty(imageSubType)) {
             subType = ResourceSubType.valueOf(imageSubType);
         }
-        if (getCurrentUser().getAuthority() == Authority.SYS_ADMIN || !includeSystemImages) {
+        SecurityUser user = getCurrentUser();
+        if (user.isCustomerUser()) {
+            return checkNotNull(imageService.getImagesByCustomerId(tenantId, user.getCustomerId(), subType, pageLink));
+        }
+        if (user.getAuthority() == Authority.SYS_ADMIN || !includeSystemImages) {
             return checkNotNull(imageService.getImagesByTenantId(tenantId, subType, pageLink));
         } else {
             return checkNotNull(imageService.getAllImagesByTenantId(tenantId, subType, pageLink));
         }
     }
 
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @DeleteMapping(IMAGE_URL)
     public ResponseEntity<TbImageDeleteResult> deleteImage(@Parameter(description = IMAGE_TYPE_PARAM_DESCRIPTION, schema = @Schema(allowableValues = {"tenant", "system"}), required = true)
                                                            @PathVariable String type,

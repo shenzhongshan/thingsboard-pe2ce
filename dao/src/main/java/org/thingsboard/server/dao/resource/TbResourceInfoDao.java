@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.resource;
 import org.thingsboard.server.common.data.ResourceType;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.TbResourceInfoFilter;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -35,6 +36,8 @@ public interface TbResourceInfoDao extends Dao<TbResourceInfo> {
 
     TbResourceInfo findByTenantIdAndKey(TenantId tenantId, ResourceType resourceType, String resourceKey);
 
+    TbResourceInfo findByTenantIdAndCustomerIdAndKey(TenantId tenantId, CustomerId customerId, ResourceType resourceType, String resourceKey);
+
     boolean existsByTenantIdAndResourceTypeAndResourceKey(TenantId tenantId, ResourceType resourceType, String resourceKey);
 
     Set<String> findKeysByTenantIdAndResourceTypeAndResourceKeyPrefix(TenantId tenantId, ResourceType resourceType, String prefix);
@@ -42,6 +45,8 @@ public interface TbResourceInfoDao extends Dao<TbResourceInfo> {
     List<TbResourceInfo> findByTenantIdAndEtagAndKeyStartingWith(TenantId tenantId, String etag, String query);
 
     TbResourceInfo findSystemOrTenantResourceByEtag(TenantId tenantId, ResourceType resourceType, String etag);
+
+    TbResourceInfo findSystemOrCustomerImageByEtag(TenantId tenantId, CustomerId customerId, ResourceType resourceType, String etag);
 
     boolean existsByPublicResourceKey(ResourceType resourceType, String publicResourceKey);
 

@@ -16,6 +16,7 @@
 
 import { BaseData, ExportableEntity, HasId } from '@shared/models/base-data';
 import { TenantId } from '@shared/models/id/tenant-id';
+import { CustomerId } from '@shared/models/id/customer-id';
 import { TbResourceId } from '@shared/models/id/tb-resource-id';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { HasTenantId } from '@shared/models/entity.models';
@@ -74,6 +75,7 @@ export const ResourceSubTypeTranslationMap = new Map<ResourceSubType, string>(
 
 export interface TbResourceInfo<D> extends Omit<BaseData<TbResourceId>, 'name' | 'label'>, HasTenantId, ExportableEntity<TbResourceId> {
   tenantId?: TenantId;
+  customerId?: CustomerId;
   resourceKey?: string;
   title?: string;
   resourceType: ResourceType;

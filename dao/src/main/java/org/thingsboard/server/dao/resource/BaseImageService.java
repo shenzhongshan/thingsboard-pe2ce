@@ -40,6 +40,7 @@ import org.thingsboard.server.common.data.TbImageDeleteResult;
 import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.TbResourceInfoFilter;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.HasId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -189,6 +190,12 @@ public class BaseImageService extends BaseResourceService implements ImageServic
     }
 
     @Override
+    public TbResourceInfo getImageInfoByTenantIdAndCustomerIdAndKey(TenantId tenantId, CustomerId customerId, String key) {
+        log.trace("Executing getImageInfoByTenantIdAndCustomerIdAndKey [{}] [{}] [{}]", tenantId, customerId, key);
+        return resourceInfoDao.findByTenantIdAndCustomerIdAndKey(tenantId, customerId, ResourceType.IMAGE, key);
+    }
+
+    @Override
     public Set<String> getAllImageKeysByTenantId(TenantId tenantId) {
         log.trace("Executing getAllImageKeysByTenantId [{}]", tenantId);
         return resourceInfoDao.findKeysByTenantIdAndResourceTypeAndResourceKeyPrefix(tenantId, ResourceType.IMAGE, "");
@@ -204,6 +211,18 @@ public class BaseImageService extends BaseResourceService implements ImageServic
         log.trace("Executing getImagesByTenantId [{}]", tenantId);
         TbResourceInfoFilter filter = TbResourceInfoFilter.builder()
                 .tenantId(tenantId)
+                .resourceTypes(Set.of(ResourceType.IMAGE))
+                .resourceSubTypes(Set.of(imageSubType))
+                .build();
+        return findTenantResourcesByTenantId(filter, pageLink);
+    }
+
+    @Override
+    public PageData<TbResourceInfo> getImagesByCustomerId(TenantId tenantId, CustomerId customerId, ResourceSubType imageSubType, PageLink pageLink) {
+        log.trace("Executing getImagesByCustomerId [{}] [{}]", tenantId, customerId);
+        TbResourceInfoFilter filter = TbResourceInfoFilter.builder()
+                .tenantId(tenantId)
+                .customerId(customerId)
                 .resourceTypes(Set.of(ResourceType.IMAGE))
                 .resourceSubTypes(Set.of(imageSubType))
                 .build();
@@ -252,10 +271,16 @@ public class BaseImageService extends BaseResourceService implements ImageServic
 
     @Override
     public TbResource toImage(TenantId tenantId, ResourceExportData imageData, boolean checkExisting) {
+        return toImage(tenantId, null, imageData, checkExisting);
+    }
+
+    @Override
+    public TbResource toImage(TenantId tenantId, CustomerId customerId, ResourceExportData imageData, boolean checkExisting) {
         byte[] data = Base64.getDecoder().decode(imageData.getData());
         if (checkExisting) {
             String etag = calculateImageEtag(data);
-            TbResourceInfo existingImage = findSystemOrTenantImageByEtag(tenantId, etag);
+            TbResourceInfo existingImage = customerId != null && !customerId.isNullUid() ?
+                    findSystemOrCustomerImageByEtag(tenantId, customerId, etag) : findSystemOrTenantImageByEtag(tenantId, etag);
             if (existingImage != null) {
                 log.debug("[{}] Using existing image {}", tenantId, existingImage.getLink());
                 return new TbResource(existingImage);
@@ -264,6 +289,7 @@ public class BaseImageService extends BaseResourceService implements ImageServic
 
         TbResource image = new TbResource();
         image.setTenantId(tenantId);
+        image.setCustomerId(customerId);
         image.setFileName(imageData.getFileName());
         if (isNotEmpty(imageData.getTitle())) {
             image.setTitle(imageData.getTitle());
@@ -349,6 +375,12 @@ public class BaseImageService extends BaseResourceService implements ImageServic
     @Override
     public TbResourceInfo findSystemOrTenantImageByEtag(TenantId tenantId, String etag) {
         return findSystemOrTenantResourceByEtag(tenantId, ResourceType.IMAGE, etag);
+    }
+
+    @Override
+    public TbResourceInfo findSystemOrCustomerImageByEtag(TenantId tenantId, CustomerId customerId, String etag) {
+        log.trace("Executing findSystemOrCustomerImageByEtag [{}] [{}] [{}]", tenantId, customerId, etag);
+        return resourceInfoDao.findSystemOrCustomerImageByEtag(tenantId, customerId, ResourceType.IMAGE, etag);
     }
 
     @Transactional(noRollbackFor = Exception.class) // we don't want transaction to rollback in case of an image processing failure

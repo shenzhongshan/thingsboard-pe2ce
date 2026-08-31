@@ -485,6 +485,8 @@ export class ScadaSymbolComponent extends PageComponent
   private init(data: ScadaSymbolData) {
     if (this.authUser.authority === Authority.TENANT_ADMIN) {
       this.readonly = data.imageResource.tenantId.id === NULL_UUID;
+    } else if (this.authUser.authority === Authority.CUSTOMER_USER) {
+      this.readonly = data.imageResource.customerId?.id !== this.authUser.customerId;
     } else {
       this.readonly = this.authUser.authority !== Authority.SYS_ADMIN;
     }

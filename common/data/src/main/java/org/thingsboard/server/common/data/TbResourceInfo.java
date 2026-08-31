@@ -23,6 +23,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
@@ -35,13 +36,15 @@ import java.util.function.UnaryOperator;
 @Slf4j
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class TbResourceInfo extends BaseData<TbResourceId> implements HasName, HasTenantId, ExportableEntity<TbResourceId> {
+public class TbResourceInfo extends BaseData<TbResourceId> implements HasName, HasTenantId, HasCustomerId, ExportableEntity<TbResourceId> {
 
     @Serial
     private static final long serialVersionUID = 7282664529021651736L;
 
     @Schema(description = "JSON object with Tenant Id. Tenant Id of the resource can't be changed.", accessMode = Schema.AccessMode.READ_ONLY)
     private TenantId tenantId;
+    @Schema(description = "JSON object with Customer Id. Set when the resource was created by a customer user; null for system/tenant-wide resources.", accessMode = Schema.AccessMode.READ_ONLY)
+    private CustomerId customerId;
     @NoXss
     @Length(fieldName = "title")
     @Schema(description = "Resource title.", example = "BinaryAppDataContainer id=19 v1.0")
@@ -84,6 +87,7 @@ public class TbResourceInfo extends BaseData<TbResourceId> implements HasName, H
     public TbResourceInfo(TbResourceInfo resourceInfo) {
         super(resourceInfo);
         this.tenantId = resourceInfo.tenantId;
+        this.customerId = resourceInfo.customerId;
         this.title = resourceInfo.title;
         this.resourceType = resourceInfo.resourceType;
         this.resourceSubType = resourceInfo.resourceSubType;
