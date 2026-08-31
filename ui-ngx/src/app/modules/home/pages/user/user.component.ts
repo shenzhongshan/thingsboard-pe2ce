@@ -27,8 +27,8 @@ import { isDefinedAndNotNull, validateEmail } from '@core/utils';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { ActionNotificationShow } from '@app/core/notification/notification.actions';
 import { TranslateService } from '@ngx-translate/core';
-import { environment as env } from '@env/environment';
 import { UnitSystems } from '@shared/models/unit.models';
+import { displayedLangs } from '@shared/models/constants';
 
 @Component({
     selector: 'tb-user',
@@ -39,7 +39,7 @@ import { UnitSystems } from '@shared/models/unit.models';
 export class UserComponent extends EntityComponent<User>{
 
   authority = Authority;
-  languageList = env.supportedLangs;
+  languageList = displayedLangs;
   UnitSystems = UnitSystems;
 
   loginAsUserEnabled$ = this.store.pipe(

@@ -341,4 +341,9 @@ export const hidePageSizePixelValue = 550;
 export const customTranslationsPrefix = 'custom.';
 export const i18nPrefix = 'i18n';
 
+// Languages a user can pick as their UI display language. All other locale files under
+// assets/locale/ remain shipped and loadable (browser auto-detect, custom translation admin
+// page) — they're just not offered as choices in the language selector.
+export const displayedLangs = ['en_US', 'zh_CN'];
+
 export const MODULES_MAP = new InjectionToken<IModulesMap>('ModulesMap');

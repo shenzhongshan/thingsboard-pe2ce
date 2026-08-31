@@ -32,6 +32,7 @@ import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { AuthService } from '@core/auth/auth.service';
 import { UnitSystem, UnitSystems } from '@shared/models/unit.models';
 import { UnitService } from '@core/services/unit.service';
+import { displayedLangs } from '@shared/models/constants';
 
 @Component({
     selector: 'tb-profile',
@@ -44,7 +45,7 @@ export class ProfileComponent extends PageComponent implements OnInit, HasConfir
   authorities = Authority;
   profile: UntypedFormGroup;
   user: User;
-  languageList = env.supportedLangs;
+  languageList = displayedLangs;
   UnitSystems = UnitSystems;
   private readonly authUser: AuthUser;
 
