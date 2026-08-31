@@ -27,6 +27,7 @@ import { catchError } from 'rxjs/operators';
 import { DialogService } from '@core/services/dialog.service';
 import { CustomTranslationService } from '@core/http/custom-translation.service';
 import { CustomTranslationRow, flattenTranslation, localeMeta, LOCALE_METAS } from '@shared/models/custom-translation.models';
+import { displayedLangs } from '@shared/models/constants';
 import {
   CustomTranslationAddDialogComponent,
   CustomTranslationAddDialogData
@@ -68,10 +69,12 @@ export class CustomTranslationListComponent extends PageComponent implements OnI
     }).subscribe(({customized, enUs}) => {
       this.enUsKeyCount = Object.keys(flattenTranslation(enUs)).length || 1;
       const customizedSet = new Set(customized);
-      // Locales customized at this level but not part of the shipped 28 (added via 添加新语言
-      // with an arbitrary code) have no base file to show a progress bar for.
-      const extraCodes = customized.filter(code => !LOCALE_METAS.some(m => m.code === code));
-      const allMetas = [...LOCALE_METAS, ...extraCodes.map(localeMeta)];
+      // Only offer the languages surfaced elsewhere in the UI (displayedLangs). Locales
+      // customized at this level but not part of that list (e.g. added via 添加新语言 with an
+      // arbitrary code) have no base file to show a progress bar for.
+      const visibleMetas = LOCALE_METAS.filter(m => displayedLangs.includes(m.code));
+      const extraCodes = customized.filter(code => !visibleMetas.some(m => m.code === code));
+      const allMetas = [...visibleMetas, ...extraCodes.map(localeMeta)];
       forkJoin(allMetas.map(meta =>
         this.http.get<any>(`/assets/locale/locale.constant-${meta.code}.json`).pipe(catchError(() => of(null)))
       )).subscribe((localeFiles) => {

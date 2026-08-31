@@ -21,6 +21,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { CustomTranslationService } from '@core/http/custom-translation.service';
 import { LOCALE_METAS } from '@shared/models/custom-translation.models';
+import { displayedLangs } from '@shared/models/constants';
 
 export interface CustomTranslationAddDialogData {
   existingCodes: string[];
@@ -34,7 +35,7 @@ export interface CustomTranslationAddDialogData {
 export class CustomTranslationAddDialogComponent {
 
   form: UntypedFormGroup;
-  localeOptions = LOCALE_METAS.filter(m => !this.data.existingCodes.includes(m.code));
+  localeOptions = LOCALE_METAS.filter(m => displayedLangs.includes(m.code) && !this.data.existingCodes.includes(m.code));
   uploadedValue: any = null;
   uploadedFileName: string = null;
 
