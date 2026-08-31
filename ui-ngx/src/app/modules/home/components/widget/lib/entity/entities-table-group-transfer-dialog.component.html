@@ -1,0 +1,62 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 480px;">
+  <mat-toolbar color="primary">
+    <h2 translate>{{ mode === 'add' ? 'widgets.table.add-to-group' : 'widgets.table.remove-from-group' }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button" [disabled]="submitted">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  @if (submitted) {
+    <mat-progress-bar color="warn" mode="indeterminate"></mat-progress-bar>
+  }
+  <div mat-dialog-content>
+    <form [formGroup]="transferFormGroup" class="flex flex-col gap-2" style="padding-top: 8px;">
+      @if (mode === 'add') {
+        <tb-entity-type-select required
+                               appearance="outline"
+                               showLabel
+                               [allowedEntityTypes]="groupableEntityTypes"
+                               formControlName="groupType">
+        </tb-entity-type-select>
+        <tb-entity-autocomplete required
+                                appearance="outline"
+                                labelText="{{'alias.entity-group' | translate}}"
+                                [entityType]="entityType.ENTITY_GROUP"
+                                [entitySubtype]="transferFormGroup.get('groupType').value"
+                                formControlName="targetGroup">
+        </tb-entity-autocomplete>
+      }
+      <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>widgets.table.select-entities</div>
+      <mat-selection-list formControlName="selectedEntityIds" style="max-height: 320px; overflow-y: auto;">
+        @for (entity of entities; track entity.id.id) {
+          <mat-list-option [value]="entity.id.id">{{ entity.entityName }}</mat-list-option>
+        }
+      </mat-selection-list>
+    </form>
+  </div>
+  <div mat-dialog-actions class="flex flex-row justify-end gap-2">
+    <button mat-button (click)="cancel()" [disabled]="submitted">
+      {{ 'action.cancel' | translate }}
+    </button>
+    <button mat-raised-button color="primary" (click)="transfer()" [disabled]="submitted">
+      {{ mode === 'add' ? ('widgets.table.add-to-group' | translate) : ('widgets.table.remove-from-group' | translate) }}
+    </button>
+  </div>
+</div>

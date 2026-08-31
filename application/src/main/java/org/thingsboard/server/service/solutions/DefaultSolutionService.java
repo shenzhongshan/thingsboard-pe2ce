@@ -32,6 +32,8 @@ import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.ResourceSubType;
+import org.thingsboard.server.common.data.ResourceType;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
@@ -75,6 +77,8 @@ import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.dao.cf.CalculatedFieldService;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
+import org.thingsboard.server.dao.resource.ImageService;
+import org.thingsboard.server.dao.resource.ResourceService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entity.EntityServiceRegistry;
@@ -155,6 +159,8 @@ public class DefaultSolutionService implements SolutionService {
     private final AssetService assetService;
     private final DeviceService deviceService;
     private final DashboardService dashboardService;
+    private final ImageService imageService;
+    private final ResourceService resourceService;
     private final EntityGroupService entityGroupService;
     private final GroupPermissionService groupPermissionService;
     private final RelationService relationService;
@@ -266,6 +272,10 @@ public class DefaultSolutionService implements SolutionService {
             provisionCustomers(ctx);
             provisionAssets(ctx);
             provisionDevices(ctx);
+            // System-scoped, not tenant-scoped: dashboard JSON hardcodes links like
+            // "/api/images/system/...", so these have to exist under the system tenant before the
+            // dashboards that reference them are saved, matching PE's own bundled resource keys.
+            provisionResources(ctx);
             provisionDashboards(ctx);
             provisionUsers(ctx);
             provisionRelations(ctx);
@@ -705,6 +715,45 @@ public class DefaultSolutionService implements SolutionService {
             addToGroupIfNamed(ctx, ownerId, EntityType.DEVICE, def.getGroup(), saved.getId());
             ctx.addPendingRelations(saved.getId(), def.getRelations());
             ctx.addEmulatorTarget(new EmulatorTarget(saved.getId(), saved.getName(), def.getEmulator(), false, saved));
+        }
+    }
+
+    /**
+     * Some solution dashboards hardcode links like "/api/images/system/&lt;key&gt;" or
+     * "/api/resource/js_module/system/&lt;key&gt;" directly in widget settings (PE ships them the same
+     * way), so the referenced images/JS modules have to exist under the system tenant - not the
+     * installing tenant - before {@link #provisionDashboards} saves those widgets. Idempotent via
+     * createOrUpdateSystem*: shared across every tenant that installs this solution, so only the
+     * first install actually creates anything.
+     */
+    private void provisionResources(SolutionInstallContext ctx) {
+        for (Path file : listSolutionFiles(ctx.getSolutionId(), "resources", "images")) {
+            imageService.createOrUpdateSystemImage(file.getFileName().toString(), readBytes(file));
+        }
+        for (Path file : listSolutionFiles(ctx.getSolutionId(), "resources", "js_modules")) {
+            resourceService.createOrUpdateSystemResource(ResourceType.JS_MODULE, ResourceSubType.EXTENSION,
+                    file.getFileName().toString(), readBytes(file));
+        }
+    }
+
+    private List<Path> listSolutionFiles(String solutionId, String... subdirs) {
+        Path dir = resolve(solutionId, subdirs);
+        if (!Files.isDirectory(dir)) {
+            return Collections.emptyList();
+        }
+        try (var files = Files.list(dir)) {
+            return files.filter(Files::isRegularFile).sorted().toList();
+        } catch (IOException e) {
+            log.warn("Failed to list solution directory {}", dir, e);
+            return Collections.emptyList();
+        }
+    }
+
+    private byte[] readBytes(Path file) {
+        try {
+            return Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read solution resource file: " + file, e);
         }
     }
 

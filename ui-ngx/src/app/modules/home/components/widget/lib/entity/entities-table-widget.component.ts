@@ -110,6 +110,12 @@ import { FormBuilder } from '@angular/forms';
 import { DEFAULT_OVERLAY_POSITIONS } from '@shared/models/overlay.models';
 import { CompiledTbFunction } from '@shared/models/js-function.models';
 import { ValueFormatProcessor } from '@shared/models/widget-settings.models';
+import { MatDialog } from '@angular/material/dialog';
+import { AliasFilterType, EntityGroupFilter } from '@shared/models/alias.models';
+import {
+  EntitiesTableGroupTransferDialogComponent,
+  EntitiesTableGroupTransferDialogData
+} from '@home/components/widget/lib/entity/entities-table-group-transfer-dialog.component';
 
 interface EntitiesTableWidgetSettings extends TableWidgetSettings {
   entitiesTitle: string;
@@ -120,6 +126,7 @@ interface EntitiesTableWidgetSettings extends TableWidgetSettings {
   displayEntityLabel: boolean;
   entityLabelColumnTitle: string;
   displayEntityType: boolean;
+  enableGroupTransfer: boolean;
 }
 
 @Component({
@@ -195,6 +202,24 @@ export class EntitiesTableWidgetComponent extends PageComponent implements OnIni
     }
   };
 
+  private addToGroupAction: WidgetAction = {
+    name: 'widgets.table.add-to-group',
+    show: false,
+    icon: 'group_add',
+    onAction: () => {
+      this.openGroupTransferDialog('add');
+    }
+  };
+
+  private removeFromGroupAction: WidgetAction = {
+    name: 'widgets.table.remove-from-group',
+    show: false,
+    icon: 'group_remove',
+    onAction: () => {
+      this.openGroupTransferDialog('remove');
+    }
+  };
+
   constructor(protected store: Store<AppState>,
               private elementRef: ElementRef,
               private ngZone: NgZone,
@@ -204,6 +229,7 @@ export class EntitiesTableWidgetComponent extends PageComponent implements OnIni
               private datePipe: DatePipe,
               private translate: TranslateService,
               private domSanitizer: DomSanitizer,
+              private dialog: MatDialog,
               private cd: ChangeDetectorRef,
               private fb: FormBuilder) {
     super(store);
@@ -288,6 +314,39 @@ export class EntitiesTableWidgetComponent extends PageComponent implements OnIni
     this.ctx.detectChanges();
   }
 
+  // Only a fixed single-group datasource ("Remove from group" needs one concrete group to remove
+  // from) - entityGroupList/entityGroupName/entitiesByGroupName pull from more than one group, so
+  // there is no single group to offer removal from and this intentionally returns undefined for them.
+  private get currentGroupFilter(): EntityGroupFilter | undefined {
+    const datasource = this.subscription?.options?.datasources?.[0];
+    const entityFilter = datasource?.entityFilter as EntityGroupFilter & {type?: AliasFilterType};
+    if (entityFilter?.type === AliasFilterType.entityGroup && entityFilter.entityGroup) {
+      return entityFilter;
+    }
+    return undefined;
+  }
+
+  private openGroupTransferDialog(mode: 'add' | 'remove') {
+    const groupFilter = this.currentGroupFilter;
+    const data: EntitiesTableGroupTransferDialogData = {
+      mode,
+      entities: this.entityDatasource.currentEntities.map(entity => ({id: entity.id, entityName: entity.entityName})),
+      currentGroupType: groupFilter?.groupType,
+      currentGroupId: groupFilter?.entityGroup
+    };
+    this.dialog.open<EntitiesTableGroupTransferDialogComponent, EntitiesTableGroupTransferDialogData, boolean>(
+      EntitiesTableGroupTransferDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data
+      }
+    ).afterClosed().subscribe((success) => {
+      if (success) {
+        this.updateData();
+      }
+    });
+  }
+
   public onEditModeChanged() {
     if (this.textSearchMode) {
       this.ctx.hideTitlePanel = !this.ctx.isEdit;
@@ -300,7 +359,12 @@ export class EntitiesTableWidgetComponent extends PageComponent implements OnIni
   }
 
   private initializeConfig() {
-    this.ctx.widgetActions = [this.searchAction, this.columnDisplayAction];
+    this.ctx.widgetActions = [this.searchAction, this.columnDisplayAction, this.addToGroupAction, this.removeFromGroupAction];
+
+    if (isDefined(this.settings.enableGroupTransfer) && this.settings.enableGroupTransfer) {
+      this.addToGroupAction.show = true;
+      this.removeFromGroupAction.show = !!this.currentGroupFilter;
+    }
 
     this.setCellButtonAction = !!this.ctx.actionsApi.getActionDescriptors('actionCellButton').length;
 
@@ -903,6 +967,10 @@ class EntityDatasource implements DataSource<EntityData> {
 
   connect(collectionViewer: CollectionViewer): Observable<EntityData[] | ReadonlyArray<EntityData>> {
     return this.entitiesSubject.asObservable();
+  }
+
+  public get currentEntities(): EntityData[] {
+    return this.entitiesSubject.value;
   }
 
   disconnect(collectionViewer: CollectionViewer): void {

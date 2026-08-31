@@ -137,7 +137,10 @@ public class TenantRepo {
     private void addOrUpdateRelation(EntityRelation entity) {
         entityUpdateLock.lock();
         try {
-            if (RelationTypeGroup.COMMON.equals(entity.getTypeGroup())) {
+            // FROM_ENTITY_GROUP is indexed the same way as COMMON: entity group membership is just
+            // another relation (group -> member), and query processors resolving an "entity group"
+            // alias filter need the same from/to lookup that RelationsRepo already provides.
+            if (RelationTypeGroup.COMMON.equals(entity.getTypeGroup()) || RelationTypeGroup.FROM_ENTITY_GROUP.equals(entity.getTypeGroup())) {
                 RelationsRepo repo = relations.computeIfAbsent(entity.getTypeGroup(), tg -> new RelationsRepo());
                 EntityData<?> from = getOrCreate(entity.getFrom());
                 EntityData<?> to = getOrCreate(entity.getTo());
@@ -158,7 +161,7 @@ public class TenantRepo {
     }
 
     private void removeRelation(EntityRelation entityRelation) {
-        if (RelationTypeGroup.COMMON.equals(entityRelation.getTypeGroup())) {
+        if (RelationTypeGroup.COMMON.equals(entityRelation.getTypeGroup()) || RelationTypeGroup.FROM_ENTITY_GROUP.equals(entityRelation.getTypeGroup())) {
             RelationsRepo relationsRepo = relations.get(entityRelation.getTypeGroup());
             if (relationsRepo != null) {
                 boolean removed = relationsRepo.remove(entityRelation.getFrom().getId(), entityRelation.getTo().getId(), entityRelation.getType());

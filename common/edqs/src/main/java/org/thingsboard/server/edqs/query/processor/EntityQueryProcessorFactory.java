@@ -27,6 +27,10 @@ public class EntityQueryProcessorFactory {
             case ENTITY_LIST -> new EntityListQueryProcessor(repo, ctx, query);
             case ENTITY_NAME -> new EntityNameQueryProcessor(repo, ctx, query);
             case ENTITY_TYPE -> new EntityTypeQueryProcessor(repo, ctx, query);
+            case ENTITY_GROUP -> new EntityGroupQueryProcessor(repo, ctx, query);
+            case ENTITY_GROUP_LIST -> new EntityGroupListQueryProcessor(repo, ctx, query);
+            case ENTITY_GROUP_NAME -> new EntityGroupNameQueryProcessor(repo, ctx, query);
+            case ENTITIES_BY_GROUP_NAME -> new EntitiesByGroupNameQueryProcessor(repo, ctx, query);
             case DEVICE_TYPE -> new DeviceTypeQueryProcessor(repo, ctx, query);
             case ASSET_TYPE -> new AssetTypeQueryProcessor(repo, ctx, query);
             case ENTITY_VIEW_TYPE -> new EntityViewTypeQueryProcessor(repo, ctx, query);

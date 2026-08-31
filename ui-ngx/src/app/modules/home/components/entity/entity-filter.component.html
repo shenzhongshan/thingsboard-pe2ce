@@ -85,6 +85,108 @@
                                formControlName="entityType">
         </tb-entity-type-select>
       }
+      @case (aliasFilterType.entityGroup) {
+        <div class="tb-form-panel stroked" [class.no-padding-bottom]="!filterFormGroup.get('groupStateEntity').value">
+          <mat-slide-toggle class="mat-slide" formControlName="groupStateEntity">
+            {{ 'alias.group-state-entity' | translate }}
+          </mat-slide-toggle>
+          @if (filterFormGroup.get('groupStateEntity').value) {
+            <div class="tb-form-panel no-border no-padding no-gap">
+              <div class="tb-form-panel stroked no-padding-bottom">
+                <div class="tb-form-panel-title tb-normal">{{ 'alias.default-entity-group' | translate }}</div>
+                <tb-entity-type-select appearance="outline"
+                                       showLabel
+                                       [allowedEntityTypes]="groupableEntityTypes"
+                                       formControlName="defaultStateGroupType">
+                </tb-entity-type-select>
+                <tb-entity-autocomplete appearance="outline"
+                                        labelText="{{'alias.entity-group' | translate}}"
+                                        [entityType]="entityType.ENTITY_GROUP"
+                                        [entitySubtype]="filterFormGroup.get('defaultStateGroupType').value"
+                                        formControlName="defaultStateEntityGroup">
+                </tb-entity-autocomplete>
+              </div>
+            </div>
+          } @else {
+            <tb-entity-type-select required
+                                   appearance="outline"
+                                   showLabel
+                                   [allowedEntityTypes]="groupableEntityTypes"
+                                   formControlName="groupType">
+            </tb-entity-type-select>
+            <tb-entity-autocomplete required
+                                    appearance="outline"
+                                    labelText="{{'alias.entity-group' | translate}}"
+                                    [entityType]="entityType.ENTITY_GROUP"
+                                    [entitySubtype]="filterFormGroup.get('groupType').value"
+                                    formControlName="entityGroup">
+            </tb-entity-autocomplete>
+          }
+        </div>
+      }
+      @case (aliasFilterType.entityGroupList) {
+        <tb-entity-type-select required
+                               appearance="outline"
+                               showLabel
+                               [allowedEntityTypes]="groupableEntityTypes"
+                               formControlName="groupType">
+        </tb-entity-type-select>
+        <tb-entity-list required
+                        appearance="outline"
+                        syncIdsWithDB
+                        labelText="{{'alias.entity-group-list' | translate}}"
+                        [entityType]="entityType.ENTITY_GROUP"
+                        [subType]="filterFormGroup.get('groupType').value"
+                        formControlName="entityGroupList">
+        </tb-entity-list>
+      }
+      @case (aliasFilterType.entityGroupName) {
+        <tb-entity-type-select required
+                               appearance="outline"
+                               showLabel
+                               [allowedEntityTypes]="groupableEntityTypes"
+                               formControlName="groupType">
+        </tb-entity-type-select>
+        <mat-form-field class="mat-block" appearance="outline">
+          <mat-label translate>alias.entity-group-name-starts-with</mat-label>
+          <input matInput formControlName="entityGroupNameFilter" required>
+          @if (filterFormGroup.get('entityGroupNameFilter').hasError('required')) {
+            <mat-error>
+              {{ 'entity.entity-name-filter-required' | translate }}
+            </mat-error>
+          }
+        </mat-form-field>
+      }
+      @case (aliasFilterType.entitiesByGroupName) {
+        <tb-entity-type-select required
+                               appearance="outline"
+                               showLabel
+                               [allowedEntityTypes]="groupableEntityTypes"
+                               formControlName="groupType">
+        </tb-entity-type-select>
+        <mat-form-field class="mat-block" appearance="outline">
+          <mat-label translate>alias.entity-group-name-starts-with</mat-label>
+          <input matInput formControlName="entityGroupNameFilter">
+        </mat-form-field>
+        <div class="tb-form-panel stroked" [class.no-padding-bottom]="!filterFormGroup.get('groupStateEntity').value">
+          <mat-slide-toggle class="mat-slide" formControlName="groupStateEntity">
+            {{ 'alias.group-state-entity' | translate }}
+          </mat-slide-toggle>
+          @if (filterFormGroup.get('groupStateEntity').value) {
+            <mat-form-field floatLabel="always" class="mat-block" appearance="outline">
+              <mat-label translate>alias.state-entity-parameter-name</mat-label>
+              <input matInput formControlName="stateEntityParamName"
+                     placeholder="{{ 'alias.default-entity-parameter-name' | translate }}">
+            </mat-form-field>
+          } @else {
+            <div class="tb-form-panel-title tb-normal">{{ 'alias.entity-group-owner' | translate }}</div>
+            <tb-entity-select appearance="outline"
+                              useAliasEntityTypes="true"
+                              formControlName="ownerId">
+            </tb-entity-select>
+          }
+        </div>
+      }
       @case (aliasFilterType.stateEntity) {
         <mat-form-field floatLabel="always" class="mat-block" appearance="outline">
           <mat-label translate>alias.state-entity-parameter-name</mat-label>
@@ -98,6 +200,54 @@
                             formControlName="defaultStateEntity">
           </tb-entity-select>
         </div>
+      }
+      @case (aliasFilterType.stateEntityOwner) {
+        <mat-form-field floatLabel="always" class="mat-block" appearance="outline">
+          <mat-label translate>alias.state-entity-parameter-name</mat-label>
+          <input matInput formControlName="stateEntityParamName"
+                 placeholder="{{ 'alias.default-entity-parameter-name' | translate }}">
+        </mat-form-field>
+        <div class="tb-form-panel stroked no-padding-bottom">
+          <div class="tb-form-panel-title tb-normal">{{ 'alias.default-state-entity' | translate }}</div>
+          <tb-entity-select appearance="outline"
+                            useAliasEntityTypes="true"
+                            formControlName="defaultStateEntity">
+          </tb-entity-select>
+        </div>
+      }
+      @case (aliasFilterType.schedulerEvent) {
+        <div class="tb-form-panel stroked" [class.no-padding-bottom]="!filterFormGroup.get('originatorStateEntity').value">
+          <div class="tb-form-panel-title" translate>alias.scheduler-event-originator</div>
+          <mat-slide-toggle class="mat-slide" formControlName="originatorStateEntity">
+            {{ 'alias.originator-state-entity' | translate }}
+          </mat-slide-toggle>
+          @if (filterFormGroup.get('originatorStateEntity').value) {
+            <div class="tb-form-panel no-border no-padding no-gap">
+              <mat-form-field floatLabel="always" class="mat-block" appearance="outline">
+                <mat-label translate>alias.state-entity-parameter-name</mat-label>
+                <input matInput formControlName="stateEntityParamName"
+                       placeholder="{{ 'alias.default-entity-parameter-name' | translate }}">
+              </mat-form-field>
+              <div class="tb-form-panel stroked no-padding-bottom">
+                <div class="tb-form-panel-title tb-normal">{{ 'alias.default-state-entity' | translate }}</div>
+                <tb-entity-select appearance="outline"
+                                  useAliasEntityTypes="true"
+                                  formControlName="defaultStateEntity">
+                </tb-entity-select>
+              </div>
+            </div>
+          } @else {
+            <tb-entity-select required
+                              appearance="outline"
+                              useAliasEntityTypes="true"
+                              formControlName="originator">
+            </tb-entity-select>
+          }
+        </div>
+        <mat-form-field class="mat-block" appearance="outline">
+          <mat-label translate>alias.scheduler-event-type</mat-label>
+          <input matInput formControlName="eventType">
+        </mat-form-field>
       }
       @case (aliasFilterType.assetType) {
         <tb-entity-subtype-list required

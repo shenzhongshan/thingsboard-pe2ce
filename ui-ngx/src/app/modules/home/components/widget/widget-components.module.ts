@@ -18,6 +18,9 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '@app/shared/shared.module';
 import { EntitiesTableWidgetComponent } from '@home/components/widget/lib/entity/entities-table-widget.component';
+import {
+  EntitiesTableGroupTransferDialogComponent
+} from '@home/components/widget/lib/entity/entities-table-group-transfer-dialog.component';
 import { DisplayColumnsPanelComponent } from '@home/components/widget/lib/display-columns-panel.component';
 import { AlarmsTableWidgetComponent } from '@home/components/widget/lib/alarm/alarms-table-widget.component';
 import { SharedHomeComponentsModule } from '@home/components/shared-home-components.module';
@@ -102,6 +105,7 @@ import { AssetTreeWidgetComponent } from '@home/components/widget/lib/asset-tree
   declarations: [
     DisplayColumnsPanelComponent,
     EntitiesTableWidgetComponent,
+    EntitiesTableGroupTransferDialogComponent,
     AlarmsTableWidgetComponent,
     TimeseriesTableWidgetComponent,
     EntitiesHierarchyWidgetComponent,

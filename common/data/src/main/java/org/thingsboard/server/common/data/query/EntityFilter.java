@@ -58,6 +58,8 @@ import static org.thingsboard.server.common.data.query.AliasEntityId.resolveAlia
         @JsonSubTypes.Type(value = EntityNameFilter.class, name = "entityName"),
         @JsonSubTypes.Type(value = EntityTypeFilter.class, name = "entityType"),
         @JsonSubTypes.Type(value = EntityGroupFilter.class, name = "entityGroup"),
+        @JsonSubTypes.Type(value = EntityGroupListFilter.class, name = "entityGroupList"),
+        @JsonSubTypes.Type(value = EntityGroupNameFilter.class, name = "entityGroupName"),
         @JsonSubTypes.Type(value = EntitiesByGroupNameFilter.class, name = "entitiesByGroupName"),
         @JsonSubTypes.Type(value = StateEntityFilter.class, name = "stateEntity"),
         @JsonSubTypes.Type(value = SchedulerEventFilter.class, name = "schedulerEvent"),

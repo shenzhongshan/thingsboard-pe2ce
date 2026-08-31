@@ -296,6 +296,12 @@ export class EntityAutocompleteComponent implements ControlValueAccessor, OnInit
           this.entityRequiredText = 'notification.notification-recipient-required';
           this.notFoundEntities = 'notification.no-recipients-text';
           break;
+        case EntityType.ENTITY_GROUP:
+          this.entityText = 'entity-group.entity-groups';
+          this.noEntitiesMatchingText = 'entity-group.no-entity-groups-matching';
+          this.entityRequiredText = 'entity-group.entity-group-required';
+          this.notFoundEntities = 'entity-group.no-entity-groups-text';
+          break;
         case EntityType.AI_MODEL:
           this.entityText = 'ai-models.ai-model';
           this.noEntitiesMatchingText = 'ai-models.no-model-matching';

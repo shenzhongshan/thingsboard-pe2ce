@@ -18,6 +18,7 @@ import { Component, EventEmitter, forwardRef, Input, OnDestroy, OnInit, Output }
 import { ControlValueAccessor, FormBuilder, FormGroup, NG_VALUE_ACCESSOR, Validators } from '@angular/forms';
 import { AliasFilterType, aliasFilterTypeTranslationMap, EntityAliasFilter } from '@shared/models/alias.models';
 import { AliasEntityType, EntityType } from '@shared/models/entity-type.models';
+import { entityGroupTypes } from '@shared/models/entity-group.models';
 import { EntityService } from '@core/http/entity.service';
 import { EntitySearchDirection, entitySearchDirectionTranslations } from '@shared/models/relation.models';
 import { Subject, Subscription } from 'rxjs';
@@ -56,6 +57,7 @@ export class EntityFilterComponent implements ControlValueAccessor, OnInit, OnDe
   aliasFilterType = AliasFilterType;
   aliasFilterTypeTranslations = aliasFilterTypeTranslationMap;
   entityType = EntityType;
+  groupableEntityTypes = entityGroupTypes;
 
   directionTypes = Object.keys(EntitySearchDirection);
   directionTypeTranslations = entitySearchDirectionTranslations;
@@ -160,11 +162,105 @@ export class EntityFilterComponent implements ControlValueAccessor, OnInit, OnDe
           entityType: [filter ? filter.entityType : null, [Validators.required]]
         });
         break;
+      case AliasFilterType.entityGroup:
+        this.filterFormGroup = this.fb.group({
+          groupStateEntity: [filter ? filter.groupStateEntity : false, []],
+          defaultStateGroupType: [filter ? filter.defaultStateGroupType : null, []],
+          defaultStateEntityGroup: [filter ? filter.defaultStateEntityGroup : null, []],
+          groupType: [filter ? filter.groupType : null, (filter && filter.groupStateEntity) ? [] : [Validators.required]],
+          entityGroup: [{
+            value: filter ? filter.entityGroup : null,
+            disabled: (filter && filter.groupStateEntity) || !filter?.groupType
+          }, (filter && filter.groupStateEntity) ? [] : [Validators.required]],
+        });
+        const groupStateSubscription = this.filterFormGroup.get('groupStateEntity').valueChanges.subscribe((groupStateEntity: boolean) => {
+          this.filterFormGroup.get('groupType').setValidators(groupStateEntity ? [] : [Validators.required]);
+          this.filterFormGroup.get('groupType').updateValueAndValidity();
+          this.filterFormGroup.get('entityGroup').setValidators(groupStateEntity ? [] : [Validators.required]);
+          if (groupStateEntity) {
+            this.filterFormGroup.get('entityGroup').disable({emitEvent: false});
+          } else if (this.filterFormGroup.get('groupType').value) {
+            this.filterFormGroup.get('entityGroup').enable({emitEvent: false});
+          }
+          this.filterFormGroup.get('entityGroup').updateValueAndValidity();
+        });
+        this.subscriptions.add(groupStateSubscription);
+        const groupTypeSubscription = this.filterFormGroup.get('groupType').valueChanges.subscribe((groupType) => {
+          if (groupType && this.filterFormGroup.get('entityGroup').disabled && !this.filterFormGroup.get('groupStateEntity').value) {
+            this.filterFormGroup.get('entityGroup').enable({emitEvent: false});
+          }
+        });
+        this.subscriptions.add(groupTypeSubscription);
+        break;
+      case AliasFilterType.entityGroupList:
+        this.filterFormGroup = this.fb.group({
+          groupType: [filter ? filter.groupType : null, [Validators.required]],
+          entityGroupList: [{
+            value: filter ? filter.entityGroupList : [],
+            disabled: !filter?.groupType
+          }, [Validators.required]],
+        });
+        const groupTypeListSubscription = this.filterFormGroup.get('groupType').valueChanges.subscribe((groupType) => {
+          if (groupType && this.filterFormGroup.get('entityGroupList').disabled) {
+            this.filterFormGroup.get('entityGroupList').enable({emitEvent: false});
+          }
+        });
+        this.subscriptions.add(groupTypeListSubscription);
+        break;
+      case AliasFilterType.entityGroupName:
+        this.filterFormGroup = this.fb.group({
+          groupType: [filter ? filter.groupType : null, [Validators.required]],
+          entityGroupNameFilter: [filter ? filter.entityGroupNameFilter : '', [Validators.required]],
+        });
+        break;
+      case AliasFilterType.entitiesByGroupName:
+        this.filterFormGroup = this.fb.group({
+          groupType: [filter ? filter.groupType : null, [Validators.required]],
+          groupStateEntity: [filter ? filter.groupStateEntity : false, []],
+          stateEntityParamName: [filter ? filter.stateEntityParamName : null, []],
+          ownerId: [{
+            value: filter ? filter.ownerId : null,
+            disabled: filter?.groupStateEntity
+          }, []],
+          entityGroupNameFilter: [filter ? filter.entityGroupNameFilter : '', []],
+        });
+        const groupNameStateSubscription = this.filterFormGroup.get('groupStateEntity').valueChanges.subscribe((groupStateEntity: boolean) => {
+          if (groupStateEntity) {
+            this.filterFormGroup.get('ownerId').disable({emitEvent: false});
+          } else {
+            this.filterFormGroup.get('ownerId').enable({emitEvent: false});
+          }
+        });
+        this.subscriptions.add(groupNameStateSubscription);
+        break;
       case AliasFilterType.stateEntity:
+      case AliasFilterType.stateEntityOwner:
         this.filterFormGroup = this.fb.group({
           stateEntityParamName: [filter ? filter.stateEntityParamName : null, []],
           defaultStateEntity: [filter ? filter.defaultStateEntity : null, []],
         });
+        break;
+      case AliasFilterType.schedulerEvent:
+        this.filterFormGroup = this.fb.group({
+          originatorStateEntity: [filter ? filter.originatorStateEntity : false, []],
+          stateEntityParamName: [filter ? filter.stateEntityParamName : null, []],
+          defaultStateEntity: [filter ? filter.defaultStateEntity : null, []],
+          originator: [{
+            value: filter ? filter.originator : null,
+            disabled: filter?.originatorStateEntity
+          }, (filter && filter.originatorStateEntity) ? [] : [Validators.required]],
+          eventType: [filter ? filter.eventType : null, []],
+        });
+        const originatorStateSubscription = this.filterFormGroup.get('originatorStateEntity').valueChanges.subscribe((originatorStateEntity: boolean) => {
+          this.filterFormGroup.get('originator').setValidators(originatorStateEntity ? [] : [Validators.required]);
+          if (originatorStateEntity) {
+            this.filterFormGroup.get('originator').disable({emitEvent: false});
+          } else {
+            this.filterFormGroup.get('originator').enable({emitEvent: false});
+          }
+          this.filterFormGroup.get('originator').updateValueAndValidity();
+        });
+        this.subscriptions.add(originatorStateSubscription);
         break;
       case AliasFilterType.assetType:
         this.filterFormGroup = this.fb.group({
@@ -242,7 +338,8 @@ export class EntityFilterComponent implements ControlValueAccessor, OnInit, OnDe
 
   private filterTypeChanged(type: AliasFilterType) {
     let resolveMultiple = true;
-    if (type === AliasFilterType.singleEntity || type === AliasFilterType.stateEntity || type === AliasFilterType.apiUsageState) {
+    if (type === AliasFilterType.singleEntity || type === AliasFilterType.stateEntity ||
+        type === AliasFilterType.stateEntityOwner || type === AliasFilterType.apiUsageState) {
       resolveMultiple = false;
     }
     if (this.resolveMultiple !== resolveMultiple) {

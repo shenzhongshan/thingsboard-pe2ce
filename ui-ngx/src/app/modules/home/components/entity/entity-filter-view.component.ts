@@ -84,6 +84,39 @@ export class EntityFilterViewComponent implements ControlValueAccessor {
         case AliasFilterType.stateEntity:
           this.filterDisplayValue = this.translate.instant('alias.filter-type-state-entity-description');
           break;
+        case AliasFilterType.stateEntityOwner:
+          this.filterDisplayValue = this.translate.instant('alias.filter-type-state-entity-owner-description');
+          break;
+        case AliasFilterType.entityGroup:
+          if (this.filter.groupStateEntity) {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-state-entity-description');
+          } else {
+            entityType = this.filter.groupType;
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-entity-group-description',
+              {entityType: this.translate.instant(entityTypeTranslations.get(entityType).type)});
+          }
+          break;
+        case AliasFilterType.entityGroupList:
+          entityType = this.filter.groupType;
+          this.filterDisplayValue = this.translate.instant('alias.filter-type-entity-group-list-description',
+            {count: this.filter.entityGroupList.length, entityType: this.translate.instant(entityTypeTranslations.get(entityType).type)});
+          break;
+        case AliasFilterType.entityGroupName:
+          entityType = this.filter.groupType;
+          prefix = this.filter.entityGroupNameFilter;
+          this.filterDisplayValue = this.translate.instant('alias.filter-type-entity-group-name-description',
+            {entityType: this.translate.instant(entityTypeTranslations.get(entityType).type), prefix});
+          break;
+        case AliasFilterType.entitiesByGroupName:
+          if (this.filter.groupStateEntity) {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-state-entity-description');
+          } else {
+            entityType = this.filter.groupType;
+            prefix = this.filter.entityGroupNameFilter;
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-entity-group-name-description',
+              {entityType: this.translate.instant(entityTypeTranslations.get(entityType).type), prefix});
+          }
+          break;
         case AliasFilterType.assetType:
           const assetTypesQuoted = [];
           this.filter.assetTypes.forEach((filterAssetType) => {
@@ -263,6 +296,19 @@ export class EntityFilterViewComponent implements ControlValueAccessor {
             this.filterDisplayValue = this.translate.instant('alias.filter-type-entity-view-search-query-description',
               translationValues
             );
+          }
+          break;
+        case AliasFilterType.schedulerEvent:
+          const eventType = this.filter.eventType;
+          const hasSpecificOriginator = !this.filter.originatorStateEntity;
+          if (hasSpecificOriginator && eventType && eventType.length) {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-scheduler-event-type-originator-description', {eventType});
+          } else if (hasSpecificOriginator) {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-scheduler-event-originator-description');
+          } else if (eventType && eventType.length) {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-scheduler-event-type-description', {eventType});
+          } else {
+            this.filterDisplayValue = this.translate.instant('alias.filter-type-scheduler-event');
           }
           break;
         default:

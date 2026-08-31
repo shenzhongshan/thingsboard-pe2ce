@@ -31,6 +31,8 @@ import org.thingsboard.server.common.data.query.EntityKey;
 import org.thingsboard.server.common.data.query.EntityKeyType;
 import org.thingsboard.server.common.data.query.EntityKeyValueType;
 import org.thingsboard.server.common.data.query.EntityGroupFilter;
+import org.thingsboard.server.common.data.query.EntityGroupListFilter;
+import org.thingsboard.server.common.data.query.EntityGroupNameFilter;
 import org.thingsboard.server.common.data.query.EntitiesByGroupNameFilter;
 import org.thingsboard.server.common.data.query.EntityListFilter;
 import org.thingsboard.server.common.data.query.EntityNameFilter;
@@ -90,10 +92,14 @@ public class RepositoryUtils {
                 yield rgf.isMultiRoot() ? rgf.getMultiRootEntitiesType() : rgf.getRootEntity().getEntityType();
             }
             case API_USAGE_STATE -> EntityType.API_USAGE_STATE;
-            // PE-derived filters. EDQS has no index for entity groups or scheduler events, so these
-            // resolve to the type the filter names and are served by the SQL path, not from memory.
+            // PE-derived filters. Every one of these already carries its member/result type as a
+            // plain field, so no index lookup is needed here either way - this just mirrors that
+            // field back out, same as the SQL engine's resolveEntityType does.
             case ENTITY_GROUP -> ((EntityGroupFilter) entityFilter).getGroupType();
+            case ENTITY_GROUP_LIST -> ((EntityGroupListFilter) entityFilter).getGroupType();
+            case ENTITY_GROUP_NAME -> ((EntityGroupNameFilter) entityFilter).getGroupType();
             case ENTITIES_BY_GROUP_NAME -> ((EntitiesByGroupNameFilter) entityFilter).getGroupType();
+            // EDQS has no index for scheduler events, so this is served by the SQL path, not memory.
             case SCHEDULER_EVENT -> EntityType.SCHEDULER_EVENT;
             // the concrete type is only known once the dashboard state is resolved at query time
             case STATE_ENTITY, STATE_ENTITY_OWNER -> null;

@@ -196,7 +196,7 @@ export const emptyMetadata = (width?: number, height?: number): ScadaSymbolMetad
 
 const svgPartsRegex = /(<svg.*?>)(.*)<\/svg>/gms;
 
-const tbNamespaceRegex = /<svg.*(xmlns:tb="https:\/\/allshen.org\/svg").*>/gms;
+const tbNamespaceRegex = /<svg.*(xmlns:tb="https:\/\/thingsboard.io\/svg").*>/gms;
 
 const tbTagRegex = /tb:tag="([^"]*)"/gms;
 
@@ -231,7 +231,7 @@ export const applyTbNamespaceToSvgContent = (svgContent: string): string => {
   tbNamespaceRegex.lastIndex = 0;
   match = tbNamespaceRegex.exec(svgRootNode);
   if (match === null || !match.length) {
-    svgRootNode = svgRootNode.slice(0, -1) + ' xmlns:tb="https://allshen.org/svg">';
+    svgRootNode = svgRootNode.slice(0, -1) + ' xmlns:tb="https://thingsboard.io/svg">';
     return `${svgRootNode}\n${innerSvg}\n</svg>`;
   }
   return svgContent;

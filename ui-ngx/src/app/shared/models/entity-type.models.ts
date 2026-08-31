@@ -61,6 +61,8 @@ export enum EntityType {
   REPORT_TEMPLATE = 'REPORT_TEMPLATE',
   REPORT = 'REPORT',
   SECRET = 'SECRET',
+  SCHEDULER_EVENT = 'SCHEDULER_EVENT',
+  BLOB_ENTITY = 'BLOB_ENTITY',
 }
 
 export enum AliasEntityType {
@@ -581,6 +583,59 @@ export const entityTypeTranslations = new Map<EntityType | AliasEntityType, Enti
         selectedEntities: 'role.selected-roles'
       }
     ],
+    [
+      EntityType.GROUP_PERMISSION,
+      {
+        type: 'entity.type-group-permission'
+      }
+    ],
+    [
+      EntityType.REPORT_TEMPLATE,
+      {
+        type: 'entity.type-report-template',
+        typePlural: 'entity.type-report-templates',
+        list: 'report.templates',
+        add: 'report.add-template',
+        noEntities: 'report.no-templates-text'
+      }
+    ],
+    [
+      EntityType.REPORT,
+      {
+        type: 'entity.type-report',
+        typePlural: 'entity.type-reports',
+        list: 'report.reports',
+        noEntities: 'report.no-reports-text'
+      }
+    ],
+    [
+      EntityType.SECRET,
+      {
+        type: 'entity.type-secret',
+        typePlural: 'entity.type-secrets',
+        list: 'secret.secrets',
+        add: 'secret.add',
+        noEntities: 'secret.no-secrets-text'
+      }
+    ],
+    [
+      EntityType.SCHEDULER_EVENT,
+      {
+        type: 'entity.type-scheduler-event',
+        typePlural: 'entity.type-scheduler-events',
+        list: 'entity.list-of-scheduler-events',
+        nameStartsWith: 'entity.scheduler-event-name-starts-with'
+      }
+    ],
+    [
+      EntityType.BLOB_ENTITY,
+      {
+        type: 'entity.type-blob-entity',
+        typePlural: 'entity.type-blob-entities',
+        list: 'entity.list-of-blob-entities',
+        nameStartsWith: 'entity.blob-entity-name-starts-with'
+      }
+    ],
   ]
 );
 
@@ -743,6 +798,18 @@ export const entityTypeResources = new Map<EntityType, EntityTypeResource<BaseDa
         helpLinkId: 'integrations'
       }
     ],
+    [
+      EntityType.ROLE,
+      {
+        helpLinkId: 'roles'
+      }
+    ],
+    [
+      EntityType.REPORT_TEMPLATE,
+      {
+        helpLinkId: 'reportTemplates'
+      }
+    ],
   ]
 );
 
@@ -766,7 +833,11 @@ export const baseDetailsPageByEntityType = new Map<EntityType, string>([
   [EntityType.WIDGET_TYPE, '/resources/widgets-library/widget-types/details'],
   [EntityType.OAUTH2_CLIENT, '/security-settings/oauth2/clients/details'],
   [EntityType.DOMAIN, '/security-settings/oauth2/clients/details'],
-  [EntityType.MOBILE_APP, '/mobile-center/applications']
+  [EntityType.MOBILE_APP, '/mobile-center/applications'],
+  [EntityType.CONVERTER, '/integrations-center/converters'],
+  [EntityType.INTEGRATION, '/integrations-center/integrations'],
+  [EntityType.ROLE, '/security-settings/roles'],
+  [EntityType.REPORT_TEMPLATE, '/reporting/templates']
 ]);
 
 export interface EntitySubtype {

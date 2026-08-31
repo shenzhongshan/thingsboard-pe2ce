@@ -162,6 +162,9 @@ export class EntityService {
       case EntityType.CUSTOMER:
         observable = this.customerService.getCustomer(entityId, config);
         break;
+      case EntityType.ENTITY_GROUP:
+        observable = this.entityGroupService.getEntityGroup(entityId, config);
+        break;
       case EntityType.DASHBOARD:
         observable = this.dashboardService.getDashboardInfo(entityId, config);
         break;
@@ -663,7 +666,13 @@ export class EntityService {
           return entityTypes.indexOf(filter.entityType) > -1 ? true : false;
         case AliasFilterType.entityType:
           return entityTypes.indexOf(filter.entityType) > -1 ? true : false;
+        case AliasFilterType.entityGroup:
+        case AliasFilterType.entityGroupList:
+        case AliasFilterType.entityGroupName:
+        case AliasFilterType.entitiesByGroupName:
+          return entityTypes.indexOf(filter.groupType) > -1 ? true : false;
         case AliasFilterType.stateEntity:
+        case AliasFilterType.stateEntityOwner:
           return true;
         case AliasFilterType.assetType:
           return entityTypes.indexOf(EntityType.ASSET)  > -1 ? true : false;
@@ -701,6 +710,10 @@ export class EntityService {
           return entityTypes.indexOf(EntityType.EDGE) > -1 ? true : false;
         case AliasFilterType.entityViewSearchQuery:
           return entityTypes.indexOf(EntityType.ENTITY_VIEW)  > -1 ? true : false;
+        case AliasFilterType.apiUsageState:
+          return entityTypes.indexOf(EntityType.API_USAGE_STATE) > -1 ? true : false;
+        case AliasFilterType.schedulerEvent:
+          return entityTypes.indexOf(EntityType.SCHEDULER_EVENT) > -1 ? true : false;
       }
     }
     return false;
@@ -728,7 +741,13 @@ export class EntityService {
         return true;
       case AliasFilterType.entityType:
         return true;
+      case AliasFilterType.entityGroup:
+      case AliasFilterType.entityGroupList:
+      case AliasFilterType.entityGroupName:
+      case AliasFilterType.entitiesByGroupName:
+        return true;
       case AliasFilterType.stateEntity:
+      case AliasFilterType.stateEntityOwner:
         return true;
       case AliasFilterType.assetType:
         return entityType === EntityType.ASSET;
@@ -750,6 +769,8 @@ export class EntityService {
         return entityType === EntityType.EDGE;
       case AliasFilterType.entityViewSearchQuery:
         return entityType === EntityType.ENTITY_VIEW;
+      case AliasFilterType.schedulerEvent:
+        return entityType === EntityType.SCHEDULER_EVENT;
     }
     return false;
   }
@@ -770,6 +791,13 @@ export class EntityService {
         entityTypes.push(EntityType.CUSTOMER);
         entityTypes.push(EntityType.USER);
         entityTypes.push(EntityType.DASHBOARD);
+        entityTypes.push(EntityType.CONVERTER);
+        entityTypes.push(EntityType.INTEGRATION);
+        entityTypes.push(EntityType.SCHEDULER_EVENT);
+        entityTypes.push(EntityType.BLOB_ENTITY);
+        entityTypes.push(EntityType.REPORT_TEMPLATE);
+        entityTypes.push(EntityType.REPORT);
+        entityTypes.push(EntityType.ROLE);
         if (authState.edgesSupportEnabled) {
           entityTypes.push(EntityType.EDGE);
         }
@@ -787,6 +815,8 @@ export class EntityService {
         entityTypes.push(EntityType.CUSTOMER);
         entityTypes.push(EntityType.USER);
         entityTypes.push(EntityType.DASHBOARD);
+        entityTypes.push(EntityType.SCHEDULER_EVENT);
+        entityTypes.push(EntityType.BLOB_ENTITY);
         if (authState.edgesSupportEnabled) {
           entityTypes.push(EntityType.EDGE);
         }
@@ -1048,6 +1078,36 @@ export class EntityService {
       case AliasFilterType.entityType:
         result.entityFilter = deepClone(filter);
         return of(result);
+      case AliasFilterType.entityGroup:
+        result.stateEntity = filter.groupStateEntity;
+        if (filter.groupStateEntity) {
+          result.entityFilter = deepClone(filter);
+          if (stateEntityId) {
+            result.entityFilter.groupType = stateEntityId.entityType as EntityType;
+            result.entityFilter.entityGroup = stateEntityId.id;
+          } else if (filter.defaultStateGroupType && filter.defaultStateEntityGroup) {
+            result.entityFilter.groupType = filter.defaultStateGroupType;
+            result.entityFilter.entityGroup = filter.defaultStateEntityGroup;
+          } else {
+            result.entityFilter.entityGroup = null;
+          }
+        } else {
+          result.entityFilter = deepClone(filter);
+        }
+        return of(result);
+      case AliasFilterType.entityGroupList:
+        result.entityFilter = deepClone(filter);
+        return of(result);
+      case AliasFilterType.entityGroupName:
+        result.entityFilter = deepClone(filter);
+        return of(result);
+      case AliasFilterType.entitiesByGroupName:
+        result.stateEntity = filter.groupStateEntity;
+        result.entityFilter = deepClone(filter);
+        if (filter.groupStateEntity) {
+          result.entityFilter.ownerId = stateEntityId ? stateEntityId : null;
+        }
+        return of(result);
       case AliasFilterType.stateEntity:
         result.stateEntity = true;
         if (stateEntityId) {
@@ -1056,6 +1116,11 @@ export class EntityService {
             singleEntity: stateEntityId
           };
         }
+        return of(result);
+      case AliasFilterType.stateEntityOwner:
+        result.stateEntity = true;
+        result.entityFilter = deepClone(filter);
+        result.entityFilter.singleEntity = stateEntityId ? stateEntityId : (filter.defaultStateEntity ? filter.defaultStateEntity : null);
         return of(result);
       case AliasFilterType.assetType:
         result.entityFilter = deepClone(filter);
@@ -1094,6 +1159,13 @@ export class EntityService {
         } else {
           return of(result);
         }
+      case AliasFilterType.schedulerEvent:
+        result.stateEntity = filter.originatorStateEntity;
+        result.entityFilter = deepClone(filter);
+        if (filter.originatorStateEntity) {
+          result.entityFilter.originator = stateEntityId ? stateEntityId : (filter.defaultStateEntity ? filter.defaultStateEntity : null);
+        }
+        return of(result);
     }
   }
 

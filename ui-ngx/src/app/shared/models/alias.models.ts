@@ -25,7 +25,12 @@ export enum AliasFilterType {
   entityList = 'entityList',
   entityName = 'entityName',
   entityType = 'entityType',
+  entityGroup = 'entityGroup',
+  entityGroupList = 'entityGroupList',
+  entityGroupName = 'entityGroupName',
+  entitiesByGroupName = 'entitiesByGroupName',
   stateEntity = 'stateEntity',
+  stateEntityOwner = 'stateEntityOwner',
   assetType = 'assetType',
   deviceType = 'deviceType',
   edgeType = 'edgeType',
@@ -35,7 +40,8 @@ export enum AliasFilterType {
   assetSearchQuery = 'assetSearchQuery',
   deviceSearchQuery = 'deviceSearchQuery',
   edgeSearchQuery = 'edgeSearchQuery',
-  entityViewSearchQuery = 'entityViewSearchQuery'
+  entityViewSearchQuery = 'entityViewSearchQuery',
+  schedulerEvent = 'schedulerEvent'
 }
 
 export const edgeAliasFilterTypes = new Array<string>(
@@ -49,7 +55,12 @@ export const aliasFilterTypeTranslationMap = new Map<AliasFilterType, string>(
     [ AliasFilterType.entityList, 'alias.filter-type-entity-list' ],
     [ AliasFilterType.entityName, 'alias.filter-type-entity-name' ],
     [ AliasFilterType.entityType, 'alias.filter-type-entity-type' ],
+    [ AliasFilterType.entityGroup, 'alias.filter-type-entity-group' ],
+    [ AliasFilterType.entityGroupList, 'alias.filter-type-entity-group-list' ],
+    [ AliasFilterType.entityGroupName, 'alias.filter-type-entity-group-name' ],
+    [ AliasFilterType.entitiesByGroupName, 'alias.filter-type-entities-by-group-name' ],
     [ AliasFilterType.stateEntity, 'alias.filter-type-state-entity' ],
+    [ AliasFilterType.stateEntityOwner, 'alias.filter-type-state-entity-owner' ],
     [ AliasFilterType.assetType, 'alias.filter-type-asset-type' ],
     [ AliasFilterType.deviceType, 'alias.filter-type-device-type' ],
     [ AliasFilterType.edgeType, 'alias.filter-type-edge-type' ],
@@ -59,7 +70,8 @@ export const aliasFilterTypeTranslationMap = new Map<AliasFilterType, string>(
     [ AliasFilterType.assetSearchQuery, 'alias.filter-type-asset-search-query' ],
     [ AliasFilterType.deviceSearchQuery, 'alias.filter-type-device-search-query' ],
     [ AliasFilterType.edgeSearchQuery, 'alias.filter-type-edge-search-query' ],
-    [ AliasFilterType.entityViewSearchQuery, 'alias.filter-type-entity-view-search-query' ]
+    [ AliasFilterType.entityViewSearchQuery, 'alias.filter-type-entity-view-search-query' ],
+    [ AliasFilterType.schedulerEvent, 'alias.filter-type-scheduler-event' ]
   ]
 );
 
@@ -81,7 +93,47 @@ export interface EntityTypeFilter {
   entityType?: EntityType;
 }
 
+export interface EntityGroupFilter {
+  groupType?: EntityType;
+  entityGroup?: string;
+  groupStateEntity?: boolean;
+  defaultStateGroupType?: EntityType;
+  defaultStateEntityGroup?: string;
+}
+
+export interface EntityGroupListFilter {
+  groupType?: EntityType;
+  entityGroupList?: string[];
+}
+
+export interface EntityGroupNameFilter {
+  groupType?: EntityType;
+  entityGroupNameFilter?: string;
+}
+
+export interface EntitiesByGroupNameFilter {
+  groupType?: EntityType;
+  ownerId?: EntityId;
+  entityGroupNameFilter?: string;
+  groupStateEntity?: boolean;
+  stateEntityParamName?: string;
+}
+
 export interface StateEntityFilter {
+  stateEntityParamName?: string;
+  defaultStateEntity?: EntityId;
+}
+
+export interface StateEntityOwnerFilter {
+  singleEntity?: EntityId;
+  stateEntityParamName?: string;
+  defaultStateEntity?: EntityId;
+}
+
+export interface SchedulerEventFilter {
+  originator?: EntityId;
+  eventType?: string;
+  originatorStateEntity?: boolean;
   stateEntityParamName?: string;
   defaultStateEntity?: EntityId;
 }
@@ -170,7 +222,13 @@ export type EntityFilters =
   EntityListFilter &
   EntityNameFilter &
   EntityTypeFilter &
+  EntityGroupFilter &
+  EntityGroupListFilter &
+  EntityGroupNameFilter &
+  EntitiesByGroupNameFilter &
   StateEntityFilter &
+  StateEntityOwnerFilter &
+  SchedulerEventFilter &
   AssetTypeFilter &
   DeviceTypeFilter &
   EdgeTypeFilter &

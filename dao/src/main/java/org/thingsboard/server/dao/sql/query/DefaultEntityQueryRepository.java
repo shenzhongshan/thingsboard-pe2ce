@@ -48,6 +48,8 @@ import org.thingsboard.server.common.data.query.EntityDataSortOrder;
 import org.thingsboard.server.common.data.query.EntityFilter;
 import org.thingsboard.server.common.data.query.EntityFilterType;
 import org.thingsboard.server.common.data.query.EntityGroupFilter;
+import org.thingsboard.server.common.data.query.EntityGroupListFilter;
+import org.thingsboard.server.common.data.query.EntityGroupNameFilter;
 import org.thingsboard.server.common.data.query.EntityKeyType;
 import org.thingsboard.server.common.data.query.EntityListFilter;
 import org.thingsboard.server.common.data.query.EntityNameFilter;
@@ -739,6 +741,10 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
                 return this.schedulerEventQuery(ctx, (SchedulerEventFilter) entityFilter);
             case ENTITY_GROUP:
                 return this.entityGroupMembershipQuery(ctx, ((EntityGroupFilter) entityFilter).getEntityGroup());
+            case ENTITY_GROUP_LIST:
+                return this.entityGroupListMembershipQuery(ctx, (EntityGroupListFilter) entityFilter);
+            case ENTITY_GROUP_NAME:
+                return this.entityGroupNameQuery(ctx, (EntityGroupNameFilter) entityFilter);
             case ENTITIES_BY_GROUP_NAME:
                 return this.entitiesByGroupNameQuery(ctx, (EntitiesByGroupNameFilter) entityFilter);
             default:
@@ -795,9 +801,55 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     /**
-     * Union of every group of the given type and owner whose name matches the filter, rather than
-     * one specific group. ownerId defaults to the tenant when unset, matching how an omitted
-     * customer scope defaults to tenant-wide everywhere else in this class.
+     * Membership in any of several groups, addressed by id - same relation EXISTS clause as
+     * {@link #entityGroupMembershipQuery}, just widened from = to an IN list.
+     */
+    private String entityGroupListMembershipQuery(SqlQueryContext ctx, EntityGroupListFilter filter) {
+        List<String> entityGroupList = filter.getEntityGroupList();
+        if (entityGroupList == null || entityGroupList.isEmpty()) {
+            return "1=0";
+        }
+        ctx.addUuidListParameter("entity_filter_group_ids",
+                entityGroupList.stream().map(UUID::fromString).collect(Collectors.toList()));
+        ctx.addStringParameter("entity_filter_group_list_member_type", ctx.getEntityType().name());
+        return "exists (select 1 from relation r where r.from_id in (:entity_filter_group_ids) " +
+                "and r.from_type='ENTITY_GROUP' and r.relation_type_group='FROM_ENTITY_GROUP' " +
+                "and r.to_id=e.id and r.to_type=:entity_filter_group_list_member_type)";
+    }
+
+    /**
+     * Union of every group of the given type (tenant-wide - no owner scoping, unlike
+     * {@link #entitiesByGroupNameQuery} which has an explicit ownerId field) whose name matches the
+     * filter.
+     */
+    private String entityGroupNameQuery(SqlQueryContext ctx, EntityGroupNameFilter filter) {
+        ctx.addStringParameter("entity_filter_gn_group_type", filter.getGroupType().name());
+        ctx.addStringParameter("entity_filter_gn_member_type", ctx.getEntityType().name());
+        String nameFilter = filter.getEntityGroupNameFilter();
+        StringBuilder sql = new StringBuilder(
+                "exists (select 1 from entity_group g join relation r on r.from_id=g.id " +
+                        "and r.from_type='ENTITY_GROUP' and r.relation_type_group='FROM_ENTITY_GROUP' " +
+                        "where g.type=:entity_filter_gn_group_type " +
+                        "and r.to_id=e.id and r.to_type=:entity_filter_gn_member_type");
+        if (StringUtils.isNotEmpty(nameFilter)) {
+            ctx.addStringParameter("entity_filter_gn_name", nameFilter);
+            sql.append(nameFilter.startsWith("%") || nameFilter.endsWith("%")
+                    ? " and g.name ilike :entity_filter_gn_name"
+                    : " and g.name ilike concat(:entity_filter_gn_name, '%')");
+        }
+        return sql.append(")").toString();
+    }
+
+    /**
+     * Resolves to at most ONE entity group - mirrors PE's EntitiesByGroupQueryProcessor#process,
+     * which stops at the first name/owner match instead of unioning every group whose name matches
+     * the (possibly prefix) pattern. This filter type is for "the group named X owned by Y" lookups
+     * where the name is expected to be unique per owner; unioning every match would silently merge
+     * unrelated groups' members into one datasource. Since SQL EXISTS has no built-in "first match"
+     * concept, the single candidate is resolved deterministically (lowest id) in a correlated
+     * subquery, then membership is checked against that one group only.
+     * ownerId defaults to the tenant when unset, matching how an omitted customer scope defaults to
+     * tenant-wide everywhere else in this class.
      */
     private String entitiesByGroupNameQuery(SqlQueryContext ctx, EntitiesByGroupNameFilter filter) {
         EntityId ownerId = filter.getOwnerId() != null ? filter.getOwnerId() : ctx.getTenantId();
@@ -805,18 +857,20 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         ctx.addStringParameter("entity_filter_gbn_group_type", filter.getGroupType().name());
         ctx.addStringParameter("entity_filter_gbn_member_type", ctx.getEntityType().name());
         String nameFilter = filter.getEntityGroupNameFilter();
-        StringBuilder sql = new StringBuilder(
-                "exists (select 1 from entity_group g join relation r on r.from_id=g.id " +
-                        "and r.from_type='ENTITY_GROUP' and r.relation_type_group='FROM_ENTITY_GROUP' " +
-                        "where g.owner_id=:entity_filter_gbn_owner_id and g.type=:entity_filter_gbn_group_type " +
-                        "and r.to_id=e.id and r.to_type=:entity_filter_gbn_member_type");
+        StringBuilder groupSubquery = new StringBuilder(
+                "select g.id from entity_group g where g.owner_id=:entity_filter_gbn_owner_id " +
+                        "and g.type=:entity_filter_gbn_group_type");
         if (StringUtils.isNotEmpty(nameFilter)) {
             ctx.addStringParameter("entity_filter_gbn_name", nameFilter);
-            sql.append(nameFilter.startsWith("%") || nameFilter.endsWith("%")
+            groupSubquery.append(nameFilter.startsWith("%") || nameFilter.endsWith("%")
                     ? " and g.name ilike :entity_filter_gbn_name"
                     : " and g.name ilike concat(:entity_filter_gbn_name, '%')");
         }
-        return sql.append(")").toString();
+        groupSubquery.append(" order by g.id limit 1");
+        return "exists (select 1 from relation r where r.from_type='ENTITY_GROUP' " +
+                "and r.relation_type_group='FROM_ENTITY_GROUP' and r.to_id=e.id " +
+                "and r.to_type=:entity_filter_gbn_member_type " +
+                "and r.from_id=(" + groupSubquery + "))";
     }
 
     private String addEntityTableQuery(SqlQueryContext ctx, EntityFilter entityFilter) {
@@ -1145,10 +1199,15 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
                 return rgf.isMultiRoot() ? rgf.getMultiRootEntitiesType() : rgf.getRootEntity().getEntityType();
             case API_USAGE_STATE:
                 return EntityType.API_USAGE_STATE;
-            // The result set of an ENTITY_GROUP / ENTITIES_BY_GROUP_NAME query is the group's member
-            // type, which both filters already carry as a plain field - no DB lookup needed.
+            // The result set of an ENTITY_GROUP / ENTITY_GROUP_LIST / ENTITY_GROUP_NAME /
+            // ENTITIES_BY_GROUP_NAME query is the group's member type, which every one of these
+            // filters already carries as a plain field - no DB lookup needed.
             case ENTITY_GROUP:
                 return ((EntityGroupFilter) entityFilter).getGroupType();
+            case ENTITY_GROUP_LIST:
+                return ((EntityGroupListFilter) entityFilter).getGroupType();
+            case ENTITY_GROUP_NAME:
+                return ((EntityGroupNameFilter) entityFilter).getGroupType();
             case ENTITIES_BY_GROUP_NAME:
                 return ((EntitiesByGroupNameFilter) entityFilter).getGroupType();
             case SCHEDULER_EVENT:
