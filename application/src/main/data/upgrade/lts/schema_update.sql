@@ -85,3 +85,9 @@ CREATE INDEX IF NOT EXISTS idx_api_key_tenant_id_user_id   ON api_key(tenant_id,
 -- recreated from schema-functions.sql, which DROPs them first because the signature changed.
 ALTER TABLE alarm ADD COLUMN IF NOT EXISTS propagate_to_owner_hierarchy BOOLEAN;
 -- ALARM OWNER-HIERARCHY PROPAGATION END
+
+-- RESOURCE CUSTOMER_ID ADDITION START
+
+ALTER TABLE resource ADD COLUMN IF NOT EXISTS customer_id uuid;
+
+-- RESOURCE CUSTOMER_ID ADDITION END
