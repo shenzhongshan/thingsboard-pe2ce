@@ -1,0 +1,68 @@
+.tb-device-simulator-dialog {
+  min-width: 600px;
+  max-width: 900px;
+}
+
+.tb-basic-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+
+  mat-form-field {
+    width: 260px;
+  }
+
+  tb-entity-autocomplete {
+    width: 260px;
+  }
+}
+
+.tb-profiles-header {
+  display: flex;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.tb-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.tb-telemetry-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tb-telemetry-profile {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.tb-strategy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tb-key-field {
+  width: 220px;
+}
+
+.tb-json-field {
+  width: 100%;
+
+  textarea {
+    font-family: monospace;
+    font-size: 12px;
+  }
+}
+
+.tb-json-error {
+  color: var(--mat-sys-error, #f44336);
+  font-size: 12px;
+  margin-bottom: 8px;
+}

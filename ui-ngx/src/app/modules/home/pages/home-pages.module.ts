@@ -52,6 +52,7 @@ import { IntegrationCenterModule } from '@home/pages/integration/integration-cen
 import { EntityGroupModule } from '@home/pages/entity-group/entity-group.module';
 import { ReportingModule } from '@home/pages/reporting/reporting.module';
 import { SolutionTemplatesModule } from '@home/pages/solution-templates/solution-templates.module';
+import { DeviceSimulatorModule } from '@home/pages/device-simulator/device-simulator.module';
 
 @NgModule({
   exports: [
@@ -91,6 +92,7 @@ import { SolutionTemplatesModule } from '@home/pages/solution-templates/solution
     EntityGroupModule,
     ReportingModule,
     SolutionTemplatesModule,
+    DeviceSimulatorModule,
   ]
 })
 export class HomePagesModule { }

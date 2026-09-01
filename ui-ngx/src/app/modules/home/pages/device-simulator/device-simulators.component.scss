@@ -1,0 +1,37 @@
+.tb-device-simulators-page {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tb-page-title {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.tb-empty {
+  opacity: 0.6;
+  padding: 32px;
+  text-align: center;
+}
+
+table {
+  width: 100%;
+
+  a {
+    cursor: pointer;
+    color: var(--mat-sys-primary, #305680);
+  }
+}
+
+.tb-actions-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.tb-error-icon {
+  vertical-align: middle;
+  margin-left: 4px;
+  cursor: default;
+}

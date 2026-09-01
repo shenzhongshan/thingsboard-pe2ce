@@ -1,0 +1,116 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-dialog-content tb-device-simulator-dialog">
+  <mat-toolbar color="primary">
+    <h2>{{ (isAdd ? 'device-simulator.add' : 'device-simulator.edit') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button type="button" (click)="cancel()">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  <div mat-dialog-content>
+
+    <div class="tb-basic-fields">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.name' | translate }}</mat-label>
+        <input matInput [(ngModel)]="name" required>
+      </mat-form-field>
+
+      <tb-entity-autocomplete
+        [(ngModel)]="deviceId"
+        useFullEntityId
+        [required]="true"
+        [entityType]="EntityType.DEVICE"
+        [labelText]="'device-simulator.device' | translate">
+      </tb-entity-autocomplete>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.publish-frequency' | translate }}</mat-label>
+        <input matInput type="number" min="1" [(ngModel)]="definition.publishFrequencyInSeconds">
+        <mat-hint>{{ 'device-simulator.publish-frequency-hint' | translate }}</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.publish-period-days' | translate }}</mat-label>
+        <input matInput type="number" min="0" [(ngModel)]="definition.publishPeriodInDays">
+        <mat-hint>{{ 'device-simulator.publish-period-days-hint' | translate }}</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.publish-pause' | translate }}</mat-label>
+        <input matInput type="number" min="0" [(ngModel)]="definition.publishPauseInMillis">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.activity-period' | translate }}</mat-label>
+        <input matInput type="number" min="0" [(ngModel)]="definition.activityPeriodInMillis">
+        <mat-hint>{{ 'device-simulator.activity-period-hint' | translate }}</mat-hint>
+      </mat-form-field>
+    </div>
+
+    <div class="tb-profiles-header">
+      <span class="tb-section-title">{{ 'device-simulator.telemetry-profiles' | translate }}</span>
+      <span class="flex-1"></span>
+      <button mat-button color="primary" type="button" (click)="toggleJsonMode()">
+        <mat-icon>{{ jsonMode ? 'view_list' : 'code' }}</mat-icon>
+        {{ (jsonMode ? 'device-simulator.form-mode' : 'device-simulator.json-mode') | translate }}
+      </button>
+    </div>
+
+    @if (jsonMode) {
+      <mat-form-field appearance="outline" class="tb-json-field">
+        <textarea matInput rows="18" [(ngModel)]="jsonText" spellcheck="false"></textarea>
+      </mat-form-field>
+      @if (jsonError) {
+        <div class="tb-json-error">{{ jsonError }}</div>
+      }
+    } @else {
+      <div class="tb-telemetry-profiles">
+        @for (profile of definition.telemetryProfiles; track profile; let i = $index) {
+          <div class="tb-telemetry-profile">
+            <div class="tb-strategy-row">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-key-field">
+                <mat-label>{{ 'device-simulator.key' | translate }}</mat-label>
+                <input matInput [(ngModel)]="profile.key">
+              </mat-form-field>
+              <span class="flex-1"></span>
+              <button mat-icon-button color="warn" type="button" (click)="removeProfile(i)"
+                      [matTooltip]="'action.remove' | translate">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+            <tb-value-strategy-editor [strategy]="profile.valueStrategy"
+                                       (strategyChange)="profile.valueStrategy = $event"></tb-value-strategy-editor>
+          </div>
+        }
+      </div>
+      <button mat-stroked-button type="button" (click)="addProfile()">
+        <mat-icon>add</mat-icon>{{ 'device-simulator.add-telemetry-profile' | translate }}
+      </button>
+    }
+
+  </div>
+  <div mat-dialog-actions class="flex flex-row items-center justify-end">
+    <button mat-button type="button" (click)="cancel()">
+      {{ 'action.cancel' | translate }}
+    </button>
+    <button mat-raised-button color="primary" type="button" [disabled]="!isValid()" (click)="save()">
+      {{ 'action.save' | translate }}
+    </button>
+  </div>
+</div>
