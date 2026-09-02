@@ -58,6 +58,13 @@ export class OtaPackageService {
     return this.http.get<PageData<OtaPackageInfo>>(url, defaultHttpOptionsFromConfig(config));
   }
 
+  /** OTA packages usable by the devices in an entity group (device profiles are resolved server side). */
+  public getOtaPackagesInfoByDeviceGroupId(pageLink: PageLink, deviceGroupId: string, type: OtaUpdateType,
+                                           config?: RequestConfig): Observable<PageData<OtaPackageInfo>> {
+    const url = `/api/otaPackages/group/${deviceGroupId}/${type}${pageLink.toQuery()}`;
+    return this.http.get<PageData<OtaPackageInfo>>(url, defaultHttpOptionsFromConfig(config));
+  }
+
   public getOtaPackage(otaPackageId: string, config?: RequestConfig): Observable<OtaPackage> {
     return this.http.get<OtaPackage>(`/api/otaPackage/${otaPackageId}`, defaultHttpOptionsFromConfig(config));
   }

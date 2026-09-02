@@ -22,6 +22,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { TranslateService } from '@ngx-translate/core';
 import { coerceBooleanProperty } from '@angular/cdk/coercion';
+import { coerceBoolean } from '@shared/decorators/coercion';
 import { EntityId } from '@shared/models/id/entity-id';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityService } from '@core/http/entity.service';
@@ -81,6 +82,27 @@ export class OtaPackageAutocompleteComponent implements ControlValueAccessor, On
       this.deviceProfileIdValue = value;
     }
   }
+
+  private deviceGroupIdValue: string;
+
+  get deviceGroupId(): string {
+    return this.deviceGroupIdValue;
+  }
+
+  /** Set instead of {@link deviceProfileId} when the OTA target is a device group. */
+  @Input()
+  set deviceGroupId(value: string) {
+    if (this.deviceGroupIdValue !== value) {
+      if (this.deviceGroupIdValue) {
+        this.reset();
+      }
+      this.deviceGroupIdValue = value;
+    }
+  }
+
+  @Input()
+  @coerceBoolean()
+  deviceGroupAll = false;
 
   @Input()
   labelText: string;
@@ -262,20 +284,24 @@ export class OtaPackageAutocompleteComponent implements ControlValueAccessor, On
   }
 
   fetchPackages(searchText?: string): Observable<Array<OtaPackageInfo>> {
-    if (isDefinedAndNotNull(this.deviceProfileId)) {
-      this.searchText = searchText;
-      const pageLink = new PageLink(50, 0, searchText, {
-        property: 'title',
-        direction: Direction.ASC
-      });
-      return this.otaPackageService.getOtaPackagesInfoByDeviceProfileId(pageLink, this.deviceProfileId, this.type,
-        {ignoreLoading: true}).pipe(
-        catchError(() => of(emptyPageData<OtaPackageInfo>())),
-        map((data) => data && data.data.length ? data.data : null)
-      );
-    } else {
+    if (!isDefinedAndNotNull(this.deviceGroupId) && !isDefinedAndNotNull(this.deviceProfileId)) {
       return of([]);
     }
+    this.searchText = searchText;
+    const pageLink = new PageLink(50, 0, searchText, {
+      property: 'title',
+      direction: Direction.ASC
+    });
+    // A device group can hold devices of several profiles, so it needs its own lookup.
+    const packages$ = isDefinedAndNotNull(this.deviceGroupId) ?
+      this.otaPackageService.getOtaPackagesInfoByDeviceGroupId(pageLink, this.deviceGroupId, this.type,
+        {ignoreLoading: true}) :
+      this.otaPackageService.getOtaPackagesInfoByDeviceProfileId(pageLink, this.deviceProfileId, this.type,
+        {ignoreLoading: true});
+    return packages$.pipe(
+      catchError(() => of(emptyPageData<OtaPackageInfo>())),
+      map((data) => data && data.data.length ? data.data : null)
+    );
   }
 
   clear() {

@@ -32,14 +32,18 @@
       }
     }
 
-    .tb-se-no-attributes {
-      color: #d32f2f;
-      text-align: center;
-      padding: 12px;
-    }
-
     .tb-se-target-mode {
       margin-bottom: 12px;
+    }
+
+    // The RPC params editor needs a real height or the Ace instance collapses to zero.
+    .tb-scheduler-event-configuration-json {
+      display: block;
+      height: 200px;
+    }
+
+    .tb-panel-title {
+      font-weight: 500;
     }
   }
 }

@@ -1,5 +1,11 @@
 {
   "entity-group": {
+    "user-group-owner": "用户组所有者",
+    "target-user-group-owner-required": "用户组所有者为必填项。",
+    "select-entity-group": "选择实体组",
+    "target-entity-group-required": "目标实体组为必填项。",
+    "entity-group": "实体组",
+    "device-group": "设备组",
     "owner": "所有者",
     "owner-and-groups": "所有者和分组",
     "owner-required": "所有者为必填项。",
@@ -520,6 +526,21 @@
     "delete-schedule-text": "确认后，调度报告将被删除且不再触发。"
   },
   "scheduler": {
+    "single-entity": "单个实体",
+    "group-entities": "实体组",
+    "entities-group-owner": "实体组所有者",
+    "single-device": "单个设备",
+    "group-of-devices": "设备组",
+    "devices-group-owner": "设备组所有者",
+    "rpc-settings": "RPC 设置",
+    "rpc-request-timeout": "RPC 请求超时时间（毫秒）",
+    "rpc-request-oneway-command": "单向 RPC 请求",
+    "rpc-request-persistent": "RPC 请求持久化",
+    "rpc-method-white-space": "不允许空格。",
+    "rpc-value-min-error": "值必须大于 {{min}} 毫秒。",
+    "set": "设置",
+    "message-body": "消息体",
+    "originator": "发起者",
     "scheduler": "调度器",
     "scheduler-events": "调度器事件",
     "add-scheduler-event": "创建调度器事件",
@@ -569,8 +590,8 @@
     "attribute-value": "值",
     "add-attributes-prompt": "请添加属性",
     "rpc-request": "RPC 请求",
-    "rpc-method": "RPC 方法",
-    "rpc-params": "RPC 参数 (JSON)",
+    "rpc-method": "方法",
+    "rpc-params": "参数",
     "rpc-oneway": "单向 RPC 请求",
     "rpc-persistent": "RPC 请求持久化",
     "ota-package": "OTA 包",
@@ -1747,6 +1768,7 @@
     "selected-assets": "{ count, plural, =1 {1 个资产} other {# 个资产} }已选择"
   },
   "attribute": {
+    "add-attribute-prompt": "请添加属性",
     "attributes": "属性",
     "latest-telemetry": "最新遥测",
     "no-latest-telemetry": "无最新遥测",

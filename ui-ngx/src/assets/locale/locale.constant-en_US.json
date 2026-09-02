@@ -1,5 +1,11 @@
 {
     "entity-group": {
+        "user-group-owner": "User group owner",
+        "target-user-group-owner-required": "User group owner is required.",
+        "select-entity-group": "Select entity group",
+        "target-entity-group-required": "Target entity group is required.",
+        "entity-group": "Entity group",
+        "device-group": "Device group",
         "owner": "Owner",
         "owner-and-groups": "Owner and groups",
         "owner-required": "Owner is required.",
@@ -520,6 +526,21 @@
         "delete-schedule-text": "Be careful, after the confirmation the scheduled report will be removed and no longer fire."
     },
     "scheduler": {
+        "single-entity": "Single entity",
+        "group-entities": "Group entities",
+        "entities-group-owner": "Entities group owner",
+        "single-device": "Single device",
+        "group-of-devices": "Group of devices",
+        "devices-group-owner": "Devices group owner",
+        "rpc-settings": "RPC settings",
+        "rpc-request-timeout": "RPC request timeout (ms)",
+        "rpc-request-oneway-command": "One-way RPC request",
+        "rpc-request-persistent": "RPC request persistent",
+        "rpc-method-white-space": "White space is not allowed.",
+        "rpc-value-min-error": "Value must be more then {{min}} ms.",
+        "set": "Set",
+        "message-body": "Message body",
+        "originator": "Originator",
         "scheduler": "Scheduler",
         "scheduler-events": "Scheduler events",
         "add-scheduler-event": "Add scheduler event",
@@ -569,8 +590,8 @@
         "attribute-value": "Value",
         "add-attributes-prompt": "Please add attributes",
         "rpc-request": "RPC request",
-        "rpc-method": "RPC method",
-        "rpc-params": "RPC params (JSON)",
+        "rpc-method": "Method",
+        "rpc-params": "Params",
         "rpc-oneway": "One way RPC request",
         "rpc-persistent": "Persistent RPC request",
         "ota-package": "OTA package",
@@ -1754,6 +1775,7 @@
         "selected-assets": "{ count, plural, =1 {1 asset} other {# assets} } selected"
     },
     "attribute": {
+        "add-attribute-prompt": "Please add attribute",
         "attributes": "Attributes",
         "latest-telemetry": "Latest telemetry",
         "no-latest-telemetry": "No latest telemetry",

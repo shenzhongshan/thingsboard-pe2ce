@@ -93,6 +93,9 @@ import { EntitySubTypeSelectComponent } from '@shared/components/entity/entity-s
 import { EntityAutocompleteComponent } from '@shared/components/entity/entity-autocomplete.component';
 import { EntityListComponent } from '@shared/components/entity/entity-list.component';
 import { EntityGroupListComponent } from '@shared/components/entity/entity-group-list.component';
+import { EntityGroupAutocompleteComponent } from '@shared/components/entity/entity-group-autocomplete.component';
+import { EntityGroupSelectComponent } from '@shared/components/entity/entity-group-select.component';
+import { OriginatorSelectComponent } from '@shared/components/entity/originator-select.component';
 import { OwnerAutocompleteComponent } from '@shared/components/entity/owner-autocomplete.component';
 import { EntityTypeSelectComponent } from '@shared/components/entity/entity-type-select.component';
 import { EntitySelectComponent } from '@shared/components/entity/entity-select.component';
@@ -363,6 +366,9 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     EntityAutocompleteComponent,
     EntityListComponent,
     EntityGroupListComponent,
+    EntityGroupAutocompleteComponent,
+    EntityGroupSelectComponent,
+    OriginatorSelectComponent,
     OwnerAutocompleteComponent,
     EntityTypeSelectComponent,
     EntitySelectComponent,
@@ -589,6 +595,9 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     EntityAutocompleteComponent,
     EntityListComponent,
     EntityGroupListComponent,
+    EntityGroupAutocompleteComponent,
+    EntityGroupSelectComponent,
+    OriginatorSelectComponent,
     OwnerAutocompleteComponent,
     EntityTypeSelectComponent,
     EntitySelectComponent,
