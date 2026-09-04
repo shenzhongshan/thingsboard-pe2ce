@@ -44,6 +44,7 @@ import org.thingsboard.server.exception.DataValidationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -179,6 +180,15 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     public List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId) {
         return groupPermissionRepository.findByTenantIdAndRoleId(tenantId.getId(), roleId.getId())
                 .stream().map(GroupPermissionEntity::toData).toList();
+    }
+
+    @Override
+    public Optional<GroupPermission> findPublicGroupPermissionByTenantIdAndEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId) {
+        return groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), entityGroupId.getId())
+                .stream()
+                .map(GroupPermissionEntity::toData)
+                .filter(GroupPermission::isPublic)
+                .findFirst();
     }
 
 }

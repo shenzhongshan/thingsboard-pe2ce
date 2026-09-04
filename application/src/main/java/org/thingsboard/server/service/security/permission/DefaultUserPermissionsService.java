@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
@@ -71,14 +73,23 @@ public class DefaultUserPermissionsService implements UserPermissionsService {
             return MergedUserPermissions.ALL;
         }
         if (isPublic) {
-            return new MergedUserPermissions(Collections.emptyMap(), Collections.emptyMap());
+            return computeMergedPermissions(user, true);
         }
-        return cache.computeIfAbsent(user.getId(), id -> computeMergedPermissions(user));
+        return cache.computeIfAbsent(user.getId(), id -> computeMergedPermissions(user, false));
     }
 
-    private MergedUserPermissions computeMergedPermissions(SecurityUser user) {
+    private MergedUserPermissions computeMergedPermissions(SecurityUser user, boolean isPublic) {
         TenantId tenantId = user.getTenantId();
-        List<EntityGroupId> userGroups = entityGroupService.findEntityGroupsForEntity(tenantId, user.getId(), user.getCustomerId());
+        List<EntityGroupId> userGroups;
+        if (isPublic) {
+            // PE parity: the anonymous/public user is treated as a member of the public customer's
+            // "Public Users" group, so the public GroupPermission(s) granted to that group resolve.
+            EntityGroup publicUsersGroup = entityGroupService.findEntityGroupByTypeAndName(
+                    tenantId, user.getCustomerId(), EntityType.USER, "Public Users");
+            userGroups = publicUsersGroup != null ? List.of(publicUsersGroup.getId()) : Collections.emptyList();
+        } else {
+            userGroups = entityGroupService.findEntityGroupsForEntity(tenantId, user.getId(), user.getCustomerId());
+        }
 
         Map<Resource, Set<Operation>> genericPermissions = new HashMap<>();
         Map<EntityGroupId, MergedGroupPermissionInfo> groupSpecificPermissions = new HashMap<>();

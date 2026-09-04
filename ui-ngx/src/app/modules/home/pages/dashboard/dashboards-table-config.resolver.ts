@@ -227,18 +227,6 @@ export class DashboardsTableConfigResolver {
           onAction: ($event, entity) => this.exportDashboard($event, entity)
         },
         {
-          name: this.translate.instant('dashboard.make-public'),
-          icon: 'share',
-          isEnabled: (entity) => !isPublicDashboard(entity),
-          onAction: ($event, entity) => this.makePublic($event, entity)
-        },
-        {
-          name: this.translate.instant('dashboard.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => isPublicDashboard(entity),
-          onAction: ($event, entity) => this.makePrivate($event, entity)
-        },
-        {
           name: this.translate.instant('dashboard.manage-assigned-customers'),
           icon: 'assignment_ind',
           isEnabled: () => true,
@@ -255,15 +243,9 @@ export class DashboardsTableConfigResolver {
           onAction: ($event, entity) => this.exportDashboard($event, entity)
         },
         {
-          name: this.translate.instant('dashboard.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => isCurrentPublicDashboardCustomer(entity, this.config.componentsData.customerId),
-          onAction: ($event, entity) => this.makePrivate($event, entity)
-        },
-        {
           name: this.translate.instant('dashboard.unassign-from-customer'),
           icon: 'assignment_return',
-          isEnabled: (entity) => !isCurrentPublicDashboardCustomer(entity, this.config.componentsData.customerId),
+          isEnabled: () => true,
           onAction: ($event, entity) => this.unassignFromCustomer($event, entity, this.config.componentsData.customerId)
         }
       );
