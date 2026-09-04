@@ -83,17 +83,9 @@
                 }
 
                 @if (eventType === SchedulerEventType.GENERATE_REPORT) {
-                  <mat-form-field class="w-full">
-                    <mat-label translate>report.report-template</mat-label>
-                    <mat-select formControlName="reportTemplateId" required>
-                      @for (t of reportTemplates; track t.id.id) {
-                        <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                      }
-                    </mat-select>
-                    @if (form.get('reportTemplateId').hasError('required')) {
-                      <mat-error translate>report.report-template-required</mat-error>
-                    }
-                  </mat-form-field>
+                  <tb-report-template-autocomplete formControlName="reportTemplateId" required
+                                                   [type]="ReportTemplateType.REPORT">
+                  </tb-report-template-autocomplete>
                   <tb-entity-select
                     formControlName="reportUserId"
                     required
@@ -103,33 +95,20 @@
                   </tb-timezone-select>
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.recipients</legend>
-                    <div class="flex flex-row items-end gap-2">
-                      <mat-form-field class="flex-1">
-                        <mat-label translate>scheduler.recipients</mat-label>
-                        <mat-select formControlName="reportTargets" multiple>
-                          @for (t of notificationTargets; track t.id.id) {
-                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-                      <button mat-button color="primary" type="button" (click)="createNotificationTarget()">
+                    <tb-entity-list formControlName="reportTargets"
+                                    [entityType]="EntityType.NOTIFICATION_TARGET"
+                                    subType="GENERAL"
+                                    [labelText]="'scheduler.recipients' | translate"
+                                    [placeholderText]="'scheduler.recipients' | translate">
+                      <button matSuffix mat-button color="primary" type="button" (click)="createNotificationTarget()">
                         {{ 'scheduler.create-new' | translate }}
                       </button>
-                    </div>
-                    <div class="flex flex-row items-end gap-2">
-                      <mat-form-field class="flex-1">
-                        <mat-label translate>scheduler.notification-template</mat-label>
-                        <mat-select formControlName="reportNotificationTemplateId">
-                          <mat-option [value]="null">{{ 'common.none' | translate }}</mat-option>
-                          @for (t of notificationTemplates; track t.id.id) {
-                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-                      <button mat-button color="primary" type="button" (click)="createNotificationTemplate()">
-                        {{ 'scheduler.create-new' | translate }}
-                      </button>
-                    </div>
+                    </tb-entity-list>
+                    <tb-template-autocomplete formControlName="reportNotificationTemplateId"
+                                              [notificationTypes]="NotificationType.GENERAL"
+                                              allowCreate
+                                              allowEdit>
+                    </tb-template-autocomplete>
                   </fieldset>
                 }
 
@@ -180,36 +159,50 @@
                 @if (eventType === SchedulerEventType.SEND_RPC_REQUEST) {
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.rpc-settings</legend>
-                    <mat-form-field class="w-full">
-                      <mat-label translate>scheduler.rpc-method</mat-label>
-                      <input matInput formControlName="rpcMethod" required>
-                      @if (form.get('rpcMethod').hasError('required')) {
-                        <mat-error translate>scheduler.rpc-method-required</mat-error>
-                      }
-                      @if (form.get('rpcMethod').hasError('pattern')) {
-                        <mat-error translate>scheduler.rpc-method-white-space</mat-error>
-                      }
-                    </mat-form-field>
+                    <div class="tb-form-row">
+                      <div class="tb-form-row-label tb-required" translate>scheduler.rpc-method</div>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-form-row-value">
+                        <input matInput formControlName="rpcMethod" required>
+                        @if (form.get('rpcMethod').hasError('required') || form.get('rpcMethod').hasError('pattern')) {
+                          <mat-icon matSuffix class="tb-error" matTooltipPosition="above" matTooltipClass="tb-error-tooltip"
+                                    [matTooltip]="(form.get('rpcMethod').hasError('required') ?
+                                      'scheduler.rpc-method-required' : 'scheduler.rpc-method-white-space') | translate">
+                            warning
+                          </mat-icon>
+                        }
+                      </mat-form-field>
+                    </div>
+                    <!-- No fillHeight: it forces the Ace pane to min-height 300px, which overflows a
+                         non-flex parent and overlaps the rows below. Unset, the editor sizes to its
+                         own 200px min-height and the siblings flow normally. -->
                     <tb-json-object-edit formControlName="rpcParams"
                                          class="tb-scheduler-event-configuration-json"
                                          jsonRequired
-                                         [label]="'scheduler.rpc-params' | translate"
-                                         [fillHeight]="true">
+                                         [label]="'scheduler.rpc-params' | translate">
                     </tb-json-object-edit>
-                    <mat-form-field class="w-full">
-                      <mat-label translate>scheduler.rpc-request-timeout</mat-label>
-                      <input matInput type="number" min="0" formControlName="rpcTimeout"
-                             [placeholder]="'scheduler.set' | translate">
-                      @if (form.get('rpcTimeout').hasError('min')) {
-                        <mat-error>{{ 'scheduler.rpc-value-min-error' | translate: {min: 0} }}</mat-error>
-                      }
-                    </mat-form-field>
-                    <mat-slide-toggle formControlName="rpcOneway">
-                      {{ 'scheduler.rpc-request-oneway-command' | translate }}
-                    </mat-slide-toggle>
-                    <mat-slide-toggle formControlName="rpcPersistent">
-                      {{ 'scheduler.rpc-request-persistent' | translate }}
-                    </mat-slide-toggle>
+                    <div class="tb-form-row">
+                      <div class="tb-form-row-label" translate>scheduler.rpc-request-timeout</div>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-form-row-value tb-form-row-value-number">
+                        <input matInput type="number" min="0" formControlName="rpcTimeout"
+                               [placeholder]="'scheduler.set' | translate">
+                        @if (form.get('rpcTimeout').hasError('min')) {
+                          <mat-icon matSuffix class="tb-error" matTooltipPosition="above" matTooltipClass="tb-error-tooltip"
+                                    [matTooltip]="'scheduler.rpc-value-min-error' | translate: {min: 0}">
+                            warning
+                          </mat-icon>
+                        }
+                      </mat-form-field>
+                    </div>
+                    <div class="tb-form-row">
+                      <mat-slide-toggle formControlName="rpcOneway">
+                        {{ 'scheduler.rpc-request-oneway-command' | translate }}
+                      </mat-slide-toggle>
+                    </div>
+                    <div class="tb-form-row">
+                      <mat-slide-toggle formControlName="rpcPersistent">
+                        {{ 'scheduler.rpc-request-persistent' | translate }}
+                      </mat-slide-toggle>
+                    </div>
                   </fieldset>
                 }
 

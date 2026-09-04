@@ -17,6 +17,9 @@ package org.thingsboard.server.service.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.integration.Integration;
+
+import java.util.UUID;
 
 /**
  * Reads fields out of an integration's configuration JSON.
@@ -49,6 +52,17 @@ public final class IntegrationConfigUtil {
             throw new IllegalArgumentException("Missing required configuration field: " + field);
         }
         return cfg.get(field).asText();
+    }
+
+    /**
+     * Every protocol runtime uses {@code integration.getId()} to name its client id/consumer
+     * thread/connection. That id is null for the throwaway runtime {@code
+     * PlatformIntegrationService#checkConnection} builds when previewing a connection for an
+     * integration the user has not saved yet (POST /api/integration/check) — a random id keeps that
+     * probe working instead of NPEing.
+     */
+    public static String safeId(Integration integration) {
+        return integration.getId() != null ? integration.getId().getId().toString() : UUID.randomUUID().toString();
     }
 
 }

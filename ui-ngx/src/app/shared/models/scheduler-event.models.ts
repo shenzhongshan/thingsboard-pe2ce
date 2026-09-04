@@ -121,6 +121,8 @@ export interface SchedulerEventInfo extends BaseData<SchedulerEventId> {
   schedule: SchedulerEventSchedule;
   enabled: boolean;
   additionalInfo?: any;
+  // Set once this event has been exported to a VCS repository (tb-version-control needs it).
+  externalId?: SchedulerEventId;
 }
 
 export interface SchedulerEventWithCustomerInfo extends SchedulerEventInfo {

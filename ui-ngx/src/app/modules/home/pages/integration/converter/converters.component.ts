@@ -14,21 +14,28 @@
 /// limitations under the License.
 ///
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Renderer2, ViewChild, ViewContainerRef } from '@angular/core';
+import { of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { MatDialog } from '@angular/material/dialog';
+import { MatDrawer } from '@angular/material/sidenav';
 import { TranslateService } from '@ngx-translate/core';
 import { DialogService } from '@core/services/dialog.service';
 import { ConverterService } from '@core/http/converter.service';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
 import { Converter, converterTypeTranslations } from '@shared/models/converter.models';
+import { EntityDebugSettings } from '@shared/models/entity.models';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityDebugSettingsService } from '@home/components/entity/debug/entity-debug-settings.service';
 import {
   ConverterDialogComponent,
   ConverterDialogData
 } from '@home/pages/integration/converter/converter-dialog.component';
+import { IntegrationDetailsPanelTarget } from '@home/pages/integration/integration-details-panel.component';
 import { ImportDialogComponent, ImportDialogData } from '@shared/import-export/import-dialog.component';
 
 @Component({
@@ -48,10 +55,17 @@ export class ConvertersComponent extends PageComponent implements OnInit {
 
   converterTypeTranslations = converterTypeTranslations;
 
+  @ViewChild('detailsDrawer') detailsDrawer: MatDrawer;
+  detailsTarget: IntegrationDetailsPanelTarget = null;
+  detailsFocusTab: 'overview' | 'events' = 'overview';
+
   constructor(protected store: Store<AppState>,
               private converterService: ConverterService,
               private dialogService: DialogService,
               private translate: TranslateService,
+              private entityDebugSettingsService: EntityDebugSettingsService,
+              private viewContainerRef: ViewContainerRef,
+              private renderer: Renderer2,
               private dialog: MatDialog) {
     super(store);
   }
@@ -90,6 +104,79 @@ export class ConvertersComponent extends PageComponent implements OnInit {
   searchChanged() {
     this.page = 0;
     this.reload();
+  }
+
+  isDebugActive(converter: Converter): boolean {
+    const settings = converter.debugSettings;
+    return this.entityDebugSettingsService.isDebugActive(settings?.allEnabledUntil) || !!settings?.failuresEnabled;
+  }
+
+  debugTooltip(converter: Converter): string {
+    return this.entityDebugSettingsService.getDebugConfigLabel(converter.debugSettings);
+  }
+
+  openDebugConfig($event: MouseEvent, converter: Converter) {
+    $event?.stopPropagation();
+    this.entityDebugSettingsService.viewContainerRef = this.viewContainerRef;
+    this.entityDebugSettingsService.renderer = this.renderer;
+    this.entityDebugSettingsService.openDebugStrategyPanel({
+      debugSettings: converter.debugSettings || {},
+      debugConfig: {
+        entityType: EntityType.CONVERTER,
+        additionalActionConfig: {
+          title: this.translate.instant('action.see-debug-events'),
+          action: () => this.openDebugEvents(converter)
+        }
+      },
+      onSettingsAppliedFn: (settings: EntityDebugSettings) => this.saveDebugSettings(converter, settings)
+    }, $event.target as Element);
+  }
+
+  private saveDebugSettings(converter: Converter, debugSettings: EntityDebugSettings) {
+    // Re-read first: the list row omits `configuration`, so posting the row itself would wipe the
+    // converter's script.
+    this.converterService.getConverter(converter.id.id).pipe(
+      switchMap((full: Converter) => this.converterService.saveConverter({...full, debugSettings})),
+      catchError(() => of(null))
+    ).subscribe(() => this.reload());
+  }
+
+  openDebugEvents(converter: Converter) {
+    this.openDetails(converter.id.id, 'events');
+  }
+
+  /** Row click opens the read-oriented side panel; see the matching comment on IntegrationsComponent. */
+  openConverterDetails($event: Event, converter: Converter) {
+    $event?.stopPropagation();
+    this.openDetails(converter.id.id, 'overview');
+  }
+
+  private openDetails(converterId: string, focusTab: 'overview' | 'events') {
+    this.converterService.getConverter(converterId).subscribe((full) => {
+      this.detailsTarget = { kind: 'converter', entity: full };
+      this.detailsFocusTab = focusTab;
+      this.detailsDrawer.open();
+    });
+  }
+
+  closeDetails() {
+    this.detailsDrawer.close();
+  }
+
+  onDetailsEdit() {
+    const id = this.detailsTarget?.entity?.id?.id;
+    this.detailsDrawer.close();
+    if (id) {
+      this.openDialog(id);
+    }
+  }
+
+  onDetailsDelete() {
+    const converter = this.detailsTarget?.entity as Converter;
+    this.detailsDrawer.close();
+    if (converter) {
+      this.deleteConverter(null, converter);
+    }
   }
 
   addConverter() {

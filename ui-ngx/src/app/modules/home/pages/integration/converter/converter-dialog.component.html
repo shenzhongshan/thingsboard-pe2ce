@@ -66,21 +66,28 @@
         </div>
 
         <div class="tb-conv-card">
-          <div class="flex flex-row items-center justify-between">
-            <span class="tb-conv-card-title">{{ (isUplink ? 'converter.decoder-config' : 'converter.encoder-config') | translate }}</span>
-            <tb-toggle-select formControlName="scriptLang" appearance="fill">
-              <tb-toggle-option [value]="ConverterScriptLanguage.TBEL">TBEL</tb-toggle-option>
-              <tb-toggle-option [value]="ConverterScriptLanguage.JS">JS</tb-toggle-option>
-            </tb-toggle-select>
-          </div>
+          <div class="tb-conv-card-title">{{ (isUplink ? 'converter.decoder-config' : 'converter.encoder-config') | translate }}</div>
           <tb-js-func
             formControlName="script"
             [functionName]="isUplink ? 'Decoder' : 'Encoder'"
             [functionArgs]="isUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
             [scriptLanguage]="scriptEditorLang"
             [disableUndefinedCheck]="true"
+            [helpId]="scriptHelpId"
+            [helpPopupStyle]="{width: '760px'}"
             noValidate="true"
             minHeight="320px">
+            <tb-toggle-select toolbarPrefixButton formControlName="scriptLang" appearance="fill" class="min-w-16">
+              <tb-toggle-option [value]="ConverterScriptLanguage.TBEL">TBEL</tb-toggle-option>
+              <tb-toggle-option [value]="ConverterScriptLanguage.JS">JS</tb-toggle-option>
+            </tb-toggle-select>
+            <div toolbarSuffixButton
+                 matTooltip="{{ (isUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}"
+                 matTooltipPosition="above">
+              <button mat-icon-button type="button" color="primary" (click)="testFunction()">
+                <mat-icon>bug_report</mat-icon>
+              </button>
+            </div>
           </tb-js-func>
           <div>
             <button mat-raised-button color="primary" type="button" (click)="testFunction()">

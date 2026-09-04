@@ -19,6 +19,7 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dial
 import { UntypedFormArray, UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
+import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { forkJoin, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { TranslateService } from '@ngx-translate/core';
@@ -27,6 +28,7 @@ import { ConverterService } from '@core/http/converter.service';
 import { PageLink } from '@shared/models/page/page-link';
 import {
   Converter,
+  ConverterId,
   ConverterScriptLanguage,
   ConverterType,
   DEFAULT_JS_DECODER,
@@ -34,22 +36,30 @@ import {
   DEFAULT_TBEL_DECODER,
   DEFAULT_TBEL_ENCODER
 } from '@shared/models/converter.models';
-import { ConverterTestDialogComponent } from '@home/pages/integration/converter/converter-test-dialog.component';
+import {
+  ConverterTestDialogComponent,
+  ConverterTestDialogData
+} from '@home/pages/integration/converter/converter-test-dialog.component';
 import { ScriptLanguage } from '@shared/models/rule-node.models';
 import {
   HTTP_WEBHOOK_INTEGRATION_TYPES,
   Integration,
   integrationHttpEndpointUrl,
   IntegrationType,
+  IntegrationTypeInfo,
   integrationTypeInfoMap,
   KinesisInitialPosition,
   MqttCredentialsType,
+  MqttProtocolVersion,
+  mqttProtocolVersionLabels,
   MQTT_FAMILY_INTEGRATION_TYPES,
   newIntegration,
   OpcUaIdentityType,
   OpcUaSecurityPolicy,
   PulsarCredentialsType,
+  TcpByteOrder,
   TcpHandlerType,
+  TcpMessageSeparator,
   TuyaEnv,
   TuyaRegion
 } from '@shared/models/integration.models';
@@ -75,7 +85,11 @@ export class IntegrationDialogComponent implements OnInit {
   IntegrationType = IntegrationType;
   ConverterScriptLanguage = ConverterScriptLanguage;
   TcpHandlerType = TcpHandlerType;
+  TcpMessageSeparator = TcpMessageSeparator;
+  TcpByteOrder = TcpByteOrder;
   MqttCredentialsType = MqttCredentialsType;
+  MqttProtocolVersion = MqttProtocolVersion;
+  mqttProtocolVersionLabels = mqttProtocolVersionLabels;
   PulsarCredentialsType = PulsarCredentialsType;
   TuyaRegion = TuyaRegion;
   TuyaEnv = TuyaEnv;
@@ -90,6 +104,9 @@ export class IntegrationDialogComponent implements OnInit {
 
   uplinkConverters: Converter[] = [];
   downlinkConverters: Converter[] = [];
+
+  checkInProgress = false;
+  checkResult: {success: boolean; error?: string} = null;
 
   private integration: Integration;
 
@@ -160,6 +177,10 @@ export class IntegrationDialogComponent implements OnInit {
       }),
       converters: this.fb.group({
         uplinkConverter: this.fb.group({
+          // PE's uplink step: NEW (inline-edited, owned by this integration) / EXISTING (points at
+          // any already-created uplink converter). No SKIP — uplink is mandatory.
+          sourceType: ['new'],
+          existingConverterId: [null],
           name: [existingUplink?.name || this.defaultConverterName(integration.type, true), [Validators.required]],
           debugSettings: [existingUplink?.debugSettings || { failuresEnabled: true, allEnabled: false, allEnabledUntil: 0 }],
           scriptLang: [existingUplink?.configuration?.scriptLang || ConverterScriptLanguage.TBEL],
@@ -167,7 +188,12 @@ export class IntegrationDialogComponent implements OnInit {
           updateOnlyKeys: [existingUplink?.configuration?.updateOnlyKeys || []]
         }),
         downlinkConverter: this.fb.group({
-          create: [!!existingDownlink],
+          // PE's ConverterSourceType: NEW (inline-edited, owned by this integration) / EXISTING
+          // (points at any already-created downlink converter, possibly shared) / SKIP. LIBRARY
+          // (browsing the git-based vendor template repo) is not built in this port — see
+          // ConverterLibraryController on the backend, which already has no frontend caller either.
+          sourceType: [existingDownlink ? 'new' : 'skip'],
+          existingConverterId: [existingDownlink ? null : null],
           name: [existingDownlink?.name || this.defaultConverterName(integration.type, false), [Validators.required]],
           debugSettings: [existingDownlink?.debugSettings || { failuresEnabled: true, allEnabled: false, allEnabledUntil: 0 }],
           scriptLang: [existingDownlink?.configuration?.scriptLang || ConverterScriptLanguage.TBEL],
@@ -176,28 +202,61 @@ export class IntegrationDialogComponent implements OnInit {
         })
       }),
       connection: this.fb.group({
-        // MQTT family (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI)
-        host: [cfg.host || '', MQTT_FAMILY_INTEGRATION_TYPES.includes(integration.type) ? [Validators.required] : []],
-        port: [cfg.port || 1883],
-        customHost: [cfg.customHost === true],
-        clientId: [cfg.clientId || ''],
-        credentialsType: [cfg.credentials?.type || MqttCredentialsType.ANONYMOUS],
-        username: [cfg.credentials?.username || ''],
-        password: [cfg.credentials?.password || ''],
-        caCert: [cfg.credentials?.caCert || ''],
-        cert: [cfg.credentials?.cert || ''],
-        privateKey: [cfg.credentials?.privateKey || ''],
-        privateKeyPassword: [cfg.credentials?.privateKeyPassword || ''],
-        sasKey: [cfg.credentials?.sasKey || ''],
-        topicFilters: this.fb.array((cfg.topicFilters || []).map((tf: any) => this.buildTopicFilterRow(tf.filter, tf.qos))),
+        // Applies to every type: `remote` moves execution to a separate process that connects back
+        // over gRPC with this integration's routing key and secret.
+        remote: [integration.remote === true],
+        // PE's genericAdditionalInfoTemplate — shown inside every type's advanced-settings panel.
+        description: [integration.additionalInfo?.description || ''],
+        metadata: [cfg.metadata || {}],
+        // MQTT family (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI) — nested under clientConfiguration,
+        // matching PE's wire shape (MqttClientConfiguration.java) exactly.
+        host: [cc.host || '', MQTT_FAMILY_INTEGRATION_TYPES.includes(integration.type) ? [Validators.required] : []],
+        port: [cc.port || 1883],
+        customHost: [cc.customHost === true],
+        clientId: [cc.clientId || ''],
+        ssl: [cc.ssl === true],
+        protocolVersion: [cc.protocolVersion || MqttProtocolVersion.MQTT_3_1_1],
+        cleanSession: [cc.cleanSession !== false],
+        retainedMessage: [cc.retainedMessage === true],
+        maxBytesInMessage: [cc.maxBytesInMessage || 32368, [Validators.min(1), Validators.max(256000000)]],
+        connectTimeoutSec: [cc.connectTimeoutSec || 10, [Validators.required, Validators.min(1), Validators.max(200)]],
+        credentialsType: [cc.credentials?.type || MqttCredentialsType.ANONYMOUS],
+        username: [cc.credentials?.username || ''],
+        password: [cc.credentials?.password || ''],
+        caCert: [cc.credentials?.caCert || ''],
+        cert: [cc.credentials?.cert || ''],
+        privateKey: [cc.credentials?.privateKey || ''],
+        privateKeyPassword: [cc.credentials?.privateKeyPassword || ''],
+        sasKey: [cc.credentials?.sasKey || ''],
+        // PE seeds one '#'/QoS 0 row so the 主题过滤器 section is never empty; match that.
+        topicFilters: this.fb.array((cfg.topicFilters?.length ? cfg.topicFilters : [{ filter: '#', qos: 0 }])
+          .map((tf: any) => this.buildTopicFilterRow(tf.filter, tf.qos))),
+        // Legacy CE field: no longer edited (PE has no such field), but preserved on save so
+        // integrations already configured with a fixed downlink topic keep working.
         downlinkTopic: [cfg.downlinkTopic || ''],
-        downlinkTopicPattern: [cfg.downlinkTopicPattern || ''],
+        downlinkTopicPattern: [cfg.downlinkTopicPattern || '${topic}'],
         // TCP / UDP
         tcpPort: [cfg.port || 10560, (integration.type === IntegrationType.TCP || integration.type === IntegrationType.UDP) ? [Validators.required] : []],
         handlerType: [cfg.handlerType || TcpHandlerType.TEXT],
         maxFrameLength: [cfg.maxFrameLength || 65535],
         charsetName: [cfg.charsetName || 'UTF-8'],
         delimiter: [cfg.delimiter || '\\n'],
+        // TCP only — real Netty socket/framing tuning, matching PE's tb-tcp-integration-form field
+        // names exactly. UDP does not use any of these (UdpIntegrationServer ignores them).
+        soBacklogOption: [cfg.soBacklogOption ?? 128],
+        soRcvBuf: [cfg.soRcvBuf ?? 64],
+        soSndBuf: [cfg.soSndBuf ?? 64],
+        soKeepaliveOption: [cfg.soKeepaliveOption !== false],
+        tcpNoDelay: [cfg.tcpNoDelay === true],
+        stripDelimiter: [cfg.stripDelimiter !== false],
+        messageSeparator: [cfg.messageSeparator || TcpMessageSeparator.SYSTEM_LINE_SEPARATOR],
+        customSeparatorRawValue: [cfg.customSeparatorRawValue || ''],
+        lengthFieldOffset: [cfg.lengthFieldOffset ?? 0],
+        lengthFieldLength: [cfg.lengthFieldLength ?? 2],
+        lengthAdjustment: [cfg.lengthAdjustment ?? 0],
+        initialBytesToStrip: [cfg.initialBytesToStrip ?? 0],
+        byteOrder: [cfg.byteOrder || TcpByteOrder.BIG_ENDIAN],
+        failFast: [cfg.failFast !== false],
         // CoAP
         coapPort: [cfg.port || 5683],
         resourceName: [cfg.resourceName || 'telemetry'],
@@ -296,6 +355,11 @@ export class IntegrationDialogComponent implements OnInit {
       const rmqHostCtrl = this.connectionGroup.get('rmqHost');
       rmqHostCtrl.setValidators(type === IntegrationType.RABBITMQ ? [Validators.required] : []);
       rmqHostCtrl.updateValueAndValidity();
+      // The downlink step is hidden for types with no downlink direction; leaving sourceType on
+      // 'new'/'existing' would keep its (now unreachable) required validators and silently block Save.
+      if (integrationTypeInfoMap.get(type)?.hideDownlink) {
+        this.downlinkConverterGroup.get('sourceType').setValue('skip');
+      }
       if (!this.isEdit) {
         const uplinkNameCtrl = this.uplinkConverterGroup.get('name');
         if (!uplinkNameCtrl.dirty) {
@@ -311,17 +375,37 @@ export class IntegrationDialogComponent implements OnInit {
       this.uplinkConverterGroup.get('scriptLang').valueChanges.subscribe(() => this.resetUplinkScriptTemplate());
       this.downlinkConverterGroup.get('scriptLang').valueChanges.subscribe(() => this.resetDownlinkScriptTemplate());
     }
-    const downlinkCreateCtrl = this.downlinkConverterGroup.get('create');
-    const toggleDownlinkValidators = (create: boolean) => {
+    const downlinkSourceTypeCtrl = this.downlinkConverterGroup.get('sourceType');
+    const toggleDownlinkValidators = (sourceType: string) => {
       const nameCtrl = this.downlinkConverterGroup.get('name');
       const scriptCtrl = this.downlinkConverterGroup.get('script');
-      nameCtrl.setValidators(create ? [Validators.required] : []);
-      scriptCtrl.setValidators(create ? [Validators.required] : []);
+      const existingCtrl = this.downlinkConverterGroup.get('existingConverterId');
+      const isNew = sourceType === 'new';
+      nameCtrl.setValidators(isNew ? [Validators.required] : []);
+      scriptCtrl.setValidators(isNew ? [Validators.required] : []);
+      existingCtrl.setValidators(sourceType === 'existing' ? [Validators.required] : []);
       nameCtrl.updateValueAndValidity();
       scriptCtrl.updateValueAndValidity();
+      existingCtrl.updateValueAndValidity();
     };
-    toggleDownlinkValidators(downlinkCreateCtrl.value);
-    downlinkCreateCtrl.valueChanges.subscribe((create) => toggleDownlinkValidators(create));
+    toggleDownlinkValidators(downlinkSourceTypeCtrl.value);
+    downlinkSourceTypeCtrl.valueChanges.subscribe((sourceType) => toggleDownlinkValidators(sourceType));
+
+    const uplinkSourceTypeCtrl = this.uplinkConverterGroup.get('sourceType');
+    const toggleUplinkValidators = (sourceType: string) => {
+      const nameCtrl = this.uplinkConverterGroup.get('name');
+      const scriptCtrl = this.uplinkConverterGroup.get('script');
+      const existingCtrl = this.uplinkConverterGroup.get('existingConverterId');
+      const isNew = sourceType === 'new';
+      nameCtrl.setValidators(isNew ? [Validators.required] : []);
+      scriptCtrl.setValidators(isNew ? [Validators.required] : []);
+      existingCtrl.setValidators(sourceType === 'existing' ? [Validators.required] : []);
+      nameCtrl.updateValueAndValidity();
+      scriptCtrl.updateValueAndValidity();
+      existingCtrl.updateValueAndValidity();
+    };
+    toggleUplinkValidators(uplinkSourceTypeCtrl.value);
+    uplinkSourceTypeCtrl.valueChanges.subscribe((sourceType) => toggleUplinkValidators(sourceType));
   }
 
   private defaultConverterName(type: IntegrationType, isUplink: boolean): string {
@@ -356,26 +440,46 @@ export class IntegrationDialogComponent implements OnInit {
     return this.downlinkConverterGroup.get('scriptLang').value === ConverterScriptLanguage.JS ? ScriptLanguage.JS : ScriptLanguage.TBEL;
   }
 
+  // PE ships separate TBEL / JS help docs and swaps them with the script language — the TBEL ones
+  // link to the TBEL guide and their examples omit helpers TBEL provides natively.
+  get uplinkScriptHelpId(): string {
+    return (this.uplinkConverterGroup.get('scriptLang').value === ConverterScriptLanguage.JS
+      ? 'converter/' : 'converter/tbel/') + 'decoder_fn';
+  }
+
+  get downlinkScriptHelpId(): string {
+    return (this.downlinkConverterGroup.get('scriptLang').value === ConverterScriptLanguage.JS
+      ? 'converter/' : 'converter/tbel/') + 'encoder_fn';
+  }
+
   testUplinkConverter(): void {
-    this.dialog.open(ConverterTestDialogComponent, {
+    this.dialog.open<ConverterTestDialogComponent, ConverterTestDialogData, string>(ConverterTestDialogComponent, {
       disableClose: false,
-      panelClass: ['tb-dialog'],
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog', 'tb-fullscreen-dialog-gt-xs'],
       data: {
         type: ConverterType.UPLINK,
         script: this.uplinkConverterGroup.get('script').value,
         scriptLang: this.uplinkConverterGroup.get('scriptLang').value
       }
+    }).afterClosed().subscribe((savedScript) => {
+      if (savedScript !== undefined) {
+        this.uplinkConverterGroup.get('script').setValue(savedScript);
+      }
     });
   }
 
   testDownlinkConverter(): void {
-    this.dialog.open(ConverterTestDialogComponent, {
+    this.dialog.open<ConverterTestDialogComponent, ConverterTestDialogData, string>(ConverterTestDialogComponent, {
       disableClose: false,
-      panelClass: ['tb-dialog'],
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog', 'tb-fullscreen-dialog-gt-xs'],
       data: {
         type: ConverterType.DOWNLINK,
         script: this.downlinkConverterGroup.get('script').value,
         scriptLang: this.downlinkConverterGroup.get('scriptLang').value
+      }
+    }).afterClosed().subscribe((savedScript) => {
+      if (savedScript !== undefined) {
+        this.downlinkConverterGroup.get('script').setValue(savedScript);
       }
     });
   }
@@ -508,18 +612,25 @@ export class IntegrationDialogComponent implements OnInit {
     const c = this.connectionGroup.value;
     const configuration: any = this.buildConfiguration(basic.type, c);
 
-    const uplinkConverter: Converter = {
-      ...(this.integration?.defaultConverterId ? { id: this.integration.defaultConverterId } : {}),
-      name: uplink.name,
-      type: ConverterType.UPLINK,
-      integrationType: basic.type,
-      debugSettings: uplink.debugSettings,
-      configuration: { scriptLang: uplink.scriptLang, decoder: uplink.script, updateOnlyKeys: uplink.updateOnlyKeys || [] }
-    } as Converter;
+    // 'new' upserts this integration's own uplink converter (same id every save); 'existing' just
+    // points defaultConverterId at a converter picked from the dropdown, with no write to it.
+    const uplink$ = uplink.sourceType === 'existing'
+      ? of({ id: new ConverterId(uplink.existingConverterId) } as Converter)
+      : this.converterService.saveConverter({
+          ...(this.integration?.defaultConverterId ? { id: this.integration.defaultConverterId } : {}),
+          name: uplink.name,
+          type: ConverterType.UPLINK,
+          integrationType: basic.type,
+          debugSettings: uplink.debugSettings,
+          configuration: { scriptLang: uplink.scriptLang, decoder: uplink.script, updateOnlyKeys: uplink.updateOnlyKeys || [] }
+        } as Converter);
 
-    this.converterService.saveConverter(uplinkConverter).pipe(
+    uplink$.pipe(
       switchMap((savedUplink) => {
-        if (downlink.create) {
+        // 'new' upserts this integration's own converter (same id every save, like before this
+        // 3-way picker existed); 'existing' just points at a converter picked from the dropdown,
+        // with no write to it; 'skip' clears the link.
+        if (downlink.sourceType === 'new') {
           const downlinkConverter: Converter = {
             ...(this.integration?.downlinkConverterId ? { id: this.integration.downlinkConverterId } : {}),
             name: downlink.name,
@@ -529,12 +640,15 @@ export class IntegrationDialogComponent implements OnInit {
             configuration: { scriptLang: downlink.scriptLang, encoder: downlink.script, updateOnlyKeys: downlink.updateOnlyKeys || [] }
           } as Converter;
           return this.converterService.saveConverter(downlinkConverter).pipe(
-            map((savedDownlink) => ({ savedUplink, savedDownlink }))
+            map((savedDownlink) => ({ savedUplink, downlinkConverterId: savedDownlink.id }))
           );
         }
-        return of({ savedUplink, savedDownlink: null });
+        if (downlink.sourceType === 'existing') {
+          return of({ savedUplink, downlinkConverterId: new ConverterId(downlink.existingConverterId) });
+        }
+        return of({ savedUplink, downlinkConverterId: null });
       }),
-      switchMap(({ savedUplink, savedDownlink }) => {
+      switchMap(({ savedUplink, downlinkConverterId }) => {
         const integration: Integration = {
           ...(this.integration || {} as Integration),
           name: basic.name,
@@ -542,40 +656,140 @@ export class IntegrationDialogComponent implements OnInit {
           enabled: basic.enabled,
           allowCreateDevicesOrAssets: basic.allowCreateDevicesOrAssets,
           debugSettings: basic.debugSettings,
+          remote: c.remote,
           defaultConverterId: savedUplink.id,
-          downlinkConverterId: savedDownlink ? savedDownlink.id : null,
-          configuration
+          downlinkConverterId,
+          configuration,
+          additionalInfo: {...(this.integration?.additionalInfo || {}), description: c.description}
         };
         return this.integrationService.saveIntegration(integration);
       })
     ).subscribe(() => this.dialogRef.close(true));
   }
 
+  get selectedTypeInfo(): IntegrationTypeInfo {
+    return this.selectedType ? integrationTypeInfoMap.get(this.selectedType) : null;
+  }
+
+  /** Both are server-generated, so they only exist once the integration has been saved. */
+  get integrationKey(): string {
+    return this.integration?.routingKey || null;
+  }
+
+  get integrationSecret(): string {
+    return this.integration?.secret || null;
+  }
+
+  copyToClipboard(value: string, what: 'key' | 'secret') {
+    if (!value) {
+      return;
+    }
+    navigator.clipboard.writeText(value).then(() => {
+      this.store.dispatch(new ActionNotificationShow({
+        message: this.translate.instant(what === 'key'
+          ? 'integration.integration-key-copied-message'
+          : 'integration.integration-secret-copied-message'),
+        type: 'success',
+        duration: 1500,
+        verticalPosition: 'top',
+        horizontalPosition: 'left'
+      }));
+    });
+  }
+
+  /** PE hides the downlink converter step entirely for types that have no downlink direction. */
+  get showDownlinkStep(): boolean {
+    return !this.selectedTypeInfo?.hideDownlink;
+  }
+
+  /**
+   * PE offers the probe only for types where it is meaningful, and never for a remote integration —
+   * the platform cannot dial the broker on the remote process's behalf.
+   */
+  get isCheckConnectionAvailable(): boolean {
+    return !!this.selectedTypeInfo?.checkConnection && !this.connectionGroup?.get('remote')?.value;
+  }
+
+  checkConnection(): void {
+    if (this.connectionGroup.invalid) {
+      this.connectionGroup.markAllAsTouched();
+      return;
+    }
+    const basic = this.basicGroup.value;
+    const probe: Integration = {
+      ...(this.integration || {} as Integration),
+      name: basic.name,
+      type: basic.type,
+      configuration: this.buildConfiguration(basic.type, this.connectionGroup.value)
+    };
+    this.checkInProgress = true;
+    this.checkResult = null;
+    this.integrationService.checkIntegrationConnection(probe, {ignoreErrors: true}).subscribe({
+      next: () => {
+        this.checkInProgress = false;
+        this.checkResult = {success: true};
+      },
+      error: (err) => {
+        this.checkInProgress = false;
+        this.checkResult = {success: false, error: err?.error?.message || err?.message || ''};
+      }
+    });
+  }
+
   private buildConfiguration(type: IntegrationType, c: any): any {
     const configuration: any = {};
     if (MQTT_FAMILY_INTEGRATION_TYPES.includes(type)) {
-      configuration.host = c.host;
-      configuration.port = c.port;
-      configuration.customHost = c.customHost;
+      // Nested under clientConfiguration to match PE's wire shape (MqttClientConfiguration.java);
+      // topicFilters/downlinkTopicPattern stay top-level, same as PE.
+      const clientConfiguration: any = {
+        host: c.host,
+        port: c.port,
+        customHost: c.customHost,
+        ssl: c.ssl,
+        protocolVersion: c.protocolVersion,
+        cleanSession: c.cleanSession,
+        retainedMessage: c.retainedMessage,
+        maxBytesInMessage: c.maxBytesInMessage,
+        connectTimeoutSec: c.connectTimeoutSec,
+        credentials: this.buildMqttCredentials(c)
+      };
       if (c.clientId) {
-        configuration.clientId = c.clientId;
+        clientConfiguration.clientId = c.clientId;
       }
-      configuration.credentials = this.buildMqttCredentials(c);
+      configuration.clientConfiguration = clientConfiguration;
       configuration.topicFilters = c.topicFilters;
       if (c.downlinkTopic) {
         configuration.downlinkTopic = c.downlinkTopic;
       }
-      if ((type === IntegrationType.TTN || type === IntegrationType.TTI) && c.downlinkTopicPattern) {
+      if (c.downlinkTopicPattern) {
         configuration.downlinkTopicPattern = c.downlinkTopicPattern;
       }
-    } else if (type === IntegrationType.TCP || type === IntegrationType.UDP) {
+    } else if (type === IntegrationType.TCP) {
       configuration.port = c.tcpPort;
+      configuration.soBacklogOption = c.soBacklogOption;
+      configuration.soRcvBuf = c.soRcvBuf;
+      configuration.soSndBuf = c.soSndBuf;
+      configuration.soKeepaliveOption = c.soKeepaliveOption;
+      configuration.tcpNoDelay = c.tcpNoDelay;
       configuration.handlerType = c.handlerType;
       configuration.maxFrameLength = c.maxFrameLength;
-      if (c.handlerType !== TcpHandlerType.BINARY) {
-        configuration.charsetName = c.charsetName;
-        configuration.delimiter = c.delimiter;
+      configuration.charsetName = c.charsetName;
+      if (c.handlerType === TcpHandlerType.BINARY) {
+        configuration.lengthFieldOffset = c.lengthFieldOffset;
+        configuration.lengthFieldLength = c.lengthFieldLength;
+        configuration.lengthAdjustment = c.lengthAdjustment;
+        configuration.initialBytesToStrip = c.initialBytesToStrip;
+        configuration.byteOrder = c.byteOrder;
+        configuration.failFast = c.failFast;
+      } else if (c.handlerType === TcpHandlerType.TEXT) {
+        configuration.stripDelimiter = c.stripDelimiter;
+        configuration.messageSeparator = c.messageSeparator;
+        if (c.messageSeparator === TcpMessageSeparator.CUSTOM) {
+          configuration.customSeparatorRawValue = c.customSeparatorRawValue;
+        }
       }
+    } else if (type === IntegrationType.UDP) {
+      configuration.port = c.tcpPort;
     } else if (type === IntegrationType.COAP) {
       configuration.port = c.coapPort;
       configuration.resourceName = c.resourceName;
@@ -640,6 +854,10 @@ export class IntegrationDialogComponent implements OnInit {
     }
     // HTTP + LPWAN webhook types (SIGFOX/OCEANCONNECT/CHIRPSTACK/PARTICLE/KPN/LORIOT/THINGPARK/TPE/TMOBILE_IOT_CDP):
     // no extra config in this port — the routing key is the only thing that identifies them.
+    // Free-form metadata lives alongside the type-specific config, same as PE.
+    if (c.metadata && Object.keys(c.metadata).length) {
+      configuration.metadata = c.metadata;
+    }
     return configuration;
   }
 

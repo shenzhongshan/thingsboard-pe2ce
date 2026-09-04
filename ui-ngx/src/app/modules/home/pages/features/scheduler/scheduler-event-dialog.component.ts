@@ -29,20 +29,13 @@ import { OtaUpdateType } from '@shared/models/ota-package.models';
 import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { SchedulerEventService } from '@core/http/scheduler-event.service';
 import { EntityService } from '@core/http/entity.service';
-import { ReportTemplateService } from '@core/http/report-template.service';
-import { NotificationService } from '@core/http/notification.service';
 import { EntityGroupService } from '@core/http/entity-group.service';
-import { PageLink } from '@shared/models/page/page-link';
-import { ReportTemplateInfo } from '@shared/models/report.models';
-import { NotificationTarget, NotificationTemplate, NotificationType } from '@shared/models/notification.models';
+import { ReportTemplateType } from '@shared/models/report.models';
+import { NotificationTarget, NotificationType } from '@shared/models/notification.models';
 import {
   RecipientNotificationDialogComponent,
   RecipientNotificationDialogData
 } from '@home/pages/notification/recipient/recipient-notification-dialog.component';
-import {
-  TemplateNotificationDialogComponent,
-  TemplateNotificationDialogData
-} from '@home/pages/notification/template/template-notification-dialog.component';
 import { EntityGroup } from '@shared/models/entity-group.models';
 import {
   newSchedulerEvent,
@@ -105,9 +98,8 @@ export class SchedulerEventDialogComponent implements OnInit {
   targetDeviceGroupId: string = null;
   targetDeviceGroupAll = false;
 
-  reportTemplates: ReportTemplateInfo[] = [];
-  notificationTargets: NotificationTarget[] = [];
-  notificationTemplates: NotificationTemplate[] = [];
+  ReportTemplateType = ReportTemplateType;
+  NotificationType = NotificationType;
 
   @ViewChild('tabGroup') tabGroup: MatTabGroup;
 
@@ -118,8 +110,6 @@ export class SchedulerEventDialogComponent implements OnInit {
               protected store: Store<AppState>,
               private schedulerEventService: SchedulerEventService,
               private entityService: EntityService,
-              private reportTemplateService: ReportTemplateService,
-              private notificationService: NotificationService,
               private entityGroupService: EntityGroupService,
               private translate: TranslateService,
               private dialog: MatDialog,
@@ -128,16 +118,6 @@ export class SchedulerEventDialogComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.reportTemplateService.getReportTemplateInfos(new PageLink(100)).subscribe((page) => {
-      this.reportTemplates = page.data;
-    });
-    // CE reports notify via NotificationType.GENERAL (PE's dedicated REPORT_GENERATED type has no CE equivalent).
-    this.notificationService.getNotificationTargets(new PageLink(100), NotificationType.GENERAL).subscribe((page) => {
-      this.notificationTargets = page.data;
-    });
-    this.notificationService.getNotificationTemplates(new PageLink(100), NotificationType.GENERAL).subscribe((page) => {
-      this.notificationTemplates = page.data;
-    });
     if (this.isEdit) {
       this.schedulerEventService.getSchedulerEvent(this.data.schedulerEventId).subscribe((event) => {
         this.schedulerEvent = event;
@@ -181,8 +161,9 @@ export class SchedulerEventDialogComponent implements OnInit {
         {entityType: EntityType.USER, id: config.msgBody.userId.id} as EntityId :
         {entityType: EntityType.USER, id: getCurrentAuthUser(this.store).userId} as EntityId],
       reportTargets: [event.type === SchedulerEventType.GENERATE_REPORT ? (config.msgBody?.targets || []) : []],
+      // tb-template-autocomplete's model is a full EntityId, not a bare id string.
       reportNotificationTemplateId: [event.type === SchedulerEventType.GENERATE_REPORT ?
-        config.msgBody?.notificationTemplateId?.id : null],
+        (config.msgBody?.notificationTemplateId || null) : null],
       // schedule
       timezone: [event.schedule?.timezone, [Validators.required]],
       startTime: [event.schedule?.startTime, [Validators.required]],
@@ -248,23 +229,7 @@ export class SchedulerEventDialogComponent implements OnInit {
       data: {isAdd: true}
     }).afterClosed().subscribe((target) => {
       if (target) {
-        this.notificationTargets = [...this.notificationTargets, target];
         this.form.get('reportTargets').patchValue([...(this.form.get('reportTargets').value || []), target.id.id]);
-        this.form.markAsDirty();
-      }
-    });
-  }
-
-  createNotificationTemplate() {
-    this.dialog.open<TemplateNotificationDialogComponent, TemplateNotificationDialogData, NotificationTemplate>(
-      TemplateNotificationDialogComponent, {
-      disableClose: true,
-      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-      data: {isAdd: true, predefinedType: NotificationType.GENERAL}
-    }).afterClosed().subscribe((template) => {
-      if (template) {
-        this.notificationTemplates = [...this.notificationTemplates, template];
-        this.form.get('reportNotificationTemplateId').patchValue(template.id.id);
         this.form.markAsDirty();
       }
     });
@@ -469,8 +434,7 @@ export class SchedulerEventDialogComponent implements OnInit {
             userId: {id: v.reportUserId.id, entityType: EntityType.USER},
             timezone: v.timezone,
             targets: v.reportTargets || [],
-            notificationTemplateId: v.reportNotificationTemplateId ?
-              {id: v.reportNotificationTemplateId, entityType: EntityType.NOTIFICATION_TEMPLATE} : null
+            notificationTemplateId: v.reportNotificationTemplateId || null
           }
         };
       default:

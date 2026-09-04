@@ -16,6 +16,8 @@
 package org.thingsboard.server.dao.sql.event;
 
 import com.datastax.oss.driver.api.core.uuid.Uuids;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.common.util.concurrent.ListenableFuture;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.event.CalculatedFieldDebugEventFilter;
 import org.thingsboard.server.common.data.event.DebugConverterEventFilter;
@@ -51,7 +54,9 @@ import org.thingsboard.server.dao.sql.TbSqlBlockingQueueWrapper;
 import org.thingsboard.server.dao.sqlts.insert.sql.SqlPartitioningRepository;
 import org.thingsboard.server.dao.util.SqlDao;
 
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -149,6 +154,25 @@ public class JpaBaseEventDao implements EventDao {
         partitioningRepository.createPartitionIfNotExists(event.getType().getTable(), event.getCreatedTime(),
                 partitionConfiguration.getPartitionSizeInMs(event.getType()));
         return queue.add(event);
+    }
+
+    @Override
+    public Map<UUID, ArrayNode> findAggregatedDailyStats(UUID tenantId, List<UUID> entityIds) {
+        if (entityIds == null || entityIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<UUID, ArrayNode> result = new HashMap<>();
+        for (StatisticsEventRepository.Stats row : statsEventRepository.findAggregatedDailyStats(tenantId, entityIds)) {
+            String stats = row.getStats();
+            if (StringUtils.isEmpty(stats)) {
+                continue;
+            }
+            JsonNode parsed = JacksonUtil.toJsonNode(stats);
+            if (parsed instanceof ArrayNode arrayNode) {
+                result.put(row.getEntityId(), arrayNode);
+            }
+        }
+        return result;
     }
 
     @Override

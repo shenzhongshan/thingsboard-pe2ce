@@ -15,7 +15,23 @@
  */
 :host {
   display: block;
-  padding: 16px;
+  height: 100%;
+
+  .tb-ic-drawer-container {
+    height: 100%;
+    overflow: clip;
+  }
+
+  // PE's own details drawer measures 773.5px wide at a 1440px window (verified live against the
+  // running PE instance) — wide enough that all tabs render without a horizontal scroll arrow.
+  .tb-ic-details-drawer {
+    width: 800px;
+    max-width: 90vw;
+  }
+
+  mat-drawer-content {
+    padding: 16px;
+  }
 
   .tb-ic-header {
     align-items: center;

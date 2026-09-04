@@ -23,12 +23,22 @@ import { IntegrationDialogComponent } from '@home/pages/integration/integration/
 import { ConvertersComponent } from '@home/pages/integration/converter/converters.component';
 import { ConverterDialogComponent } from '@home/pages/integration/converter/converter-dialog.component';
 import { ConverterTestDialogComponent } from '@home/pages/integration/converter/converter-test-dialog.component';
+import { IntegrationDetailsPanelComponent } from '@home/pages/integration/integration-details-panel.component';
+import {
+  IntegrationEntityDetailsPageComponent
+} from '@home/pages/integration/integration-entity-details-page.component';
+import { HomeComponentsModule } from '@home/components/home-components.module';
 import { EntityDebugSettingsButtonComponent } from '@home/components/entity/debug/entity-debug-settings-button.component';
+import {
+  IntegrationActivitySparklineComponent
+} from '@home/pages/integration/integration/integration-activity-sparkline.component';
 
 @NgModule({
   declarations: [
     IntegrationsComponent,
     IntegrationDialogComponent,
+    IntegrationDetailsPanelComponent,
+    IntegrationEntityDetailsPageComponent,
     ConvertersComponent,
     ConverterDialogComponent,
     ConverterTestDialogComponent
@@ -36,8 +46,11 @@ import { EntityDebugSettingsButtonComponent } from '@home/components/entity/debu
   imports: [
     CommonModule,
     SharedModule,
+    // brings in tb-event-table/tb-relation-table/tb-attribute-table/etc. for the details panel
+    HomeComponentsModule,
     IntegrationCenterRoutingModule,
-    EntityDebugSettingsButtonComponent
+    EntityDebugSettingsButtonComponent,
+    IntegrationActivitySparklineComponent
   ]
 })
 export class IntegrationCenterModule { }

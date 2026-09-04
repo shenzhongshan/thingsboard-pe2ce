@@ -30,7 +30,9 @@ export enum EventType {
 export enum DebugEventType {
   DEBUG_RULE_NODE = 'DEBUG_RULE_NODE',
   DEBUG_RULE_CHAIN = 'DEBUG_RULE_CHAIN',
-  DEBUG_CALCULATED_FIELD = 'DEBUG_CALCULATED_FIELD'
+  DEBUG_CALCULATED_FIELD = 'DEBUG_CALCULATED_FIELD',
+  DEBUG_INTEGRATION = 'DEBUG_INTEGRATION',
+  DEBUG_CONVERTER = 'DEBUG_CONVERTER'
 }
 
 export const eventTypeTranslations = new Map<EventType | DebugEventType, string>(
@@ -41,6 +43,8 @@ export const eventTypeTranslations = new Map<EventType | DebugEventType, string>
     [DebugEventType.DEBUG_RULE_NODE, 'event.type-debug-rule-node'],
     [DebugEventType.DEBUG_RULE_CHAIN, 'event.type-debug-rule-chain'],
     [DebugEventType.DEBUG_CALCULATED_FIELD, 'event.type-debug-calculated-field'],
+    [DebugEventType.DEBUG_INTEGRATION, 'event.type-debug-integration'],
+    [DebugEventType.DEBUG_CONVERTER, 'event.type-debug-converter'],
   ]
 );
 
@@ -82,7 +86,28 @@ export interface DebugRuleChainEventBody extends BaseEventBody {
   error?: string;
 }
 
-export type EventBody = ErrorEventBody & LcEventEventBody & StatsEventBody & DebugRuleNodeEventBody & DebugRuleChainEventBody & CalculatedFieldEventBody;
+/** integration_debug_event rows: one per uplink/downlink message the integration handled. */
+export interface DebugIntegrationEventBody extends BaseEventBody {
+  type: string;
+  messageType?: string;
+  message?: string;
+  status?: string;
+  error?: string;
+}
+
+/** converter_debug_event rows: the payload handed to the script and the JSON it returned. */
+export interface DebugConverterEventBody extends BaseEventBody {
+  type: string;
+  inMessageType?: string;
+  in?: string;
+  outMessageType?: string;
+  out?: string;
+  metadata?: string;
+  error?: string;
+}
+
+export type EventBody = ErrorEventBody & LcEventEventBody & StatsEventBody & DebugRuleNodeEventBody &
+  DebugRuleChainEventBody & CalculatedFieldEventBody & DebugIntegrationEventBody & DebugConverterEventBody;
 
 export interface Event extends BaseData<EventId> {
   tenantId: TenantId;

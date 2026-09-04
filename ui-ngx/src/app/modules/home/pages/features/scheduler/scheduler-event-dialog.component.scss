@@ -36,14 +36,61 @@
       margin-bottom: 12px;
     }
 
-    // The RPC params editor needs a real height or the Ace instance collapses to zero.
+    // Let the editor size itself (its own min-height applies). A fixed height here would be smaller
+    // than the Ace pane's min-height and the content would spill over the rows below.
     .tb-scheduler-event-configuration-json {
       display: block;
-      height: 200px;
+      margin-bottom: 8px;
     }
 
     .tb-panel-title {
       font-weight: 500;
+    }
+
+    // PE's tb-form-row: a bordered, label-left/value-right row for compact settings blocks
+    // (RPC method, timeout, oneway/persistent toggles). Not a global CE utility, so scoped here.
+    .tb-form-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 4px;
+      padding: 4px 12px;
+      margin-bottom: 8px;
+      min-height: 48px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .tb-form-row-label {
+        flex: 0 0 auto;
+        color: rgba(0, 0, 0, 0.6);
+
+        &.tb-required::after {
+          content: ' *';
+          color: #dd2c00;
+        }
+      }
+
+      .tb-form-row-value {
+        flex: 1 1 auto;
+        margin: 4px 0;
+
+        &.tb-form-row-value-number {
+          max-width: 160px;
+        }
+      }
+
+      mat-slide-toggle {
+        width: 100%;
+      }
+
+      mat-icon.tb-error {
+        color: #dd2c00;
+      }
     }
   }
 }

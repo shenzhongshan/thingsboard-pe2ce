@@ -14,11 +14,12 @@
 /// limitations under the License.
 ///
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Renderer2, ViewContainerRef } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { MatDialog } from '@angular/material/dialog';
+import { MatIconButton } from '@angular/material/button';
 import { TranslateService } from '@ngx-translate/core';
 import { DialogService } from '@core/services/dialog.service';
 import { SchedulerEventService } from '@core/http/scheduler-event.service';
@@ -32,6 +33,8 @@ import {
   SchedulerEventDialogComponent,
   SchedulerEventDialogData
 } from '@home/pages/features/scheduler/scheduler-event-dialog.component';
+import { TbPopoverService } from '@shared/components/popover.service';
+import { VersionControlComponent } from '@home/components/vc/version-control.component';
 
 interface CalendarCell {
   date: Date;
@@ -75,7 +78,10 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
               private schedulerEventService: SchedulerEventService,
               private dialogService: DialogService,
               private translate: TranslateService,
-              private dialog: MatDialog) {
+              private dialog: MatDialog,
+              private popoverService: TbPopoverService,
+              private renderer: Renderer2,
+              private viewContainerRef: ViewContainerRef) {
     super(store);
   }
 
@@ -170,6 +176,36 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
     $event?.stopPropagation();
     this.schedulerEventService.enableSchedulerEvent(event.id.id, enabled).subscribe(() => {
       event.enabled = enabled;
+    });
+  }
+
+  toggleVersionControl($event: Event, event: SchedulerEventWithCustomerInfo, versionControlButton: MatIconButton) {
+    $event?.stopPropagation();
+    const trigger = versionControlButton._elementRef.nativeElement;
+    if (this.popoverService.hasPopover(trigger)) {
+      this.popoverService.hidePopover(trigger);
+      return;
+    }
+    const versionControlPopover = this.popoverService.displayPopover({
+      trigger,
+      renderer: this.renderer,
+      hostView: this.viewContainerRef,
+      componentType: VersionControlComponent,
+      preferredPlacement: 'leftTop',
+      hideOnClickOutside: true,
+      context: {
+        detailsMode: true,
+        active: true,
+        singleEntityMode: true,
+        externalEntityId: event.externalId || event.id,
+        entityId: event.id,
+        entityName: event.name
+      },
+      isModal: true
+    });
+    versionControlPopover.tbComponentRef.instance.popoverComponent = versionControlPopover;
+    versionControlPopover.tbComponentRef.instance.versionRestored.subscribe(() => {
+      this.reload();
     });
   }
 

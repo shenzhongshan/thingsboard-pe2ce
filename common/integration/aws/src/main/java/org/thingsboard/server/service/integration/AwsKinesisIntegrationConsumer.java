@@ -91,7 +91,7 @@ public class AwsKinesisIntegrationConsumer implements IntegrationRuntime {
         this.stopped = false;
         for (Shard shard : shards) {
             Thread t = new Thread(() -> pollShard(streamName, shard.shardId(), iteratorType, maxRecords),
-                    "kinesis-integration-" + integration.getId().getId() + "-" + shard.shardId());
+                    "kinesis-integration-" + IntegrationConfigUtil.safeId(integration) + "-" + shard.shardId());
             t.setDaemon(true);
             shardThreads.add(t);
             t.start();

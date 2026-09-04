@@ -58,6 +58,8 @@ export interface Converter extends BaseData<ConverterId> {
   debugSettings?: EntityDebugSettings;
   configuration: ConverterConfiguration;
   additionalInfo?: {description?: string; [key: string]: any};
+  /** Set once this converter has been exported to a VCS repository. */
+  externalId?: ConverterId;
 }
 
 export const DEFAULT_TBEL_DECODER =

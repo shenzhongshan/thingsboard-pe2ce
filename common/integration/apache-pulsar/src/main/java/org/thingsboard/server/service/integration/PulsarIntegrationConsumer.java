@@ -59,7 +59,7 @@ public class PulsarIntegrationConsumer implements IntegrationRuntime {
         JsonNode cfg = IntegrationConfigUtil.clientConfig(integration.getConfiguration());
         String serviceUrl = IntegrationConfigUtil.required(cfg, "serviceUrl");
         String topics = IntegrationConfigUtil.required(cfg, "topics");
-        String subscriptionName = cfg.has("subscriptionName") ? cfg.get("subscriptionName").asText() : "tb-integration-" + integration.getId();
+        String subscriptionName = cfg.has("subscriptionName") ? cfg.get("subscriptionName").asText() : "tb-integration-" + IntegrationConfigUtil.safeId(integration);
 
         var clientBuilder = PulsarClient.builder().serviceUrl(serviceUrl);
         JsonNode credentials = cfg.get("credentials");
@@ -81,7 +81,7 @@ public class PulsarIntegrationConsumer implements IntegrationRuntime {
         this.client = pulsarClient;
         this.consumer = pulsarConsumer;
         this.stopped = false;
-        this.pollThread = new Thread(() -> pollLoop(cfg), "pulsar-integration-" + integration.getId().getId());
+        this.pollThread = new Thread(() -> pollLoop(cfg), "pulsar-integration-" + IntegrationConfigUtil.safeId(integration));
         this.pollThread.setDaemon(true);
         this.pollThread.start();
         log.info("[{}][{}] Pulsar integration subscribed to [{}]", tenantId, integration.getName(), topics);

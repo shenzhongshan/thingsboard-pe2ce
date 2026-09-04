@@ -82,6 +82,30 @@ export enum TcpHandlerType {
   BINARY = 'BINARY'
 }
 
+export enum TcpMessageSeparator {
+  SYSTEM_LINE_SEPARATOR = 'SYSTEM_LINE_SEPARATOR',
+  NUL = 'NUL',
+  CUSTOM = 'CUSTOM'
+}
+
+export enum TcpByteOrder {
+  BIG_ENDIAN = 'BIG_ENDIAN',
+  LITTLE_ENDIAN = 'LITTLE_ENDIAN'
+}
+
+/** Netty's MqttVersion names — the backend parses this string with MqttVersion.valueOf(). */
+export enum MqttProtocolVersion {
+  MQTT_3_1 = 'MQTT_3_1',
+  MQTT_3_1_1 = 'MQTT_3_1_1',
+  MQTT_5 = 'MQTT_5'
+}
+
+export const mqttProtocolVersionLabels = new Map<MqttProtocolVersion, string>([
+  [MqttProtocolVersion.MQTT_3_1, 'MQTT 3.1'],
+  [MqttProtocolVersion.MQTT_3_1_1, 'MQTT 3.1.1'],
+  [MqttProtocolVersion.MQTT_5, 'MQTT 5']
+]);
+
 export enum MqttCredentialsType {
   ANONYMOUS = 'anonymous',
   BASIC = 'basic',
@@ -129,38 +153,48 @@ export interface IntegrationTypeInfo {
   name: string;
   description: string;
   icon: string;
+  /** The type supports a pre-save connectivity probe (POST /api/integration/check). */
+  checkConnection?: boolean;
+  /** The type has no downlink direction, so the wizard skips the downlink converter step. */
+  hideDownlink?: boolean;
+  /** The type only runs in a separate remote process — `remote` is forced on and locked. */
+  remote?: boolean;
 }
 
+// `checkConnection` and `hideDownlink` are copied verbatim from PE's own map.
+// `remote` is deliberately NOT copied: PE marks TCP/UDP/CUSTOM remote-only because PE has no
+// in-process runtime for them, whereas this build does (TcpIntegrationServer, UdpIntegrationServer,
+// and the allow-listed CUSTOM loader). Forcing them remote here would break working integrations.
 export const integrationTypeInfoMap = new Map<IntegrationType, IntegrationTypeInfo>([
   [IntegrationType.HTTP, { name: 'HTTP', description: 'integration.type-http-description', icon: 'http' }],
-  [IntegrationType.MQTT, { name: 'MQTT', description: 'integration.type-mqtt-description', icon: 'mqtt' }],
+  [IntegrationType.MQTT, { name: 'MQTT', description: 'integration.type-mqtt-description', icon: 'mqtt', checkConnection: true }],
   [IntegrationType.TCP, { name: 'TCP', description: 'integration.type-tcp-description', icon: 'tcp' }],
   [IntegrationType.UDP, { name: 'UDP', description: 'integration.type-udp-description', icon: 'udp' }],
-  [IntegrationType.COAP, { name: 'CoAP', description: 'integration.type-coap-description', icon: 'coap' }],
+  [IntegrationType.COAP, { name: 'CoAP', description: 'integration.type-coap-description', icon: 'coap', hideDownlink: true }],
   [IntegrationType.OPC_UA, { name: 'OPC-UA', description: 'integration.type-opcua-description', icon: 'opc-ua' }],
   [IntegrationType.CUSTOM, { name: 'integration.type-custom-name', description: '', icon: 'custom' }],
   [IntegrationType.AWS_IOT, { name: 'AWS IoT', description: 'integration.type-aws-iot-description', icon: 'aws-iot' }],
   [IntegrationType.AZURE_IOT_HUB, { name: 'Azure IoT Hub', description: 'integration.type-azure-iot-hub-description', icon: 'azure-iot-hub' }],
-  [IntegrationType.TTN, { name: 'The Things Stack Community', description: 'integration.type-ttn-description', icon: 'ttn' }],
-  [IntegrationType.TTI, { name: 'The Things Stack Industries', description: 'integration.type-tti-description', icon: 'things-stack-industries' }],
-  [IntegrationType.AWS_SQS, { name: 'AWS SQS', description: 'integration.type-aws-sqs-description', icon: 'aws-sqs' }],
+  [IntegrationType.TTN, { name: 'The Things Stack Community', description: 'integration.type-ttn-description', icon: 'ttn', checkConnection: true }],
+  [IntegrationType.TTI, { name: 'The Things Stack Industries', description: 'integration.type-tti-description', icon: 'things-stack-industries', checkConnection: true }],
+  [IntegrationType.AWS_SQS, { name: 'AWS SQS', description: 'integration.type-aws-sqs-description', icon: 'aws-sqs', hideDownlink: true }],
   [IntegrationType.AWS_KINESIS, { name: 'AWS Kinesis', description: 'integration.type-aws-kinesis-description', icon: 'aws-kinesis' }],
-  [IntegrationType.AZURE_EVENT_HUB, { name: 'Azure Event Hub', description: 'integration.type-azure-event-hub-description', icon: 'azure-event-hub' }],
-  [IntegrationType.AZURE_SERVICE_BUS, { name: 'Azure Service Bus', description: 'integration.type-azure-service-bus-description', icon: 'azure-service-bus' }],
-  [IntegrationType.PUB_SUB, { name: 'Pub/Sub', description: 'integration.type-pubsub-description', icon: 'pub-sub' }],
-  [IntegrationType.KAFKA, { name: 'Kafka', description: 'integration.type-kafka-description', icon: 'kafka' }],
-  [IntegrationType.RABBITMQ, { name: 'RabbitMQ', description: 'integration.type-rabbitmq-description', icon: 'rabbitmq' }],
-  [IntegrationType.APACHE_PULSAR, { name: 'Apache Pulsar', description: 'integration.type-apache-pulsar-description', icon: 'apache-pulsar' }],
+  [IntegrationType.AZURE_EVENT_HUB, { name: 'Azure Event Hub', description: 'integration.type-azure-event-hub-description', icon: 'azure-event-hub', checkConnection: true }],
+  [IntegrationType.AZURE_SERVICE_BUS, { name: 'Azure Service Bus', description: 'integration.type-azure-service-bus-description', icon: 'azure-service-bus', checkConnection: true }],
+  [IntegrationType.PUB_SUB, { name: 'Pub/Sub', description: 'integration.type-pubsub-description', icon: 'pub-sub', hideDownlink: true }],
+  [IntegrationType.KAFKA, { name: 'Kafka', description: 'integration.type-kafka-description', icon: 'kafka', hideDownlink: true }],
+  [IntegrationType.RABBITMQ, { name: 'RabbitMQ', description: 'integration.type-rabbitmq-description', icon: 'rabbitmq', checkConnection: true }],
+  [IntegrationType.APACHE_PULSAR, { name: 'Apache Pulsar', description: 'integration.type-apache-pulsar-description', icon: 'apache-pulsar', hideDownlink: true }],
   [IntegrationType.TUYA, { name: 'Tuya', description: 'integration.type-tuya-description', icon: 'tuya' }],
   [IntegrationType.SIGFOX, { name: 'SigFox', description: 'integration.type-sigfox-description', icon: 'sigfox' }],
   [IntegrationType.CHIRPSTACK, { name: 'ChirpStack', description: 'integration.type-chirpstack-description', icon: 'chirpstack' }],
   [IntegrationType.PARTICLE, { name: 'Particle', description: 'integration.type-particle-description', icon: 'particle' }],
   [IntegrationType.KPN, { name: 'KPN Things', description: 'integration.type-kpn-description', icon: 'kpn' }],
   [IntegrationType.LORIOT, { name: 'Loriot', description: 'integration.type-loriot-description', icon: 'loriot' }],
-  [IntegrationType.OCEANCONNECT, { name: 'OceanConnect', description: 'integration.type-oceanconnect-description', icon: 'ocean-connect' }],
+  [IntegrationType.OCEANCONNECT, { name: 'OceanConnect', description: 'integration.type-oceanconnect-description', icon: 'ocean-connect', hideDownlink: true }],
   [IntegrationType.THINGPARK, { name: 'ThingPark', description: 'integration.type-thingpark-description', icon: 'thingpark' }],
   [IntegrationType.TPE, { name: 'ThingParkEnterprise', description: 'integration.type-tpe-description', icon: 'thingpark-enterprise' }],
-  [IntegrationType.TMOBILE_IOT_CDP, { name: 'iotcreators.com (T-Mobile IoT CDP)', description: 'integration.type-tmobile-iot-cdp-description', icon: 'iotcreators.com' }]
+  [IntegrationType.TMOBILE_IOT_CDP, { name: 'iotcreators.com (T-Mobile IoT CDP)', description: 'integration.type-tmobile-iot-cdp-description', icon: 'iotcreators.com', hideDownlink: true }]
 ]);
 
 export interface MqttTopicFilter {
@@ -180,17 +214,9 @@ export interface OpcUaDeviceMapping {
 }
 
 export interface IntegrationConfiguration {
-  // MQTT family (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI)
-  host?: string;
-  port?: number;
-  customHost?: boolean;
-  clientId?: string;
-  credentials?: {
-    type: MqttCredentialsType;
-    username?: string; password?: string;
-    caCert?: string; cert?: string; privateKey?: string; privateKeyPassword?: string;
-    sasKey?: string;
-  };
+  // MQTT family (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI): everything but topicFilters/
+  // downlinkTopicPattern lives under clientConfiguration, matching PE's wire shape exactly
+  // (MqttClientConfiguration.java) rather than this port's earlier flattened one.
   topicFilters?: MqttTopicFilter[];
   downlinkTopic?: string;
   downlinkTopicPattern?: string;
@@ -199,9 +225,28 @@ export interface IntegrationConfiguration {
   maxFrameLength?: number;
   charsetName?: string;
   delimiter?: string;
+  // TCP only — socket tuning, shared by every handler type
+  soBacklogOption?: number;
+  soRcvBuf?: number;
+  soSndBuf?: number;
+  soKeepaliveOption?: boolean;
+  tcpNoDelay?: boolean;
+  // TCP TEXT handler
+  stripDelimiter?: boolean;
+  messageSeparator?: TcpMessageSeparator;
+  customSeparatorRawValue?: string;
+  // TCP BINARY handler (Netty LengthFieldBasedFrameDecoder)
+  lengthFieldOffset?: number;
+  lengthFieldLength?: number;
+  lengthAdjustment?: number;
+  initialBytesToStrip?: number;
+  byteOrder?: TcpByteOrder;
+  failFast?: boolean;
   // CoAP
   resourceName?: string;
   // OPC-UA
+  host?: string;
+  port?: number;
   applicationName?: string;
   applicationUri?: string;
   endpoint?: string;
@@ -211,19 +256,32 @@ export interface IntegrationConfiguration {
   mapping?: OpcUaDeviceMapping[];
   // CUSTOM
   clazz?: string;
-  // Kafka / RabbitMQ / Pulsar / Tuya / AWS SQS / Kinesis / Azure Event Hub / Service Bus / Pub/Sub
-  // (all nested under clientConfiguration on the wire, except AWS_SQS which uses sqsConfiguration)
+  // MQTT family / Kafka / RabbitMQ / Pulsar / Tuya / Kinesis / Azure Event Hub / Service Bus /
+  // Pub/Sub all nest their connection settings under clientConfiguration on the wire (AWS_SQS is
+  // the one exception, using the separate sqsConfiguration key below). Every field here belongs to
+  // exactly one of those types' shapes — harmless to declare together since only one type is ever
+  // active per integration, same as how the rest of this loosely-typed interface works.
   clientConfiguration?: {
+    // MQTT family
+    host?: string; port?: number; customHost?: boolean; clientId?: string;
+    ssl?: boolean; protocolVersion?: MqttProtocolVersion; cleanSession?: boolean; retainedMessage?: boolean;
+    maxBytesInMessage?: number; connectTimeoutSec?: number;
+    credentials?: {
+      type: MqttCredentialsType | PulsarCredentialsType;
+      username?: string; password?: string; token?: string;
+      caCert?: string; cert?: string; privateKey?: string; privateKeyPassword?: string; sasKey?: string;
+    };
     // Kafka
-    clientId?: string; groupId?: string; topics?: string; bootstrapServers?: string; autoCreateTopics?: string;
+    groupId?: string; topics?: string; bootstrapServers?: string; autoCreateTopics?: string;
     pollInterval?: number; otherProperties?: { [key: string]: string };
-    // RabbitMQ
-    exchangeName?: string; host?: string; port?: number; virtualHost?: string; username?: string; password?: string;
-    downlinkTopic?: string; queues?: string; connectionTimeout?: number; handshakeTimeout?: number;
+    // RabbitMQ (its own username/password, not nested under credentials like MQTT/Pulsar)
+    exchangeName?: string; virtualHost?: string; username?: string; password?: string;
+    downlinkTopic?: string; queues?: string;
+    connectionTimeout?: number; handshakeTimeout?: number;
     durable?: boolean; exclusive?: boolean; autoDelete?: boolean;
     // Pulsar
     serviceUrl?: string; subscriptionName?: string; maxNumMessages?: number; maxNumBytes?: number;
-    timeoutInMs?: number; credentials?: { type: PulsarCredentialsType; token?: string };
+    timeoutInMs?: number;
     // Tuya
     region?: TuyaRegion; accessId?: string; accessKey?: string; env?: TuyaEnv;
     // AWS Kinesis
@@ -252,9 +310,13 @@ export interface Integration extends BaseData<IntegrationId> {
   secret?: string;
   enabled: boolean;
   allowCreateDevicesOrAssets: boolean;
+  /** Runs in a separate process that connects back over gRPC with this routingKey/secret. */
+  remote?: boolean;
   debugSettings?: EntityDebugSettings;
   configuration: IntegrationConfiguration;
   additionalInfo?: {description?: string; [key: string]: any};
+  /** Set once this integration has been exported to a VCS repository. */
+  externalId?: IntegrationId;
 }
 
 export interface IntegrationStatus {
@@ -262,6 +324,48 @@ export interface IntegrationStatus {
   error?: string;
   eventsCountToday?: number;
 }
+
+/** Runtime status as returned inside IntegrationInfo. Absent entirely means "not reported yet". */
+export interface IntegrationRuntimeStatus {
+  success: boolean;
+  error?: string;
+}
+
+/** An Integration plus what the list needs to render the status pill and the activity sparkline. */
+export interface IntegrationInfo extends Integration {
+  status?: IntegrationRuntimeStatus;
+  /** Per-hour message counts over the last 24h, oldest first. */
+  stats?: number[];
+}
+
+export enum IntegrationState {
+  ACTIVE = 'active',
+  DISABLED = 'disabled',
+  FAILED = 'failed',
+  PENDING = 'pending'
+}
+
+/**
+ * PE's state derivation, in PE's order: a disabled integration reads "disabled" whatever its last
+ * runtime status was, and one that has never reported is "pending" rather than failed.
+ */
+export function integrationState(integration: IntegrationInfo): IntegrationState {
+  if (!integration.enabled) {
+    return IntegrationState.DISABLED;
+  }
+  if (!integration.status) {
+    return IntegrationState.PENDING;
+  }
+  return integration.status.success ? IntegrationState.ACTIVE : IntegrationState.FAILED;
+}
+
+/** Background/foreground pairs copied from PE's integrationStatus/integrationStatusStyle. */
+export const integrationStateStyle = new Map<IntegrationState, {background: string; color: string}>([
+  [IntegrationState.ACTIVE, { background: 'rgba(25, 128, 56, 0.08)', color: '#198038' }],
+  [IntegrationState.FAILED, { background: 'rgba(209, 39, 48, 0.08)', color: '#d12730' }],
+  [IntegrationState.PENDING, { background: 'rgba(212, 125, 24, 0.08)', color: '#D47D18' }],
+  [IntegrationState.DISABLED, { background: 'rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.54)' }]
+]);
 
 export function newIntegration(): Integration {
   return {

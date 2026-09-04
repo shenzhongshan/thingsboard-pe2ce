@@ -25,6 +25,9 @@ import {
   AttributeKeyValueTableComponent
 } from '@home/pages/features/scheduler/attribute-key-value-table.component';
 import { TargetSelectComponent } from '@home/pages/features/scheduler/target-select.component';
+import {
+  ReportTemplateAutocompleteComponent
+} from '@home/pages/features/scheduler/report-template-autocomplete.component';
 import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.component';
 
 @NgModule({
@@ -33,6 +36,7 @@ import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.co
     SchedulerEventDialogComponent,
     AttributeKeyValueTableComponent,
     TargetSelectComponent,
+    ReportTemplateAutocompleteComponent,
     TaskManagerComponent
   ],
   imports: [

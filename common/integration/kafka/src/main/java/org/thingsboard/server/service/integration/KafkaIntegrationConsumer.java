@@ -70,7 +70,7 @@ public class KafkaIntegrationConsumer implements IntegrationRuntime {
 
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, cfg.has("groupId") ? cfg.get("groupId").asText() : "tb-integration-" + integration.getId());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, cfg.has("groupId") ? cfg.get("groupId").asText() : "tb-integration-" + IntegrationConfigUtil.safeId(integration));
         if (cfg.has("clientId") && StringUtils.isNotEmpty(cfg.get("clientId").asText())) {
             props.put(ConsumerConfig.CLIENT_ID_CONFIG, cfg.get("clientId").asText());
         }
@@ -90,7 +90,7 @@ public class KafkaIntegrationConsumer implements IntegrationRuntime {
         kafkaConsumer.subscribe(List.of(topic));
         this.consumer = kafkaConsumer;
         this.stopped = false;
-        this.pollThread = new Thread(() -> pollLoop(pollInterval), "kafka-integration-" + integration.getId().getId());
+        this.pollThread = new Thread(() -> pollLoop(pollInterval), "kafka-integration-" + IntegrationConfigUtil.safeId(integration));
         this.pollThread.setDaemon(true);
         this.pollThread.start();
         log.info("[{}][{}] Kafka integration subscribed to topic [{}]", tenantId, integration.getName(), topic);

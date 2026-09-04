@@ -38,9 +38,59 @@
     .tb-int-step-actions {
       display: flex;
       flex-direction: row;
+      align-items: center;
       justify-content: flex-end;
       gap: 8px;
       padding-top: 16px;
+    }
+
+    // PE renders both of these as plain expansion panels under the type-specific fields: the remote
+    // one carries its toggle in the header, the advanced one right-aligns its header label.
+    // The remote panel's header hosts a mat-slide-toggle (34px) inside Material's `.mat-content`,
+    // whose line box is only 20px and defaults to `overflow: auto` — that renders a stray little
+    // scrollbar next to the expand chevron. PE sets `overflow: visible` here.
+    .tb-int-remote-panel,
+    .tb-int-advanced-panel {
+      ::ng-deep .mat-expansion-panel-header .mat-content {
+        overflow: visible;
+      }
+    }
+
+    .tb-int-remote-panel {
+      box-shadow: none;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    .tb-int-advanced-panel {
+      box-shadow: none;
+
+      ::ng-deep .mat-expansion-panel-header {
+        padding-right: 8px;
+      }
+    }
+
+    .tb-int-check-result {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+
+      &.tb-int-check-ok {
+        background: rgba(25, 128, 56, 0.08);
+        color: #198038;
+      }
+
+      &.tb-int-check-fail {
+        background: rgba(209, 39, 48, 0.08);
+        color: #d12730;
+      }
+
+      .tb-int-check-error {
+        font-size: 12px;
+        opacity: 0.85;
+        word-break: break-word;
+      }
     }
 
     .tb-int-card {
@@ -59,25 +109,24 @@
       font-weight: 500;
     }
 
-    .tb-int-section {
+    // Grouped field blocks render as a native fieldset+legend (title cut into the top border),
+    // matching PE's own tb-mqtt-integration-form. Values copied from PE's computed styles, which
+    // are in turn the same .fields-group convention CE already uses on the admin settings pages.
+    .fields-group {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
+      padding: 0 16px 8px;
+      margin: 0 0 10px;
+      border: 1px groove rgba(0, 0, 0, 0.25);
+      border-radius: 4px;
+      min-width: 0;
 
-      .tb-int-section-title {
+      > legend.group-title {
+        color: rgba(0, 0, 0, 0.7);
         font-size: 16px;
-        font-weight: 500;
-      }
-
-      .tb-int-section-body {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        background: var(--mat-sys-surface, #fff);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        padding: 20px;
+        font-weight: 400;
+        padding: 0 2px;
       }
     }
 
