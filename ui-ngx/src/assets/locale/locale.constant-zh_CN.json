@@ -354,6 +354,7 @@
     "no-downlink-converters-hint": "未找到下行转换器。请先创建一个，或改为新建。",
     "connection": "连接",
     "http-endpoint-url": "HTTP 端点 URL",
+    "integration-name": "{{integrationType}} 集成",
     "ca-cert-file": "CA 证书文件",
     "cert-file": "证书文件",
     "private-key-file": "私钥文件",

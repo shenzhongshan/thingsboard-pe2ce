@@ -224,6 +224,13 @@ export class IntegrationDialogComponent implements OnInit {
         this.downlinkConverterGroup.get('sourceType').setValue('skip');
       }
       if (!this.isEdit) {
+        // PE patches the integration name from the picked type (integration.integration-name).
+        // Guarded on dirty so a name the user actually typed is not clobbered by a later type
+        // change; in the normal flow (type first, then name) the default still appears.
+        const nameCtrl = this.basicGroup.get('name');
+        if (!nameCtrl.dirty) {
+          nameCtrl.setValue(this.defaultIntegrationName(type), { emitEvent: false });
+        }
         const uplinkNameCtrl = this.uplinkConverterGroup.get('name');
         if (!uplinkNameCtrl.dirty) {
           uplinkNameCtrl.setValue(this.defaultConverterName(type, true));
@@ -269,6 +276,15 @@ export class IntegrationDialogComponent implements OnInit {
     };
     toggleUplinkValidators(uplinkSourceTypeCtrl.value);
     uplinkSourceTypeCtrl.valueChanges.subscribe((sourceType) => toggleUplinkValidators(sourceType));
+  }
+
+  /** PE's `integration.integration-name`: "<type> 集成". */
+  private defaultIntegrationName(type: IntegrationType): string {
+    if (!type || !integrationTypeInfoMap.has(type)) {
+      return '';
+    }
+    return this.translate.instant('integration.integration-name',
+      { integrationType: this.translate.instant(integrationTypeInfoMap.get(type).name) });
   }
 
   private defaultConverterName(type: IntegrationType, isUplink: boolean): string {

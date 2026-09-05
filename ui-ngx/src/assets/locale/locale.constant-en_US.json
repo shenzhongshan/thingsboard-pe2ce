@@ -354,6 +354,7 @@
         "no-downlink-converters-hint": "No downlink converters found. Create one first, or switch to New.",
         "connection": "Connection",
         "http-endpoint-url": "HTTP endpoint URL",
+        "integration-name": "{{integrationType}} integration",
         "ca-cert-file": "CA certificate file",
         "cert-file": "Certificate file",
         "private-key-file": "Private key file",

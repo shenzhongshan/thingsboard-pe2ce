@@ -105,7 +105,7 @@ export class SecretInputComponent implements ControlValueAccessor {
   openSecretDialog() {
     this.dialog.open<UseSecretDialogComponent, UseSecretDialogData, string>(UseSecretDialogComponent, {
       disableClose: false,
-      panelClass: ['tb-dialog', 'tb-fullscreen-dialog-gt-xs'],
+      panelClass: ['tb-dialog'],
       data: { secretType: this.effectiveSecretType }
     }).afterClosed().subscribe((placeholder) => {
       if (placeholder) {
