@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kinesis.KinesisClient;
@@ -32,6 +33,7 @@ import software.amazon.awssdk.services.kinesis.model.Record;
 import software.amazon.awssdk.services.kinesis.model.Shard;
 import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +42,13 @@ import java.util.Map;
 /**
  * Poll-loop AWS Kinesis consumer for an AWS_KINESIS integration. Configuration JSON
  * (clientConfiguration): {streamName, region, accessKeyId, secretAccessKey,
- * initialPositionInStream? ('LATEST'|'TRIM_HORIZON', default LATEST), maxRecords?}.
+ * initialPositionInStream? ('LATEST'|'TRIM_HORIZON', default LATEST), maxRecords?,
+ * useCredentialsFromInstanceMetadata?, requestTimeout? (seconds)}.
+ * <p>
+ * Two PE fields are deliberately absent because they are KCL concepts with nothing to bind to here:
+ * {@code useConsumersWithEnhancedFanOut} needs the push-based SubscribeToShard API (a different
+ * client and threading model from this poll loop), and {@code applicationName} names the KCL
+ * DynamoDB lease table. Both are listed as known gaps rather than shown as inert UI.
  * CE simplification vs PE: PE uses the full Kinesis Client Library (KCL) with a DynamoDB lease
  * table and CloudWatch metrics for coordinated multi-worker checkpointing. That requires
  * provisioning AWS infra beyond just stream credentials, so this port instead does plain
@@ -75,11 +83,21 @@ public class AwsKinesisIntegrationConsumer implements IntegrationRuntime {
                 && "TRIM_HORIZON".equalsIgnoreCase(cfg.get("initialPositionInStream").asText())
                 ? ShardIteratorType.TRIM_HORIZON : ShardIteratorType.LATEST;
         int maxRecords = cfg.has("maxRecords") ? cfg.get("maxRecords").asInt() : 100;
+        boolean useInstanceMetadata = cfg.has("useCredentialsFromInstanceMetadata")
+                && cfg.get("useCredentialsFromInstanceMetadata").asBoolean();
+        int requestTimeoutSec = cfg.has("requestTimeout") ? cfg.get("requestTimeout").asInt() : 0;
 
         var builder = KinesisClient.builder().region(Region.of(region));
-        if (cfg.has("accessKeyId") && StringUtils.isNotEmpty(cfg.get("accessKeyId").asText())) {
+        // PE offers the same choice: take credentials from the EC2/ECS instance metadata service
+        // (an instance role) instead of embedding an access key pair in the integration config.
+        if (useInstanceMetadata) {
+            builder.credentialsProvider(DefaultCredentialsProvider.create());
+        } else if (cfg.has("accessKeyId") && StringUtils.isNotEmpty(cfg.get("accessKeyId").asText())) {
             builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(
                     cfg.get("accessKeyId").asText(), cfg.path("secretAccessKey").asText(""))));
+        }
+        if (requestTimeoutSec > 0) {
+            builder.overrideConfiguration(o -> o.apiCallTimeout(Duration.ofSeconds(requestTimeoutSec)));
         }
         KinesisClient kinesisClient = builder.build();
         List<Shard> shards = kinesisClient.listShards(b -> b.streamName(streamName)).shards();

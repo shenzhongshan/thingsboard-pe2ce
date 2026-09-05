@@ -40,6 +40,9 @@ import {
 import { Converter, ConverterScriptLanguage, ConverterType, converterTypeTranslations } from '@shared/models/converter.models';
 import { IntegrationService } from '@core/http/integration.service';
 import { ConverterService } from '@core/http/converter.service';
+import {
+  IntegrationConnectionFormComponent
+} from '@home/pages/integration/integration/integration-connection-form.component';
 import { ImportExportService } from '@shared/import-export/import-export.service';
 import { MatDialog } from '@angular/material/dialog';
 import {
@@ -115,17 +118,17 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   uplinkConverterName: string = null;
   downlinkConverterName: string = null;
   /** PE edits in place (the same disabled fields become editable) rather than opening a separate
-   *  wizard dialog. Only possible where every field already has a real, bindable control: converters
-   *  (fully form-backed) and MQTT-family integrations. The other ~25 integration types still fall
-   *  back to the read-only configRows dump, so their edit button keeps opening the wizard dialog. */
+   *  wizard dialog. Every type is now fully form-backed via the shared connection form, so this
+   *  applies to all 29 integration types and to converters alike. */
   editMode = false;
   saving = false;
   checkInProgress = false;
   checkResult: {success: boolean; error?: string} = null;
 
-  /** Universal fields for every integration; MQTT-family types get extra connection controls added
-   *  in {@link buildIntegrationForm}. Always `.disable()`d immediately after being built. */
+  /** Entity-level fields (name/enabled/converters/debug). Always `.disable()`d after being built. */
   integrationForm: UntypedFormGroup;
+  /** Everything under `configuration`, built by the shared connection form's factory. */
+  connectionForm: UntypedFormGroup;
   /** Populated (and immediately `.disable()`d) for every converter. */
   converterForm: UntypedFormGroup;
 
@@ -141,6 +144,7 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes.target) {
       this.integrationForm = null;
+      this.connectionForm = null;
       this.converterForm = null;
       this.configRows = [];
       this.uplinkConverterName = null;
@@ -167,63 +171,23 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   // get their connection fields as real controls too, copied from integration-dialog.component.ts's
   // buildForm() — every other type falls back to a flattened dump of `configuration` (see class doc).
   private buildIntegrationForm(integration: Integration) {
-    const cfg: any = integration.configuration || {};
+    // Entity-level fields only. Everything under `configuration` (plus remote/description/metadata,
+    // which PE also renders inside the connection form's panels) lives in `connectionForm`, built by
+    // the same factory the add wizard uses — that is what makes all 29 types viewable and editable
+    // here rather than just the MQTT family.
     this.integrationForm = this.fb.group({
       name: [integration.name, [Validators.required]],
       enabled: [integration.enabled !== false],
       allowCreateDevicesOrAssets: [integration.allowCreateDevicesOrAssets !== false],
       debugSettings: [integration.debugSettings || { failuresEnabled: false, allEnabled: false, allEnabledUntil: 0 }],
-      remote: [integration.remote === true],
-      description: [integration.additionalInfo?.description || ''],
-      metadata: [cfg.metadata || {}],
       // Editable in edit mode via the clear / edit / "create new" actions beside each field,
       // mirroring PE's tb-converter-autocomplete.
       defaultConverterId: [integration.defaultConverterId || null, [Validators.required]],
       downlinkConverterId: [integration.downlinkConverterId || null]
     });
-    if (this.isMqttFamilyType) {
-      const cc = cfg.clientConfiguration || {};
-      this.integrationForm.addControl('host', this.fb.control(cc.host || '', [Validators.required]));
-      this.integrationForm.addControl('port', this.fb.control(cc.port || '', [Validators.required]));
-      this.integrationForm.addControl('clientId', this.fb.control(cc.clientId || ''));
-      this.integrationForm.addControl('ssl', this.fb.control(cc.ssl === true));
-      this.integrationForm.addControl('protocolVersion', this.fb.control(cc.protocolVersion || MqttProtocolVersion.MQTT_3_1_1));
-      this.integrationForm.addControl('cleanSession', this.fb.control(cc.cleanSession !== false));
-      this.integrationForm.addControl('retainedMessage', this.fb.control(cc.retainedMessage === true));
-      this.integrationForm.addControl('maxBytesInMessage', this.fb.control(cc.maxBytesInMessage || 32368));
-      this.integrationForm.addControl('connectTimeoutSec', this.fb.control(cc.connectTimeoutSec || 10));
-      this.integrationForm.addControl('downlinkTopicPattern', this.fb.control(cfg.downlinkTopicPattern || '${topic}'));
-      this.integrationForm.addControl('credentialsType', this.fb.control(cc.credentials?.type || MqttCredentialsType.ANONYMOUS));
-      this.integrationForm.addControl('username', this.fb.control(cc.credentials?.username || ''));
-      this.integrationForm.addControl('password', this.fb.control(cc.credentials?.password || ''));
-      this.integrationForm.addControl('caCert', this.fb.control(cc.credentials?.caCert || ''));
-      this.integrationForm.addControl('cert', this.fb.control(cc.credentials?.cert || ''));
-      this.integrationForm.addControl('privateKey', this.fb.control(cc.credentials?.privateKey || ''));
-      this.integrationForm.addControl('privateKeyPassword', this.fb.control(cc.credentials?.privateKeyPassword || ''));
-      this.integrationForm.addControl('sasKey', this.fb.control(cc.credentials?.sasKey || ''));
-      // PE always renders at least one topic filter row (its form seeds '#'/QoS 0), so the
-      // 主题过滤器 section is never empty there. Mirror that instead of hiding the whole section.
-      const topicFilters = (cfg.topicFilters?.length ? cfg.topicFilters : [{ filter: '#', qos: 0 }]);
-      this.integrationForm.addControl('topicFilters', this.fb.array(topicFilters.map((tf: any) =>
-        this.fb.group({ filter: [tf.filter], qos: [tf.qos ?? 0] }))));
-    } else {
-      // Metadata is always rendered as a real field above (tb-key-val-map), so exclude it here to
-      // avoid showing it twice.
-      this.configRows = this.flatten(cfg).filter((row) => !row.key.startsWith('metadata'));
-    }
+    this.connectionForm = IntegrationConnectionFormComponent.buildConnectionGroup(this.fb, integration);
     this.integrationForm.disable({ emitEvent: false });
-  }
-
-  get topicFiltersArray(): UntypedFormArray {
-    return this.integrationForm?.get('topicFilters') as UntypedFormArray;
-  }
-
-  addTopicFilter() {
-    this.topicFiltersArray.push(this.fb.group({ filter: ['#'], qos: [0] }));
-  }
-
-  removeTopicFilter(i: number) {
-    this.topicFiltersArray.removeAt(i);
+    this.connectionForm.disable({ emitEvent: false });
   }
 
   /**
@@ -479,9 +443,9 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
     });
   }
 
-  /** Converters are always fully form-backed; integrations only when MQTT-family (see class doc). */
+  /** Both kinds are fully form-backed now, so inline edit always applies. */
   get canEditInline(): boolean {
-    return this.target?.kind === 'converter' || (this.target?.kind === 'integration' && this.isMqttFamilyType);
+    return this.target?.kind === 'converter' || this.target?.kind === 'integration';
   }
 
   edit(): void {
@@ -490,8 +454,12 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
       return;
     }
     this.editMode = true;
-    const form = this.target.kind === 'integration' ? this.integrationForm : this.converterForm;
-    form.enable({ emitEvent: false });
+    if (this.target.kind === 'integration') {
+      this.integrationForm.enable({ emitEvent: false });
+      this.connectionForm.enable({ emitEvent: false });
+    } else {
+      this.converterForm.enable({ emitEvent: false });
+    }
   }
 
   cancelEdit(): void {
@@ -504,9 +472,13 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   }
 
   saveEdit(): void {
-    const form = this.target.kind === 'integration' ? this.integrationForm : this.converterForm;
-    if (form.invalid) {
-      form.markAllAsTouched();
+    // The connection form carries most of an integration's required fields, so it has to be part of
+    // the validity gate — otherwise an invalid host/port would sail through to the server.
+    const forms = this.target.kind === 'integration'
+      ? [this.integrationForm, this.connectionForm]
+      : [this.converterForm];
+    if (forms.some((f) => f.invalid)) {
+      forms.forEach((f) => f.markAllAsTouched());
       return;
     }
     this.saving = true;
@@ -537,53 +509,26 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   }
 
   private buildEditedIntegration(): Integration {
-    const v = this.integrationForm.value;
+    const v = this.integrationForm.getRawValue();
     const original = this.target.entity as Integration;
-    const cfg: any = { ...(original.configuration || {}) };
-    if (this.isMqttFamilyType) {
-      cfg.clientConfiguration = {
-        ...(cfg.clientConfiguration || {}),
-        host: v.host,
-        port: v.port,
-        clientId: v.clientId || undefined,
-        ssl: v.ssl,
-        protocolVersion: v.protocolVersion,
-        cleanSession: v.cleanSession,
-        retainedMessage: v.retainedMessage,
-        maxBytesInMessage: v.maxBytesInMessage,
-        connectTimeoutSec: v.connectTimeoutSec,
-        credentials: this.buildMqttCredentials(v)
-      };
-      cfg.topicFilters = v.topicFilters;
-      cfg.downlinkTopicPattern = v.downlinkTopicPattern;
-    }
-    cfg.metadata = v.metadata;
+    const c = this.connectionForm.getRawValue();
+    // Same serializer as the wizard, so a save from the drawer produces a byte-identical wire shape.
+    const configuration = IntegrationConnectionFormComponent.buildConfiguration(
+      original.type, c, original.routingKey);
     return {
       ...original,
       name: v.name,
       enabled: v.enabled,
       allowCreateDevicesOrAssets: v.allowCreateDevicesOrAssets,
       debugSettings: v.debugSettings,
-      remote: v.remote,
+      remote: c.remote,
       defaultConverterId: v.defaultConverterId,
       downlinkConverterId: v.downlinkConverterId,
-      configuration: cfg,
-      additionalInfo: { ...(original.additionalInfo || {}), description: v.description }
+      configuration,
+      additionalInfo: { ...(original.additionalInfo || {}), description: c.description }
     };
   }
 
-  private buildMqttCredentials(v: any): any {
-    switch (v.credentialsType) {
-      case MqttCredentialsType.BASIC:
-        return { type: MqttCredentialsType.BASIC, username: v.username, password: v.password };
-      case MqttCredentialsType.CERT_PEM:
-        return { type: MqttCredentialsType.CERT_PEM, caCert: v.caCert, cert: v.cert, privateKey: v.privateKey, privateKeyPassword: v.privateKeyPassword };
-      case MqttCredentialsType.SAS:
-        return { type: MqttCredentialsType.SAS, sasKey: v.sasKey, caCert: v.caCert };
-      default:
-        return { type: MqttCredentialsType.ANONYMOUS };
-    }
-  }
 
   private buildEditedConverter(): Converter {
     // getRawValue(): `type` is rendered read-only for an existing converter (same as the dialog,

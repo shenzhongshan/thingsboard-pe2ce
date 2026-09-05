@@ -1,0 +1,138 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Styles for the shared connection form. These previously lived under the wizard dialog's
+// `:host .tb-integration-dialog` block; view encapsulation means they no longer reach this
+// component's own markup, so they move with it. Both hosts (wizard + details drawer) now get the
+// identical look for free, which is the point of the extraction.
+:host {
+  display: block;
+  min-width: 0;
+
+  // PE renders both of these as plain expansion panels under the type-specific fields: the remote
+  // one carries its toggle in the header, the advanced one right-aligns its header label.
+  // The remote panel's header hosts a mat-slide-toggle (34px) inside Material's `.mat-content`,
+  // whose line box is only 20px and defaults to `overflow: auto` — that renders a stray little
+  // scrollbar next to the expand chevron. PE sets `overflow: visible` here.
+  .tb-int-remote-panel,
+  .tb-int-advanced-panel {
+    ::ng-deep .mat-expansion-panel-header .mat-content {
+      overflow: visible;
+    }
+  }
+
+  .tb-int-remote-panel {
+    box-shadow: none;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+
+  .tb-int-advanced-panel {
+    box-shadow: none;
+
+    ::ng-deep .mat-expansion-panel-header {
+      padding-right: 8px;
+    }
+  }
+
+  // Grouped field blocks render as a native fieldset+legend (title cut into the top border),
+  // matching PE's own tb-mqtt-integration-form. Values copied from PE's computed styles, which
+  // are in turn the same .fields-group convention CE already uses on the admin settings pages.
+  .fields-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px 8px;
+    margin: 0 0 10px;
+    border: 1px groove rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    min-width: 0;
+
+    > legend.group-title {
+      color: rgba(0, 0, 0, 0.7);
+      font-size: 16px;
+      font-weight: 400;
+      padding: 0 2px;
+    }
+  }
+
+  .tb-int-hint {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.54);
+
+    code {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+  }
+
+  .tb-int-add-button {
+    width: 100%;
+    color: rgba(0, 0, 0, 0.87);
+    border: 1px dashed rgba(0, 0, 0, 0.24);
+  }
+
+  .tb-int-endpoint-block {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+    padding: 12px;
+
+    .tb-int-endpoint-label {
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .tb-int-endpoint-url {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+
+      code {
+        word-break: break-all;
+      }
+    }
+
+    .tb-int-endpoint-pending {
+      color: rgba(0, 0, 0, 0.54);
+      font-style: italic;
+    }
+  }
+
+  .tb-int-check-result {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+
+    &.tb-int-check-ok {
+      background: rgba(25, 128, 56, 0.08);
+      color: #198038;
+    }
+
+    &.tb-int-check-fail {
+      background: rgba(209, 39, 48, 0.08);
+      color: #d12730;
+    }
+
+    .tb-int-check-error {
+      font-size: 12px;
+      opacity: 0.85;
+      word-break: break-word;
+    }
+  }
+}

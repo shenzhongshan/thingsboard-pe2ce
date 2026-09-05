@@ -48,7 +48,11 @@ import {
   IntegrationType,
   IntegrationTypeInfo,
   integrationTypeInfoMap,
+  HTTP_HEADER_SECURITY_TYPES,
+  HTTP_REPLACE_NO_CONTENT_TYPES,
   KinesisInitialPosition,
+  LoriotCredentialsType,
+  loriotCredentialsTypeLabels,
   MqttCredentialsType,
   MqttProtocolVersion,
   mqttProtocolVersionLabels,
@@ -60,10 +64,14 @@ import {
   TcpByteOrder,
   TcpHandlerType,
   TcpMessageSeparator,
+  THINGPARK_INTEGRATION_TYPES,
   TuyaEnv,
   TuyaRegion
 } from '@shared/models/integration.models';
 import { EntityType } from '@shared/models/entity-type.models';
+import {
+  IntegrationConnectionFormComponent
+} from '@home/pages/integration/integration/integration-connection-form.component';
 
 export interface IntegrationDialogData {
   integrationId?: string;
@@ -98,6 +106,11 @@ export class IntegrationDialogComponent implements OnInit {
   KinesisInitialPosition = KinesisInitialPosition;
   MQTT_FAMILY_INTEGRATION_TYPES = MQTT_FAMILY_INTEGRATION_TYPES;
   HTTP_WEBHOOK_INTEGRATION_TYPES = HTTP_WEBHOOK_INTEGRATION_TYPES;
+  HTTP_HEADER_SECURITY_TYPES = HTTP_HEADER_SECURITY_TYPES;
+  HTTP_REPLACE_NO_CONTENT_TYPES = HTTP_REPLACE_NO_CONTENT_TYPES;
+  THINGPARK_INTEGRATION_TYPES = THINGPARK_INTEGRATION_TYPES;
+  LoriotCredentialsType = LoriotCredentialsType;
+  loriotCredentialsTypeLabels = loriotCredentialsTypeLabels;
   integrationTypeInfoMap = integrationTypeInfoMap;
   integrationTypes = Object.values(IntegrationType);
   tcpHandlerTypes = Object.values(TcpHandlerType);
@@ -201,160 +214,10 @@ export class IntegrationDialogComponent implements OnInit {
           updateOnlyKeys: [existingDownlink?.configuration?.updateOnlyKeys || []]
         })
       }),
-      connection: this.fb.group({
-        // Applies to every type: `remote` moves execution to a separate process that connects back
-        // over gRPC with this integration's routing key and secret.
-        remote: [integration.remote === true],
-        // PE's genericAdditionalInfoTemplate — shown inside every type's advanced-settings panel.
-        description: [integration.additionalInfo?.description || ''],
-        metadata: [cfg.metadata || {}],
-        // MQTT family (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI) — nested under clientConfiguration,
-        // matching PE's wire shape (MqttClientConfiguration.java) exactly.
-        host: [cc.host || '', MQTT_FAMILY_INTEGRATION_TYPES.includes(integration.type) ? [Validators.required] : []],
-        port: [cc.port || 1883],
-        customHost: [cc.customHost === true],
-        clientId: [cc.clientId || ''],
-        ssl: [cc.ssl === true],
-        protocolVersion: [cc.protocolVersion || MqttProtocolVersion.MQTT_3_1_1],
-        cleanSession: [cc.cleanSession !== false],
-        retainedMessage: [cc.retainedMessage === true],
-        maxBytesInMessage: [cc.maxBytesInMessage || 32368, [Validators.min(1), Validators.max(256000000)]],
-        connectTimeoutSec: [cc.connectTimeoutSec || 10, [Validators.required, Validators.min(1), Validators.max(200)]],
-        credentialsType: [cc.credentials?.type || MqttCredentialsType.ANONYMOUS],
-        username: [cc.credentials?.username || ''],
-        password: [cc.credentials?.password || ''],
-        caCert: [cc.credentials?.caCert || ''],
-        cert: [cc.credentials?.cert || ''],
-        privateKey: [cc.credentials?.privateKey || ''],
-        privateKeyPassword: [cc.credentials?.privateKeyPassword || ''],
-        sasKey: [cc.credentials?.sasKey || ''],
-        // PE seeds one '#'/QoS 0 row so the 主题过滤器 section is never empty; match that.
-        topicFilters: this.fb.array((cfg.topicFilters?.length ? cfg.topicFilters : [{ filter: '#', qos: 0 }])
-          .map((tf: any) => this.buildTopicFilterRow(tf.filter, tf.qos))),
-        // Legacy CE field: no longer edited (PE has no such field), but preserved on save so
-        // integrations already configured with a fixed downlink topic keep working.
-        downlinkTopic: [cfg.downlinkTopic || ''],
-        downlinkTopicPattern: [cfg.downlinkTopicPattern || '${topic}'],
-        // TCP / UDP
-        tcpPort: [cfg.port || 10560, (integration.type === IntegrationType.TCP || integration.type === IntegrationType.UDP) ? [Validators.required] : []],
-        handlerType: [cfg.handlerType || TcpHandlerType.TEXT],
-        maxFrameLength: [cfg.maxFrameLength || 65535],
-        charsetName: [cfg.charsetName || 'UTF-8'],
-        delimiter: [cfg.delimiter || '\\n'],
-        // TCP only — real Netty socket/framing tuning, matching PE's tb-tcp-integration-form field
-        // names exactly. UDP does not use any of these (UdpIntegrationServer ignores them).
-        soBacklogOption: [cfg.soBacklogOption ?? 128],
-        soRcvBuf: [cfg.soRcvBuf ?? 64],
-        soSndBuf: [cfg.soSndBuf ?? 64],
-        soKeepaliveOption: [cfg.soKeepaliveOption !== false],
-        tcpNoDelay: [cfg.tcpNoDelay === true],
-        stripDelimiter: [cfg.stripDelimiter !== false],
-        messageSeparator: [cfg.messageSeparator || TcpMessageSeparator.SYSTEM_LINE_SEPARATOR],
-        customSeparatorRawValue: [cfg.customSeparatorRawValue || ''],
-        lengthFieldOffset: [cfg.lengthFieldOffset ?? 0],
-        lengthFieldLength: [cfg.lengthFieldLength ?? 2],
-        lengthAdjustment: [cfg.lengthAdjustment ?? 0],
-        initialBytesToStrip: [cfg.initialBytesToStrip ?? 0],
-        byteOrder: [cfg.byteOrder || TcpByteOrder.BIG_ENDIAN],
-        failFast: [cfg.failFast !== false],
-        // CoAP
-        coapPort: [cfg.port || 5683],
-        resourceName: [cfg.resourceName || 'telemetry'],
-        // OPC-UA
-        opcHost: [cfg.host || '', integration.type === IntegrationType.OPC_UA ? [Validators.required] : []],
-        opcPort: [cfg.port || 49320],
-        endpoint: [cfg.endpoint || ''],
-        applicationName: [cfg.applicationName || 'ThingsBoard OPC-UA Integration'],
-        applicationUri: [cfg.applicationUri || 'urn:thingsboard:opcua:client'],
-        scanPeriodInSeconds: [cfg.scanPeriodInSeconds || 1],
-        security: [cfg.security || OpcUaSecurityPolicy.None],
-        identityType: [cfg.identity?.type || OpcUaIdentityType.ANONYMOUS],
-        identityUsername: [cfg.identity?.username || ''],
-        identityPassword: [cfg.identity?.password || ''],
-        mapping: this.fb.array((cfg.mapping || []).map((m: any) => this.buildOpcUaMappingRow(m))),
-        // CUSTOM
-        clazz: [cfg.clazz || '', integration.type === IntegrationType.CUSTOM ? [Validators.required] : []],
-        // Kafka
-        kafkaClientId: [cc.clientId || ''],
-        kafkaGroupId: [cc.groupId || ''],
-        kafkaTopics: [cc.topics || '', integration.type === IntegrationType.KAFKA ? [Validators.required] : []],
-        kafkaBootstrapServers: [cc.bootstrapServers || 'YOUR_KAFKA_DOMAIN:9092'],
-        kafkaAutoCreateTopics: [cc.autoCreateTopics === 'true'],
-        kafkaPollInterval: [cc.pollInterval || 5000],
-        kafkaOtherProperties: this.fb.array(Object.entries(cc.otherProperties || {}).map(([k, v]) => this.buildKvRow(k, v as string))),
-        // RabbitMQ
-        rmqExchangeName: [cc.exchangeName || ''],
-        rmqHost: [cc.host || '', integration.type === IntegrationType.RABBITMQ ? [Validators.required] : []],
-        rmqPort: [cc.port || 5672],
-        rmqVirtualHost: [cc.virtualHost || '/'],
-        rmqUsername: [cc.username || 'guest'],
-        rmqPassword: [cc.password || 'guest'],
-        rmqDownlinkTopic: [cc.downlinkTopic || '#'],
-        rmqQueues: [cc.queues || ''],
-        rmqConnectionTimeout: [cc.connectionTimeout || 30000],
-        rmqHandshakeTimeout: [cc.handshakeTimeout || 10000],
-        rmqDurable: [cc.durable !== false],
-        rmqExclusive: [cc.exclusive === true],
-        rmqAutoDelete: [cc.autoDelete === true],
-        // Apache Pulsar / Tuya share the Pulsar client
-        pulsarServiceUrl: [cc.serviceUrl || 'pulsar://localhost:6650'],
-        pulsarTopics: [cc.topics || ''],
-        pulsarSubscriptionName: [cc.subscriptionName || ''],
-        pulsarMaxNumMessages: [cc.maxNumMessages || 100],
-        pulsarMaxNumBytes: [cc.maxNumBytes || 10485760],
-        pulsarTimeoutInMs: [cc.timeoutInMs || 5000],
-        pulsarCredentialsType: [cc.credentials?.type || PulsarCredentialsType.ANONYMOUS],
-        pulsarToken: [cc.credentials?.token || ''],
-        // Tuya
-        tuyaRegion: [cc.region || TuyaRegion.CN],
-        tuyaAccessId: [cc.accessId || ''],
-        tuyaAccessKey: [cc.accessKey || ''],
-        tuyaEnv: [cc.env || TuyaEnv.PROD],
-        // AWS SQS
-        sqsQueueUrl: [sqs.queueUrl || ''],
-        sqsRegion: [sqs.region || 'us-east-1'],
-        sqsAccessKeyId: [sqs.accessKeyId || ''],
-        sqsSecretAccessKey: [sqs.secretAccessKey || ''],
-        sqsPollingPeriodSeconds: [sqs.pollingPeriodSeconds || 5],
-        // AWS Kinesis
-        kinesisStreamName: [cc.streamName || ''],
-        kinesisRegion: [cc.region || 'us-east-1'],
-        kinesisAccessKeyId: [cc.accessKeyId || ''],
-        kinesisSecretAccessKey: [cc.secretAccessKey || ''],
-        kinesisInitialPosition: [cc.initialPositionInStream || KinesisInitialPosition.LATEST],
-        kinesisMaxRecords: [cc.maxRecords || 100],
-        // Azure Event Hub
-        aehConnectionString: [cc.connectionString || ''],
-        aehConsumerGroup: [cc.consumerGroup || '$Default'],
-        // Azure Service Bus
-        asbConnectionString: [cc.connectionString || ''],
-        asbTopicName: [cc.topicName || ''],
-        asbSubName: [cc.subName || ''],
-        // GCP Pub/Sub
-        pubsubProjectId: [cc.projectId || ''],
-        pubsubSubscriptionId: [cc.subscriptionId || ''],
-        pubsubServiceAccountKey: [cc.serviceAccountKey || '']
-      })
+      connection: IntegrationConnectionFormComponent.buildConnectionGroup(this.fb, integration)
     });
     this.basicGroup.get('type').valueChanges.subscribe((type) => {
-      const hostCtrl = this.connectionGroup.get('host');
-      hostCtrl.setValidators(MQTT_FAMILY_INTEGRATION_TYPES.includes(type) ? [Validators.required] : []);
-      hostCtrl.updateValueAndValidity();
-      const tcpPortCtrl = this.connectionGroup.get('tcpPort');
-      tcpPortCtrl.setValidators(type === IntegrationType.TCP || type === IntegrationType.UDP ? [Validators.required] : []);
-      tcpPortCtrl.updateValueAndValidity();
-      const opcHostCtrl = this.connectionGroup.get('opcHost');
-      opcHostCtrl.setValidators(type === IntegrationType.OPC_UA ? [Validators.required] : []);
-      opcHostCtrl.updateValueAndValidity();
-      const clazzCtrl = this.connectionGroup.get('clazz');
-      clazzCtrl.setValidators(type === IntegrationType.CUSTOM ? [Validators.required] : []);
-      clazzCtrl.updateValueAndValidity();
-      const kafkaTopicsCtrl = this.connectionGroup.get('kafkaTopics');
-      kafkaTopicsCtrl.setValidators(type === IntegrationType.KAFKA ? [Validators.required] : []);
-      kafkaTopicsCtrl.updateValueAndValidity();
-      const rmqHostCtrl = this.connectionGroup.get('rmqHost');
-      rmqHostCtrl.setValidators(type === IntegrationType.RABBITMQ ? [Validators.required] : []);
-      rmqHostCtrl.updateValueAndValidity();
+      IntegrationConnectionFormComponent.retargetValidators(this.connectionGroup, type);
       // The downlink step is hidden for types with no downlink direction; leaving sourceType on
       // 'new'/'existing' would keep its (now unreachable) required validators and silently block Save.
       if (integrationTypeInfoMap.get(type)?.hideDownlink) {
@@ -484,76 +347,6 @@ export class IntegrationDialogComponent implements OnInit {
     });
   }
 
-  private buildTopicFilterRow(filter: string, qos: number): UntypedFormGroup {
-    return this.fb.group({
-      filter: [filter, [Validators.required]],
-      qos: [qos ?? 0]
-    });
-  }
-
-  get topicFiltersArray(): UntypedFormArray {
-    return this.connectionGroup.get('topicFilters') as UntypedFormArray;
-  }
-
-  addTopicFilter() {
-    this.topicFiltersArray.push(this.buildTopicFilterRow('#', 0));
-  }
-
-  removeTopicFilter(i: number) {
-    this.topicFiltersArray.removeAt(i);
-  }
-
-  // Generic key/value row, reused for Kafka "other properties".
-  private buildKvRow(key: string, value: string): UntypedFormGroup {
-    return this.fb.group({ key: [key, [Validators.required]], value: [value] });
-  }
-
-  get kafkaOtherPropertiesArray(): UntypedFormArray {
-    return this.connectionGroup.get('kafkaOtherProperties') as UntypedFormArray;
-  }
-
-  addKafkaOtherProperty() {
-    this.kafkaOtherPropertiesArray.push(this.buildKvRow('', ''));
-  }
-
-  removeKafkaOtherProperty(i: number) {
-    this.kafkaOtherPropertiesArray.removeAt(i);
-  }
-
-  private buildSubscriptionTagRow(key: string, nodeId: string, required: boolean): UntypedFormGroup {
-    return this.fb.group({ key: [key, [Validators.required]], nodeId: [nodeId, [Validators.required]], required: [required === true] });
-  }
-
-  private buildOpcUaMappingRow(m: any): UntypedFormGroup {
-    return this.fb.group({
-      deviceName: [m?.deviceName || '', [Validators.required]],
-      subscriptionTags: this.fb.array((m?.subscriptionTags || []).map((t: any) => this.buildSubscriptionTagRow(t.key, t.nodeId, t.required)))
-    });
-  }
-
-  get opcUaMappingArray(): UntypedFormArray {
-    return this.connectionGroup.get('mapping') as UntypedFormArray;
-  }
-
-  addOpcUaMapping() {
-    this.opcUaMappingArray.push(this.buildOpcUaMappingRow(null));
-  }
-
-  removeOpcUaMapping(i: number) {
-    this.opcUaMappingArray.removeAt(i);
-  }
-
-  opcUaTagsArray(mappingIndex: number): UntypedFormArray {
-    return this.opcUaMappingArray.at(mappingIndex).get('subscriptionTags') as UntypedFormArray;
-  }
-
-  addOpcUaTag(mappingIndex: number) {
-    this.opcUaTagsArray(mappingIndex).push(this.buildSubscriptionTagRow('', '', false));
-  }
-
-  removeOpcUaTag(mappingIndex: number, tagIndex: number) {
-    this.opcUaTagsArray(mappingIndex).removeAt(tagIndex);
-  }
 
   get selectedType(): IntegrationType {
     const value = this.basicGroup?.get('type')?.value;
@@ -585,17 +378,8 @@ export class IntegrationDialogComponent implements OnInit {
     this.basicGroup.get('type').setValue(null);
   }
 
-  get isHttpWebhookType(): boolean {
-    return HTTP_WEBHOOK_INTEGRATION_TYPES.includes(this.selectedType);
-  }
 
-  get isMqttFamilyType(): boolean {
-    return MQTT_FAMILY_INTEGRATION_TYPES.includes(this.selectedType);
-  }
 
-  get httpEndpointUrl(): string {
-    return this.integration?.routingKey ? integrationHttpEndpointUrl(this.integration.routingKey) : null;
-  }
 
   cancel(): void {
     this.dialogRef.close(false);
@@ -610,7 +394,8 @@ export class IntegrationDialogComponent implements OnInit {
     const uplink = this.uplinkConverterGroup.value;
     const downlink = this.downlinkConverterGroup.value;
     const c = this.connectionGroup.value;
-    const configuration: any = this.buildConfiguration(basic.type, c);
+    const configuration: any = IntegrationConnectionFormComponent.buildConfiguration(
+      basic.type, c, this.integration?.routingKey);
 
     // 'new' upserts this integration's own uplink converter (same id every save); 'existing' just
     // points defaultConverterId at a converter picked from the dropdown, with no write to it.
@@ -657,6 +442,10 @@ export class IntegrationDialogComponent implements OnInit {
           allowCreateDevicesOrAssets: basic.allowCreateDevicesOrAssets,
           debugSettings: basic.debugSettings,
           remote: c.remote,
+          // Explicit rather than relying on the spread: these are minted client-side at create
+          // time (PE parity) and the backend only generates its own when they arrive empty.
+          routingKey: this.integration?.routingKey,
+          secret: this.integration?.secret,
           defaultConverterId: savedUplink.id,
           downlinkConverterId,
           configuration,
@@ -680,15 +469,18 @@ export class IntegrationDialogComponent implements OnInit {
     return this.integration?.secret || null;
   }
 
-  copyToClipboard(value: string, what: 'key' | 'secret') {
+  copyToClipboard(value: string, what: 'key' | 'secret' | 'endpoint') {
     if (!value) {
       return;
     }
+    const messageKey = {
+      key: 'integration.integration-key-copied-message',
+      secret: 'integration.integration-secret-copied-message',
+      endpoint: 'integration.http-endpoint-url-copied-message'
+    }[what];
     navigator.clipboard.writeText(value).then(() => {
       this.store.dispatch(new ActionNotificationShow({
-        message: this.translate.instant(what === 'key'
-          ? 'integration.integration-key-copied-message'
-          : 'integration.integration-secret-copied-message'),
+        message: this.translate.instant(messageKey),
         type: 'success',
         duration: 1500,
         verticalPosition: 'top',
@@ -720,7 +512,8 @@ export class IntegrationDialogComponent implements OnInit {
       ...(this.integration || {} as Integration),
       name: basic.name,
       type: basic.type,
-      configuration: this.buildConfiguration(basic.type, this.connectionGroup.value)
+      configuration: IntegrationConnectionFormComponent.buildConfiguration(
+        basic.type, this.connectionGroup.value, this.integration?.routingKey)
     };
     this.checkInProgress = true;
     this.checkResult = null;
@@ -734,144 +527,6 @@ export class IntegrationDialogComponent implements OnInit {
         this.checkResult = {success: false, error: err?.error?.message || err?.message || ''};
       }
     });
-  }
-
-  private buildConfiguration(type: IntegrationType, c: any): any {
-    const configuration: any = {};
-    if (MQTT_FAMILY_INTEGRATION_TYPES.includes(type)) {
-      // Nested under clientConfiguration to match PE's wire shape (MqttClientConfiguration.java);
-      // topicFilters/downlinkTopicPattern stay top-level, same as PE.
-      const clientConfiguration: any = {
-        host: c.host,
-        port: c.port,
-        customHost: c.customHost,
-        ssl: c.ssl,
-        protocolVersion: c.protocolVersion,
-        cleanSession: c.cleanSession,
-        retainedMessage: c.retainedMessage,
-        maxBytesInMessage: c.maxBytesInMessage,
-        connectTimeoutSec: c.connectTimeoutSec,
-        credentials: this.buildMqttCredentials(c)
-      };
-      if (c.clientId) {
-        clientConfiguration.clientId = c.clientId;
-      }
-      configuration.clientConfiguration = clientConfiguration;
-      configuration.topicFilters = c.topicFilters;
-      if (c.downlinkTopic) {
-        configuration.downlinkTopic = c.downlinkTopic;
-      }
-      if (c.downlinkTopicPattern) {
-        configuration.downlinkTopicPattern = c.downlinkTopicPattern;
-      }
-    } else if (type === IntegrationType.TCP) {
-      configuration.port = c.tcpPort;
-      configuration.soBacklogOption = c.soBacklogOption;
-      configuration.soRcvBuf = c.soRcvBuf;
-      configuration.soSndBuf = c.soSndBuf;
-      configuration.soKeepaliveOption = c.soKeepaliveOption;
-      configuration.tcpNoDelay = c.tcpNoDelay;
-      configuration.handlerType = c.handlerType;
-      configuration.maxFrameLength = c.maxFrameLength;
-      configuration.charsetName = c.charsetName;
-      if (c.handlerType === TcpHandlerType.BINARY) {
-        configuration.lengthFieldOffset = c.lengthFieldOffset;
-        configuration.lengthFieldLength = c.lengthFieldLength;
-        configuration.lengthAdjustment = c.lengthAdjustment;
-        configuration.initialBytesToStrip = c.initialBytesToStrip;
-        configuration.byteOrder = c.byteOrder;
-        configuration.failFast = c.failFast;
-      } else if (c.handlerType === TcpHandlerType.TEXT) {
-        configuration.stripDelimiter = c.stripDelimiter;
-        configuration.messageSeparator = c.messageSeparator;
-        if (c.messageSeparator === TcpMessageSeparator.CUSTOM) {
-          configuration.customSeparatorRawValue = c.customSeparatorRawValue;
-        }
-      }
-    } else if (type === IntegrationType.UDP) {
-      configuration.port = c.tcpPort;
-    } else if (type === IntegrationType.COAP) {
-      configuration.port = c.coapPort;
-      configuration.resourceName = c.resourceName;
-    } else if (type === IntegrationType.OPC_UA) {
-      configuration.host = c.opcHost;
-      configuration.port = c.opcPort;
-      configuration.endpoint = c.endpoint;
-      configuration.applicationName = c.applicationName;
-      configuration.applicationUri = c.applicationUri;
-      configuration.scanPeriodInSeconds = c.scanPeriodInSeconds;
-      configuration.security = c.security;
-      configuration.identity = c.identityType === OpcUaIdentityType.USERNAME
-        ? { type: OpcUaIdentityType.USERNAME, username: c.identityUsername, password: c.identityPassword }
-        : { type: OpcUaIdentityType.ANONYMOUS };
-      configuration.mapping = c.mapping;
-    } else if (type === IntegrationType.CUSTOM) {
-      configuration.clazz = c.clazz;
-    } else if (type === IntegrationType.KAFKA) {
-      configuration.clientConfiguration = {
-        clientId: c.kafkaClientId, groupId: c.kafkaGroupId, topics: c.kafkaTopics,
-        bootstrapServers: c.kafkaBootstrapServers, autoCreateTopics: String(c.kafkaAutoCreateTopics),
-        pollInterval: c.kafkaPollInterval,
-        otherProperties: Object.fromEntries((c.kafkaOtherProperties || []).map((kv: any) => [kv.key, kv.value]))
-      };
-    } else if (type === IntegrationType.RABBITMQ) {
-      configuration.clientConfiguration = {
-        exchangeName: c.rmqExchangeName, host: c.rmqHost, port: c.rmqPort, virtualHost: c.rmqVirtualHost,
-        username: c.rmqUsername, password: c.rmqPassword, downlinkTopic: c.rmqDownlinkTopic, queues: c.rmqQueues,
-        connectionTimeout: c.rmqConnectionTimeout, handshakeTimeout: c.rmqHandshakeTimeout,
-        durable: c.rmqDurable, exclusive: c.rmqExclusive, autoDelete: c.rmqAutoDelete
-      };
-    } else if (type === IntegrationType.APACHE_PULSAR) {
-      configuration.clientConfiguration = {
-        serviceUrl: c.pulsarServiceUrl, topics: c.pulsarTopics, subscriptionName: c.pulsarSubscriptionName,
-        maxNumMessages: c.pulsarMaxNumMessages, maxNumBytes: c.pulsarMaxNumBytes, timeoutInMs: c.pulsarTimeoutInMs,
-        credentials: c.pulsarCredentialsType === PulsarCredentialsType.TOKEN
-          ? { type: PulsarCredentialsType.TOKEN, token: c.pulsarToken } : { type: PulsarCredentialsType.ANONYMOUS }
-      };
-    } else if (type === IntegrationType.TUYA) {
-      configuration.clientConfiguration = {
-        region: c.tuyaRegion, accessId: c.tuyaAccessId, accessKey: c.tuyaAccessKey, env: c.tuyaEnv
-      };
-    } else if (type === IntegrationType.AWS_SQS) {
-      configuration.sqsConfiguration = {
-        queueUrl: c.sqsQueueUrl, region: c.sqsRegion, accessKeyId: c.sqsAccessKeyId,
-        secretAccessKey: c.sqsSecretAccessKey, pollingPeriodSeconds: c.sqsPollingPeriodSeconds
-      };
-    } else if (type === IntegrationType.AWS_KINESIS) {
-      configuration.clientConfiguration = {
-        streamName: c.kinesisStreamName, region: c.kinesisRegion, accessKeyId: c.kinesisAccessKeyId,
-        secretAccessKey: c.kinesisSecretAccessKey, initialPositionInStream: c.kinesisInitialPosition,
-        maxRecords: c.kinesisMaxRecords
-      };
-    } else if (type === IntegrationType.AZURE_EVENT_HUB) {
-      configuration.clientConfiguration = { connectionString: c.aehConnectionString, consumerGroup: c.aehConsumerGroup };
-    } else if (type === IntegrationType.AZURE_SERVICE_BUS) {
-      configuration.clientConfiguration = { connectionString: c.asbConnectionString, topicName: c.asbTopicName, subName: c.asbSubName };
-    } else if (type === IntegrationType.PUB_SUB) {
-      configuration.clientConfiguration = {
-        projectId: c.pubsubProjectId, subscriptionId: c.pubsubSubscriptionId, serviceAccountKey: c.pubsubServiceAccountKey
-      };
-    }
-    // HTTP + LPWAN webhook types (SIGFOX/OCEANCONNECT/CHIRPSTACK/PARTICLE/KPN/LORIOT/THINGPARK/TPE/TMOBILE_IOT_CDP):
-    // no extra config in this port — the routing key is the only thing that identifies them.
-    // Free-form metadata lives alongside the type-specific config, same as PE.
-    if (c.metadata && Object.keys(c.metadata).length) {
-      configuration.metadata = c.metadata;
-    }
-    return configuration;
-  }
-
-  private buildMqttCredentials(c: any): any {
-    switch (c.credentialsType) {
-      case MqttCredentialsType.BASIC:
-        return { type: MqttCredentialsType.BASIC, username: c.username, password: c.password };
-      case MqttCredentialsType.CERT_PEM:
-        return { type: MqttCredentialsType.CERT_PEM, caCert: c.caCert, cert: c.cert, privateKey: c.privateKey, privateKeyPassword: c.privateKeyPassword };
-      case MqttCredentialsType.SAS:
-        return { type: MqttCredentialsType.SAS, sasKey: c.sasKey, caCert: c.caCert };
-      default:
-        return { type: MqttCredentialsType.ANONYMOUS };
-    }
   }
 
 }

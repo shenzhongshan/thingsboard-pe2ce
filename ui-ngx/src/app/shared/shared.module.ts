@@ -253,6 +253,11 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
   return markedOptionsService;
 }
 
+import { SecretInputComponent } from '@shared/components/secret/secret-input.component';
+import {
+  UseSecretDialogComponent
+} from '@shared/components/secret/use-secret-dialog.component';
+
 @NgModule({
   providers: [
     DatePipe,
@@ -318,6 +323,8 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     CountryData
   ],
   declarations: [
+    SecretInputComponent,
+    UseSecretDialogComponent,
     FooterComponent,
     LogoComponent,
     FooterFabButtonsComponent,
@@ -551,6 +558,8 @@ export function MarkedOptionsFactory(markedOptionsService: MarkedOptionsService)
     DynamicMatDialogModule
   ],
   exports: [
+    SecretInputComponent,
+    UseSecretDialogComponent,
     FooterComponent,
     LogoComponent,
     FooterFabButtonsComponent,
