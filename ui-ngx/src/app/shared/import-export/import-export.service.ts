@@ -88,6 +88,7 @@ import {
 } from '@shared/import-export/export-resource-dialog.component';
 import { FormProperty, propertyValid } from '@shared/models/dynamic-form.models';
 import { CalculatedFieldsService } from '@core/http/calculated-fields.service';
+import { ConverterService } from '@core/http/converter.service';
 import { CalculatedField } from '@shared/models/calculated-field.models';
 
 export type editMissingAliasesFunction = (widgets: Array<Widget>, isSingleWidget: boolean,
@@ -117,8 +118,21 @@ export class ImportExportService {
               private utils: UtilsService,
               private itembuffer: ItemBufferService,
               private calculatedFieldsService: CalculatedFieldsService,
+              private converterService: ConverterService,
               private dialog: MatDialog) {
 
+  }
+
+  /** Mirrors PE's "导出数据转换器" action on the converter details view. */
+  public exportConverter(converterId: string): void {
+    this.converterService.getConverter(converterId).subscribe({
+      next: (converter) => {
+        this.exportToPc(this.prepareExport(converter), converter.name, true);
+      },
+      error: (e) => {
+        this.handleExportError(e, 'converter.export-failed-error');
+      }
+    });
   }
 
   public exportFormProperties(properties: FormProperty[], fileName: string) {

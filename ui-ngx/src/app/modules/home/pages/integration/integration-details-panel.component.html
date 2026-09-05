@@ -54,6 +54,12 @@
               <button mat-raised-button color="primary" type="button" [routerLink]="pageRoute">
                 {{ 'common.open-details-page' | translate }}
               </button>
+              <!-- PE offers export only for converters; the integration view has no export action. -->
+              @if (target.kind === 'converter') {
+                <button mat-raised-button color="primary" type="button" (click)="exportConverter()">
+                  {{ 'converter.export' | translate }}
+                </button>
+              }
               <button mat-raised-button color="primary" type="button" (click)="delete()">
                 {{ deleteLabel | translate }}
               </button>

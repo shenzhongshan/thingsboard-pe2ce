@@ -34,16 +34,39 @@
               <tb-toggle-option [value]="ConverterType.DOWNLINK">{{ 'converter.type-downlink' | translate }}</tb-toggle-option>
             </tb-toggle-select>
           </div>
-          <mat-form-field class="w-full">
+          <!-- Same rich icon/description picker the integration wizard uses (PE shares one
+               tb-integration-type-select between both). Empty value = all types, surfaced as the
+               全部 placeholder rather than an explicit row. -->
+          <mat-form-field class="w-full" appearance="fill">
             <mat-label translate>converter.integration-type</mat-label>
-            <mat-select formControlName="integrationType">
-              <mat-option [value]="''">{{ 'converter.integration-type-all' | translate }}</mat-option>
-              @for (type of integrationTypes; track type) {
-                @if (type) {
-                  <mat-option [value]="type">{{ type }}</mat-option>
+            <input matInput formControlName="integrationType" autocomplete="off"
+                   [matAutocomplete]="convTypeAuto"
+                   placeholder="{{ 'converter.integration-type-all' | translate }}">
+            @if (form.get('integrationType').value) {
+              <button mat-icon-button matSuffix type="button" (click)="clearIntegrationType($event)"
+                      aria-label="{{ 'action.clear' | translate }}">
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+            <mat-autocomplete #convTypeAuto="matAutocomplete" [displayWith]="displayIntegrationTypeFn"
+                              class="tb-integration-type-autocomplete">
+              <div class="tb-integration-type-options flex flex-row flex-wrap">
+                @for (type of filteredIntegrationTypes; track type) {
+                  <mat-option [value]="type" class="tb-integration-type-option">
+                    <div class="integration-type-button flex flex-row">
+                      <img class="icon" alt="icon" [src]="'assets/integration-icon/' + integrationTypeInfoMap.get(type).icon + '.svg'">
+                      <div class="flex-1">
+                        <div class="name">{{ integrationTypeInfoMap.get(type).name | translate }}</div>
+                        <div class="description">{{ integrationTypeInfoMap.get(type).description | translate }}</div>
+                      </div>
+                    </div>
+                  </mat-option>
                 }
+              </div>
+              @if (!filteredIntegrationTypes.length) {
+                <div class="tb-integration-type-no-options" translate>integration.integration-type-not-found</div>
               }
-            </mat-select>
+            </mat-autocomplete>
           </mat-form-field>
         </div>
 

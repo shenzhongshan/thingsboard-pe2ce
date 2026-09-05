@@ -493,6 +493,7 @@
         "encoder-config": "Encoder configuration",
         "description": "Description",
         "export": "Export converter",
+        "export-failed-error": "Unable to export converter: {{error}}",
         "test-decoder": "Test decoder function",
         "test-encoder": "Test encoder function",
         "advanced-decode-params": "Advanced decode parameters",

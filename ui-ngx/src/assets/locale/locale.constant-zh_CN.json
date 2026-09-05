@@ -493,6 +493,7 @@
     "encoder-config": "主编码配置",
     "description": "描述",
     "export": "导出转换器",
+    "export-failed-error": "无法导出数据转换器：{{error}}",
     "test-decoder": "测试解码器函数",
     "test-encoder": "测试编码器函数",
     "advanced-decode-params": "高级解码参数",

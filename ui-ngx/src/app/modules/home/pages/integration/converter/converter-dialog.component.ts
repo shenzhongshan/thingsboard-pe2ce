@@ -18,6 +18,7 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
+import { TranslateService } from '@ngx-translate/core';
 import { AppState } from '@core/core.state';
 import { ScriptLanguage } from '@shared/models/rule-node.models';
 import { ConverterService } from '@core/http/converter.service';
@@ -31,7 +32,7 @@ import {
   DEFAULT_TBEL_ENCODER,
   newConverter
 } from '@shared/models/converter.models';
-import { IntegrationType } from '@shared/models/integration.models';
+import { IntegrationType, integrationTypeInfoMap } from '@shared/models/integration.models';
 import {
   ConverterTestDialogComponent,
   ConverterTestDialogData
@@ -62,7 +63,11 @@ export class ConverterDialogComponent implements OnInit {
   ConverterType = ConverterType;
   ScriptLanguage = ScriptLanguage;
   ConverterScriptLanguage = ConverterScriptLanguage;
-  integrationTypes = ['', ...Object.values(IntegrationType)];
+  // PE renders this field with the same rich icon+description autocomplete the integration wizard
+  // uses (its shared tb-integration-type-select), with an empty value meaning "all types" — shown
+  // via the 全部 placeholder rather than an explicit row in the list.
+  integrationTypes = Object.values(IntegrationType);
+  integrationTypeInfoMap = integrationTypeInfoMap;
 
   private converter: Converter;
 
@@ -70,6 +75,7 @@ export class ConverterDialogComponent implements OnInit {
               private dialogRef: MatDialogRef<ConverterDialogComponent, Converter | boolean>,
               protected store: Store<AppState>,
               private converterService: ConverterService,
+              private translate: TranslateService,
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.converterId;
@@ -148,6 +154,30 @@ export class ConverterDialogComponent implements OnInit {
     const tbel = this.form?.get('scriptLang')?.getRawValue() !== ConverterScriptLanguage.JS;
     const base = tbel ? 'converter/tbel/' : 'converter/';
     return base + (this.isUplink ? 'decoder_fn' : 'encoder_fn');
+  }
+
+  /** Shows the translated name for a picked type; empty stays empty so the 全部 placeholder shows. */
+  displayIntegrationTypeFn = (type: IntegrationType): string => {
+    if (!type) {
+      return '';
+    }
+    const info = this.integrationTypeInfoMap.get(type);
+    return info ? this.translate.instant(info.name) : '';
+  };
+
+  get filteredIntegrationTypes(): IntegrationType[] {
+    const raw = this.form?.get('integrationType')?.value;
+    if (!raw || this.integrationTypes.includes(raw)) {
+      return this.integrationTypes;
+    }
+    const query = String(raw).toLowerCase();
+    return this.integrationTypes.filter((type) =>
+      this.translate.instant(this.integrationTypeInfoMap.get(type).name).toLowerCase().includes(query));
+  }
+
+  clearIntegrationType(event: Event) {
+    event.stopPropagation();
+    this.form.get('integrationType').setValue('');
   }
 
   get isUplink(): boolean {

@@ -40,6 +40,7 @@ import {
 import { Converter, ConverterScriptLanguage, ConverterType, converterTypeTranslations } from '@shared/models/converter.models';
 import { IntegrationService } from '@core/http/integration.service';
 import { ConverterService } from '@core/http/converter.service';
+import { ImportExportService } from '@shared/import-export/import-export.service';
 import { MatDialog } from '@angular/material/dialog';
 import {
   ConverterDialogComponent,
@@ -133,6 +134,7 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
               private fb: UntypedFormBuilder,
               private integrationService: IntegrationService,
               private converterService: ConverterService,
+              private importExport: ImportExportService,
               private dialog: MatDialog) {
   }
 
@@ -280,6 +282,13 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
     const base = this.converterForm?.get('scriptLang')?.getRawValue() === ConverterScriptLanguage.JS
       ? 'converter/' : 'converter/tbel/';
     return base + (this.converterIsUplink ? 'decoder_fn' : 'encoder_fn');
+  }
+
+  exportConverter(): void {
+    const id = this.converter?.id?.id;
+    if (id) {
+      this.importExport.exportConverter(id);
+    }
   }
 
   testConverterFunction(): void {
