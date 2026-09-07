@@ -96,9 +96,13 @@
     } @else {
       <span class="tb-cm-toggle-placeholder"></span>
     }
-    <tb-material-icon-select asBoxInput allowedCustomIcon appearance="outline"
-                              [(ngModel)]="item.icon" (ngModelChange)="nameChanged()"
-                              class="tb-cm-icon-select">
+    <tb-material-icon-select
+      [asBoxInput]="true"
+      [allowedCustomIcon]="true"
+      appearance="outline"
+      [(ngModel)]="item.icon"
+      (ngModelChange)="nameChanged()"
+      class="tb-cm-icon-select">
     </tb-material-icon-select>
     <span class="tb-cm-base-name" [matTooltip]="item.baseName">{{ item.baseName }}</span>
     <input class="tb-cm-name-input" [(ngModel)]="item.name" (ngModelChange)="nameChanged()"

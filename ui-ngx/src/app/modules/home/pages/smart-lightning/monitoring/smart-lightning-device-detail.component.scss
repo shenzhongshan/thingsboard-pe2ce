@@ -1,0 +1,66 @@
+:host { display: block; min-height: 100%; }
+.device-detail-page { --ink:#0a356a; --blue:#195ce8; --green:#16df65; display:grid; grid-template-columns:260px minmax(0,1fr); gap:16px; min-height:100%; margin-left:8px; padding:14px 14px 14px 0; color:#263c50; background:#edf1f4; font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif; }.surface,.asset-panel { border:1px solid #d5dee6; background:#fff; box-shadow:0 7px 18px rgba(29,60,87,.07); }.asset-panel { min-height:calc(100vh - 120px); padding:16px 14px; }.asset-panel-title { display:flex; justify-content:space-between; align-items:baseline; }.asset-panel h2,.detail-heading h1,.detail-heading p,.chart-card h2,.realtime-panel h2,.alarms-panel h2,.alarms-panel p { margin:0; }.asset-panel-title h2 { font-size:16px; }.asset-panel-title span { color:#718397; font-size:11px; }.asset-search { display:flex; align-items:center; gap:6px; height:34px; margin:14px 0 10px; padding:0 8px; border:1px solid #ccd7e0; border-radius:5px; color:#6a8093; }.asset-search input { width:100%; min-width:0; border:0; outline:0; font:inherit; font-size:12px; }.asset-search tb-icon { font-size:18px; }.asset-state { display:grid; min-height:100px; place-items:center; color:#73879a; font-size:12px; }.asset-state.error { color:#c72f3d; }.asset-tree { display:grid; gap:2px; }.asset-node { --depth:0; display:flex; align-items:center; width:100%; min-height:32px; padding:0 4px 0 calc(4px + var(--depth) * 19px); border:0; border-left:4px solid transparent; color:#476075; background:transparent; cursor:pointer; font:inherit; font-size:13px; text-align:left; }.asset-node:hover { color:#063b79; background:#cfe5ff; }.asset-node.selected { border-left-color:#16df65; color:#fff; background:#1267db; box-shadow:0 2px 7px rgba(18,103,219,.3); font-weight:700; }.asset-node.selected .asset-icon,.asset-node.selected .tree-toggle { color:#fff; }.tree-toggle { display:inline-grid; width:20px; height:24px; place-items:center; border-radius:3px; color:#6d8192; }.tree-toggle:hover { background:#d8e8f8; }.tree-toggle tb-icon { font-size:18px; }.tree-toggle.spacer { pointer-events:none; }.asset-icon { margin-right:6px; color:#4e88cf; font-size:16px; }
+.detail-content { min-width:0; }.back-link { display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; color:#32649b; font-size:12px; text-decoration:none; }.back-link:hover { color:#195ce8; text-decoration:underline; }.back-link tb-icon { font-size:16px; }.detail-grid { display:grid; grid-template-columns:minmax(330px,.83fr) minmax(580px,1.17fr); grid-template-rows:344px 344px; gap:14px; }.device-summary { grid-column:1; grid-row:1; min-height:0; }.realtime-panel { grid-column:1; grid-row:2; }.chart-grid { grid-column:2; grid-row:1 / span 2; }.summary-top { display:flex; gap:12px; padding:14px; border-bottom:1px solid #e7edf2; }.device-mark { display:grid; flex:0 0 100px; min-height:104px; place-items:center; border-radius:7px; color:#527087; background:#eef2f4; text-align:center; }.device-mark tb-icon { color:#205eab; font-size:42px; }.product-name { width:100%; padding:0 6px; color:#36546c; font-size:13px; font-weight:600; line-height:1.38; overflow-wrap:anywhere; word-break:break-word; }.mock-actions { display:flex; flex-wrap:wrap; align-content:start; gap:7px; }.mock-actions button,.alarms-panel header button { min-height:28px; padding:0 9px; border:0; border-radius:3px; color:#fff; background:#078b3f; cursor:pointer; font:inherit; font-size:11px; }.mock-actions button:hover,.alarms-panel header button:hover { background:#067234; }.device-fields { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin:0; padding:3px 16px 10px 126px; }.device-fields div { display:grid; grid-template-columns:104px minmax(0,1fr); gap:5px; min-height:27px; align-items:center; border-bottom:1px dashed #edf1f4; }.device-fields dt,.device-fields dd { margin:0; font-size:11px; }.device-fields dt { color:#75899a; }.device-fields dd { overflow:hidden; color:#42596b; text-overflow:ellipsis; white-space:nowrap; }.device-fields dd.ok { color:#079545; font-weight:700; }
+.chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }.chart-card { min-height:0; }.chart-card header,.realtime-panel header,.alarms-panel > header { display:flex; align-items:center; min-height:43px; padding:0 13px; border-bottom:1px solid #e7edf2; }.chart-card h2,.realtime-panel h2,.alarms-panel h2 { color:#2d4051; font-size:15px; }.chart-card header span { margin-left:auto; color:#72879a; font-size:10px; }.chart-host { width:100%; height:296px; }
+.chart-period-tabs { display:flex; align-items:center; gap:1px; margin-left:auto; padding:2px; border:1px solid #195ce8; border-radius:5px; background:#fff; }
+.chart-period-tabs button { min-width:22px; height:20px; padding:0 3px; border:0; border-radius:3px; color:#aab4bd; background:transparent; cursor:pointer; font:inherit; font-size:10px; line-height:20px; }
+.chart-period-tabs button:hover { color:#195ce8; background:#eef5ff; }
+.chart-period-tabs button.active { color:#fff; background:#195ce8; font-weight:700; }
+.chart-period-tabs button:focus-visible { outline:2px solid #195ce8; outline-offset:1px; }
+
+/* 实时数据面板：外框保持在详情页网格内，指标过多时只在面板内部滚动。 */
+.realtime-panel { display:flex; min-height:0; flex-direction:column; overflow:hidden; }
+.realtime-panel header { flex:0 0 auto; }
+.realtime-panel header time { margin-left:12px; color:#5d7184; font-size:12px; }
+.realtime-panel header > span { margin-left:auto; color:#778a9b; font-size:10px; }
+.metric-grid { display:grid; box-sizing:border-box; flex:1 1 auto; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); grid-auto-rows:minmax(58px,auto); align-content:start; gap:8px; min-width:0; min-height:0; padding:13px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; }
+.metric { display:grid; box-sizing:border-box; min-width:0; min-height:0; place-items:center; padding:6px; background:#dbeafa; text-align:center; }
+.metric span,.metric strong { max-width:100%; overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
+.metric span { color:#587089; font-size:clamp(10px,1.1vw,11px); line-height:1.25; }
+.metric strong { color:#175ce5; font-size:clamp(13px,1.6vw,17px); line-height:1.2; }
+.metric strong.ok { color:#079a45; }
+.alarms-panel { margin-top:14px; }.alarms-panel > header { justify-content:space-between; min-height:58px; }.alarms-panel p { margin-top:3px; color:#718599; font-size:11px; }.alarm-table-wrap { padding:12px 14px 16px; overflow-x:auto; }table { width:100%; border-collapse:collapse; font-size:12px; }th,td { padding:10px 11px; border:1px solid #e2e9ee; text-align:left; white-space:nowrap; }th { color:#496278; background:#dff4fc; font-weight:700; }td { color:#435a6c; }.tag { display:inline-block; min-width:38px; padding:3px 7px; border:1px solid #f1c456; border-radius:3px; color:#bb7900; background:#fff7de; text-align:center; font-size:10px; }.tag.critical { border-color:#ff7580; color:#e22d3a; background:#fff0f1; }.tag.done { border-color:#52ba7a; color:#138a42; background:#e7f9ed; }
+.alarm-state { min-height:62px; color:#718599; text-align:center; }.alarm-state.error { color:#c72f3d; }
+@media(max-width:1320px) { .detail-grid { grid-template-columns:minmax(300px,.85fr) minmax(470px,1.15fr); }.device-fields { grid-template-columns:1fr; }.metric-grid { grid-template-columns:repeat(auto-fit,minmax(82px,1fr)); gap:6px; padding:10px; }.metric { padding:5px; }.metric span { font-size:9px; }.metric strong { font-size:14px; } } @media(max-width:980px) { .device-detail-page { grid-template-columns:1fr; padding:10px; }.asset-panel { min-height:auto; }.detail-grid { grid-template-columns:1fr; grid-template-rows:none; }.device-summary,.realtime-panel,.chart-grid { grid-column:auto; grid-row:auto; }.device-fields { grid-template-columns:1fr 1fr; }.metric-grid { grid-template-columns:repeat(auto-fit,minmax(90px,1fr)); gap:5px; }.chart-card { min-height:344px; } } @media(max-width:620px) { .detail-heading,.summary-top { flex-direction:column; align-items:start; gap:3px; }.chart-grid,.device-fields { grid-template-columns:1fr; }.metric-grid { grid-template-columns:repeat(auto-fit,minmax(76px,1fr)); gap:4px; padding:8px; }.metric { padding:4px 2px; }.metric span { font-size:8px; }.metric strong { font-size:13px; }.device-mark { width:100%; }.chart-card { min-height:230px; }.chart-host { height:184px; }.chart-period-tabs button { min-width:20px; font-size:9px; } }
+
+/* 详情定位模式：非当前设备只读，不可作为新的详情上下文选中。 */
+.asset-node.locked { color: #9aa9b5; cursor: not-allowed; }.asset-node.locked:hover { color: #9aa9b5; background: transparent; }.asset-node.locked .asset-icon { color: #aab7c1; }.asset-node.locked .tree-toggle { cursor: pointer; color: #6d8192; }.asset-node.locked .tree-toggle:hover { background: #d8e8f8; }
+
+/* 设备摘要指标整体左移，减少图片区域右侧的空白；窄屏恢复正常边距避免内容被挤压。 */
+.device-fields { padding-left: 110px; }
+
+@media (max-width: 620px) {
+  .device-fields { padding-left: 16px; }
+}
+
+/* 设备摘要按卡片实际宽度自适应列数，避免笔记本端两列过窄导致字段值被裁切。 */
+.device-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.device-fields > div,
+.device-fields dd {
+  min-width: 0;
+}
+
+.device-fields dd {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* 设备摘要保持两列；指标靠近卡片左侧，长文本省略并通过 title 悬浮查看。 */
+.device-fields {
+  grid-template-columns: 1fr 1fr;
+  padding-left: 16px;
+}
+
+.device-fields div {
+  min-width: 0;
+  grid-template-columns: 82px minmax(0, 1fr);
+}
+
+.device-fields dd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

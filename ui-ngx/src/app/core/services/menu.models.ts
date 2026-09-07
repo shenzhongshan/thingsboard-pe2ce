@@ -253,7 +253,7 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     {
       id: MenuId.notifications_center,
       name: 'notification.notification-center',
-      type: 'link',
+      type: 'toggle',
       path: '/notification',
       icon: 'mdi:message-badge'
     }

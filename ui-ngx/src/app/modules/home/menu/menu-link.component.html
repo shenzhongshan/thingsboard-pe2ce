@@ -16,17 +16,34 @@
 
 -->
 @if (section.href) {
-  <a mat-button [href]="section.href" [target]="section.openInNewTab ? '_blank' : '_self'" rel="noopener">
+  <a
+    mat-button
+    [href]="section.href"
+    [target]="section.openInNewTab ? '_blank' : '_self'"
+    rel="noopener">
     @if (section.icon !== null) {
-      <tb-icon matButtonIcon>{{section.icon}}</tb-icon>
+      <tb-icon matButtonIcon>{{ section.icon }}</tb-icon>
     }
-    <span>{{section.customTranslate ? (section.name | customTranslate) : (section.name | translate)}}</span>
+    <span>
+      {{ section.customTranslate ? (section.name | customTranslate) : (section.name | translate) }}
+    </span>
   </a>
 } @else {
-  <a mat-button routerLinkActive="tb-active" [routerLinkActiveOptions]="{paths: 'subset', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored'}" routerLink="{{section.path}}">
+  <a
+    mat-button
+    routerLinkActive="tb-active"
+    [routerLinkActiveOptions]="{
+      paths: section.path === '/dashboards' ? 'exact' : 'subset',
+      queryParams: 'ignored',
+      matrixParams: 'ignored',
+      fragment: 'ignored'
+    }"
+    routerLink="{{ section.path }}">
     @if (section.icon !== null) {
-      <tb-icon matButtonIcon>{{section.icon}}</tb-icon>
+      <tb-icon matButtonIcon>{{ section.icon }}</tb-icon>
     }
-    <span>{{section.customTranslate ? (section.name | customTranslate) : (section.name | translate)}}</span>
+    <span>
+      {{ section.customTranslate ? (section.name | customTranslate) : (section.name | translate) }}
+    </span>
   </a>
 }

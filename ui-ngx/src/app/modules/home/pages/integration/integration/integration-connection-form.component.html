@@ -1,0 +1,1110 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-integration-connection-form flex flex-col gap-2" [formGroup]="connectionForm">
+  <!-- HTTP + all LPWAN webhook types. Field set, order and grouping follow PE's
+       tb-http-integration-form and its per-vendor variants; the endpoint URL is derived
+       live from baseUrl + the per-type segment + the routing key. -->
+  @if (isHttpWebhookType) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.base-url</mat-label>
+      <input matInput formControlName="baseUrl" required>
+      @if (connectionForm.get('baseUrl').hasError('required')) {
+        <mat-error>{{ 'integration.base-url-required' | translate }}</mat-error>
+      }
+    </mat-form-field>
+
+    @if (type === IntegrationType.KPN) {
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.destination-shared-secret</mat-label>
+        <input matInput formControlName="kpnDestinationSharedSecret" type="password" autocomplete="new-password">
+      </mat-form-field>
+    }
+
+    <div class="tb-int-endpoint-block">
+      <div class="tb-int-endpoint-label" translate>integration.http-endpoint-url</div>
+      <div class="tb-int-endpoint-url">
+        <code>{{ httpEndpointUrl }}</code>
+        <button mat-icon-button type="button" (click)="copyToClipboard(httpEndpointUrl, 'endpoint')"
+                matTooltip="{{ 'integration.copy-http-endpoint-url' | translate }}">
+          <mat-icon>content_copy</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- ChirpStack: the application-server API the downlink path calls back into. -->
+    @if (type === IntegrationType.CHIRPSTACK) {
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.application-server-url</mat-label>
+        <input matInput formControlName="chirpApplicationServerUrl" required>
+      </mat-form-field>
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.application-server-api-token</mat-label>
+        <input matInput formControlName="chirpApplicationServerAPIToken" type="password" autocomplete="new-password" required>
+      </mat-form-field>
+      <mat-slide-toggle formControlName="chirpUseAPI4Plus">
+        {{ 'integration.use-api-four-plus' | translate }}
+      </mat-slide-toggle>
+    }
+
+    <!-- Particle / KPN put their downlink credentials behind one 允许下行 panel. -->
+    @if (hasAllowDownlinkPanel) {
+      <mat-expansion-panel class="tb-int-remote-panel"
+                           [expanded]="connectionForm.get('allowDownlink').value">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-slide-toggle formControlName="allowDownlink" (click)="$event.stopPropagation()">
+              {{ 'integration.allow-downlink' | translate }}
+            </mat-slide-toggle>
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <ng-template matExpansionPanelContent>
+          @if (type === IntegrationType.PARTICLE) {
+            <fieldset class="fields-group">
+              <legend class="group-title" translate>integration.credentials</legend>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.token</mat-label>
+                <input matInput formControlName="particleToken" type="password" autocomplete="new-password">
+              </mat-form-field>
+            </fieldset>
+          } @else {
+            <fieldset class="fields-group">
+              <legend class="group-title" translate>integration.credentials</legend>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.grip-tenant-id</mat-label>
+                <input matInput formControlName="kpnGripTenantId">
+              </mat-form-field>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.api-id</mat-label>
+                <input matInput formControlName="kpnApiId" type="password" autocomplete="new-password">
+              </mat-form-field>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.api-key</mat-label>
+                <input matInput formControlName="kpnApiKey" type="password" autocomplete="new-password">
+              </mat-form-field>
+            </fieldset>
+          }
+        </ng-template>
+      </mat-expansion-panel>
+    }
+
+    <!-- Loriot: PE keeps output creation + downlink under one panel whose header holds
+         both toggles, with the app/credentials fields inside. -->
+    @if (type === IntegrationType.LORIOT) {
+      <mat-expansion-panel class="tb-int-remote-panel" [expanded]="true">
+        <mat-expansion-panel-header>
+          <mat-panel-title class="flex flex-row items-center gap-4">
+            <mat-slide-toggle formControlName="loriotCreateOutput" (click)="$event.stopPropagation()">
+              {{ 'integration.create-loriot-output' | translate }}
+            </mat-slide-toggle>
+            <mat-slide-toggle formControlName="loriotSendDownlink" (click)="$event.stopPropagation()">
+              {{ 'integration.send-downlink' | translate }}
+            </mat-slide-toggle>
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <ng-template matExpansionPanelContent>
+          <div class="flex flex-col gap-2">
+            <div class="flex flex-row gap-2">
+              <mat-form-field class="flex-1">
+                <mat-label translate>integration.server</mat-label>
+                <input matInput formControlName="loriotServer" [required]="type === IntegrationType.LORIOT">
+              </mat-form-field>
+              <mat-form-field class="flex-1">
+                <mat-label translate>integration.domain</mat-label>
+                <input matInput formControlName="loriotDomain">
+              </mat-form-field>
+            </div>
+            <mat-form-field class="w-full">
+              <mat-label translate>integration.app-id</mat-label>
+              <input matInput formControlName="loriotAppId" [required]="type === IntegrationType.LORIOT">
+            </mat-form-field>
+            <fieldset class="fields-group">
+              <legend class="group-title" translate>integration.credentials</legend>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.credentials-type</mat-label>
+                <mat-select formControlName="loriotCredentialsType">
+                  @for (t of loriotCredentialsTypeLabels | keyvalue; track t.key) {
+                    <mat-option [value]="t.key">{{ t.value | translate }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              @if (connectionForm.get('loriotCredentialsType').value === LoriotCredentialsType.BASIC) {
+                <mat-form-field class="w-full">
+                  <mat-label translate>integration.email</mat-label>
+                  <input matInput formControlName="loriotUsername" [required]="type === IntegrationType.LORIOT && connectionForm.get('loriotCredentialsType').value === LoriotCredentialsType.BASIC">
+                </mat-form-field>
+                <mat-form-field class="w-full">
+                  <mat-label translate>integration.password</mat-label>
+                  <input matInput formControlName="loriotPassword" type="password" autocomplete="new-password" [required]="type === IntegrationType.LORIOT && connectionForm.get('loriotCredentialsType').value === LoriotCredentialsType.BASIC">
+                </mat-form-field>
+              } @else {
+                <mat-form-field class="w-full">
+                  <mat-label translate>integration.token</mat-label>
+                  <input matInput formControlName="loriotToken" type="password" autocomplete="new-password" [required]="type === IntegrationType.LORIOT && connectionForm.get('loriotCredentialsType').value === LoriotCredentialsType.TOKEN">
+                </mat-form-field>
+              }
+            </fieldset>
+          </div>
+        </ng-template>
+      </mat-expansion-panel>
+    }
+
+    <!-- ThingPark / TPE: HMAC signature security. PE swaps AS ID for asIdNew and adds a
+         client id/secret pair when the auto-token toggle is on. -->
+    @if (isThingParkType) {
+      <mat-expansion-panel class="tb-int-remote-panel"
+                           [expanded]="connectionForm.get('enableSecurity').value || connectionForm.get('tpEnableSecurityNew').value">
+        <mat-expansion-panel-header>
+          <mat-panel-title class="flex flex-row items-center gap-4">
+            <mat-slide-toggle formControlName="enableSecurity" (click)="$event.stopPropagation()">
+              {{ 'integration.enable-security' | translate }}
+            </mat-slide-toggle>
+            <mat-slide-toggle formControlName="tpEnableSecurityNew" (click)="$event.stopPropagation()">
+              {{ 'integration.enable-security-new' | translate }}
+            </mat-slide-toggle>
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <ng-template matExpansionPanelContent>
+          <div class="flex flex-col gap-2">
+            @if (connectionForm.get('tpEnableSecurityNew').value) {
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.as-id</mat-label>
+                <input matInput formControlName="tpAsIdNew" [required]="isThingParkType && connectionForm.get('tpEnableSecurityNew').value">
+              </mat-form-field>
+            } @else {
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.as-id</mat-label>
+                <input matInput formControlName="tpAsId" [required]="isThingParkType && !connectionForm.get('tpEnableSecurityNew').value">
+              </mat-form-field>
+            }
+            <mat-form-field class="w-full">
+              <mat-label translate>integration.as-key</mat-label>
+              <input matInput formControlName="tpAsKey" type="password" autocomplete="new-password" [required]="isThingParkType">
+            </mat-form-field>
+            @if (connectionForm.get('tpEnableSecurityNew').value) {
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.client-id</mat-label>
+                <input matInput formControlName="tpClientIdNew" [required]="isThingParkType && connectionForm.get('tpEnableSecurityNew').value">
+              </mat-form-field>
+              <mat-form-field class="w-full">
+                <mat-label translate>integration.client-secret</mat-label>
+                <input matInput formControlName="tpClientSecret" type="password" autocomplete="new-password" [required]="isThingParkType && connectionForm.get('tpEnableSecurityNew').value">
+              </mat-form-field>
+            }
+            <mat-form-field class="w-full">
+              <mat-label translate>integration.max-time-diff-in-seconds</mat-label>
+              <input matInput type="number" formControlName="tpMaxTimeDiffInSeconds" [required]="isThingParkType">
+            </mat-form-field>
+          </div>
+        </ng-template>
+      </mat-expansion-panel>
+    }
+
+    <!-- Header allow-list. PE gates persistence of the map on the toggle, so an
+         accidentally-filled map cannot start rejecting traffic while security is off. -->
+    @if (hasHeaderSecurityPanel) {
+      <mat-expansion-panel class="tb-int-remote-panel"
+                           [expanded]="connectionForm.get('enableSecurity').value">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-slide-toggle formControlName="enableSecurity" (click)="$event.stopPropagation()">
+              {{ 'integration.enable-security-headers-filter' | translate }}
+            </mat-slide-toggle>
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <ng-template matExpansionPanelContent>
+          <tb-key-val-map formControlName="headersFilter"
+                          titleText="integration.headers-filter"
+                          keyPlaceholderText="integration.header-filter-name"
+                          valuePlaceholderText="integration.header-filter-value"
+                          noDataText="integration.no-headers-filter">
+          </tb-key-val-map>
+        </ng-template>
+      </mat-expansion-panel>
+    }
+  }
+
+  <!-- UDP: this port's own in-process implementation (PE has no in-process UDP at all,
+       it's remote-executor-only there) — kept deliberately simple, port only. -->
+  @if (type === IntegrationType.UDP) {
+    <fieldset class="fields-group">
+      <legend class="group-title" translate>integration.handler-configuration</legend>
+      <mat-form-field style="width: 160px;">
+        <mat-label translate>integration.port</mat-label>
+        <input matInput type="number" formControlName="tcpPort" required>
+      </mat-form-field>
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.tcp-so-rcv-buf</mat-label>
+        <input matInput type="number" formControlName="soRcvBuf" required>
+      </mat-form-field>
+      <mat-slide-toggle formControlName="soBroadcast">
+        {{ 'integration.udp-so-broadcast' | translate }}
+      </mat-slide-toggle>
+      <!-- PE's handlerConfiguration. For UDP this selects how the datagram is presented to the
+           converter (not framing — a datagram is already one message): HEX exposes maxFrameLength,
+           TEXT exposes charsetName, BINARY/JSON take neither. -->
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.handler-type</mat-label>
+        <mat-select formControlName="udpHandlerType">
+          @for (h of udpHandlerTypes; track h) {
+            <mat-option [value]="h">{{ h }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      @if (connectionForm.get('udpHandlerType').value === 'TEXT') {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.charset-name</mat-label>
+          <input matInput formControlName="udpCharsetName"
+                 [required]="connectionForm.get('udpHandlerType').value === 'TEXT'">
+        </mat-form-field>
+      }
+      @if (connectionForm.get('udpHandlerType').value === 'HEX') {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-max-frame-length</mat-label>
+          <input matInput type="number" formControlName="udpMaxFrameLength"
+                 [required]="connectionForm.get('udpHandlerType').value === 'HEX'">
+        </mat-form-field>
+      }
+    </fieldset>
+  }
+
+  <!-- TCP: field set/order/names copied from PE's real tb-tcp-integration-form. -->
+  @if (type === IntegrationType.TCP) {
+    <mat-form-field style="width: 160px;">
+      <mat-label translate>integration.port</mat-label>
+      <input matInput type="number" formControlName="tcpPort" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tcp-so-backlog</mat-label>
+      <input matInput type="number" formControlName="soBacklogOption">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tcp-so-rcvbuf</mat-label>
+      <input matInput type="number" formControlName="soRcvBuf">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tcp-so-sndbuf</mat-label>
+      <input matInput type="number" formControlName="soSndBuf">
+    </mat-form-field>
+    <mat-slide-toggle formControlName="soKeepaliveOption">{{ 'integration.tcp-so-keepalive' | translate }}</mat-slide-toggle>
+    <mat-slide-toggle formControlName="tcpNoDelay">{{ 'integration.tcp-no-delay' | translate }}</mat-slide-toggle>
+
+    <fieldset class="fields-group">
+      <legend class="group-title" translate>integration.tcp-handler-config</legend>
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.tcp-handler-type</mat-label>
+        <mat-select formControlName="handlerType">
+          @for (t of tcpHandlerTypes; track t) {
+            <mat-option [value]="t">{{ t }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      @if (connectionForm.get('handlerType').value !== TcpHandlerType.JSON) {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-max-frame-length</mat-label>
+          <input matInput type="number" formControlName="maxFrameLength">
+        </mat-form-field>
+      }
+
+      @if (connectionForm.get('handlerType').value === TcpHandlerType.TEXT) {
+        <mat-slide-toggle formControlName="stripDelimiter">{{ 'integration.tcp-strip-delimiter' | translate }}</mat-slide-toggle>
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-message-separator</mat-label>
+          <mat-select formControlName="messageSeparator">
+            <mat-option [value]="TcpMessageSeparator.SYSTEM_LINE_SEPARATOR">{{ 'integration.tcp-separator-system' | translate }}</mat-option>
+            <mat-option [value]="TcpMessageSeparator.NUL">{{ 'integration.tcp-separator-nul' | translate }}</mat-option>
+            <mat-option [value]="TcpMessageSeparator.CUSTOM">{{ 'integration.tcp-separator-custom' | translate }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        @if (connectionForm.get('messageSeparator').value === TcpMessageSeparator.CUSTOM) {
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.tcp-delimiter</mat-label>
+            <input matInput formControlName="customSeparatorRawValue">
+            <mat-hint translate>integration.tcp-delimiter-hint</mat-hint>
+          </mat-form-field>
+        }
+      }
+
+      @if (connectionForm.get('handlerType').value === TcpHandlerType.BINARY) {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-length-field-offset</mat-label>
+          <input matInput type="number" formControlName="lengthFieldOffset">
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-length-field-length</mat-label>
+          <input matInput type="number" formControlName="lengthFieldLength">
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-length-adjustment</mat-label>
+          <input matInput type="number" formControlName="lengthAdjustment">
+        </mat-form-field>
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.tcp-initial-bytes-to-strip</mat-label>
+          <input matInput type="number" formControlName="initialBytesToStrip">
+        </mat-form-field>
+        <div class="flex flex-col gap-1">
+          <div translate>integration.tcp-byte-order</div>
+          <mat-radio-group formControlName="byteOrder" class="flex flex-row gap-3">
+            <mat-radio-button [value]="TcpByteOrder.LITTLE_ENDIAN">{{ 'integration.tcp-byte-order-little' | translate }}</mat-radio-button>
+            <mat-radio-button [value]="TcpByteOrder.BIG_ENDIAN">{{ 'integration.tcp-byte-order-big' | translate }}</mat-radio-button>
+          </mat-radio-group>
+        </div>
+        <mat-slide-toggle formControlName="failFast">{{ 'integration.tcp-fail-fast' | translate }}</mat-slide-toggle>
+      }
+    </fieldset>
+  }
+
+  <!-- CoAP -->
+  <!-- CoAP. PE's model: the integration publishes itself on the platform's shared CoAP server at a
+       routing-key path, so there is no port to pick — same shape as the HTTP webhook family.
+       Integrations created before this existed are stored as {port, resourceName}; they keep the
+       legacy editor so their configuration stays editable rather than silently rewritten. -->
+  @if (type === IntegrationType.COAP) {
+    @if (coapLegacyMode) {
+      <div class="tb-int-hint" translate>integration.coap-legacy-mode-hint</div>
+      <div class="flex flex-row gap-2">
+        <mat-form-field style="width: 160px;">
+          <mat-label translate>integration.port</mat-label>
+          <input matInput type="number" formControlName="coapPort" required>
+        </mat-form-field>
+        <mat-form-field class="flex-1">
+          <mat-label translate>integration.coap-resource-name</mat-label>
+          <input matInput formControlName="resourceName">
+        </mat-form-field>
+      </div>
+    } @else {
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.coap-security-mode</mat-label>
+        <mat-select formControlName="coapSecurityMode">
+          @for (m of coapSecurityModes; track m) {
+            <mat-option [value]="m">{{ ('integration.coap-security-' + m.toLowerCase()) | translate }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      @if (coapShowNoSecEndpoint) {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.base-url</mat-label>
+          <input matInput formControlName="coapBaseUrl" [required]="coapShowNoSecEndpoint">
+        </mat-form-field>
+        <div class="tb-int-endpoint-block">
+          <div class="tb-int-endpoint-label" translate>integration.coap-endpoint-url</div>
+          <div class="tb-int-endpoint-url">
+            <code>{{ coapEndpointUrl }}</code>
+            <button mat-icon-button type="button" (click)="copyToClipboard(coapEndpointUrl, 'endpoint')"
+                    matTooltip="{{ 'integration.copy-http-endpoint-url' | translate }}">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+      @if (coapShowDtlsEndpoint) {
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.coap-dtls-base-url</mat-label>
+          <input matInput formControlName="coapDtlsBaseUrl" [required]="coapShowDtlsEndpoint">
+        </mat-form-field>
+        <div class="tb-int-endpoint-block">
+          <div class="tb-int-endpoint-label" translate>integration.coap-dtls-endpoint-url</div>
+          <div class="tb-int-endpoint-url">
+            <code>{{ coapDtlsEndpointUrl }}</code>
+            <button mat-icon-button type="button" (click)="copyToClipboard(coapDtlsEndpointUrl, 'endpoint')"
+                    matTooltip="{{ 'integration.copy-http-endpoint-url' | translate }}">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    }
+  }
+
+  <!-- MQTT family: MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI -->
+  @if (isMqttFamilyType) {
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>{{ (type === IntegrationType.TTN || type === IntegrationType.TTI) ? 'integration.ttn-region-or-host' : 'integration.host' }}</mat-label>
+        <input matInput formControlName="host" required>
+      </mat-form-field>
+      @if (type !== IntegrationType.AWS_IOT && type !== IntegrationType.AZURE_IOT_HUB) {
+        <mat-form-field style="width: 120px;">
+          <mat-label translate>integration.port</mat-label>
+          <input matInput type="number" formControlName="port">
+        </mat-form-field>
+      }
+    </div>
+    @if (type === IntegrationType.TTN || type === IntegrationType.TTI) {
+      <mat-slide-toggle formControlName="customHost">{{ 'integration.ttn-custom-host' | translate }}</mat-slide-toggle>
+    }
+    <!-- Client ID lives only in the advanced-settings panel below, matching PE (whose
+         tb-mqtt-integration-form has no top-level clientId field). It used to also be
+         bound here, which meant the same control rendered twice in one form. -->
+    <fieldset class="fields-group">
+      <legend class="group-title" translate>integration.credentials</legend>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.credentials-type</mat-label>
+      <mat-select formControlName="credentialsType">
+        @if (type === IntegrationType.MQTT) {
+          <mat-option [value]="MqttCredentialsType.ANONYMOUS">{{ 'integration.credentials-anonymous' | translate }}</mat-option>
+        }
+        @if (type === IntegrationType.MQTT || type === IntegrationType.TTN || type === IntegrationType.TTI) {
+          <mat-option [value]="MqttCredentialsType.BASIC">{{ 'integration.credentials-basic' | translate }}</mat-option>
+        }
+        @if (type === IntegrationType.MQTT || type === IntegrationType.AWS_IOT || type === IntegrationType.AZURE_IOT_HUB) {
+          <mat-option [value]="MqttCredentialsType.CERT_PEM">{{ 'integration.credentials-cert-pem' | translate }}</mat-option>
+        }
+        @if (type === IntegrationType.AZURE_IOT_HUB) {
+          <mat-option [value]="MqttCredentialsType.SAS">{{ 'integration.credentials-sas' | translate }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    @if (connectionForm.get('credentialsType').value === MqttCredentialsType.BASIC) {
+      <div class="flex flex-row gap-2">
+        <mat-form-field class="flex-1">
+          <mat-label translate>{{ (type === IntegrationType.TTN || type === IntegrationType.TTI) ? 'integration.ttn-app-id' : 'integration.username' }}</mat-label>
+          <input matInput formControlName="username">
+        </mat-form-field>
+        <div class="flex-1">
+          <tb-secret-input formControlName="password" mode="password"
+                           [label]="(type === IntegrationType.TTN || type === IntegrationType.TTI) ? 'integration.ttn-api-key' : 'integration.password'">
+          </tb-secret-input>
+        </div>
+      </div>
+    }
+    @if (connectionForm.get('credentialsType').value === MqttCredentialsType.SAS) {
+      <tb-secret-input formControlName="sasKey" mode="password" label="integration.sas-key" [required]="true">
+      </tb-secret-input>
+      <tb-secret-input formControlName="caCert" mode="file" label="integration.ca-cert-optional">
+      </tb-secret-input>
+    }
+    @if (connectionForm.get('credentialsType').value === MqttCredentialsType.CERT_PEM) {
+      <!-- PE renders each of the three PEM artefacts as 浏览文件 / 使用密钥存储, then the private key
+           password as a normal secret-capable field. -->
+      <tb-secret-input formControlName="caCert" mode="file" label="integration.ca-cert-file" [required]="true">
+      </tb-secret-input>
+      <tb-secret-input formControlName="cert" mode="file" label="integration.cert-file" [required]="true">
+      </tb-secret-input>
+      <tb-secret-input formControlName="privateKey" mode="file" label="integration.private-key-file" [required]="true">
+      </tb-secret-input>
+      <tb-secret-input formControlName="privateKeyPassword" mode="password" label="integration.private-key-password">
+      </tb-secret-input>
+    }
+    <mat-slide-toggle formControlName="ssl">{{ 'integration.enable-ssl' | translate }}</mat-slide-toggle>
+    </fieldset>
+    <fieldset class="fields-group">
+      <legend class="group-title" translate>integration.topic-filters</legend>
+    <div formArrayName="topicFilters" class="flex flex-col gap-1">
+      @for (row of topicFiltersArray.controls; track row; let i = $index) {
+        <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
+          <mat-form-field class="flex-1">
+            <mat-label translate>integration.topic</mat-label>
+            <input matInput formControlName="filter" required>
+          </mat-form-field>
+          <mat-form-field style="width: 160px;">
+            <mat-label>QoS</mat-label>
+            <mat-select formControlName="qos">
+              <mat-option [value]="0">0 - {{ 'integration.qos-at-most-once' | translate }}</mat-option>
+              <mat-option [value]="1">1 - {{ 'integration.qos-at-least-once' | translate }}</mat-option>
+              <mat-option [value]="2">2 - {{ 'integration.qos-exactly-once' | translate }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button mat-icon-button type="button" (click)="removeTopicFilter(i)"><mat-icon>delete</mat-icon></button>
+        </div>
+      }
+    </div>
+    <div class="tb-int-hint" translate>integration.topic-filter-hint-wildcards</div>
+    <div class="tb-int-hint" [innerHTML]="'integration.topic-filter-hint-plus' | translate"></div>
+    <div class="tb-int-hint" [innerHTML]="'integration.topic-filter-hint-hash' | translate"></div>
+    <button mat-button class="tb-int-add-button" type="button" (click)="addTopicFilter()">
+      {{ 'integration.add-topic-filter' | translate }}
+    </button>
+    </fieldset>
+  }
+
+  <!-- OPC-UA -->
+  @if (type === IntegrationType.OPC_UA) {
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.host</mat-label>
+        <input matInput formControlName="opcHost" required>
+      </mat-form-field>
+      <mat-form-field style="width: 120px;">
+        <mat-label translate>integration.port</mat-label>
+        <input matInput type="number" formControlName="opcPort">
+      </mat-form-field>
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.opcua-endpoint</mat-label>
+        <input matInput formControlName="endpoint">
+      </mat-form-field>
+    </div>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.opcua-security</mat-label>
+      <mat-select formControlName="security">
+        @for (p of OpcUaSecurityPolicy | keyvalue; track p.key) {
+          <mat-option [value]="p.value">{{ p.value }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.opcua-identity</mat-label>
+      <mat-select formControlName="identityType">
+        <mat-option [value]="OpcUaIdentityType.ANONYMOUS">{{ 'integration.identity-anonymous' | translate }}</mat-option>
+        <mat-option [value]="OpcUaIdentityType.USERNAME">{{ 'integration.identity-username' | translate }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    @if (connectionForm.get('identityType').value === OpcUaIdentityType.USERNAME) {
+      <div class="flex flex-row gap-2">
+        <mat-form-field class="flex-1">
+          <mat-label translate>integration.username</mat-label>
+          <input matInput formControlName="identityUsername">
+        </mat-form-field>
+        <mat-form-field class="flex-1">
+          <mat-label translate>integration.password</mat-label>
+          <input matInput type="password" formControlName="identityPassword">
+        </mat-form-field>
+      </div>
+    }
+    <fieldset class="fields-group">
+      <legend class="group-title" translate>integration.opcua-mapping</legend>
+    <div formArrayName="mapping" class="flex flex-col gap-2">
+      @for (row of opcUaMappingArray.controls; track row; let mi = $index) {
+        <div [formGroupName]="mi" class="flex flex-col gap-1" style="border: 1px solid rgba(0,0,0,.12); padding: 8px; border-radius: 4px;">
+          <div class="flex flex-row items-baseline gap-2">
+            <mat-form-field class="flex-1">
+              <mat-label translate>integration.opcua-device-name</mat-label>
+              <input matInput formControlName="deviceName" required>
+            </mat-form-field>
+            <button mat-icon-button type="button" (click)="removeOpcUaMapping(mi)"><mat-icon>delete</mat-icon></button>
+          </div>
+          <div formArrayName="subscriptionTags" class="flex flex-col gap-1">
+            @for (tag of opcUaTagsArray(mi).controls; track tag; let ti = $index) {
+              <div [formGroupName]="ti" class="flex flex-row items-baseline gap-2">
+                <mat-form-field class="flex-1">
+                  <mat-label translate>integration.opcua-tag-key</mat-label>
+                  <input matInput formControlName="key" required>
+                </mat-form-field>
+                <mat-form-field class="flex-1">
+                  <mat-label translate>integration.opcua-tag-node-id</mat-label>
+                  <input matInput formControlName="nodeId" required placeholder="ns=2;s=Device1.Temperature">
+                </mat-form-field>
+                <button mat-icon-button type="button" (click)="removeOpcUaTag(mi, ti)"><mat-icon>delete</mat-icon></button>
+              </div>
+            }
+            <div>
+              <button mat-stroked-button type="button" (click)="addOpcUaTag(mi)">
+                <mat-icon>add</mat-icon>{{ 'integration.opcua-add-tag' | translate }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+      <div>
+        <button mat-stroked-button type="button" (click)="addOpcUaMapping()">
+          <mat-icon>add</mat-icon>{{ 'integration.opcua-add-device' | translate }}
+        </button>
+      </div>
+    </div>
+    </fieldset>
+  }
+
+  <!-- CUSTOM -->
+  @if (type === IntegrationType.CUSTOM) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.custom-class-name</mat-label>
+      <input matInput formControlName="clazz" required placeholder="com.example.MyCustomIntegration">
+      <mat-hint translate>integration.custom-class-hint</mat-hint>
+    </mat-form-field>
+  }
+
+  <!-- Kafka -->
+  @if (type === IntegrationType.KAFKA) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kafka-group-id</mat-label>
+      <input matInput formControlName="kafkaGroupId" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kafka-client-id</mat-label>
+      <input matInput formControlName="kafkaClientId" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kafka-bootstrap-servers</mat-label>
+      <input matInput formControlName="kafkaBootstrapServers" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kafka-poll-interval</mat-label>
+      <input matInput type="number" formControlName="kafkaPollInterval">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kafka-topics</mat-label>
+      <input matInput formControlName="kafkaTopics" required>
+    </mat-form-field>
+    <mat-slide-toggle formControlName="kafkaAutoCreateTopics">{{ 'integration.kafka-auto-create-topics' | translate }}</mat-slide-toggle>
+    <mat-accordion>
+      <mat-expansion-panel>
+        <mat-expansion-panel-header>{{ 'integration.advanced-settings' | translate }}</mat-expansion-panel-header>
+        <fieldset class="fields-group">
+          <legend class="group-title" translate>integration.kafka-other-properties</legend>
+        <div formArrayName="kafkaOtherProperties" class="flex flex-col gap-1">
+          @for (row of kafkaOtherPropertiesArray.controls; track row; let i = $index) {
+            <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
+              <mat-form-field class="flex-1">
+                <mat-label translate>integration.kv-key</mat-label>
+                <input matInput formControlName="key" required>
+              </mat-form-field>
+              <mat-form-field class="flex-1">
+                <mat-label translate>integration.kv-value</mat-label>
+                <input matInput formControlName="value">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeKafkaOtherProperty(i)"><mat-icon>delete</mat-icon></button>
+            </div>
+          }
+        </div>
+        <button mat-button class="tb-int-add-button" type="button" (click)="addKafkaOtherProperty()">
+          {{ 'integration.add-property' | translate }}
+        </button>
+        </fieldset>
+      </mat-expansion-panel>
+    </mat-accordion>
+  }
+
+  <!-- RabbitMQ -->
+  @if (type === IntegrationType.RABBITMQ) {
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.host</mat-label>
+        <input matInput formControlName="rmqHost" required>
+      </mat-form-field>
+      <mat-form-field style="width: 120px;">
+        <mat-label translate>integration.port</mat-label>
+        <input matInput type="number" formControlName="rmqPort">
+      </mat-form-field>
+    </div>
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.username</mat-label>
+        <input matInput formControlName="rmqUsername">
+      </mat-form-field>
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.password</mat-label>
+        <input matInput type="password" formControlName="rmqPassword">
+      </mat-form-field>
+    </div>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.rmq-virtual-host</mat-label>
+      <input matInput formControlName="rmqVirtualHost">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.rmq-exchange-name</mat-label>
+      <input matInput formControlName="rmqExchangeName">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.rmq-queues</mat-label>
+      <input matInput formControlName="rmqQueues" required placeholder="queue1,queue2">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.rmq-downlink-routing-key</mat-label>
+      <input matInput formControlName="rmqDownlinkTopic">
+    </mat-form-field>
+    <div class="flex flex-row gap-2">
+      <mat-slide-toggle formControlName="rmqDurable">{{ 'integration.rmq-durable' | translate }}</mat-slide-toggle>
+      <mat-slide-toggle formControlName="rmqExclusive">{{ 'integration.rmq-exclusive' | translate }}</mat-slide-toggle>
+      <mat-slide-toggle formControlName="rmqAutoDelete">{{ 'integration.rmq-auto-delete' | translate }}</mat-slide-toggle>
+    </div>
+  }
+
+  <!-- Apache Pulsar -->
+  @if (type === IntegrationType.APACHE_PULSAR) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pulsar-service-url</mat-label>
+      <input matInput formControlName="pulsarServiceUrl" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pulsar-topics</mat-label>
+      <input matInput formControlName="pulsarTopics" required placeholder="topic1,topic2">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pulsar-subscription-name</mat-label>
+      <input matInput formControlName="pulsarSubscriptionName" required>
+    </mat-form-field>
+    <!-- Batch-receive tuning. Same story as the OPC-UA/RabbitMQ fields: already saved
+         into clientConfiguration, just never rendered. PE keeps them in the main block. -->
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.pulsar-max-num-messages</mat-label>
+        <input matInput type="number" formControlName="pulsarMaxNumMessages" required>
+      </mat-form-field>
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.pulsar-max-num-bytes</mat-label>
+        <input matInput type="number" formControlName="pulsarMaxNumBytes" required>
+      </mat-form-field>
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.pulsar-timeout-in-ms</mat-label>
+        <input matInput type="number" formControlName="pulsarTimeoutInMs" required>
+      </mat-form-field>
+    </div>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.credentials-type</mat-label>
+      <mat-select formControlName="pulsarCredentialsType">
+        <mat-option [value]="PulsarCredentialsType.ANONYMOUS">{{ 'integration.credentials-anonymous' | translate }}</mat-option>
+        <mat-option [value]="PulsarCredentialsType.TOKEN">{{ 'integration.pulsar-token' | translate }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    @if (connectionForm.get('pulsarCredentialsType').value === PulsarCredentialsType.TOKEN) {
+      <mat-form-field class="w-full">
+        <mat-label translate>integration.pulsar-token</mat-label>
+        <input matInput formControlName="pulsarToken">
+      </mat-form-field>
+    }
+  }
+
+  <!-- Tuya -->
+  @if (type === IntegrationType.TUYA) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tuya-region</mat-label>
+      <mat-select formControlName="tuyaRegion">
+        <mat-option [value]="TuyaRegion.CN">CN</mat-option>
+        <mat-option [value]="TuyaRegion.US">US</mat-option>
+        <mat-option [value]="TuyaRegion.EU">EU</mat-option>
+        <mat-option [value]="TuyaRegion.IN">IN</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tuya-access-id</mat-label>
+      <input matInput formControlName="tuyaAccessId" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tuya-access-key</mat-label>
+      <input matInput type="password" formControlName="tuyaAccessKey" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.tuya-env</mat-label>
+      <mat-select formControlName="tuyaEnv">
+        <mat-option [value]="TuyaEnv.PROD">{{ 'integration.tuya-env-prod' | translate }}</mat-option>
+        <mat-option [value]="TuyaEnv.TEST">{{ 'integration.tuya-env-test' | translate }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  }
+
+  <!-- AWS SQS -->
+  @if (type === IntegrationType.AWS_SQS) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.sqs-queue-url</mat-label>
+      <input matInput formControlName="sqsQueueUrl" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.aws-region</mat-label>
+      <input matInput formControlName="sqsRegion" required>
+    </mat-form-field>
+    <div class="flex flex-row gap-2">
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.aws-access-key-id</mat-label>
+        <input matInput formControlName="sqsAccessKeyId">
+      </mat-form-field>
+      <mat-form-field class="flex-1">
+        <mat-label translate>integration.aws-secret-access-key</mat-label>
+        <input matInput type="password" formControlName="sqsSecretAccessKey">
+      </mat-form-field>
+    </div>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.sqs-polling-period-seconds</mat-label>
+      <input matInput type="number" formControlName="sqsPollingPeriodSeconds">
+    </mat-form-field>
+  }
+
+  <!-- AWS Kinesis -->
+  @if (type === IntegrationType.AWS_KINESIS) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kinesis-stream-name</mat-label>
+      <input matInput formControlName="kinesisStreamName" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.aws-region</mat-label>
+      <input matInput formControlName="kinesisRegion" required>
+    </mat-form-field>
+    <!-- PE offers the same choice; picking the instance role hides the static key pair, because
+         AwsKinesisIntegrationConsumer ignores it entirely in that mode. -->
+    <mat-slide-toggle formControlName="kinesisUseInstanceMetadata">
+      {{ 'integration.use-credentials-from-instance-metadata' | translate }}
+    </mat-slide-toggle>
+    @if (!connectionForm.get('kinesisUseInstanceMetadata').value) {
+      <div class="flex flex-row gap-2">
+        <mat-form-field class="flex-1">
+          <mat-label translate>integration.aws-access-key-id</mat-label>
+          <input matInput formControlName="kinesisAccessKeyId">
+        </mat-form-field>
+        <mat-form-field class="flex-1">
+          <mat-label translate>integration.aws-secret-access-key</mat-label>
+          <input matInput type="password" formControlName="kinesisSecretAccessKey">
+        </mat-form-field>
+      </div>
+    }
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kinesis-initial-position</mat-label>
+      <mat-select formControlName="kinesisInitialPosition">
+        <mat-option [value]="KinesisInitialPosition.LATEST">{{ 'integration.kinesis-latest' | translate }}</mat-option>
+        <mat-option [value]="KinesisInitialPosition.TRIM_HORIZON">{{ 'integration.kinesis-trim-horizon' | translate }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kinesis-max-records</mat-label>
+      <input matInput type="number" formControlName="kinesisMaxRecords">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.kinesis-request-timeout</mat-label>
+      <input matInput type="number" formControlName="kinesisRequestTimeout">
+    </mat-form-field>
+  }
+
+  <!-- Azure Event Hub -->
+  @if (type === IntegrationType.AZURE_EVENT_HUB) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.azure-connection-string</mat-label>
+      <input matInput formControlName="aehConnectionString" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.iot-hub-name</mat-label>
+      <input matInput formControlName="aehIotHubName">
+      <mat-hint translate>integration.iot-hub-name-hint</mat-hint>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.azure-consumer-group</mat-label>
+      <input matInput formControlName="aehConsumerGroup">
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.connect-timeout-sec</mat-label>
+      <input matInput type="number" formControlName="aehConnectTimeoutSec" required>
+    </mat-form-field>
+    <!-- PE puts this behind its own panel with the toggle in the header, same as 远程执行. -->
+    <mat-expansion-panel class="tb-int-remote-panel"
+                         [expanded]="connectionForm.get('aehPersistentCheckpoints').value">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <mat-slide-toggle formControlName="aehPersistentCheckpoints" (click)="$event.stopPropagation()">
+            {{ 'integration.enable-persistent-checkpoints' | translate }}
+          </mat-slide-toggle>
+        </mat-panel-title>
+      </mat-expansion-panel-header>
+      <ng-template matExpansionPanelContent>
+        <div class="flex flex-col gap-2">
+          <div class="tb-int-hint" translate>integration.enable-persistent-checkpoints-hint</div>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.storage-connection-string</mat-label>
+            <input matInput formControlName="aehStorageConnectionString" type="password" autocomplete="new-password" [required]="connectionForm.get('aehPersistentCheckpoints').value">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.container-name</mat-label>
+            <input matInput formControlName="aehContainerName" [required]="connectionForm.get('aehPersistentCheckpoints').value">
+          </mat-form-field>
+        </div>
+      </ng-template>
+    </mat-expansion-panel>
+  }
+
+  <!-- Azure Service Bus -->
+  @if (type === IntegrationType.AZURE_SERVICE_BUS) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.azure-connection-string</mat-label>
+      <input matInput formControlName="asbConnectionString" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.asb-topic-name</mat-label>
+      <input matInput formControlName="asbTopicName" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.asb-subscription-name</mat-label>
+      <input matInput formControlName="asbSubName" required>
+    </mat-form-field>
+    <!-- PE keeps the downlink pair in 高级设置; a blank connection string reuses the uplink one. -->
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.downlink-connection-string</mat-label>
+      <input matInput formControlName="asbDownlinkConnectionString" type="password" autocomplete="new-password">
+      <mat-hint translate>integration.downlink-connection-string-hint</mat-hint>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.downlink-topic-name</mat-label>
+      <input matInput formControlName="asbDownlinkTopicName">
+    </mat-form-field>
+  }
+
+  <!-- GCP Pub/Sub -->
+  @if (type === IntegrationType.PUB_SUB) {
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pubsub-project-id</mat-label>
+      <input matInput formControlName="pubsubProjectId" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pubsub-subscription-id</mat-label>
+      <input matInput formControlName="pubsubSubscriptionId" required>
+    </mat-form-field>
+    <mat-form-field class="w-full">
+      <mat-label translate>integration.pubsub-service-account-key</mat-label>
+      <textarea matInput formControlName="pubsubServiceAccountKey" rows="4" required placeholder="{...}"></textarea>
+    </mat-form-field>
+  }
+
+  <!-- Execute remotely: the integration runs in a separate process that dials back over
+       gRPC using the routing key + secret shown here. -->
+  <mat-expansion-panel class="tb-int-remote-panel"
+                       [expanded]="connectionForm.get('remote').value">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        <mat-slide-toggle formControlName="remote" (click)="$event.stopPropagation()">
+          {{ 'integration.execute-remotely' | translate }}
+        </mat-slide-toggle>
+      </mat-panel-title>
+    </mat-expansion-panel-header>
+    <ng-template matExpansionPanelContent>
+      <!-- Always populated: newIntegration() mints the pair client-side, exactly as PE
+           does, so a remote executor can be configured before the first save. -->
+      <div class="flex flex-col gap-2">
+        <div class="flex flex-row items-center gap-1">
+          <mat-form-field class="flex-1">
+            <mat-label translate>integration.integration-key</mat-label>
+            <input matInput [value]="routingKey" disabled>
+          </mat-form-field>
+          <button mat-icon-button type="button" (click)="copyToClipboard(routingKey, 'key')"
+                  matTooltip="{{ 'integration.copy-integration-key' | translate }}">
+            <mat-icon>content_copy</mat-icon>
+          </button>
+        </div>
+        <div class="flex flex-row items-center gap-1">
+          <mat-form-field class="flex-1">
+            <mat-label translate>integration.integration-secret</mat-label>
+            <input matInput [value]="secret" disabled>
+          </mat-form-field>
+          <button mat-icon-button type="button" (click)="copyToClipboard(secret, 'secret')"
+                  matTooltip="{{ 'integration.copy-integration-secret' | translate }}">
+            <mat-icon>content_copy</mat-icon>
+          </button>
+        </div>
+      </div>
+    </ng-template>
+  </mat-expansion-panel>
+
+  <!-- Advanced settings: the MQTT-family client tuning block, then the description and
+       metadata that every type shares (PE's genericAdditionalInfoTemplate). -->
+  <mat-expansion-panel class="tb-int-advanced-panel">
+    <mat-expansion-panel-header>
+      <mat-panel-description class="flex items-stretch justify-end">
+        {{ 'integration.advanced-settings' | translate }}
+      </mat-panel-description>
+    </mat-expansion-panel-header>
+    <ng-template matExpansionPanelContent>
+      <div class="flex flex-col gap-2">
+        <!-- OPC-UA client identity + polling. These controls already existed in the form
+             and were already written into `configuration` on save, but had no template —
+             so their defaults were silently rewritten on every save. PE keeps them here. -->
+        @if (type === IntegrationType.OPC_UA) {
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.application-name</mat-label>
+            <input matInput formControlName="applicationName">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.application-uri</mat-label>
+            <input matInput formControlName="applicationUri">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.scan-period-in-seconds</mat-label>
+            <input matInput type="number" formControlName="scanPeriodInSeconds" [required]="type === IntegrationType.OPC_UA">
+          </mat-form-field>
+        }
+        <!-- RabbitMQ connection timeouts — PE also keeps these in 高级设置. -->
+        @if (type === IntegrationType.RABBITMQ) {
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.connection-timeout</mat-label>
+            <input matInput type="number" formControlName="rmqConnectionTimeout">
+          </mat-form-field>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.handshake-timeout</mat-label>
+            <input matInput type="number" formControlName="rmqHandshakeTimeout">
+          </mat-form-field>
+        }
+        <!-- Webhook family: PE puts these two in 高级设置 rather than the main block. -->
+        @if (hasReplaceNoContentToggle) {
+          <mat-slide-toggle formControlName="replaceNoContentToOk">
+            {{ 'integration.replace-no-content-to-ok' | translate }}
+          </mat-slide-toggle>
+        }
+        @if (isThingParkType) {
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.downlink-url</mat-label>
+            <input matInput formControlName="tpDownlinkUrl">
+          </mat-form-field>
+        }
+        @if (isMqttFamilyType) {
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.protocol-version</mat-label>
+            <mat-select formControlName="protocolVersion">
+              @for (v of mqttProtocolVersionLabels | keyvalue; track v.key) {
+                <mat-option [value]="v.key">{{ v.value }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-slide-toggle formControlName="cleanSession">{{ 'integration.clean-session' | translate }}</mat-slide-toggle>
+          <mat-slide-toggle formControlName="retainedMessage">{{ 'integration.retained-message' | translate }}</mat-slide-toggle>
+          <mat-form-field class="w-full">
+            <mat-label translate>integration.client-id</mat-label>
+            <input matInput formControlName="clientId" autocomplete="new-clientId">
+          </mat-form-field>
+          <div class="tb-int-hint" translate>integration.client-id-hint</div>
+          <div class="flex flex-row gap-2">
+            <mat-form-field class="flex-1">
+              <mat-label translate>integration.max-bytes-in-message</mat-label>
+              <input matInput type="number" formControlName="maxBytesInMessage">
+            </mat-form-field>
+            <mat-form-field class="flex-1">
+              <mat-label translate>integration.connect-timeout</mat-label>
+              <input matInput type="number" step="1" min="1" max="200" [required]="isMqttFamilyType" formControlName="connectTimeoutSec">
+              @if (connectionForm.get('connectTimeoutSec').invalid) {
+                <mat-error>{{ 'integration.connect-timeout-range' | translate }}</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field class="flex-1">
+              <mat-label translate>integration.downlink-topic-pattern</mat-label>
+              <input matInput formControlName="downlinkTopicPattern">
+            </mat-form-field>
+          </div>
+        }
+        <mat-form-field class="w-full">
+          <mat-label translate>integration.description</mat-label>
+          <textarea matInput formControlName="description" rows="2"></textarea>
+        </mat-form-field>
+        <fieldset class="fields-group">
+          <legend class="group-title" translate>integration.metadata</legend>
+          <tb-key-val-map formControlName="metadata"
+                          isValueRequired="false"
+                          [keyPlaceholderText]="'integration.kv-key' | translate"
+                          [valuePlaceholderText]="'integration.kv-value' | translate"
+                          [noDataText]="'integration.no-metadata' | translate">
+          </tb-key-val-map>
+        </fieldset>
+      </div>
+    </ng-template>
+  </mat-expansion-panel>
+
+  @if (checkResult) {
+    <div class="tb-int-check-result flex flex-row items-center gap-2"
+         [class.tb-int-check-ok]="checkResult.success"
+         [class.tb-int-check-fail]="!checkResult.success">
+      <mat-icon>{{ checkResult.success ? 'check_circle' : 'cancel' }}</mat-icon>
+      <div class="flex flex-col">
+        <span>{{ (checkResult.success ? 'integration.connected' : 'integration.not-connected') | translate }}</span>
+        @if (checkResult.error) {
+          <span class="tb-int-check-error">{{ checkResult.error }}</span>
+        }
+      </div>
+    </div>
+  }
+</div>

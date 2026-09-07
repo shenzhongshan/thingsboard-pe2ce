@@ -16,13 +16,25 @@
 package org.thingsboard.server.coapserver;
 
 import org.eclipse.californium.core.CoapServer;
+import org.eclipse.californium.core.server.resources.Resource;
 
 import java.net.UnknownHostException;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 public interface CoapServerService {
 
     CoapServer getCoapServer() throws UnknownHostException;
+
+    /**
+     * Walks/creates the given resource path under the server root and returns the deepest node, so a
+     * caller can attach its own resource there. Used by the CoAP integration to publish itself at
+     * PE's shared-server path instead of opening a port of its own.
+     */
+    Resource addResourceHierarchicallyAndReturnLast(List<String> resourceHierarchy) throws UnknownHostException;
+
+    /** False when no DTLS settings are configured, in which case coaps:// endpoints cannot be served. */
+    boolean isDtlsEnabled();
 
     ConcurrentMap<TbCoapDtlsSessionKey, TbCoapDtlsSessionInfo> getDtlsSessionsMap();
 }

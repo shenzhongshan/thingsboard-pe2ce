@@ -15,12 +15,20 @@
  */
 package org.thingsboard.server.service.integration;
 
+import org.thingsboard.server.coapserver.CoapServerService;
 import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.integration.IntegrationType;
 
 import java.util.Set;
 
 public class CoapIntegrationRuntimeFactory implements IntegrationRuntimeFactory {
+
+    /** Null when this process runs no CoAP server; the runtime then only supports legacy port mode. */
+    private final CoapServerService coapServerService;
+
+    public CoapIntegrationRuntimeFactory(CoapServerService coapServerService) {
+        this.coapServerService = coapServerService;
+    }
 
     @Override
     public Set<IntegrationType> getSupportedTypes() {
@@ -29,7 +37,7 @@ public class CoapIntegrationRuntimeFactory implements IntegrationRuntimeFactory 
 
     @Override
     public CoapIntegrationServer create(Integration integration, IntegrationUplinkSink uplinkSink) {
-        return new CoapIntegrationServer(integration, uplinkSink);
+        return new CoapIntegrationServer(integration, uplinkSink, coapServerService);
     }
 
 }

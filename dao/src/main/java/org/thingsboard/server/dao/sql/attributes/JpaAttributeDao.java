@@ -31,6 +31,7 @@ import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.kv.AttributeKvEntry;
+import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.stats.StatsFactory;
 import org.thingsboard.server.dao.DaoUtil;
@@ -49,8 +50,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -207,6 +210,48 @@ public class JpaAttributeDao extends JpaAbstractDaoListeningExecutorService impl
     @Override
     public ListenableFuture<List<AttributeKvEntry>> findLatestByEntityIdsAndScopeAsync(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
         return service.submit(() -> findLatestByEntityIdsAndScope(tenantId, entityIds, scope));
+    }
+
+    @Override
+    public List<EntityAttributeKvEntry> findLatestByEntityIdsAndScopeWithEntityId(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys) {
+        if (CollectionUtils.isEmpty(entityIds) || CollectionUtils.isEmpty(attributeKeys)) {
+            return Collections.emptyList();
+        }
+
+        List<UUID> uniqueEntityIds = new ArrayList<>();
+        Set<UUID> seenEntityIds = new HashSet<>();
+        for (EntityId entityId : entityIds) {
+            if (entityId != null && entityId.getId() != null && seenEntityIds.add(entityId.getId())) {
+                uniqueEntityIds.add(entityId.getId());
+            }
+        }
+
+        List<String> uniqueAttributeKeys = new ArrayList<>();
+        Set<String> seenAttributeKeys = new HashSet<>();
+        for (String attributeKey : attributeKeys) {
+            if (attributeKey != null && !attributeKey.isBlank() && seenAttributeKeys.add(attributeKey)) {
+                uniqueAttributeKeys.add(attributeKey);
+            }
+        }
+        if (uniqueEntityIds.isEmpty() || uniqueAttributeKeys.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<AttributeKvRepository.EntityAttributeKvProjection> projections =
+                attributeKvRepository.findLatestByEntityIdsAndAttributeTypeAndKeys(
+                        uniqueEntityIds, scope.getId(), uniqueAttributeKeys);
+        List<EntityAttributeKvEntry> result = new ArrayList<>(projections.size());
+        for (AttributeKvRepository.EntityAttributeKvProjection projection : projections) {
+            result.add(AttributeKvRepository.EntityAttributeKvProjection.toEntityAttributeKvEntry(projection));
+        }
+        return result;
+    }
+
+    @Override
+    public ListenableFuture<List<EntityAttributeKvEntry>> findLatestByEntityIdsAndScopeWithEntityIdAsync(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys) {
+        return service.submit(() -> findLatestByEntityIdsAndScopeWithEntityId(tenantId, entityIds, scope, attributeKeys));
     }
 
     @Override

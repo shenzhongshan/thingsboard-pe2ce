@@ -1,0 +1,90 @@
+:host { display: block; min-height: 100%; }
+
+.lightning-page {
+  --ink: #0a356a;
+  --muted: #6c8194;
+  --line: #d9e4ed;
+  --canvas: #edf1f4;
+  --panel: #fff;
+  --blue: #195ce8;
+  --green: #17e96c;
+  --amber: #f5b31b;
+  --red: #ff4a57;
+  position: relative;
+  min-height: 100%;
+  /* 页面与左侧导航栏保留 8px 视觉间隙；全局侧栏不受此规则影响。 */
+  margin-left: 8px;
+  padding: 18px 20px 18px 0;
+  color: #173753;
+  background: var(--canvas);
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.lightning-heading { padding: 2px 4px 12px; }
+h2, p { margin: 0; }
+h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-weight: 800; letter-spacing: .02em; }
+
+.dashboard-grid { display: grid; grid-template-columns: minmax(260px, .92fr) minmax(430px, 1.8fr) minmax(270px, .92fr); grid-template-areas: "device map ground" "alarm map spd" "orders records lightning"; gap: 14px; }
+.panel { min-width: 0; overflow: hidden; border: 1px solid #d5dee6; background: var(--panel); box-shadow: 0 7px 18px rgba(29, 60, 87, .07); }
+.panel-title { display: flex; align-items: center; justify-content: space-between; min-height: 47px; padding: 0 16px; border-bottom: 1px solid #e7edf2; }
+.panel-title h2 { color: #263c50; font-size: 16px; font-weight: 700; }
+.period-readout { min-width: 31px; padding: 4px 7px; border: 1px solid #c9d8e4; border-radius: 4px; color: var(--blue); font-size: 11px; font-weight: 700; text-align: center; }
+.device-summary { grid-area: device; min-height: 270px; }.map-panel { grid-area: map; min-height: 460px; }.ground-panel { grid-area: ground; min-height: 270px; }.alarm-panel { grid-area: alarm; min-height: 270px; }.spd-panel { grid-area: spd; min-height: 270px; }.orders-panel { grid-area: orders; min-height: 300px; }.records-panel { grid-area: records; min-height: 300px; }.lightning-panel { grid-area: lightning; min-height: 300px; }
+
+.summary-content { display: flex; align-items: center; gap: 22px; padding: 20px 20px 10px; }.availability-ring { display: grid; place-items: center; width: 117px; height: 117px; flex: 0 0 auto; border-radius: 50%; background: conic-gradient(var(--green) 0 var(--online-rate), #8850e5 var(--online-rate) 100%); }.availability-ring::before { content: ''; position: absolute; width: 91px; height: 91px; border-radius: 50%; background: #fff; }.availability-ring > div { position: relative; z-index: 1; text-align: center; }.availability-ring span { display: block; color: #11b85a; font-size: 12px; }.availability-ring strong { color: #2d3f50; font-size: 26px; font-weight: 500; }.period-readout.error { border-color: #f2a6a6; color: #c22534; }
+.summary-metrics { display: grid; grid-template-columns: repeat(2, minmax(68px, 1fr)); flex: 1; gap: 24px 14px; }.summary-metrics div { min-width: 0; }.summary-metrics dt { color: #607487; font-size: 12px; white-space: nowrap; }.summary-metrics dd { margin: 6px 0 0; font-size: 27px; line-height: 1; font-weight: 500; }.blue { color: #1d5be6; }.green { color: #09a44b; }.amber { color: #f1a800; }.red { color: #ff4652; }.ring-legend { display: flex; gap: 20px; padding: 0 30px; color: #718397; font-size: 11px; }.ring-legend span { display: inline-flex; align-items: center; gap: 5px; }.ring-legend i { width: 10px; height: 10px; border-radius: 50%; }.online { background: var(--green); }.offline { background: #8850e5; }
+
+.map-toolbar { display: flex; align-items: center; justify-content: space-between; height: 47px; padding: 0 16px; border-bottom: 1px solid #e7edf2; color: #263c50; font-size: 15px; font-weight: 700; }.map-toolbar span:first-child { display: inline-flex; align-items: center; gap: 6px; }.map-toolbar tb-icon { color: var(--blue); }.map-hint { color: #7b8e9f; font-size: 11px; font-weight: 400; }
+.tianditu-map { min-height: 412px; height: calc(100% - 47px); background: #dfeef4; }.tianditu-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }.tianditu-map .leaflet-popup-content { margin: 10px 12px; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
+
+.chart { width: 100%; height: calc(100% - 47px); min-height: 205px; }.chart-panel { display: flex; flex-direction: column; }.chart-panel .chart { flex: 1; min-height: 190px; }
+.records-panel { display: flex; flex-direction: column; height: 300px; max-height: 300px; }.more-link { display: inline-flex; align-items: center; gap: 4px; color: #07994b; font-size: 12px; font-weight: 700; text-decoration: none; }.more-link:hover, .more-link:focus-visible { color: #047e3d; text-decoration: underline; }.more-link tb-icon { font-size: 15px; width: 15px; height: 15px; }.table-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 5px 6px; }table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 10px; }th { position: sticky; top: 0; z-index: 1; overflow: hidden; padding: 6px 3px; color: #526579; background: #f0f3f6; font-weight: 700; text-align: left; white-space: nowrap; text-overflow: clip; }td { padding: 5px 3px; border-bottom: 1px solid #edf1f4; color: #40576b; line-height: 1.28; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }th:nth-child(1), td:nth-child(1) { width: 13%; }th:nth-child(2), td:nth-child(2) { width: 13%; }th:nth-child(3), td:nth-child(3) { width: 12%; }th:nth-child(4), td:nth-child(4) { width: 13%; }th:nth-child(5), td:nth-child(5) { width: 13%; }th:nth-child(6), td:nth-child(6) { width: 11%; }th:nth-child(7), td:nth-child(7) { width: 11%; }th:nth-child(8), td:nth-child(8) { width: 14%; }tbody tr:hover { background: #f7fbfd; }.alarm-severity { display: inline-block; min-width: 0; padding: 2px 4px; border-radius: 3px; font-size: 10px; text-align: center; }.alarm-severity.critical { color: #c22534; background: #ffe3e6; }.alarm-severity.major { color: #a85600; background: #fff0de; }.alarm-severity.minor { color: #a56600; background: #fff7d7; }.alarm-severity.warning { color: #827000; background: #fffbd7; }.alarm-severity.indeterminate { color: #596c7b; background: #edf1f4; }.table-state { display: grid; min-height: 160px; place-items: center; color: #718397; font-size: 13px; }.table-state.error { color: #bc3544; }.table-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
+
+/* 告警表在笔记本分栏布局中宽度较窄：表头优先压缩字重、字号和横向留白。 */
+.records-panel thead th { padding: 6px 3px; font-size: 10px; font-weight: 600; letter-spacing: -.02em; }
+/* 表内数据保持原有阅读尺寸，不跟随表头的笔记本压缩规则。 */
+.records-panel tbody td { font-size: 10px; font-weight: 400; letter-spacing: normal; }
+
+
+@media (max-width: 1350px) { .dashboard-grid { grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.45fr); grid-template-areas: "device map" "ground spd" "alarm orders" "records lightning"; }.map-panel { min-height: 390px; }.tianditu-map { min-height: 342px; } }
+@media (max-width: 1024px) { .records-panel thead th { padding: 4px 1px; font-size: 8px; font-weight: 500; letter-spacing: -.04em; } }
+@media (max-width: 860px) { .lightning-page { padding: 14px 12px 14px 0; }.dashboard-grid { grid-template-columns: 1fr; grid-template-areas: "device" "map" "ground" "spd" "alarm" "orders" "lightning" "records"; }.panel, .map-panel { min-height: 260px; }.tianditu-map { min-height: 330px; }.summary-content { justify-content: center; } }
+
+/* 响应式密度：中等屏幕缩小卡片间距和标题字号，但保持桌面端三栏信息层级。 */
+@media (max-width: 1200px) and (min-width: 861px) {
+  .lightning-page { padding-top: 14px; }
+  .dashboard-grid { grid-template-columns: minmax(220px, .86fr) minmax(360px, 1.45fr); gap: 10px; }
+  .panel-title, .map-toolbar { min-height: 42px; padding: 0 12px; }
+  .panel-title h2 { font-size: clamp(13px, 1.25vw, 16px); }
+  .summary-content { gap: 12px; padding: 14px 14px 8px; }
+  .availability-ring { width: 94px; height: 94px; }
+  .availability-ring::before { width: 70px; height: 70px; }
+  .availability-ring strong { font-size: 22px; }
+  .summary-metrics { gap: 16px 8px; }
+  .summary-metrics dt { font-size: 11px; }
+  .summary-metrics dd { font-size: clamp(20px, 2.1vw, 27px); }
+  .chart { min-height: 178px; }
+  .map-panel, .device-summary, .ground-panel, .alarm-panel, .spd-panel { min-height: 245px; }
+  .tianditu-map { min-height: 305px; }
+}
+
+/* 小屏幕改用更紧凑的单列卡片，所有内容保持在视口宽度内。 */
+@media (max-width: 720px) {
+  .lightning-page { padding: 10px 8px 10px 0; }
+  .lightning-heading { padding: 0 2px 9px; }
+  h1 { font-size: clamp(21px, 7vw, 28px); }
+  .dashboard-grid { gap: 10px; }
+  .panel-title, .map-toolbar { min-height: 40px; padding: 0 10px; }
+  .panel-title h2 { font-size: 13px; }
+  .summary-content { gap: 12px; padding: 12px 12px 8px; }
+  .availability-ring { width: 82px; height: 82px; }
+  .availability-ring::before { width: 61px; height: 61px; }
+  .availability-ring span { font-size: 10px; }
+  .availability-ring strong { font-size: 19px; }
+  .summary-metrics { gap: 12px 8px; }
+  .summary-metrics dt { font-size: 10px; }
+  .summary-metrics dd { margin-top: 4px; font-size: 22px; }
+  .ring-legend { gap: 12px; padding: 0 18px; font-size: 10px; }
+  .records-panel { height: 270px; max-height: 270px; }
+  .records-panel thead th, .records-panel tbody td { padding: 5px 2px; font-size: 9px; }
+}

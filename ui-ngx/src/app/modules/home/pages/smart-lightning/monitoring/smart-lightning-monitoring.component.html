@@ -1,0 +1,92 @@
+<main class="monitoring-page" aria-label="智能防雷数据监测">
+  <aside class="asset-panel">
+    <tb-smart-lightning-root-asset-filter
+      [roots]="assetTree.roots"
+      [selectedRootAssetId]="selectedRootAssetId"
+      (rootAssetChange)="selectRootAsset($event)">
+    </tb-smart-lightning-root-asset-filter>
+    <div class="asset-panel-title"><h2>资产树</h2><span>当前用户可见</span></div>
+    <label class="asset-search"><tb-icon>search</tb-icon><input [(ngModel)]="assetSearch" placeholder="搜索资产名称" aria-label="搜索资产名称"></label>
+    @if (assetsLoading) {
+      <div class="asset-state">正在读取资产…</div>
+    } @else if (assetsLoadError) {
+      <div class="asset-state error">资产树读取失败</div>
+    } @else if (!assetTree.roots.length) {
+      <div class="asset-state">当前没有可见资产</div>
+    } @else {
+      <div class="asset-tree" role="tree" aria-label="资产层级">
+        @for (item of visibleAssetNodes; track item.node.id) {
+          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)" [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem" [attr.aria-selected]="selectedAssetIds.has(item.node.id)" [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
+            @if (item.node.childIds.length) {
+              <span class="tree-toggle" tabindex="0" (click)="toggleAssetNode($event, item.node)" (keydown.enter)="toggleAssetNode($event, item.node)" (keydown.space)="toggleAssetNode($event, item.node)"><tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon></span>
+            } @else {
+              <span class="tree-toggle spacer"></span>
+            }
+            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon><span>{{item.node.name}}</span>
+          </button>
+        }
+      </div>
+    }
+  </aside>
+
+  <section class="monitoring-content">
+    <header class="monitoring-heading"><h1>数据监测</h1><p>资产层级联动监测与设备状态概览</p></header>
+
+    <section class="analysis-grid" aria-label="监测分析">
+      @for (card of analysisCards; track card.id) {
+        <article class="analysis-card" [class]="'analysis-card ' + card.visual">
+          <div class="analysis-title"><h2>{{card.title}}</h2><span>模拟数据</span></div>
+          <div class="analysis-card-body">
+            @if (card.metrics) {
+              <div class="analysis-metrics">
+                @for (metric of card.metrics; track $index) {
+                  <div class="analysis-metric"><span>{{metric.label}}</span><strong>{{metric.value}}</strong></div>
+                }
+              </div>
+            } @else {
+              <div class="analysis-feature"><strong>{{card.primaryMetric}}</strong><span>{{card.primaryMetricLabel}}</span></div>
+            }
+            <div class="analysis-illustration" [class]="'analysis-illustration ' + card.visual" aria-hidden="true">
+              <span class="illustration-orbit orbit-one"></span><span class="illustration-orbit orbit-two"></span>
+              <span class="illustration-connector connector-one"></span><span class="illustration-connector connector-two"></span>
+              <span class="illustration-device"><tb-icon>{{card.icon}}</tb-icon></span><span class="illustration-signal"></span>
+            </div>
+          </div>
+          <p class="analysis-caption">{{card.caption}}</p>
+        </article>
+      }
+    </section>
+
+    <section class="selection-summary">
+      <div class="summary-label"><tb-icon>account_tree</tb-icon><div><h2>{{selectedAssetName}} · 微电网</h2><p>统计当前选中资产及下级节点</p></div></div>
+      <dl>
+        <div><dt>设备总数</dt><dd>{{selectedNodeDeviceCards.length}}</dd></div>
+        <div><dt>正常</dt><dd class="healthy">{{selectedOnlineDeviceCount}}</dd></div>
+        <div><dt>报警</dt><dd class="critical">{{alarmsLoading || alarmsLoadError ? '—' : selectedAlarmSummary.active}}</dd></div>
+        <div><dt>离线</dt><dd class="muted">{{selectedOfflineDeviceCount}}</dd></div>
+        <div><dt>当日报警总数</dt><dd>{{alarmsLoading || alarmsLoadError ? '—' : selectedAlarmSummary.todayTotal}}</dd></div>
+        <div><dt>未处理报警</dt><dd class="warning">{{alarmsLoading || alarmsLoadError ? '—' : selectedAlarmSummary.unhandled}}</dd></div>
+        <div><dt>已派发报警</dt><dd>{{alarmsLoading || alarmsLoadError ? '—' : selectedAlarmSummary.assigned}}</dd></div>
+        <div><dt>已处理报警</dt><dd class="healthy">{{alarmsLoading || alarmsLoadError ? '—' : selectedAlarmSummary.handled}}</dd></div>
+      </dl>
+    </section>
+
+    <section class="device-overview">
+      <div class="overview-toolbar"><h2>设备总览</h2><div class="category-tabs" role="tablist">@for (category of categories; track category) {<button type="button" [class.active]="activeCategory === category" (click)="setCategory(category)">{{category}}</button>}</div><label class="device-search"><tb-icon>search</tb-icon><input [(ngModel)]="deviceSearch" (ngModelChange)="resetDevicePage()" placeholder="设备名称 / 设备配置" aria-label="搜索设备"></label></div>
+      <div class="device-grid">
+        @if (devicesLoading) {
+          <div class="device-grid-state">正在读取节点设备信息…</div>
+        } @else if (devicesLoadError) {
+          <div class="device-grid-state error">节点设备信息读取失败</div>
+        } @else if (!visibleMonitoringCards.length) {
+          <div class="device-grid-state">当前节点及下属节点没有符合条件的设备</div>
+        } @else {
+          @for (card of pagedMonitoringCards; track card.id) {
+            <article class="device-card" [class.selected-range]="selectedAssetIds.size > 0"><header><h3>{{card.name}}</h3><span [class]="'device-status ' + card.status">{{card.status}}</span></header><div class="device-body"><div class="device-icon"><tb-icon>{{card.icon}}</tb-icon></div><div class="device-details"><p><span>产品名称：</span><strong class="product-name-value" [class.compact]="card.productName.length > 18" [class.tight]="card.productName.length > 32">{{card.productName}}</strong></p><p><span>产品类型：</span><strong>{{card.productType}}</strong></p><p><span>最近活跃时间：</span><strong>{{card.lastActiveTime}}</strong></p></div></div><footer><a class="detail" [routerLink]="['/smart-lightning/monitoring/device', card.id]" [queryParams]="{returnUrl: '/smart-lightning/monitoring'}">详情</a><button type="button">复位</button><button type="button">漏电自检</button><button type="button">分闸</button><button type="button">刷新</button></footer></article>
+          }
+        }
+      </div>
+      <nav class="pagination" aria-label="设备分页"><span>共 {{visibleMonitoringCards.length}} 台 · {{devicePageSize}} / 页</span><button type="button" (click)="setDevicePage(devicePagination.currentPage - 1)" [disabled]="devicePagination.currentPage === 1">‹</button><button type="button" class="active">{{devicePagination.currentPage}}</button><span>/ {{devicePagination.totalPages}}</span><button type="button" (click)="setDevicePage(devicePagination.currentPage + 1)" [disabled]="devicePagination.currentPage === devicePagination.totalPages">›</button></nav>
+    </section>
+  </section>
+</main>

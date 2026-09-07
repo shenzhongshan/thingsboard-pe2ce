@@ -32,6 +32,7 @@ import {
   MenuItem,
   MenuItemType
 } from '@shared/models/custom-menu.models';
+import { Authority } from '@shared/models/authority.enum';
 
 @Injectable({
   providedIn: 'root'
@@ -74,7 +75,10 @@ export class MenuService {
           this.customMenuService.getCustomMenu({ ignoreErrors: true, ignoreLoading: true }).subscribe({
             next: (customMenu) => {
               if (customMenu?.items?.length) {
-                this.currentMenuSections = this.overlaySections(buildUserMenu(authState), customMenu.items);
+                // 客户菜单是面向客户的完整导航清单；未保存的系统入口不能在登录后自动出现。
+                const appendUnconfiguredBuiltIns = authState.authUser.authority !== Authority.CUSTOMER_USER;
+                this.currentMenuSections = this.overlaySections(
+                  buildUserMenu(authState), customMenu.items, appendUnconfiguredBuiltIns);
                 this.publishMenu(authState);
               }
             },
@@ -98,7 +102,7 @@ export class MenuService {
     this.homeSections$.next(homeSections);
   }
 
-  private overlaySections(base: Array<MenuSection>, items: MenuItem[]): Array<MenuSection> {
+  private overlaySections(base: Array<MenuSection>, items: MenuItem[], appendUnconfiguredBuiltIns = true): Array<MenuSection> {
     const remaining = [...base];
     const result: Array<MenuSection> = [];
     let customIdx = 0;
@@ -122,12 +126,17 @@ export class MenuService {
             section.customTranslate = true;
           }
           if (def.pages?.length && section.pages?.length) {
-            section.pages = this.overlaySections(section.pages, def.pages);
+            section.pages = this.overlaySections(section.pages, def.pages, appendUnconfiguredBuiltIns);
           }
           result.push(section);
         }
       }
     }
+    // 管理员菜单保留对新版系统功能的兼容回填；客户菜单则严格以保存的配置为准。
+    if (!appendUnconfiguredBuiltIns) {
+      return result;
+    }
+
     // Built-in entries not mentioned in the config (e.g. platform features added AFTER the
     // config was saved) are inserted at their natural default-menu position — right after the
     // nearest preceding base sibling already in the result — instead of being dumped at the end.
@@ -147,13 +156,9 @@ export class MenuService {
   }
 
   private mapCustomItem(item: CustomMenuItem, idx: number): MenuSection {
-    // Every MenuSection needs a real, unique, non-empty path: RouterTabsComponent.findRootSection
-    // matches routes via `sectionPath.endsWith(section.path)`, and an empty string is a suffix of
-    // ANY string in JS — an href-only link left with path:'' would then be (mis)matched as the
-    // "root section" for every route, and since it has no `.pages`, that crashes tab rendering
-    // for unrelated pages (e.g. Alarms, OAuth2). This synthetic path is never a real app route,
-    // so it can never accidentally match one.
+    // 自定义菜单必须有唯一且非空的 path，避免与任意路由错误匹配。
     const uniquePath = `/custom-menu-item/${idx}`;
+
     const base: MenuSection = {
       id: `custom_menu_${idx}_${item.name}`,
       name: item.name,
@@ -162,19 +167,32 @@ export class MenuService {
       icon: item.icon || 'link',
       customTranslate: true
     };
+
+    // 自定义分组：递归生成二级菜单。
     if (item.menuItemType === CMItemType.SECTION) {
       base.type = 'toggle';
       base.pages = (item.pages || [])
         .filter((child) => child.visible !== false)
         .map((child, childIdx) => this.mapCustomItem(child, idx * 100 + childIdx + 1));
+
       return base;
     }
+
     if (item.linkType === CMItemLinkType.DASHBOARD && item.dashboardId) {
       base.path = `/dashboards/${item.dashboardId}`;
     } else if (item.url) {
-      base.href = item.url;
-      base.openInNewTab = true;
+      // / 开头表示 ThingsBoard 的内部路由：
+      // 当前页跳转，Angular 能识别并为菜单添加选中状态。
+      if (item.url.startsWith('/') && !item.url.startsWith('//')) {
+        base.path = item.url;
+        base.openInNewTab = false;
+      } else {
+        // 外部地址仍使用 href，并在新标签页打开。
+        base.href = item.url;
+        base.openInNewTab = true;
+      }
     }
+
     return base;
   }
 

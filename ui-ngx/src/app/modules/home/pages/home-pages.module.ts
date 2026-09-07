@@ -52,7 +52,7 @@ import { IntegrationCenterModule } from '@home/pages/integration/integration-cen
 import { EntityGroupModule } from '@home/pages/entity-group/entity-group.module';
 import { ReportingModule } from '@home/pages/reporting/reporting.module';
 import { SolutionTemplatesModule } from '@home/pages/solution-templates/solution-templates.module';
-import { DeviceSimulatorModule } from '@home/pages/device-simulator/device-simulator.module';
+import { SmartLightningDashboardModule } from '@home/pages/smart-lightning/dashboard/smart-lightning-dashboard.module';
 
 @NgModule({
   exports: [
@@ -92,7 +92,7 @@ import { DeviceSimulatorModule } from '@home/pages/device-simulator/device-simul
     EntityGroupModule,
     ReportingModule,
     SolutionTemplatesModule,
-    DeviceSimulatorModule,
+    SmartLightningDashboardModule,
   ]
 })
 export class HomePagesModule { }

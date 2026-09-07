@@ -1,0 +1,31 @@
+<main class="device-detail-page" aria-label="设备详情">
+  <aside class="asset-panel">
+    <div class="asset-panel-title"><h2>资产树</h2><span>当前用户可见</span></div>
+    <label class="asset-search"><tb-icon>search</tb-icon><input [(ngModel)]="assetSearch" placeholder="搜索资产名称" aria-label="搜索资产名称"></label>
+    @if (assetsLoading) { <div class="asset-state">正在读取资产…</div> } @else if (assetsLoadError) { <div class="asset-state error">资产树读取失败</div> } @else if (!assetTree.roots.length) { <div class="asset-state">当前没有可见资产</div> } @else {
+      <div class="asset-tree" role="tree">@for (item of visibleAssetNodes; track item.node.id) {
+        <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)" [class.locked]="!isNodeSelectable(item.node)" [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem" [attr.aria-disabled]="!isNodeSelectable(item.node)" [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
+          @if (item.node.childIds.length) { <span class="tree-toggle" (click)="toggleAssetNode($event, item.node)"><tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon></span> } @else { <span class="tree-toggle spacer"></span> }
+          <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon><span>{{item.node.name}}</span>
+        </button>
+      }</div>
+    }
+  </aside>
+  <section class="detail-content">
+    <a class="back-link" href="" (click)="goBack($event)"><tb-icon>arrow_back</tb-icon>{{returnLabel}}</a>
+    <section class="detail-grid">
+      <article class="surface device-summary">
+        <div class="summary-top"><div class="device-mark"><tb-icon>electric_meter</tb-icon><strong class="product-name">{{productName}}</strong></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
+        <dl class="device-fields"><div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div><div><dt>温度1故障状态</dt><dd class="ok">正常</dd></div><div><dt>仪表地址</dt><dd [title]="instrumentAddress">{{instrumentAddress}}</dd></div><div><dt>温度2故障状态</dt><dd class="ok">正常</dd></div><div><dt>状态</dt><dd>离线</dd></div><div><dt>温度3故障状态</dt><dd class="ok">正常</dd></div><div><dt>回路名称</dt><dd>4p_5</dd></div><div><dt>断路器故障状态</dt><dd class="ok">正常</dd></div><div><dt>额定电压</dt><dd>—</dd></div><div><dt>检修状态</dt><dd>关</dd></div><div><dt>额定电流</dt><dd>—</dd></div><div><dt>本地锁定状态</dt><dd>未锁定</dd></div></dl>
+      </article>
+      <section class="chart-grid" aria-label="设备趋势图">
+        <article class="surface chart-card"><header><h2>相电流</h2><div class="chart-period-tabs" role="group" aria-label="相电流时间范围">@for (period of chartPeriodOptions; track period.value) {<button type="button" [class.active]="selectedChartPeriods.phaseCurrent === period.value" [attr.aria-pressed]="selectedChartPeriods.phaseCurrent === period.value" (click)="setChartPeriod('phaseCurrent', period.value)">{{period.label}}</button>}</div></header><div #chartHost data-chart="phaseCurrent" class="chart-host"></div></article>
+        <article class="surface chart-card"><header><h2>相电压</h2><div class="chart-period-tabs" role="group" aria-label="相电压时间范围">@for (period of chartPeriodOptions; track period.value) {<button type="button" [class.active]="selectedChartPeriods.phaseVoltage === period.value" [attr.aria-pressed]="selectedChartPeriods.phaseVoltage === period.value" (click)="setChartPeriod('phaseVoltage', period.value)">{{period.label}}</button>}</div></header><div #chartHost data-chart="phaseVoltage" class="chart-host"></div></article>
+        <article class="surface chart-card"><header><h2>剩余电流</h2><div class="chart-period-tabs" role="group" aria-label="剩余电流时间范围">@for (period of chartPeriodOptions; track period.value) {<button type="button" [class.active]="selectedChartPeriods.residualCurrent === period.value" [attr.aria-pressed]="selectedChartPeriods.residualCurrent === period.value" (click)="setChartPeriod('residualCurrent', period.value)">{{period.label}}</button>}</div></header><div #chartHost data-chart="residualCurrent" class="chart-host"></div></article>
+        <article class="surface chart-card"><header><h2>温度</h2><div class="chart-period-tabs" role="group" aria-label="温度时间范围">@for (period of chartPeriodOptions; track period.value) {<button type="button" [class.active]="selectedChartPeriods.temperature === period.value" [attr.aria-pressed]="selectedChartPeriods.temperature === period.value" (click)="setChartPeriod('temperature', period.value)">{{period.label}}</button>}</div></header><div #chartHost data-chart="temperature" class="chart-host"></div></article>
+      </section>
+      <article class="surface realtime-panel"><header><h2>实时数据</h2><time>2026-09-02 10:30:00</time></header><div class="metric-grid">@for (metric of detail.metrics; track metric.label) {<div class="metric"><span>{{metric.label}}</span><strong [class.ok]="metric.value === '正常'">{{metric.value}}</strong></div>}</div></article>
+    </section>
+    <section class="surface alarms-panel"><header><div><h2>报警信息</h2></div><button type="button" title="模拟按钮">更多参数</button></header><div class="alarm-table-wrap"><table><thead><tr><th>序号</th><th>报警项目名称</th><th>报警类型</th><th>处理标志</th><th>报警时间</th></tr></thead><tbody>@if (alarmsLoading) {<tr><td class="alarm-state" colspan="5">正在读取当前设备告警…</td></tr>} @else if (alarmsLoadError) {<tr><td class="alarm-state error" colspan="5">告警信息读取失败</td></tr>} @else if (!detail.alarms.length) {<tr><td class="alarm-state" colspan="5">当前设备暂无告警</td></tr>} @else {@for (alarm of detail.alarms; track $index) {<tr><td>{{$index + 1}}</td><td>{{alarm.item}}</td><td><span class="tag" [class.critical]="alarm.severity === '严重'">{{alarm.severity}}</span></td><td><span class="tag" [class.done]="alarm.status === '已处理'">{{alarm.status}}</span></td><td>{{alarm.time}}</td></tr>}}</tbody></table></div></section>
+  </section>
+</main>

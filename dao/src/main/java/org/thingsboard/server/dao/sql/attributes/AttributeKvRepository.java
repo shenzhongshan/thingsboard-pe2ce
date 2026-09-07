@@ -24,6 +24,7 @@ import org.thingsboard.server.common.data.kv.AttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BooleanDataEntry;
 import org.thingsboard.server.common.data.kv.DoubleDataEntry;
+import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.JsonDataEntry;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.LongDataEntry;
@@ -81,6 +82,28 @@ public interface AttributeKvRepository extends JpaRepository<AttributeKvEntity, 
     List<AttributeKvProjection> findLatestByEntityIdsAndAttributeType(@Param("entityIds") List<UUID> entityIds,
                                                                       @Param("attributeType") int attributeType);
 
+    /**
+     * 每个实体、每个属性只保留最新值，并返回 entity_id，供多设备批量读取使用。
+     */
+    @Query(value = """
+            SELECT DISTINCT ON (a.entity_id, a.attribute_key)
+                a.entity_id AS entityId,
+                kd.key AS strKey,
+                a.bool_v AS boolV, a.str_v AS strV, a.long_v AS longV,
+                a.dbl_v AS dblV, a.json_v AS jsonV,
+                a.last_update_ts AS lastUpdateTs, a.version AS version
+            FROM attribute_kv a
+            INNER JOIN key_dictionary kd ON a.attribute_key = kd.key_id
+            WHERE a.entity_id IN :entityIds
+              AND a.attribute_type = :attributeType
+              AND kd.key IN :attributeKeys
+            ORDER BY a.entity_id, a.attribute_key, a.last_update_ts DESC
+            """, nativeQuery = true)
+    List<EntityAttributeKvProjection> findLatestByEntityIdsAndAttributeTypeAndKeys(
+            @Param("entityIds") List<UUID> entityIds,
+            @Param("attributeType") int attributeType,
+            @Param("attributeKeys") List<String> attributeKeys);
+
     @Query(value = "SELECT attribute_key, attribute_type, entity_id, bool_v, dbl_v, json_v, last_update_ts, long_v, str_v, version FROM attribute_kv WHERE (entity_id, attribute_type, attribute_key) > " +
             "(:entityId, :attributeType, :attributeKey) ORDER BY entity_id, attribute_type, attribute_key LIMIT :batchSize", nativeQuery = true)
     List<AttributeKvEntity> findNextBatch(@Param("entityId") UUID entityId,
@@ -122,6 +145,16 @@ public interface AttributeKvRepository extends JpaRepository<AttributeKvEntity, 
             return new BaseAttributeKvEntry(kvEntry, p.getLastUpdateTs(), p.getVersion());
         }
 
+    }
+
+    interface EntityAttributeKvProjection extends AttributeKvProjection {
+
+        UUID getEntityId();
+
+        static EntityAttributeKvEntry toEntityAttributeKvEntry(EntityAttributeKvProjection projection) {
+            return new EntityAttributeKvEntry(
+                    projection.getEntityId(), AttributeKvProjection.toAttributeKvEntry(projection));
+        }
     }
 
 }

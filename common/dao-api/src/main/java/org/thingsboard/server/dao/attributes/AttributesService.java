@@ -21,6 +21,7 @@ import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.kv.AttributeKvEntry;
+import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.AttributesSaveResult;
 
 import java.util.Collection;
@@ -52,6 +53,15 @@ public interface AttributesService {
     List<AttributeKvEntry> findLatestByEntityIdsAndScope(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope);
 
     ListenableFuture<List<AttributeKvEntry>> findLatestByEntityIdsAndScopeAsync(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope);
+
+    /**
+     * 批量读取多个实体指定属性的最新值，并保留每条记录所属的实体 ID。
+     */
+    List<EntityAttributeKvEntry> findLatestByEntityIdsAndScopeWithEntityId(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys);
+
+    ListenableFuture<List<EntityAttributeKvEntry>> findLatestByEntityIdsAndScopeWithEntityIdAsync(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys);
 
     int removeAllByEntityId(TenantId tenantId, EntityId entityId);
 

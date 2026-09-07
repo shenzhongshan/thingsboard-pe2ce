@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.Map;
 @RequiredArgsConstructor
 
-/**
+/***
  * 根据设备类型解析功能分类。
  *
  * <p>该类不直接读取 Spring 配置，也不写数据库，因此可独立测试；设备创建流程只依赖它的解析结果。
@@ -31,7 +31,7 @@ public class DeviceFunctionCategoryResolver {
     /** 配置中声明的“设备类型 -> 功能分类”映射。 */
     private final Map<String, String> categoriesByDeviceType;
 
-    /**
+    /***
      * 查询指定设备类型对应的功能分类。
      *
      * @param deviceType ThingsBoard 设备类型，例如 DESA、DES4

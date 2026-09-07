@@ -1,0 +1,14 @@
+@if (visible) {
+  <section class="device-status-summary" aria-label="设备状态统计" aria-live="polite">
+    <div class="status-tag status-tag--normal" [matTooltip]="loadError ? '设备状态统计加载失败' : '在线且无未清除告警的设备'">
+      <mat-icon aria-hidden="true">check_circle</mat-icon>
+      <span>正常</span>
+      <strong>{{ loading || loadError ? '—' : summary?.normal }}</strong>
+    </div>
+    <div class="status-tag status-tag--abnormal" [matTooltip]="loadError ? '设备状态统计加载失败' : '存在未清除告警的设备'">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>异常</span>
+      <strong>{{ loading || loadError ? '—' : summary?.abnormal }}</strong>
+    </div>
+  </section>
+}

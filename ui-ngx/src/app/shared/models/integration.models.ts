@@ -20,6 +20,7 @@ import { EntityType } from '@shared/models/entity-type.models';
 import { HasUUID } from '@shared/models/id/has-uuid';
 import { ConverterId } from '@shared/models/converter.models';
 import { EntityDebugSettings } from '@shared/models/entity.models';
+import { generateSecret, guid } from '@core/utils';
 
 export class IntegrationId implements HasUUID {
   entityType = EntityType.INTEGRATION;
@@ -76,10 +77,73 @@ export const MQTT_FAMILY_INTEGRATION_TYPES: IntegrationType[] = [
   IntegrationType.TTN, IntegrationType.TTI
 ];
 
+/**
+ * URL segment each webhook type is served on, mirroring PE's one-controller-per-type layout
+ * (HttpIntegrationController -> /http, SigFoxIntegrationController -> /sigfox, ...). These end up
+ * in the endpoint URL the user pastes into a third-party network server, so they are contract, not
+ * cosmetics — note `tpe` and `tmobile_iot_cdp` do not match their enum names.
+ * Kept in lockstep with IntegrationHttpController.TYPE_BY_PATH on the backend.
+ */
+export const HTTP_WEBHOOK_URL_SEGMENT = new Map<IntegrationType, string>([
+  [IntegrationType.HTTP, 'http'],
+  [IntegrationType.SIGFOX, 'sigfox'],
+  [IntegrationType.CHIRPSTACK, 'chirpstack'],
+  [IntegrationType.PARTICLE, 'particle'],
+  [IntegrationType.KPN, 'kpn'],
+  [IntegrationType.LORIOT, 'loriot'],
+  [IntegrationType.OCEANCONNECT, 'oceanconnect'],
+  [IntegrationType.THINGPARK, 'thingpark'],
+  [IntegrationType.TPE, 'tpe'],
+  [IntegrationType.TMOBILE_IOT_CDP, 'tmobile_iot_cdp']
+]);
+
+/**
+ * Webhook types PE offers the 启用安全 (请求头过滤器) panel for. ThingPark/TPE also have an
+ * 启用安全 panel but it is a different mechanism (HMAC signature, not a header allow-list), and
+ * OceanConnect / T-Mobile / ChirpStack have none at all.
+ */
+export const HTTP_HEADER_SECURITY_TYPES: IntegrationType[] = [
+  IntegrationType.HTTP, IntegrationType.SIGFOX, IntegrationType.PARTICLE,
+  IntegrationType.KPN, IntegrationType.LORIOT
+];
+
+/** Webhook types whose 高级设置 carries PE's replaceNoContentToOk toggle. */
+export const HTTP_REPLACE_NO_CONTENT_TYPES: IntegrationType[] = [
+  IntegrationType.HTTP, IntegrationType.SIGFOX, IntegrationType.LORIOT,
+  IntegrationType.OCEANCONNECT, IntegrationType.THINGPARK, IntegrationType.TPE,
+  IntegrationType.TMOBILE_IOT_CDP
+];
+
+/** PE's ThingPark/TPE pair — same form, same config keys, different URL segment. */
+export const THINGPARK_INTEGRATION_TYPES: IntegrationType[] = [
+  IntegrationType.THINGPARK, IntegrationType.TPE
+];
+
+export enum LoriotCredentialsType {
+  BASIC = 'basic',
+  TOKEN = 'token'
+}
+
+export const loriotCredentialsTypeLabels = new Map<LoriotCredentialsType, string>([
+  [LoriotCredentialsType.BASIC, 'integration.loriot-credentials-basic'],
+  [LoriotCredentialsType.TOKEN, 'integration.loriot-credentials-token']
+]);
+
 export enum TcpHandlerType {
   TEXT = 'TEXT',
   JSON = 'JSON',
   BINARY = 'BINARY'
+}
+
+/**
+ * PE's HandlerConfigurationType as used by tb-udp-integration-form. Distinct from TcpHandlerType:
+ * it includes HEX, and for UDP it selects payload presentation rather than framing.
+ */
+export enum UdpHandlerType {
+  BINARY = 'BINARY',
+  TEXT = 'TEXT',
+  JSON = 'JSON',
+  HEX = 'HEX'
 }
 
 export enum TcpMessageSeparator {
@@ -144,6 +208,47 @@ export enum OpcUaIdentityType {
   USERNAME = 'username'
 }
 
+/** PE's CoapSecurityMode. MIXED serves both a plain and a DTLS endpoint. */
+export enum CoapSecurityMode {
+  NO_SECURE = 'NO_SECURE',
+  DTLS = 'DTLS',
+  MIXED = 'MIXED'
+}
+
+/**
+ * CoAP counterpart of {@link integrationHttpEndpointUrl}: the platform's shared CoAP server serves
+ * every integration under one short `/i/` path, keyed by routing key — no per-integration port.
+ * <p>
+ * The segment is `i`, taken verbatim from PE (`coapEndPointUrl(base, key) => `${base}/i/${key}``).
+ * It deliberately does NOT live under `/api/v1/`: the device transport owns that subtree and its
+ * resource returns itself from getChild() for any name, so anything nested there is swallowed and
+ * answered with 4.00 instead of reaching the integration.
+ * Kept in lockstep with CoapIntegrationServer#resourcePath on the backend, which strips the routing
+ * key back out to find the resource hierarchy.
+ */
+export const COAP_INTEGRATION_PATH_SEGMENT = 'i';
+
+export function coapIntegrationEndpointUrl(routingKey: string, baseUrl?: string): string {
+  const origin = (baseUrl || defaultCoapBaseUrl(false)).replace(/\/+$/, '');
+  return `${origin}/${COAP_INTEGRATION_PATH_SEGMENT}/${routingKey || ''}`;
+}
+
+/** Inverse of the above — recovers the base URL a stored endpoint was built from. */
+export function coapBaseUrlOf(endpoint?: string): string {
+  if (!endpoint) {
+    return '';
+  }
+  const marker = `/${COAP_INTEGRATION_PATH_SEGMENT}/`;
+  const idx = endpoint.lastIndexOf(marker);
+  return idx >= 0 ? endpoint.substring(0, idx) : '';
+}
+
+/** PE's default: scheme + browser host, with no port — the user adds one if theirs is non-standard. */
+export function defaultCoapBaseUrl(dtls: boolean): string {
+  const host = window.location.hostname || 'localhost';
+  return dtls ? `coaps://${host}` : `coap://${host}`;
+}
+
 export enum KinesisInitialPosition {
   LATEST = 'LATEST',
   TRIM_HORIZON = 'TRIM_HORIZON'
@@ -194,7 +299,8 @@ export const integrationTypeInfoMap = new Map<IntegrationType, IntegrationTypeIn
   [IntegrationType.OCEANCONNECT, { name: 'OceanConnect', description: 'integration.type-oceanconnect-description', icon: 'ocean-connect', hideDownlink: true }],
   [IntegrationType.THINGPARK, { name: 'ThingPark', description: 'integration.type-thingpark-description', icon: 'thingpark' }],
   [IntegrationType.TPE, { name: 'ThingParkEnterprise', description: 'integration.type-tpe-description', icon: 'thingpark-enterprise' }],
-  [IntegrationType.TMOBILE_IOT_CDP, { name: 'iotcreators.com (T-Mobile IoT CDP)', description: 'integration.type-tmobile-iot-cdp-description', icon: 'iotcreators.com', hideDownlink: true }]
+  // PE spells this with an en dash — kept verbatim so the type list reads identically.
+  [IntegrationType.TMOBILE_IOT_CDP, { name: 'iotcreators.com (T-Mobile – IoT CDP)', description: 'integration.type-tmobile-iot-cdp-description', icon: 'iotcreators.com', hideDownlink: true }]
 ]);
 
 export interface MqttTopicFilter {
@@ -287,10 +393,18 @@ export interface IntegrationConfiguration {
     // AWS Kinesis
     streamName?: string; accessKeyId?: string; secretAccessKey?: string;
     initialPositionInStream?: KinesisInitialPosition; maxRecords?: number;
+    useCredentialsFromInstanceMetadata?: boolean; requestTimeout?: number;
     // Azure Event Hub / Service Bus
     connectionString?: string; consumerGroup?: string; topicName?: string; subName?: string;
+    iotHubName?: string;
+    downlinkConnectionString?: string; downlinkTopicName?: string;
+    enablePersistentCheckpoints?: boolean; storageConnectionString?: string; containerName?: string;
     // GCP Pub/Sub
     projectId?: string; subscriptionId?: string; serviceAccountKey?: string;
+    // ChirpStack — the only webhook type PE nests anything under clientConfiguration
+    applicationServerUrl?: string; applicationServerAPIToken?: string; useAPI4Plus?: boolean;
+    // CoAP (shared-server mode)
+    securityMode?: CoapSecurityMode; coapEndpoint?: string; dtlsCoapEndpoint?: string;
   };
   // AWS SQS (top-level key, matches PE)
   sqsConfiguration?: {
@@ -374,11 +488,23 @@ export function newIntegration(): Integration {
     defaultConverterId: null,
     enabled: true,
     allowCreateDevicesOrAssets: true,
+    // PE mints both client-side at create time rather than waiting for the server, so the routing
+    // key — and the HTTP endpoint URL derived from it — are visible while still filling the wizard.
+    // BaseIntegrationService only generates them when absent, so a supplied pair is honoured.
+    routingKey: guid(),
+    secret: generateSecret(20),
     configuration: {},
     additionalInfo: {}
   };
 }
 
-export function integrationHttpEndpointUrl(routingKey: string): string {
-  return `${window.location.origin}/api/v1/integrations/http/${routingKey}`;
+/**
+ * The URL a third-party network server posts uplinks to. PE builds it from the integration's own
+ * `baseUrl` field (so it can point at a public gateway rather than whatever host the admin happens
+ * to be browsing from) plus the per-type segment.
+ */
+export function integrationHttpEndpointUrl(routingKey: string, type?: IntegrationType, baseUrl?: string): string {
+  const origin = (baseUrl || window.location.origin).replace(/\/+$/, '');
+  const segment = HTTP_WEBHOOK_URL_SEGMENT.get(type) || 'http';
+  return `${origin}/api/v1/integrations/${segment}/${routingKey}`;
 }

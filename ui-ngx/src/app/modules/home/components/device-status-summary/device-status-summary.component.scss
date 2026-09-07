@@ -1,0 +1,55 @@
+:host {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.device-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  min-width: 76px;
+  height: 30px;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+
+  mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+  }
+
+  strong {
+    min-width: 16px;
+    margin-left: auto;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 700;
+  }
+}
+
+.status-tag--normal {
+  color: #078b42;
+  background: #effbf4;
+}
+
+.status-tag--abnormal {
+  color: #d9363e;
+  background: #fff2f3;
+}
+
+@media (max-width: 960px) {
+  :host {
+    display: none;
+  }
+}
