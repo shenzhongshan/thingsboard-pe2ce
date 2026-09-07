@@ -23,7 +23,7 @@ import {
   Validators
 } from '@angular/forms';
 import { Observable, of } from 'rxjs';
-import { catchError, debounceTime, distinctUntilChanged, filter, map, mergeMap, share, tap } from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, map, mergeMap, share, tap } from 'rxjs/operators';
 import { MatAutocomplete } from '@angular/material/autocomplete';
 import { MatFormFieldAppearance, SubscriptSizing } from '@angular/material/form-field';
 import { coerceBoolean } from '@shared/decorators/coercion';
@@ -82,6 +82,10 @@ export class OwnerAutocompleteComponent implements ControlValueAccessor, OnInit 
   @Input()
   defaultOwnerId: EntityId;
 
+  /** Owner ids to drop from the suggestion list (PE hides the tenant itself in group-owner mode). */
+  @Input()
+  excludeOwnerIds: string[];
+
   @Input()
   @coerceBoolean()
   useOwnerInfoValue = false;
@@ -134,8 +138,12 @@ export class OwnerAutocompleteComponent implements ControlValueAccessor, OnInit 
           }
           this.updateView(modelValue);
         }),
-        filter(value => typeof value === 'string'),
-        map(value => value ? value as string : ''),
+        // No typeof-string filter here: onFocus() below re-emits the control's current value (often
+        // null, before any typing) to trigger the initial "show all owners" fetch — filtering out
+        // non-string values would silently drop that emission and the list would only populate once
+        // the user types a character. An object value (an already-selected owner) searches by its
+        // name instead of being dropped, matching PE.
+        map(value => value ? (typeof value === 'string' ? value : value.name) : ''),
         distinctUntilChanged(),
         mergeMap(name => this.fetchOwners(name)),
         share()
@@ -244,10 +252,16 @@ export class OwnerAutocompleteComponent implements ControlValueAccessor, OnInit 
 
   private fetchOwners(searchText?: string): Observable<Array<EntityInfoData>> {
     this.searchText = searchText;
-    const pageLink = new PageLink(50, 0, searchText, {property: 'name', direction: Direction.ASC});
+    // Ask for the excluded ids on top of the page so filtering them out can't empty the page.
+    const pageSize = 50 + (this.excludeOwnerIds?.length ?? 0);
+    const pageLink = new PageLink(pageSize, 0, searchText, {property: 'name', direction: Direction.ASC});
     return this.entityGroupService.getOwners(pageLink, {ignoreLoading: true}).pipe(
       catchError(() => of(null)),
-      map(pageData => pageData ? pageData.data : [])
+      map(pageData => {
+        const owners = pageData ? pageData.data : [];
+        return this.excludeOwnerIds?.length ?
+          owners.filter(owner => this.excludeOwnerIds.indexOf(owner.id.id) === -1) : owners;
+      })
     );
   }
 }

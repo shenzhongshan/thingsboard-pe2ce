@@ -25,11 +25,24 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.TimePageLink;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public interface EventService {
 
     ListenableFuture<Void> saveAsync(Event event);
+
+    /**
+     * Per-hour totals of (messages processed + errors) over the last 24 hours, keyed by entity id.
+     * Entities with no statistics events in the window are simply absent from the map.
+     *
+     * <p>Used to build the "daily activity" sparkline on the integration list without issuing one
+     * query per row.
+     */
+    Map<UUID, ArrayNode> findAggregatedDailyStats(TenantId tenantId, List<UUID> entityIds);
 
     PageData<EventInfo> findEvents(TenantId tenantId, EntityId entityId, EventType eventType, TimePageLink pageLink);
 

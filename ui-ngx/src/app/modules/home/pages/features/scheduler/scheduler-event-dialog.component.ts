@@ -17,42 +17,26 @@
 import { Component, Inject, OnInit, ViewChild } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatTabGroup } from '@angular/material/tabs';
-import {
-  AbstractControl,
-  UntypedFormArray,
-  UntypedFormBuilder,
-  UntypedFormGroup,
-  Validators
-} from '@angular/forms';
+import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { TranslateService } from '@ngx-translate/core';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
-import { EntityType, entityTypeTranslations } from '@shared/models/entity-type.models';
+import { EntityType } from '@shared/models/entity-type.models';
 import { EntityId } from '@shared/models/id/entity-id';
 import { OtaUpdateType } from '@shared/models/ota-package.models';
 import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { SchedulerEventService } from '@core/http/scheduler-event.service';
 import { EntityService } from '@core/http/entity.service';
-import { ReportTemplateService } from '@core/http/report-template.service';
-import { NotificationService } from '@core/http/notification.service';
 import { EntityGroupService } from '@core/http/entity-group.service';
-import { PageLink } from '@shared/models/page/page-link';
-import { ReportTemplateInfo } from '@shared/models/report.models';
-import { NotificationTarget, NotificationTemplate, NotificationType } from '@shared/models/notification.models';
+import { ReportTemplateType } from '@shared/models/report.models';
+import { NotificationTarget, NotificationType } from '@shared/models/notification.models';
 import {
   RecipientNotificationDialogComponent,
   RecipientNotificationDialogData
 } from '@home/pages/notification/recipient/recipient-notification-dialog.component';
-import {
-  TemplateNotificationDialogComponent,
-  TemplateNotificationDialogData
-} from '@home/pages/notification/template/template-notification-dialog.component';
-import { EntityGroup, entityGroupTypes } from '@shared/models/entity-group.models';
-import { EntityInfoData } from '@shared/models/entity.models';
-import { Observable, of } from 'rxjs';
-import { catchError, debounceTime, map, switchMap } from 'rxjs/operators';
+import { EntityGroup } from '@shared/models/entity-group.models';
 import {
   newSchedulerEvent,
   SchedulerEvent,
@@ -65,17 +49,14 @@ import {
   schedulerTimeUnitTranslations
 } from '@shared/models/scheduler-event.models';
 import { getDefaultTimezone } from '@shared/models/time/time.models';
+import { attributeKeyValueValidator } from '@home/pages/features/scheduler/attribute-key-value-table.component';
 
 export interface SchedulerEventDialogData {
   schedulerEventId?: string;
 }
 
-export enum TargetMode {
-  SINGLE = 'SINGLE',
-  GROUP = 'GROUP',
-  OWNER = 'OWNER'
-}
-
+/** PE's default RPC metadata — `timeout` feeds the backend's `expirationTime` for persistent RPCs. */
+const DEFAULT_RPC_TIMEOUT = 5000;
 
 @Component({
   selector: 'tb-scheduler-event-dialog',
@@ -109,17 +90,16 @@ export class SchedulerEventDialogComponent implements OnInit {
 
   attributeScopes = [AttributeScope.SERVER_SCOPE, AttributeScope.SHARED_SCOPE];
 
-  TargetMode = TargetMode;
-  entityTypeTranslations = entityTypeTranslations;
+  /** Type of the group currently selected in the target picker — drives the attribute-scope select. */
+  currentGroupType: EntityType = null;
 
+  /** OTA package list is limited to the target's device profile, or to the target device group. */
   targetDeviceProfileId: string = null;
+  targetDeviceGroupId: string = null;
+  targetDeviceGroupAll = false;
 
-  filteredEntityGroups: Observable<EntityGroup[]>;
-  filteredOwners: Observable<EntityInfoData[]>;
-
-  reportTemplates: ReportTemplateInfo[] = [];
-  notificationTargets: NotificationTarget[] = [];
-  notificationTemplates: NotificationTemplate[] = [];
+  ReportTemplateType = ReportTemplateType;
+  NotificationType = NotificationType;
 
   @ViewChild('tabGroup') tabGroup: MatTabGroup;
 
@@ -130,8 +110,6 @@ export class SchedulerEventDialogComponent implements OnInit {
               protected store: Store<AppState>,
               private schedulerEventService: SchedulerEventService,
               private entityService: EntityService,
-              private reportTemplateService: ReportTemplateService,
-              private notificationService: NotificationService,
               private entityGroupService: EntityGroupService,
               private translate: TranslateService,
               private dialog: MatDialog,
@@ -140,16 +118,6 @@ export class SchedulerEventDialogComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.reportTemplateService.getReportTemplateInfos(new PageLink(100)).subscribe((page) => {
-      this.reportTemplates = page.data;
-    });
-    // CE reports notify via NotificationType.GENERAL (PE's dedicated REPORT_GENERATED type has no CE equivalent).
-    this.notificationService.getNotificationTargets(new PageLink(100), NotificationType.GENERAL).subscribe((page) => {
-      this.notificationTargets = page.data;
-    });
-    this.notificationService.getNotificationTemplates(new PageLink(100), NotificationType.GENERAL).subscribe((page) => {
-      this.notificationTemplates = page.data;
-    });
     if (this.isEdit) {
       this.schedulerEventService.getSchedulerEvent(this.data.schedulerEventId).subscribe((event) => {
         this.schedulerEvent = event;
@@ -166,37 +134,36 @@ export class SchedulerEventDialogComponent implements OnInit {
   private buildForm(event: SchedulerEvent) {
     const config = event.configuration || {};
     const repeat = event.schedule?.repeat;
-    const attributes = config.msgBody && event.type === SchedulerEventType.UPDATE_ATTRIBUTES ?
-      Object.entries(config.msgBody).map(([key, value]) => ({key, value: this.valueToString(value)})) : [];
-    const isGroupTarget = event.originatorId?.entityType === EntityType.ENTITY_GROUP;
+    const isUpdateAttributes = event.type === SchedulerEventType.UPDATE_ATTRIBUTES;
+    const scope = config.metadata?.scope || AttributeScope.SERVER_SCOPE;
+    const attributes = isUpdateAttributes && config.msgBody ? config.msgBody : {};
     this.form = this.fb.group({
       name: [event.name, [Validators.required]],
       type: [event.type, [Validators.required]],
       enabled: [event.enabled],
-      originatorId: [isGroupTarget ? null : event.originatorId],
-      targetMode: [isGroupTarget ? TargetMode.GROUP : TargetMode.SINGLE],
-      targetEntityType: [null],
-      targetEntityGroup: [null],
-      targetOwner: [null],
-      // updateAttributes
-      attributesScope: [config.metadata?.scope || AttributeScope.SERVER_SCOPE],
-      attributes: this.fb.array(attributes.map((kv) => this.buildAttributeRow(kv.key, kv.value))),
+      originatorId: [event.originatorId],
+      // updateAttributes — PE keeps one map per scope so switching scope doesn't carry values over.
+      attributesScope: [scope],
+      serverAttributes: [scope === AttributeScope.SERVER_SCOPE ? attributes : {}],
+      sharedAttributes: [scope === AttributeScope.SHARED_SCOPE ? attributes : {}],
       // sendRpcRequest
-      rpcMethod: [event.type === SchedulerEventType.SEND_RPC_REQUEST ? config.msgBody?.method : ''],
+      rpcMethod: [event.type === SchedulerEventType.SEND_RPC_REQUEST ? config.msgBody?.method : null],
       rpcParams: [event.type === SchedulerEventType.SEND_RPC_REQUEST && config.msgBody?.params !== undefined ?
-        JSON.stringify(config.msgBody.params) : '{}'],
-      rpcOneway: [config.metadata?.oneway === 'true'],
-      rpcPersistent: [config.metadata?.persistent === 'true'],
+        config.msgBody.params : {}],
+      rpcTimeout: [this.toNumber(config.metadata?.timeout, DEFAULT_RPC_TIMEOUT)],
+      rpcOneway: [this.toBoolean(config.metadata?.oneway, true)],
+      rpcPersistent: [this.toBoolean(config.metadata?.persistent, false)],
       // updateFirmware / updateSoftware
-      otaPackageId: [this.isOtaType(event.type) && config.msgBody?.id ? config.msgBody.id : null],
+      otaPackageId: [this.isOtaType(event.type) && config.msgBody?.id ? config.msgBody : null],
       // generateReport
       reportTemplateId: [event.type === SchedulerEventType.GENERATE_REPORT ? config.msgBody?.reportTemplateId?.id : null],
       reportUserId: [event.type === SchedulerEventType.GENERATE_REPORT && config.msgBody?.userId?.id ?
         {entityType: EntityType.USER, id: config.msgBody.userId.id} as EntityId :
         {entityType: EntityType.USER, id: getCurrentAuthUser(this.store).userId} as EntityId],
       reportTargets: [event.type === SchedulerEventType.GENERATE_REPORT ? (config.msgBody?.targets || []) : []],
+      // tb-template-autocomplete's model is a full EntityId, not a bare id string.
       reportNotificationTemplateId: [event.type === SchedulerEventType.GENERATE_REPORT ?
-        config.msgBody?.notificationTemplateId?.id : null],
+        (config.msgBody?.notificationTemplateId || null) : null],
       // schedule
       timezone: [event.schedule?.timezone, [Validators.required]],
       startTime: [event.schedule?.startTime, [Validators.required]],
@@ -209,82 +176,49 @@ export class SchedulerEventDialogComponent implements OnInit {
       repeatTimeUnit: [repeat?.timeUnit || SchedulerTimeUnit.HOURS],
       endsOn: [repeat?.endsOn || (new Date().setHours(0, 0, 0, 0) + 8 * 24 * 60 * 60 * 1000)]
     });
+    this.updateConditionalValidators();
     this.onOriginatorChanged(event.originatorId);
     this.form.get('originatorId').valueChanges.subscribe((originatorId) => this.onOriginatorChanged(originatorId));
     this.form.get('type').valueChanges.subscribe(() => {
-      this.form.get('originatorId').patchValue(null, {emitEvent: false});
-      this.form.get('otaPackageId').patchValue(null, {emitEvent: false});
-      this.form.get('targetMode').patchValue(TargetMode.SINGLE, {emitEvent: false});
-      this.form.get('targetEntityType').patchValue(null, {emitEvent: false});
-      this.form.get('targetEntityGroup').patchValue(null, {emitEvent: false});
-      this.form.get('targetOwner').patchValue(null, {emitEvent: false});
+      this.form.patchValue({
+        originatorId: null,
+        otaPackageId: null,
+        serverAttributes: {},
+        sharedAttributes: {},
+        attributesScope: AttributeScope.SERVER_SCOPE
+      }, {emitEvent: false});
+      this.currentGroupType = null;
       this.targetDeviceProfileId = null;
+      this.targetDeviceGroupId = null;
+      this.targetDeviceGroupAll = false;
+      this.updateConditionalValidators();
     });
-    this.form.get('targetMode').valueChanges.subscribe((mode) => {
-      this.form.get('targetEntityGroup').patchValue(null, {emitEvent: false});
-      this.form.get('targetOwner').patchValue(null, {emitEvent: false});
-      // tb-entity-select's `required` directive doesn't unregister its validator when @if destroys
-      // the element on mode switch, leaving originatorId permanently (invisibly) invalid — clear explicitly.
-      const originatorCtrl = this.form.get('originatorId');
-      if (mode !== TargetMode.SINGLE) {
-        originatorCtrl.patchValue(null, {emitEvent: false});
-      }
-      originatorCtrl.clearValidators();
-      originatorCtrl.updateValueAndValidity({emitEvent: false});
+    // PE clears both maps on scope change so values never carry across scopes.
+    this.form.get('attributesScope').valueChanges.subscribe(() => {
+      this.form.patchValue({serverAttributes: {}, sharedAttributes: {}}, {emitEvent: false});
+      this.updateConditionalValidators();
     });
-    this.form.get('targetEntityType').valueChanges.subscribe(() => {
-      this.form.get('targetEntityGroup').patchValue(null, {emitEvent: false});
-    });
-    this.setupTargetAutocompletes();
-    if (isGroupTarget) {
-      this.entityGroupService.getEntityGroup(event.originatorId.id, {ignoreErrors: true}).subscribe((group) => {
-        this.form.get('targetEntityType').patchValue(group.type, {emitEvent: false});
-        this.form.get('targetEntityGroup').patchValue(group, {emitEvent: false});
-      });
+  }
+
+  onCurrentGroupType(groupType: EntityType) {
+    this.currentGroupType = groupType;
+    if (!this.sharedScopeSupported && this.form.get('attributesScope').value !== AttributeScope.SERVER_SCOPE) {
+      this.form.get('attributesScope').patchValue(AttributeScope.SERVER_SCOPE);
     }
   }
 
-  private setupTargetAutocompletes() {
-    this.filteredEntityGroups = this.form.get('targetEntityGroup').valueChanges.pipe(
-      map(value => typeof value === 'string' ? value : value?.name || ''),
-      debounceTime(150),
-      switchMap(name => {
-        const groupType = this.form.get('targetEntityType').value;
-        if (!groupType) {
-          return of([]);
-        }
-        return this.entityGroupService.getEntityGroupsByType(groupType, new PageLink(50, 0, name), null,
-          {ignoreLoading: true, ignoreErrors: true}).pipe(
-          map(page => page.data),
-          catchError(() => of([]))
-        );
-      })
-    );
-    this.filteredOwners = this.form.get('targetOwner').valueChanges.pipe(
-      map(value => typeof value === 'string' ? value : value?.name || ''),
-      debounceTime(150),
-      switchMap(name => this.entityGroupService.getOwners(new PageLink(50, 0, name),
-        {ignoreLoading: true, ignoreErrors: true}).pipe(
-        map(page => page.data),
-        catchError(() => of([]))
-      ))
-    );
+  /** Shared attributes only exist on devices — PE hides the scope select for every other target. */
+  get sharedScopeSupported(): boolean {
+    const originatorId: EntityId = this.form?.get('originatorId')?.value;
+    if (!originatorId) {
+      return false;
+    }
+    return originatorId.entityType === EntityType.DEVICE ||
+      (originatorId.entityType === EntityType.ENTITY_GROUP && this.currentGroupType === EntityType.DEVICE);
   }
 
-  displayEntityGroupFn(group?: EntityGroup): string | undefined {
-    return group?.name;
-  }
-
-  displayOwnerFn(owner?: EntityInfoData): string | undefined {
-    return owner?.name;
-  }
-
-  get groupableEntityTypes(): EntityType[] {
-    return this.allowedOriginatorEntityTypes.filter(t => entityGroupTypes.includes(t));
-  }
-
-  get supportsGroupTargeting(): boolean {
-    return this.eventType === SchedulerEventType.UPDATE_ATTRIBUTES || this.eventType === SchedulerEventType.SEND_RPC_REQUEST;
+  get targetRequired(): boolean {
+    return this.eventType && this.eventType !== SchedulerEventType.GENERATE_REPORT;
   }
 
   createNotificationTarget() {
@@ -295,51 +229,10 @@ export class SchedulerEventDialogComponent implements OnInit {
       data: {isAdd: true}
     }).afterClosed().subscribe((target) => {
       if (target) {
-        this.notificationTargets = [...this.notificationTargets, target];
         this.form.get('reportTargets').patchValue([...(this.form.get('reportTargets').value || []), target.id.id]);
         this.form.markAsDirty();
       }
     });
-  }
-
-  createNotificationTemplate() {
-    this.dialog.open<TemplateNotificationDialogComponent, TemplateNotificationDialogData, NotificationTemplate>(
-      TemplateNotificationDialogComponent, {
-      disableClose: true,
-      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-      data: {isAdd: true, predefinedType: NotificationType.GENERAL}
-    }).afterClosed().subscribe((template) => {
-      if (template) {
-        this.notificationTemplates = [...this.notificationTemplates, template];
-        this.form.get('reportNotificationTemplateId').patchValue(template.id.id);
-        this.form.markAsDirty();
-      }
-    });
-  }
-
-  private valueToString(value: any): string {
-    return typeof value === 'object' ? JSON.stringify(value) : String(value);
-  }
-
-  private buildAttributeRow(key: string, value: string): UntypedFormGroup {
-    return this.fb.group({
-      key: [key, [Validators.required]],
-      value: [value, [Validators.required]]
-    });
-  }
-
-  get attributesArray(): UntypedFormArray {
-    return this.form.get('attributes') as UntypedFormArray;
-  }
-
-  addAttribute() {
-    this.attributesArray.push(this.buildAttributeRow('', ''));
-    this.form.markAsDirty();
-  }
-
-  removeAttribute(index: number) {
-    this.attributesArray.removeAt(index);
-    this.form.markAsDirty();
   }
 
   get eventType(): string {
@@ -353,10 +246,9 @@ export class SchedulerEventDialogComponent implements OnInit {
   get allowedOriginatorEntityTypes(): EntityType[] {
     switch (this.eventType) {
       case SchedulerEventType.SEND_RPC_REQUEST:
-        return [EntityType.DEVICE];
       case SchedulerEventType.UPDATE_FIRMWARE:
       case SchedulerEventType.UPDATE_SOFTWARE:
-        return [EntityType.DEVICE, EntityType.DEVICE_PROFILE];
+        return [EntityType.DEVICE];
       default:
         // PE's Update Attributes entity-type list, minus SCHEDULER_EVENT/BLOB_ENTITY (no CE equivalent).
         return [
@@ -367,14 +259,54 @@ export class SchedulerEventDialogComponent implements OnInit {
     }
   }
 
-  // OTA package list must be limited to the target's device profile.
+  /**
+   * Rebuilds the validators of every type-specific control from scratch.
+   *
+   * This must run on each event-type change: Angular does NOT strip validators contributed by a
+   * directive (`required`, or a component providing NG_VALIDATORS such as `tb-json-object-edit`)
+   * when a structural block destroys its host, so a control left behind by the previous event type
+   * would otherwise stay invalid forever — an invisible, un-saveable form. `setValidators` replaces
+   * the whole composed validator, and any control still on screen has its directive re-register
+   * right after this runs.
+   */
+  private updateConditionalValidators() {
+    const type = this.eventType;
+    const isReport = type === SchedulerEventType.GENERATE_REPORT;
+    const isRpc = type === SchedulerEventType.SEND_RPC_REQUEST;
+    const isAttributes = type === SchedulerEventType.UPDATE_ATTRIBUTES;
+    const scope = this.form.get('attributesScope').value;
+    const apply = (name: string, validators: any[]) => {
+      const control = this.form.get(name);
+      control.setValidators(validators);
+      control.updateValueAndValidity({emitEvent: false});
+    };
+    apply('originatorId', this.targetRequired ? [Validators.required] : []);
+    apply('rpcMethod', isRpc ? [Validators.required, Validators.pattern(/^\S+$/)] : []);
+    apply('rpcTimeout', isRpc ? [Validators.min(0)] : []);
+    apply('rpcParams', []);
+    apply('otaPackageId', []);
+    apply('reportTemplateId', isReport ? [Validators.required] : []);
+    apply('reportUserId', isReport ? [Validators.required] : []);
+    apply('serverAttributes', [attributeKeyValueValidator(isAttributes && scope === AttributeScope.SERVER_SCOPE)]);
+    apply('sharedAttributes', [attributeKeyValueValidator(isAttributes && scope === AttributeScope.SHARED_SCOPE)]);
+  }
+
+  /** Narrow the OTA package list to whatever the target implies: a profile, or a device group. */
   private onOriginatorChanged(originatorId: EntityId) {
+    this.targetDeviceProfileId = null;
+    this.targetDeviceGroupId = null;
+    this.targetDeviceGroupAll = false;
     if (!originatorId || !this.isOtaType(this.eventType)) {
-      this.targetDeviceProfileId = null;
       return;
     }
     if (originatorId.entityType === EntityType.DEVICE_PROFILE) {
       this.targetDeviceProfileId = originatorId.id;
+    } else if (originatorId.entityType === EntityType.ENTITY_GROUP) {
+      this.targetDeviceGroupId = originatorId.id;
+      this.entityGroupService.getEntityGroup(originatorId.id, {ignoreLoading: true, ignoreErrors: true})
+        .subscribe((group: EntityGroup) => {
+          this.targetDeviceGroupAll = group?.name === 'All';
+        });
     } else if (originatorId.entityType === EntityType.DEVICE) {
       this.entityService.getEntity(EntityType.DEVICE, originatorId.id, {ignoreLoading: true}).subscribe((device: any) => {
         this.targetDeviceProfileId = device?.deviceProfileId?.id || null;
@@ -417,21 +349,19 @@ export class SchedulerEventDialogComponent implements OnInit {
     if (!this.form.valid) {
       this.form.markAllAsTouched();
       const scheduleTabInvalid = this.form.get('timezone').invalid || this.form.get('startTime').invalid;
-      const attributesRowInvalid = this.form.get('type').value === SchedulerEventType.UPDATE_ATTRIBUTES && this.attributesArray.invalid;
       if (scheduleTabInvalid) {
         this.showValidationError('scheduler.schedule-incomplete', 1);
-      } else if (attributesRowInvalid) {
-        this.showValidationError('scheduler.attribute-row-incomplete', 0);
+      } else if (this.form.get('originatorId').invalid) {
+        this.showValidationError('scheduler.target-required', 0);
+      } else if (this.attributesInvalid) {
+        this.showValidationError(this.attributesMissing ? 'scheduler.attributes-required' :
+          'scheduler.attribute-row-incomplete', 0);
       } else {
         this.showValidationError('scheduler.validation-error', 0);
       }
       return;
     }
     const v = this.form.value;
-    if (v.type === SchedulerEventType.UPDATE_ATTRIBUTES && !this.attributesArray.length) {
-      this.showValidationError('scheduler.attributes-required', 0);
-      return;
-    }
     if (this.isOtaType(v.type) && !v.otaPackageId) {
       this.form.get('otaPackageId').setErrors({required: true});
       this.form.get('otaPackageId').markAsTouched();
@@ -450,94 +380,53 @@ export class SchedulerEventDialogComponent implements OnInit {
       this.showValidationError('scheduler.report-user-required', 0);
       return;
     }
-    if (this.supportsGroupTargeting) {
-      if (v.targetMode === TargetMode.SINGLE && !v.originatorId) {
-        this.form.get('originatorId').setErrors({required: true});
-        this.form.get('originatorId').markAsTouched();
-        this.showValidationError('scheduler.target-required', 0);
-        return;
-      }
-      if (v.targetMode === TargetMode.GROUP && (!v.targetEntityType || !v.targetEntityGroup)) {
-        this.showValidationError('scheduler.target-entity-group-required', 0);
-        return;
-      }
-      if (v.targetMode === TargetMode.OWNER && (!v.targetEntityType || !v.targetOwner)) {
-        this.showValidationError('scheduler.target-owner-required', 0);
-        return;
-      }
-    } else if (v.type !== SchedulerEventType.GENERATE_REPORT && !v.originatorId) {
-      this.form.get('originatorId').setErrors({required: true});
-      this.form.get('originatorId').markAsTouched();
-      this.showValidationError('scheduler.target-required', 0);
-      return;
+    const originatorId: EntityId = v.type === SchedulerEventType.GENERATE_REPORT ? null : v.originatorId;
+    const event: SchedulerEvent = {
+      ...(this.schedulerEvent || {} as SchedulerEvent),
+      name: v.name,
+      type: v.type,
+      enabled: v.enabled,
+      originatorId,
+      schedule: {
+        timezone: v.timezone,
+        startTime: v.startTime
+      },
+      configuration: this.buildConfiguration(v, originatorId)
+    };
+    if (v.repeatEnabled) {
+      event.schedule.repeat = this.buildRepeat(v);
     }
-    this.resolveOriginatorId(v).subscribe((originatorId) => {
-      const event: SchedulerEvent = {
-        ...(this.schedulerEvent || {} as SchedulerEvent),
-        name: v.name,
-        type: v.type,
-        enabled: v.enabled,
-        originatorId,
-        schedule: {
-          timezone: v.timezone,
-          startTime: v.startTime
-        },
-        configuration: this.buildConfiguration(v, originatorId)
-      };
-      if (v.repeatEnabled) {
-        event.schedule.repeat = this.buildRepeat(v);
-      }
-      this.schedulerEventService.saveSchedulerEvent(event).subscribe(() => {
-        this.dialogRef.close(true);
-      });
+    this.schedulerEventService.saveSchedulerEvent(event).subscribe(() => {
+      this.dialogRef.close(true);
     });
   }
 
-  // Group/owner targeting resolves to a concrete EntityGroupId originator (PE parity: the rule chain's
-  // entity-group fan-out sub-flow expands it to member entities at fire time — no backend change needed here).
-  private resolveOriginatorId(v: any): Observable<EntityId> {
-    if (!this.supportsGroupTargeting || v.targetMode === TargetMode.SINGLE) {
-      return of(v.originatorId);
-    }
-    if (v.targetMode === TargetMode.GROUP) {
-      const group: EntityGroup = v.targetEntityGroup;
-      return of({id: group.id.id, entityType: EntityType.ENTITY_GROUP} as EntityId);
-    }
-    const owner: EntityInfoData = v.targetOwner;
-    const ownerId = owner.id.entityType === EntityType.CUSTOMER ? owner.id.id : undefined;
-    return this.entityGroupService.getAllGroupId(v.targetEntityType, ownerId).pipe(
-      map(groupId => ({id: groupId, entityType: EntityType.ENTITY_GROUP} as EntityId))
-    );
+  private get attributesInvalid(): boolean {
+    return this.eventType === SchedulerEventType.UPDATE_ATTRIBUTES &&
+      (this.form.get('serverAttributes').invalid || this.form.get('sharedAttributes').invalid);
+  }
+
+  private get attributesMissing(): boolean {
+    return !!(this.form.get('serverAttributes').hasError('required') ||
+      this.form.get('sharedAttributes').hasError('required'));
   }
 
   private buildConfiguration(v: any, originatorId: EntityId) {
     switch (v.type) {
-      case SchedulerEventType.UPDATE_ATTRIBUTES: {
-        const msgBody: {[key: string]: any} = {};
-        for (const row of v.attributes) {
-          msgBody[row.key] = this.parseValue(row.value);
-        }
+      case SchedulerEventType.UPDATE_ATTRIBUTES:
         return {
           originatorId,
           msgType: 'POST_ATTRIBUTES_REQUEST',
-          msgBody,
+          msgBody: v.attributesScope === AttributeScope.SHARED_SCOPE ? v.sharedAttributes : v.serverAttributes,
           metadata: {scope: v.attributesScope}
         };
-      }
-      case SchedulerEventType.SEND_RPC_REQUEST: {
-        let params: any = {};
-        try {
-          params = JSON.parse(v.rpcParams);
-        } catch (e) {
-          params = v.rpcParams;
-        }
+      case SchedulerEventType.SEND_RPC_REQUEST:
         return {
           originatorId,
           msgType: 'RPC_CALL_FROM_SERVER_TO_DEVICE',
-          msgBody: {method: v.rpcMethod, params, timeout: 60000},
-          metadata: {oneway: String(v.rpcOneway), persistent: String(v.rpcPersistent)}
+          msgBody: {method: v.rpcMethod, params: v.rpcParams},
+          metadata: {oneway: v.rpcOneway, timeout: v.rpcTimeout, persistent: v.rpcPersistent}
         };
-      }
       case SchedulerEventType.GENERATE_REPORT:
         return {
           msgBody: {
@@ -545,35 +434,29 @@ export class SchedulerEventDialogComponent implements OnInit {
             userId: {id: v.reportUserId.id, entityType: EntityType.USER},
             timezone: v.timezone,
             targets: v.reportTargets || [],
-            notificationTemplateId: v.reportNotificationTemplateId ?
-              {id: v.reportNotificationTemplateId, entityType: EntityType.NOTIFICATION_TEMPLATE} : null
+            notificationTemplateId: v.reportNotificationTemplateId || null
           }
         };
       default:
         // updateFirmware / updateSoftware: msgBody = OtaPackageId
         return {
           originatorId,
-          msgBody: {entityType: EntityType.OTA_PACKAGE, id: v.otaPackageId}
+          msgType: v.type === SchedulerEventType.UPDATE_FIRMWARE ? 'FIRMWARE_UPDATED' : 'SOFTWARE_UPDATED',
+          msgBody: v.otaPackageId
         };
     }
   }
 
-  private parseValue(value: string): any {
-    if (value === 'true') {
-      return true;
+  private toBoolean(value: any, defaultValue: boolean): boolean {
+    if (value === undefined || value === null) {
+      return defaultValue;
     }
-    if (value === 'false') {
-      return false;
-    }
+    return typeof value === 'boolean' ? value : value === 'true';
+  }
+
+  private toNumber(value: any, defaultValue: number): number {
     const num = Number(value);
-    if (!isNaN(num) && value.trim() !== '') {
-      return num;
-    }
-    try {
-      return JSON.parse(value);
-    } catch (e) {
-      return value;
-    }
+    return value === undefined || value === null || isNaN(num) ? defaultValue : num;
   }
 
   private buildRepeat(v: any): SchedulerRepeat {

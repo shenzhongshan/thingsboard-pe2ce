@@ -48,3 +48,24 @@ export interface SecretInfo extends BaseData<SecretId> {
 export interface Secret extends SecretInfo {
   value?: string;
 }
+
+/**
+ * The reference form persisted inside an entity configuration instead of the credential itself.
+ * Must stay byte-compatible with the server-side matcher in DefaultSecretConfigurationService:
+ *   Pattern.compile("\$\{secret:([^;{}]+);type:([^;{}]+)}")
+ */
+const SECRET_PLACEHOLDER_RE = /^\$\{secret:([^;{}]+);type:([^;{}]+)\}$/;
+
+export function secretPlaceholder(name: string, type: SecretType): string {
+  return `\${secret:${name};type:${type}}`;
+}
+
+export function isSecretPlaceholder(value: string): boolean {
+  return !!value && SECRET_PLACEHOLDER_RE.test(value);
+}
+
+/** The referenced secret's name, or null when the value is a literal. */
+export function secretPlaceholderName(value: string): string {
+  const m = value ? SECRET_PLACEHOLDER_RE.exec(value) : null;
+  return m ? m[1] : null;
+}

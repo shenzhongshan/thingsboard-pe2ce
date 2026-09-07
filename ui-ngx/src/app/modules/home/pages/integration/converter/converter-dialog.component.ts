@@ -18,6 +18,7 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
+import { TranslateService } from '@ngx-translate/core';
 import { AppState } from '@core/core.state';
 import { ScriptLanguage } from '@shared/models/rule-node.models';
 import { ConverterService } from '@core/http/converter.service';
@@ -31,12 +32,19 @@ import {
   DEFAULT_TBEL_ENCODER,
   newConverter
 } from '@shared/models/converter.models';
-import { IntegrationType } from '@shared/models/integration.models';
-import { ConverterTestDialogComponent } from '@home/pages/integration/converter/converter-test-dialog.component';
+import { IntegrationType, integrationTypeInfoMap } from '@shared/models/integration.models';
+import {
+  ConverterTestDialogComponent,
+  ConverterTestDialogData
+} from '@home/pages/integration/converter/converter-test-dialog.component';
 import { EntityType } from '@shared/models/entity-type.models';
 
 export interface ConverterDialogData {
   converterId?: string;
+  /** Preset + lock the direction when opened from an integration's converter field (PE does the
+   *  same: the type toggle and integration type are fixed to the slot you launched it from). */
+  presetType?: ConverterType;
+  presetIntegrationType?: IntegrationType;
 }
 
 @Component({
@@ -55,14 +63,19 @@ export class ConverterDialogComponent implements OnInit {
   ConverterType = ConverterType;
   ScriptLanguage = ScriptLanguage;
   ConverterScriptLanguage = ConverterScriptLanguage;
-  integrationTypes = ['', ...Object.values(IntegrationType)];
+  // PE renders this field with the same rich icon+description autocomplete the integration wizard
+  // uses (its shared tb-integration-type-select), with an empty value meaning "all types" — shown
+  // via the 全部 placeholder rather than an explicit row in the list.
+  integrationTypes = Object.values(IntegrationType);
+  integrationTypeInfoMap = integrationTypeInfoMap;
 
   private converter: Converter;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: ConverterDialogData,
-              private dialogRef: MatDialogRef<ConverterDialogComponent, boolean>,
+              private dialogRef: MatDialogRef<ConverterDialogComponent, Converter | boolean>,
               protected store: Store<AppState>,
               private converterService: ConverterService,
+              private translate: TranslateService,
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.converterId;
@@ -77,9 +90,25 @@ export class ConverterDialogComponent implements OnInit {
       });
     } else {
       this.converter = newConverter();
+      if (this.data.presetType) {
+        this.converter.type = this.data.presetType;
+      }
+      if (this.data.presetIntegrationType) {
+        this.converter.integrationType = this.data.presetIntegrationType;
+      }
       this.buildForm(this.converter);
+      if (this.presetsLocked) {
+        // PE renders these two as fixed (disabled) when launched from an integration's slot.
+        this.form.get('type').disable({ emitEvent: false });
+        this.form.get('integrationType').disable({ emitEvent: false });
+      }
       this.loaded = true;
     }
+  }
+
+  /** True when opened from an integration's converter field, which fixes direction + integration type. */
+  get presetsLocked(): boolean {
+    return !this.isEdit && !!this.data.presetType;
   }
 
   private buildForm(converter: Converter) {
@@ -115,8 +144,45 @@ export class ConverterDialogComponent implements OnInit {
     this.form.get('script').patchValue(template);
   }
 
+  /**
+   * PE ships two variants of each help doc and swaps them with the script language: the TBEL one
+   * links to the TBEL guide and its examples omit the helper functions TBEL provides natively,
+   * while the JS one spells those helpers out. Mirrors PE's own `converter/` vs `converter/tbel/`
+   * asset paths.
+   */
+  get scriptHelpId(): string {
+    const tbel = this.form?.get('scriptLang')?.getRawValue() !== ConverterScriptLanguage.JS;
+    const base = tbel ? 'converter/tbel/' : 'converter/';
+    return base + (this.isUplink ? 'decoder_fn' : 'encoder_fn');
+  }
+
+  /** Shows the translated name for a picked type; empty stays empty so the 全部 placeholder shows. */
+  displayIntegrationTypeFn = (type: IntegrationType): string => {
+    if (!type) {
+      return '';
+    }
+    const info = this.integrationTypeInfoMap.get(type);
+    return info ? this.translate.instant(info.name) : '';
+  };
+
+  get filteredIntegrationTypes(): IntegrationType[] {
+    const raw = this.form?.get('integrationType')?.value;
+    if (!raw || this.integrationTypes.includes(raw)) {
+      return this.integrationTypes;
+    }
+    const query = String(raw).toLowerCase();
+    return this.integrationTypes.filter((type) =>
+      this.translate.instant(this.integrationTypeInfoMap.get(type).name).toLowerCase().includes(query));
+  }
+
+  clearIntegrationType(event: Event) {
+    event.stopPropagation();
+    this.form.get('integrationType').setValue('');
+  }
+
   get isUplink(): boolean {
-    return this.form?.get('type')?.value === ConverterType.UPLINK;
+    // getRawValue-equivalent: `type` is disabled when preset-locked, so read the control directly.
+    return this.form?.get('type')?.getRawValue() === ConverterType.UPLINK;
   }
 
   get scriptEditorLang(): ScriptLanguage {
@@ -124,13 +190,17 @@ export class ConverterDialogComponent implements OnInit {
   }
 
   testFunction(): void {
-    this.dialog.open(ConverterTestDialogComponent, {
+    this.dialog.open<ConverterTestDialogComponent, ConverterTestDialogData, string>(ConverterTestDialogComponent, {
       disableClose: false,
-      panelClass: ['tb-dialog'],
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog', 'tb-fullscreen-dialog-gt-xs'],
       data: {
         type: this.form.get('type').value,
         script: this.form.get('script').value,
         scriptLang: this.form.get('scriptLang').value
+      }
+    }).afterClosed().subscribe((savedScript) => {
+      if (savedScript !== undefined) {
+        this.form.get('script').setValue(savedScript);
       }
     });
   }
@@ -144,7 +214,9 @@ export class ConverterDialogComponent implements OnInit {
       this.form.markAllAsTouched();
       return;
     }
-    const v = this.form.value;
+    // getRawValue(), not value: type/integrationType are disabled when preset-locked, and
+    // disabled controls are omitted from .value.
+    const v = this.form.getRawValue();
     const configuration = this.isUplink
       ? { scriptLang: v.scriptLang, decoder: v.script, updateOnlyKeys: v.updateOnlyKeys || [] }
       : { scriptLang: v.scriptLang, encoder: v.script, updateOnlyKeys: v.updateOnlyKeys || [] };
@@ -157,7 +229,9 @@ export class ConverterDialogComponent implements OnInit {
       configuration,
       additionalInfo: { ...(this.converter?.additionalInfo || {}), description: v.description }
     };
-    this.converterService.saveConverter(converter).subscribe(() => this.dialogRef.close(true));
+    // Return the saved entity so an integration form that launched this dialog can bind the new
+    // converter straight into its own field; existing callers just check truthiness.
+    this.converterService.saveConverter(converter).subscribe((saved) => this.dialogRef.close(saved));
   }
 
 }

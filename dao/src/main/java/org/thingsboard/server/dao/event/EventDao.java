@@ -22,12 +22,18 @@ import org.thingsboard.server.common.data.event.EventType;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.TimePageLink;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface EventDao {
 
     ListenableFuture<Void> saveAsync(Event event);
+
+    /** @see EventService#findAggregatedDailyStats */
+    Map<UUID, ArrayNode> findAggregatedDailyStats(UUID tenantId, List<UUID> entityIds);
 
     PageData<? extends Event> findEvents(UUID tenantId, UUID entityId, EventType eventType, TimePageLink pageLink);
 

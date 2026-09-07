@@ -96,7 +96,7 @@ export class EntityGroupDialogComponent implements OnInit {
     } else {
       this.entityGroup = {type: this.data.groupType, name: this.data.name || '', additionalInfo: {}};
       if (this.data.ownerId) {
-        this.entityGroup.ownerId = {entityType: 'CUSTOMER', id: this.data.ownerId};
+        this.entityGroup.ownerId = {entityType: EntityType.CUSTOMER, id: this.data.ownerId};
       }
       this.buildForm(this.entityGroup);
       this.loaded = true;

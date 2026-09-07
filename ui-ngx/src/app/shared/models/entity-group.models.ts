@@ -17,6 +17,7 @@
 import { BaseData } from '@shared/models/base-data';
 import { TenantId } from '@shared/models/id/tenant-id';
 import { EntityType } from '@shared/models/entity-type.models';
+import { EntityId } from '@shared/models/id/entity-id';
 import { HasUUID } from '@shared/models/id/has-uuid';
 
 export class EntityGroupId implements HasUUID {
@@ -39,8 +40,8 @@ export interface EntityGroup extends BaseData<EntityGroupId> {
   type: EntityType;
   name: string;
   tenantId?: TenantId;
-  // Customer id when the group is customer-owned (hierarchy view); absent for tenant-owned groups.
-  ownerId?: {entityType: string; id: string};
+  // Customer id when the group is customer-owned (hierarchy view); tenant id for tenant-owned groups.
+  ownerId?: EntityId;
   additionalInfo?: {description?: string; isPublic?: boolean; [key: string]: any};
   configuration?: any;
 }

@@ -20,6 +20,10 @@ import com.azure.messaging.eventhubs.EventHubClientBuilder;
 import com.azure.messaging.eventhubs.EventHubConsumerClient;
 import com.azure.messaging.eventhubs.EventProcessorClient;
 import com.azure.messaging.eventhubs.EventProcessorClientBuilder;
+import com.azure.messaging.eventhubs.checkpointstore.blob.BlobCheckpointStore;
+import com.azure.messaging.eventhubs.CheckpointStore;
+import com.azure.storage.blob.BlobContainerAsyncClient;
+import com.azure.storage.blob.BlobContainerClientBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +36,12 @@ import java.util.Map;
 
 /**
  * Azure Event Hub consumer for an AZURE_EVENT_HUB integration. Configuration JSON
- * (clientConfiguration): {connectionString, consumerGroup? (default "$Default")}.
- * CE simplification vs PE: checkpoints are kept in-memory (see InMemoryCheckpointStore) instead of
- * Azure Blob Storage, and downlink via a linked IoT Hub is not implemented in this build.
+ * (clientConfiguration): {connectionString, iotHubName?, consumerGroup? (default "$Default"),
+ * connectTimeoutSec?, enablePersistentCheckpoints?, storageConnectionString?, containerName?}.
+ * <p>
+ * Checkpoints default to in-memory (see InMemoryCheckpointStore); enabling persistent checkpoints
+ * switches to PE's Azure Blob-backed store so offsets survive a restart. Downlink via a linked IoT
+ * Hub service client is still not implemented in this build.
  */
 @Slf4j
 public class AzureEventHubIntegrationConsumer implements IntegrationRuntime {
@@ -58,25 +65,43 @@ public class AzureEventHubIntegrationConsumer implements IntegrationRuntime {
         String connectionString = IntegrationConfigUtil.required(cfg, "connectionString");
         String consumerGroup = cfg.has("consumerGroup") && !cfg.get("consumerGroup").asText().isEmpty()
                 ? cfg.get("consumerGroup").asText() : "$Default";
+        // PE's iotHubName: when the connection string points at an IoT Hub's built-in Event Hub
+        // endpoint, the entity name is not part of the connection string and must be supplied
+        // separately. Blank means "the connection string already names the entity".
+        String eventHubName = cfg.has("iotHubName") && !cfg.get("iotHubName").asText().isEmpty()
+                ? cfg.get("iotHubName").asText() : null;
+        int connectTimeoutSec = cfg.has("connectTimeoutSec") ? cfg.get("connectTimeoutSec").asInt() : 10;
+        boolean persistentCheckpoints = cfg.has("enablePersistentCheckpoints")
+                && cfg.get("enablePersistentCheckpoints").asBoolean();
 
         // EventProcessorClient.start() is fire-and-forget (retries connectivity issues forever in
         // the background, with a generously long default retry policy), so it never surfaces a bad
         // connection string/unreachable namespace as a thrown exception. Do a synchronous metadata
         // fetch first, with a short no-retry policy, so failures show up immediately instead of
         // only leaving the integration status stuck on STOPPED for minutes.
-        AmqpRetryOptions fastFailRetry = new AmqpRetryOptions().setMaxRetries(0).setTryTimeout(Duration.ofSeconds(10));
-        try (EventHubConsumerClient probe = new EventHubClientBuilder()
-                .connectionString(connectionString)
+        AmqpRetryOptions fastFailRetry = new AmqpRetryOptions().setMaxRetries(0)
+                .setTryTimeout(Duration.ofSeconds(connectTimeoutSec));
+        EventHubClientBuilder probeBuilder = new EventHubClientBuilder()
                 .consumerGroup(consumerGroup)
-                .retryOptions(fastFailRetry)
-                .buildConsumerClient()) {
+                .retryOptions(fastFailRetry);
+        if (eventHubName != null) {
+            probeBuilder.connectionString(connectionString, eventHubName);
+        } else {
+            probeBuilder.connectionString(connectionString);
+        }
+        try (EventHubConsumerClient probe = probeBuilder.buildConsumerClient()) {
             probe.getEventHubProperties();
         }
 
-        EventProcessorClient processorClient = new EventProcessorClientBuilder()
-                .connectionString(connectionString)
+        EventProcessorClientBuilder processorBuilder = new EventProcessorClientBuilder()
                 .consumerGroup(consumerGroup)
-                .checkpointStore(new InMemoryCheckpointStore())
+                .checkpointStore(buildCheckpointStore(cfg, persistentCheckpoints));
+        if (eventHubName != null) {
+            processorBuilder.connectionString(connectionString, eventHubName);
+        } else {
+            processorBuilder.connectionString(connectionString);
+        }
+        EventProcessorClient processorClient = processorBuilder
                 .processEvent(eventContext -> {
                     Map<String, String> metadata = new HashMap<>();
                     metadata.put("partitionId", eventContext.getPartitionContext().getPartitionId());
@@ -95,6 +120,27 @@ public class AzureEventHubIntegrationConsumer implements IntegrationRuntime {
         processorClient.start();
         this.client = processorClient;
         log.info("[{}][{}] Azure Event Hub integration started, consumer group [{}]", tenantId, integration.getName(), consumerGroup);
+    }
+
+    /**
+     * PE's buildCheckpointStore: an Azure Blob container makes offsets survive a restart, so the
+     * integration resumes where it left off instead of replaying from the configured start position.
+     * The in-memory store stays the default because the Blob one needs storage to be provisioned.
+     */
+    private CheckpointStore buildCheckpointStore(JsonNode cfg, boolean persistent) {
+        if (!persistent) {
+            return new InMemoryCheckpointStore();
+        }
+        String storageConnectionString = IntegrationConfigUtil.required(cfg, "storageConnectionString");
+        String containerName = IntegrationConfigUtil.required(cfg, "containerName");
+        BlobContainerAsyncClient containerClient = new BlobContainerClientBuilder()
+                .connectionString(storageConnectionString)
+                .containerName(containerName)
+                .buildAsyncClient();
+        // PE creates the container on demand; without this a fresh container name fails at runtime
+        // inside the processor's background loop rather than here where it can be reported.
+        containerClient.createIfNotExists().block();
+        return new BlobCheckpointStore(containerClient);
     }
 
     @Override

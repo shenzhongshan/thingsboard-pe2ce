@@ -16,6 +16,7 @@
 package org.thingsboard.server.service.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.integration.Integration;
 
@@ -33,6 +34,19 @@ public interface PlatformIntegrationService extends IntegrationUplinkSink {
     void onIntegrationDeleted(Integration integration);
 
     JsonNode getIntegrationStatus(IntegrationId integrationId);
+
+    /**
+     * The runtime status in the shape the integration list expects: {@code {success, error?}}, or
+     * {@code null} when the integration has not reported one yet (the UI shows that as "pending").
+     */
+    ObjectNode getIntegrationInfoStatus(Integration integration);
+
+    /**
+     * Opens a real connection using the given (possibly unsaved) integration's configuration and
+     * closes it again, throwing whatever the underlying client threw. Types with no outbound
+     * connection - the HTTP-webhook family - always succeed.
+     */
+    void checkConnection(Integration integration) throws Exception;
 
     @Override
     void processUplink(Integration integration, byte[] payload, Map<String, String> metadata) throws Exception;

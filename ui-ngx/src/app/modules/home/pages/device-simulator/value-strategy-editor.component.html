@@ -1,0 +1,272 @@
+<div class="tb-strategy-editor">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-strategy-type">
+    <mat-label>{{ label || ('device-simulator.strategy-type' | translate) }}</mat-label>
+    <mat-select [ngModel]="strategy.type" (ngModelChange)="onTypeChange($event)" name="type-{{label}}">
+      <mat-option *ngFor="let t of strategyTypes" [value]="t">
+        {{ valueStrategyTypeTranslations.get(t) | translate }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <div class="tb-strategy-fields" [ngSwitch]="strategy.type">
+
+    <div *ngSwitchCase="ValueStrategyType.CONSTANT" class="tb-strategy-row">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.value' | translate }}</mat-label>
+        <input matInput [ngModel]="strategy.value" (ngModelChange)="strategy.value = $event; emit()" name="value">
+      </mat-form-field>
+    </div>
+
+    <div *ngSwitchCase="ValueStrategyType.EVENT" class="tb-strategy-row">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.normal-value' | translate }}</mat-label>
+        <input matInput [ngModel]="strategy.normalValue" (ngModelChange)="strategy.normalValue = $event; emit()" name="normalValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.anomaly-value' | translate }}</mat-label>
+        <input matInput [ngModel]="strategy.anomalyValue" (ngModelChange)="strategy.anomalyValue = $event; emit()" name="anomalyValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.anomaly-chance' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.anomalyChance"
+               (ngModelChange)="strategy.anomalyChance = $event; emit()" name="anomalyChance">
+        <mat-hint>{{ 'device-simulator.anomaly-chance-hint' | translate }}</mat-hint>
+      </mat-form-field>
+    </div>
+
+    <div *ngSwitchCase="ValueStrategyType.NATURAL" class="tb-strategy-row">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.precision' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.precision" (ngModelChange)="strategy.precision = $event; emit()" name="precision">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-start-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minStartValue" (ngModelChange)="strategy.minStartValue = $event; emit()" name="minStartValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-start-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxStartValue" (ngModelChange)="strategy.maxStartValue = $event; emit()" name="maxStartValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-low-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minLowValue" (ngModelChange)="strategy.minLowValue = $event; emit()" name="minLowValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-low-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxLowValue" (ngModelChange)="strategy.maxLowValue = $event; emit()" name="maxLowValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-high-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minHighValue" (ngModelChange)="strategy.minHighValue = $event; emit()" name="minHighValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-high-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxHighValue" (ngModelChange)="strategy.maxHighValue = $event; emit()" name="maxHighValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minIncrement" (ngModelChange)="strategy.minIncrement = $event; emit()" name="minIncrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxIncrement" (ngModelChange)="strategy.maxIncrement = $event; emit()" name="maxIncrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-decrement' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minDecrement" (ngModelChange)="strategy.minDecrement = $event; emit()" name="minDecrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-decrement' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxDecrement" (ngModelChange)="strategy.maxDecrement = $event; emit()" name="maxDecrement">
+      </mat-form-field>
+      <mat-checkbox [ngModel]="strategy.decrementOnStart" (ngModelChange)="strategy.decrementOnStart = $event; emit()" name="decrementOnStart">
+        {{ 'device-simulator.decrement-on-start' | translate }}
+      </mat-checkbox>
+      <ng-container *ngTemplateOutlet="multipliers"></ng-container>
+    </div>
+
+    <div *ngSwitchCase="ValueStrategyType.COUNTER" class="tb-strategy-row">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.precision' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.precision" (ngModelChange)="strategy.precision = $event; emit()" name="precision">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-start-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minStartValue" (ngModelChange)="strategy.minStartValue = $event; emit()" name="minStartValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-start-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxStartValue" (ngModelChange)="strategy.maxStartValue = $event; emit()" name="maxStartValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-end-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minEndValue" (ngModelChange)="strategy.minEndValue = $event; emit()" name="minEndValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-end-value' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxEndValue" (ngModelChange)="strategy.maxEndValue = $event; emit()" name="maxEndValue">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minIncrement" (ngModelChange)="strategy.minIncrement = $event; emit()" name="minIncrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxIncrement" (ngModelChange)="strategy.maxIncrement = $event; emit()" name="maxIncrement">
+      </mat-form-field>
+      <ng-container *ngTemplateOutlet="multipliers"></ng-container>
+    </div>
+
+    <ng-container *ngSwitchCase="ValueStrategyType.INC">
+      <ng-container *ngTemplateOutlet="incDecFields"></ng-container>
+    </ng-container>
+    <ng-container *ngSwitchCase="ValueStrategyType.DEC">
+      <ng-container *ngTemplateOutlet="incDecFields"></ng-container>
+    </ng-container>
+
+    <div *ngSwitchCase="ValueStrategyType.SEQUENCE" class="tb-strategy-row tb-strategy-column">
+      <mat-checkbox [ngModel]="strategy.random" (ngModelChange)="strategy.random = $event; emit()" name="random">
+        {{ 'device-simulator.random-start-offset' | translate }}
+      </mat-checkbox>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.sequence-telemetry' | translate }}</mat-label>
+        <textarea matInput rows="4" [ngModel]="sequenceTelemetryJson" (ngModelChange)="sequenceTelemetryJson = $event"
+                  name="telemetry" placeholder='{"latitude": [1, 2, 3]}'></textarea>
+        <mat-hint>{{ 'device-simulator.sequence-telemetry-hint' | translate }}</mat-hint>
+      </mat-form-field>
+    </div>
+
+    <div *ngSwitchCase="ValueStrategyType.COMPOSITE" class="tb-strategy-row tb-strategy-column">
+      <div class="tb-strategy-nested">
+        <div class="tb-strategy-nested-label">{{ 'device-simulator.default-hours' | translate }}</div>
+        <tb-value-strategy-editor [strategy]="strategy.defaultHours"
+                                   (strategyChange)="strategy.defaultHours = $event; emit()"></tb-value-strategy-editor>
+      </div>
+      <div class="tb-strategy-nested">
+        <div class="tb-strategy-nested-label">{{ 'device-simulator.work-hours' | translate }}</div>
+        <tb-value-strategy-editor [strategy]="strategy.workHours"
+                                   (strategyChange)="strategy.workHours = $event; emit()"></tb-value-strategy-editor>
+      </div>
+      <div class="tb-strategy-nested">
+        <div class="tb-strategy-nested-label">{{ 'device-simulator.night-hours' | translate }}</div>
+        <tb-value-strategy-editor [strategy]="strategy.nightHours"
+                                   (strategyChange)="strategy.nightHours = $event; emit()"></tb-value-strategy-editor>
+      </div>
+      <div class="tb-strategy-nested">
+        <div class="tb-strategy-nested-label">{{ 'device-simulator.holiday-hours' | translate }}</div>
+        <tb-value-strategy-editor [strategy]="strategy.holidayHours"
+                                   (strategyChange)="strategy.holidayHours = $event; emit()"></tb-value-strategy-editor>
+      </div>
+    </div>
+
+    <div *ngSwitchCase="ValueStrategyType.SCHEDULE" class="tb-strategy-row tb-strategy-column">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.time-zone' | translate }}</mat-label>
+        <input matInput [ngModel]="strategy.timeZone" (ngModelChange)="strategy.timeZone = $event; emit()" name="timeZone">
+      </mat-form-field>
+
+      <div class="tb-schedule-windows">
+        <div class="tb-schedule-window" *ngFor="let window of strategy.schedule; let i = index">
+          <div class="tb-strategy-row">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-narrow">
+              <mat-label>{{ 'device-simulator.start-hour' | translate }}</mat-label>
+              <input matInput type="number" min="0" max="23" [ngModel]="window.startHour"
+                     (ngModelChange)="window.startHour = $event; emit()" name="startHour-{{i}}">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-narrow">
+              <mat-label>{{ 'device-simulator.start-minute' | translate }}</mat-label>
+              <input matInput type="number" min="0" max="59" [ngModel]="window.startMinute"
+                     (ngModelChange)="window.startMinute = $event; emit()" name="startMinute-{{i}}">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-narrow">
+              <mat-label>{{ 'device-simulator.end-hour' | translate }}</mat-label>
+              <input matInput type="number" min="0" max="23" [ngModel]="window.endHour"
+                     (ngModelChange)="window.endHour = $event; emit()" name="endHour-{{i}}">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-narrow">
+              <mat-label>{{ 'device-simulator.end-minute' | translate }}</mat-label>
+              <input matInput type="number" min="0" max="59" [ngModel]="window.endMinute"
+                     (ngModelChange)="window.endMinute = $event; emit()" name="endMinute-{{i}}">
+            </mat-form-field>
+            <button mat-icon-button color="warn" type="button" (click)="removeScheduleWindow(i)"
+                    [matTooltip]="'action.remove' | translate">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+          <tb-value-strategy-editor [strategy]="window.definition"
+                                     (strategyChange)="window.definition = $event; emit()"></tb-value-strategy-editor>
+        </div>
+      </div>
+      <button mat-stroked-button type="button" (click)="addScheduleWindow()">
+        <mat-icon>add</mat-icon>{{ 'device-simulator.add-schedule-window' | translate }}
+      </button>
+
+      <div class="tb-strategy-nested">
+        <div class="tb-strategy-nested-label">{{ 'device-simulator.default-definition' | translate }}</div>
+        <tb-value-strategy-editor [strategy]="strategy.defaultDefinition"
+                                   (strategyChange)="strategy.defaultDefinition = $event; emit()"></tb-value-strategy-editor>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<ng-template #multipliers>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>{{ 'device-simulator.holiday-multiplier' | translate }}</mat-label>
+    <input matInput type="number" [ngModel]="strategy.holidayMultiplier" (ngModelChange)="strategy.holidayMultiplier = $event; emit()" name="holidayMultiplier">
+  </mat-form-field>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>{{ 'device-simulator.work-hours-multiplier' | translate }}</mat-label>
+    <input matInput type="number" [ngModel]="strategy.workHoursMultiplier" (ngModelChange)="strategy.workHoursMultiplier = $event; emit()" name="workHoursMultiplier">
+  </mat-form-field>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>{{ 'device-simulator.night-hours-multiplier' | translate }}</mat-label>
+    <input matInput type="number" [ngModel]="strategy.nightHoursMultiplier" (ngModelChange)="strategy.nightHoursMultiplier = $event; emit()" name="nightHoursMultiplier">
+  </mat-form-field>
+</ng-template>
+
+<ng-template #incDecFields>
+  <div class="tb-strategy-row">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ 'device-simulator.precision' | translate }}</mat-label>
+      <input matInput type="number" [ngModel]="strategy.precision" (ngModelChange)="strategy.precision = $event; emit()" name="precision">
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ 'device-simulator.min-start-value' | translate }}</mat-label>
+      <input matInput type="number" [ngModel]="strategy.minStartValue" (ngModelChange)="strategy.minStartValue = $event; emit()" name="minStartValue">
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ 'device-simulator.max-start-value' | translate }}</mat-label>
+      <input matInput type="number" [ngModel]="strategy.maxStartValue" (ngModelChange)="strategy.maxStartValue = $event; emit()" name="maxStartValue">
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ 'device-simulator.min-end-value' | translate }}</mat-label>
+      <input matInput type="number" [ngModel]="strategy.minEndValue" (ngModelChange)="strategy.minEndValue = $event; emit()" name="minEndValue">
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>{{ 'device-simulator.max-end-value' | translate }}</mat-label>
+      <input matInput type="number" [ngModel]="strategy.maxEndValue" (ngModelChange)="strategy.maxEndValue = $event; emit()" name="maxEndValue">
+    </mat-form-field>
+    <ng-container *ngIf="strategy.type === ValueStrategyType.INC">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minIncrement" (ngModelChange)="strategy.minIncrement = $event; emit()" name="minIncrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-increment' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxIncrement" (ngModelChange)="strategy.maxIncrement = $event; emit()" name="maxIncrement">
+      </mat-form-field>
+    </ng-container>
+    <ng-container *ngIf="strategy.type === ValueStrategyType.DEC">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.min-decrement' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.minDecrement" (ngModelChange)="strategy.minDecrement = $event; emit()" name="minDecrement">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>{{ 'device-simulator.max-decrement' | translate }}</mat-label>
+        <input matInput type="number" [ngModel]="strategy.maxDecrement" (ngModelChange)="strategy.maxDecrement = $event; emit()" name="maxDecrement">
+      </mat-form-field>
+    </ng-container>
+  </div>
+</ng-template>

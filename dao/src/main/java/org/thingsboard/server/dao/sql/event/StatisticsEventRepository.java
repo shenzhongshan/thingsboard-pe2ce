@@ -117,4 +117,30 @@ public interface StatisticsEventRepository extends EventRepository<StatisticsEve
                       @Param("maxMessagesProcessed") Integer maxMessagesProcessed,
                       @Param("minErrorsOccurred") Integer minErrorsOccurred,
                       @Param("maxErrorsOccurred") Integer maxErrorsOccurred);
+
+    /**
+     * Total messages (processed + errored) per entity, bucketed by hour over the last 24 hours,
+     * returned as a JSON array per entity ordered oldest bucket first. Feeds the "daily activity"
+     * sparkline on the integration list.
+     *
+     * <p>Buckets with no events are simply absent rather than zero - the sparkline plots the
+     * sequence of observed hourly totals, which is what PE does too.
+     */
+    @Query(nativeQuery = true,
+            value = "SELECT sub.entity_id AS entityId, CAST(json_agg(sub.element) AS VARCHAR) AS stats FROM (" +
+                    "SELECT se.entity_id, SUM(se.e_messages_processed + se.e_errors_occurred) AS element " +
+                    "FROM stats_event se " +
+                    "WHERE se.tenant_id = :tenantId " +
+                    "AND se.entity_id IN (:entityIds) " +
+                    "AND se.ts >= (EXTRACT(EPOCH FROM current_timestamp) * 1000 - 24 * 60 * 60 * 1000)::bigint " +
+                    "GROUP BY se.entity_id, se.ts / 3600000 " +
+                    "ORDER BY se.entity_id, se.ts / 3600000) sub " +
+                    "GROUP BY sub.entity_id")
+    List<Stats> findAggregatedDailyStats(@Param("tenantId") UUID tenantId, @Param("entityIds") List<UUID> entityIds);
+
+    interface Stats {
+        String getStats();
+
+        UUID getEntityId();
+    }
 }

@@ -19,6 +19,8 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { ConverterService, TestConverterResult } from '@core/http/converter.service';
 import { ConverterScriptLanguage, ConverterType } from '@shared/models/converter.models';
+import { ScriptLanguage } from '@shared/models/rule-node.models';
+import { ContentType, contentTypesMap } from '@shared/models/constants';
 
 export interface ConverterTestDialogData {
   type: ConverterType;
@@ -34,24 +36,50 @@ export interface ConverterTestDialogData {
 })
 export class ConverterTestDialogComponent {
 
+  ContentType = ContentType;
+  contentTypesMap = contentTypesMap;
+  contentTypes = Object.values(ContentType);
   form: UntypedFormGroup;
   isUplink = this.data.type === ConverterType.UPLINK;
   result: TestConverterResult;
   testing = false;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: ConverterTestDialogData,
-              private dialogRef: MatDialogRef<ConverterTestDialogComponent, void>,
+              private dialogRef: MatDialogRef<ConverterTestDialogComponent, string>,
               private converterService: ConverterService,
               private fb: UntypedFormBuilder) {
+    // PE's test dialog lets you edit the script right there and "保存" (Save) writes it back into
+    // the caller's own form - matches that here via the dialog's close result instead of PE's direct
+    // backend write, since this port's wizard-embedded converter isn't a persisted entity yet.
     this.form = this.fb.group(this.isUplink ? {
+      payloadContentType: [ContentType.JSON],
       payload: ['{\n  "deviceName": "Device A",\n  "deviceType": "thermostat",\n  "temperature": 22,\n  "humidity": 51\n}', [Validators.required]],
-      metadata: ['{\n  "integrationName": "Test integration"\n}', [Validators.required]]
+      metadata: [{ integrationName: 'Test integration' }],
+      script: [this.data.script],
+      output: ['']
     } : {
       msg: ['{\n  "temp": 22\n}', [Validators.required]],
       msgType: ['POST_TELEMETRY_REQUEST', [Validators.required]],
-      metadata: ['{}', [Validators.required]],
-      integrationMetadata: ['{}', [Validators.required]]
+      metadata: [{}],
+      integrationMetadata: [{}],
+      script: [this.data.script],
+      output: ['']
     });
+  }
+
+  /** Drives the payload editor's syntax mode; downlink has no picker and is always JSON. */
+  get payloadContentType(): ContentType {
+    return this.form?.get('payloadContentType')?.value ?? ContentType.JSON;
+  }
+
+  get scriptEditorLang(): ScriptLanguage {
+    return this.data.scriptLang === ConverterScriptLanguage.JS ? ScriptLanguage.JS : ScriptLanguage.TBEL;
+  }
+
+  /** PE ships separate TBEL / JS help docs; pick the one matching this converter's language. */
+  get scriptHelpId(): string {
+    const base = this.data.scriptLang === ConverterScriptLanguage.JS ? 'converter/' : 'converter/tbel/';
+    return base + (this.isUplink ? 'decoder_fn' : 'encoder_fn');
   }
 
   private parseJson(raw: string): any {
@@ -63,50 +91,69 @@ export class ConverterTestDialogComponent {
   }
 
   runTest(): void {
-    if (!this.form.valid) {
-      this.form.markAllAsTouched();
+    // Gate only on the input fields, NOT the whole form. `tb-js-func` attaches its own `jsFunc`
+    // validator that fails whenever the script doesn't compile, and its `noValidate` flag only
+    // short-circuits *after* a successful compile — so gating on form.valid made the button
+    // silently do nothing for any script with a syntax error. PE runs the test regardless and
+    // reports the failure in the output panel, which is also the more useful behaviour here.
+    const inputCtrls = this.isUplink ? ['payload'] : ['msg', 'msgType'];
+    const invalid = inputCtrls.filter((n) => this.form.get(n).invalid);
+    if (invalid.length) {
+      invalid.forEach((n) => this.form.get(n).markAsTouched());
       return;
     }
     const v = this.form.value;
     this.testing = true;
     this.result = null;
     if (this.isUplink) {
-      const payloadJson = this.parseJson(v.payload);
-      const metadata = this.parseJson(v.metadata);
-      if (payloadJson === null || metadata === null) {
-        this.result = { output: '', error: 'Invalid JSON' };
-        this.testing = false;
-        return;
+      // The decoder always receives a byte array; the content type only decides how the text in
+      // the editor is turned into those bytes. JSON is normalised through a parse (so invalid JSON
+      // is caught here rather than server-side), TEXT is sent verbatim, and BINARY is already the
+      // Base64 the API expects.
+      let payloadBase64: string;
+      if (v.payloadContentType === ContentType.BINARY) {
+        payloadBase64 = (v.payload || '').trim();
+      } else if (v.payloadContentType === ContentType.TEXT) {
+        payloadBase64 = btoa(unescape(encodeURIComponent(v.payload ?? '')));
+      } else {
+        const payloadJson = this.parseJson(v.payload);
+        if (payloadJson === null) {
+          this.applyResult({ output: '', error: 'Invalid JSON' });
+          return;
+        }
+        payloadBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadJson))));
       }
-      const payloadBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadJson))));
       this.converterService.testUpLink({
-        metadata,
+        metadata: v.metadata || {},
         payload: payloadBase64,
-        decoder: this.data.script
+        decoder: v.script
       }, this.data.scriptLang).subscribe({
-        next: (res) => { this.result = res; this.testing = false; },
+        next: (res) => this.applyResult(res),
         error: () => { this.testing = false; }
       });
     } else {
-      const metadata = this.parseJson(v.metadata);
-      const integrationMetadata = this.parseJson(v.integrationMetadata);
-      if (metadata === null || integrationMetadata === null) {
-        this.result = { output: '', error: 'Invalid JSON' };
-        this.testing = false;
-        return;
-      }
       this.converterService.testDownLink({
-        metadata,
+        metadata: v.metadata || {},
         payload: '',
         msg: v.msg,
         msgType: v.msgType,
-        integrationMetadata,
-        encoder: this.data.script
+        integrationMetadata: v.integrationMetadata || {},
+        encoder: v.script
       }, this.data.scriptLang).subscribe({
-        next: (res) => { this.result = res; this.testing = false; },
+        next: (res) => this.applyResult(res),
         error: () => { this.testing = false; }
       });
     }
+  }
+
+  private applyResult(res: TestConverterResult): void {
+    this.result = res;
+    this.form.get('output').setValue(res.error || res.output);
+    this.testing = false;
+  }
+
+  save(): void {
+    this.dialogRef.close(this.form.get('script').value);
   }
 
   close(): void {

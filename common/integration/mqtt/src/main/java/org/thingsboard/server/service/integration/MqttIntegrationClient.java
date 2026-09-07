@@ -53,13 +53,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * In-process MQTT client for an MQTT-family integration (MQTT, AWS_IOT, AZURE_IOT_HUB, TTN, TTI):
  * connects to the external broker described in the integration configuration and feeds received
- * messages to the uplink processing chain. Configuration JSON: {host, port, ssl?, clientId?,
- * credentials: {type: 'anonymous'|'basic'|'cert.PEM'|'sas', username?, password?, caCert?, cert?,
- * privateKey?, privateKeyPassword?, sasKey?}, topicFilters: [{filter, qos}], downlinkTopic?}.
- * cert.PEM does mutual-TLS (client cert + key); sas does server-only TLS with the broker password
- * built by the caller (AzureIotHubRuntimeFactory computes the time-limited SAS token) before the
- * config JSON is handed to this client. CE simplification vs PE: no separate downlink-converter
- * execution pipeline — downlink publishes the raw rule-node message payload to downlinkTopic.
+ * messages to the uplink processing chain. Configuration JSON matches PE's shape: {clientConfiguration:
+ * {host, customHost?, port, connectTimeoutSec, clientId?, maxBytesInMessage, retainedMessage,
+ * cleanSession, ssl, protocolVersion, credentials: {type: 'anonymous'|'basic'|'cert.PEM'|'sas',
+ * username?, password?, caCert?, cert?, privateKey?, privateKeyPassword?, sasKey?}}, topicFilters:
+ * [{filter, qos}], downlinkTopicPattern?}. cert.PEM does mutual-TLS (client cert + key); sas does
+ * server-only TLS with the broker password built by the caller (AzureIotHubRuntimeFactory computes
+ * the time-limited SAS token) before the config JSON is handed to this client. CE simplification vs
+ * PE: no separate downlink-converter execution pipeline — downlink publishes the raw rule-node
+ * message payload to downlinkTopic/downlinkTopicPattern.
  */
 @Slf4j
 public class MqttIntegrationClient implements IntegrationRuntime {
@@ -86,13 +88,14 @@ public class MqttIntegrationClient implements IntegrationRuntime {
     @Override
     public void start() throws Exception {
         JsonNode cfg = integration.getConfiguration();
-        if (cfg == null || !cfg.has("host")) {
+        JsonNode cc = cfg != null ? cfg.get("clientConfiguration") : null;
+        if (cc == null || !cc.has("host")) {
             throw new IllegalArgumentException("MQTT host is not configured!");
         }
         IntegrationType type = integration.getType();
-        String host = resolveHost(cfg, type);
-        int port = resolvePort(cfg, type);
-        JsonNode credentials = cfg.get("credentials");
+        String host = resolveHost(cc, type);
+        int port = resolvePort(cc, type);
+        JsonNode credentials = cc.get("credentials");
         String credType = credentials != null ? credentials.path("type").asText("anonymous") : "anonymous";
         if (type == IntegrationType.AWS_IOT && !"cert.PEM".equals(credType)) {
             throw new IllegalArgumentException("AWS IoT integrations require certificate (cert.PEM) credentials!");
@@ -101,8 +104,8 @@ public class MqttIntegrationClient implements IntegrationRuntime {
             throw new IllegalArgumentException("The Things Stack integrations require Application ID / API key (basic) credentials!");
         }
 
-        MqttClientConfig config = new MqttClientConfig(buildSslContext(cfg, credentials, credType, type));
-        config.setProtocolVersion(resolveProtocolVersion(cfg));
+        MqttClientConfig config = new MqttClientConfig(buildSslContext(cc, credentials, credType, type));
+        config.setProtocolVersion(resolveProtocolVersion(cc));
         // MqttClientConfig leaves this null and netty-mqtt does not default it, so subscribing NPEs
         // inside RetransmissionHandler as soon as the SUBSCRIBE actually flushes (it only starts the
         // timer for a sent packet, which is why the failure looks intermittent). Every other caller
@@ -110,10 +113,12 @@ public class MqttIntegrationClient implements IntegrationRuntime {
         // mqtt.client.retransmission defaults.
         config.setRetransmissionConfig(new MqttClientConfig.RetransmissionConfig(
                 RETRANSMISSION_MAX_ATTEMPTS, RETRANSMISSION_INITIAL_DELAY_MS, RETRANSMISSION_JITTER_FACTOR));
-        String clientId = cfg.has("clientId") ? cfg.get("clientId").asText() : null;
-        config.setClientId(StringUtils.isNotEmpty(clientId) ? clientId : "tb-integration-" + integration.getId().getId().toString().substring(0, 8));
+        String clientId = cc.has("clientId") ? cc.get("clientId").asText() : null;
+        config.setClientId(StringUtils.isNotEmpty(clientId) ? clientId : "tb-integration-" + IntegrationConfigUtil.safeId(integration).substring(0, 8));
         if (type == IntegrationType.AWS_IOT || type == IntegrationType.AZURE_IOT_HUB) {
             config.setCleanSession(true);
+        } else if (cc.has("cleanSession")) {
+            config.setCleanSession(cc.get("cleanSession").asBoolean(true));
         }
         if (type == IntegrationType.AZURE_IOT_HUB && "sas".equals(credType)) {
             String sasKey = credentials.path("sasKey").asText(null);
@@ -150,7 +155,7 @@ public class MqttIntegrationClient implements IntegrationRuntime {
         // Single-threaded on purpose: it preserves the broker's message order per integration and
         // bounds the thread count when a host runs many integrations.
         handlerExecutorService = Executors.newSingleThreadExecutor(
-                ThingsBoardThreadFactory.forName("mqtt-integration-" + integration.getId().getId()));
+                ThingsBoardThreadFactory.forName("mqtt-integration-" + IntegrationConfigUtil.safeId(integration)));
         ListeningExecutorService listeningExecutor = MoreExecutors.listeningDecorator(handlerExecutorService);
         MqttClient mqttClient = MqttClient.create(config, uplinkHandler, new ListeningExecutor() {
             @Override
@@ -188,8 +193,8 @@ public class MqttIntegrationClient implements IntegrationRuntime {
      * ThingsBoard (TbMqttNode, TbAzureIotHubNode) overrides the default for the same reason, so
      * default to 3.1.1 here too and only fall back to 3.1 if the integration explicitly asks.
      */
-    private static MqttVersion resolveProtocolVersion(JsonNode cfg) {
-        String configured = cfg.has("protocolVersion") ? cfg.get("protocolVersion").asText(null) : null;
+    private static MqttVersion resolveProtocolVersion(JsonNode clientConfig) {
+        String configured = clientConfig.has("protocolVersion") ? clientConfig.get("protocolVersion").asText(null) : null;
         if (StringUtils.isEmpty(configured)) {
             return MqttVersion.MQTT_3_1_1;
         }
@@ -205,9 +210,9 @@ public class MqttIntegrationClient implements IntegrationRuntime {
      * TTN/TTI: unless customHost is set, the configured host is treated as a region (e.g. "eu1")
      * and auto-suffixed with the provider's broker domain.
      */
-    private static String resolveHost(JsonNode cfg, IntegrationType type) {
-        String host = cfg.get("host").asText();
-        boolean customHost = cfg.has("customHost") && cfg.get("customHost").asBoolean(false);
+    private static String resolveHost(JsonNode clientConfig, IntegrationType type) {
+        String host = clientConfig.get("host").asText();
+        boolean customHost = clientConfig.has("customHost") && clientConfig.get("customHost").asBoolean(false);
         if (!customHost && (type == IntegrationType.TTN || type == IntegrationType.TTI)) {
             String suffix = type == IntegrationType.TTN ? ".thethings.network" : ".thethings.industries";
             return host.endsWith(suffix) ? host : host + suffix;
@@ -216,11 +221,11 @@ public class MqttIntegrationClient implements IntegrationRuntime {
     }
 
     /** AWS IoT and Azure IoT Hub only accept MQTT-over-TLS on 8883. */
-    private static int resolvePort(JsonNode cfg, IntegrationType type) {
+    private static int resolvePort(JsonNode clientConfig, IntegrationType type) {
         if (type == IntegrationType.AWS_IOT || type == IntegrationType.AZURE_IOT_HUB) {
             return 8883;
         }
-        return cfg.has("port") ? cfg.get("port").asInt() : 1883;
+        return clientConfig.has("port") ? clientConfig.get("port").asInt() : 1883;
     }
 
     /**
@@ -228,10 +233,10 @@ public class MqttIntegrationClient implements IntegrationRuntime {
      * sas / plain ssl=true: server-only TLS (trusts the configured CA cert, or the JVM default
      * trust store if none is given). AWS IoT / Azure IoT Hub always require TLS.
      */
-    private SslContext buildSslContext(JsonNode cfg, JsonNode credentials, String credType, IntegrationType type) throws Exception {
+    private SslContext buildSslContext(JsonNode clientConfig, JsonNode credentials, String credType, IntegrationType type) throws Exception {
         boolean needsTls = "cert.PEM".equals(credType) || "sas".equals(credType)
                 || type == IntegrationType.AWS_IOT || type == IntegrationType.AZURE_IOT_HUB
-                || (cfg.has("ssl") && cfg.get("ssl").asBoolean(false));
+                || (clientConfig.has("ssl") && clientConfig.get("ssl").asBoolean(false));
         if (!needsTls) {
             return null;
         }

@@ -447,6 +447,76 @@ export class EventTableConfig extends EntityTableConfig<Event, TimePageLink> {
           )
         );
         break;
+      case DebugEventType.DEBUG_INTEGRATION:
+        this.columns[0].width = '100px';
+        this.columns.push(
+          new EntityTableColumn<Event>('type', 'event.type', '100px',
+            (entity) => entity.body.type ?? '-', () => ({}), false),
+          new EntityTableColumn<Event>('status', 'event.status', '100px',
+            (entity) => entity.body.status ?? '-', () => ({}), false),
+          new EntityActionTableColumn<Event>('message', 'event.message',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.message?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.message,
+                'event.message', ContentType.JSON, true)
+            },
+            '48px'),
+          new EntityActionTableColumn<Event>('error', 'event.error',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.error?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.error,
+                'event.error')
+            },
+            '48px')
+        );
+        break;
+      case DebugEventType.DEBUG_CONVERTER:
+        this.columns[0].width = '100px';
+        this.columns.push(
+          new EntityTableColumn<Event>('type', 'event.type', '100px',
+            (entity) => entity.body.type ?? '-', () => ({}), false),
+          new EntityActionTableColumn<Event>('in', 'event.in',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.in?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.in,
+                'event.in', ContentType.JSON, true)
+            },
+            '48px'),
+          new EntityActionTableColumn<Event>('out', 'event.out',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.out?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.out,
+                'event.out', ContentType.JSON, true)
+            },
+            '48px'),
+          new EntityActionTableColumn<Event>('metadata', 'event.metadata',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.metadata?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.metadata,
+                'event.metadata', ContentType.JSON, true)
+            },
+            '48px'),
+          new EntityActionTableColumn<Event>('error', 'event.error',
+            {
+              name: this.translate.instant('action.view'),
+              icon: 'more_horiz',
+              isEnabled: (entity) => !!entity.body.error?.length,
+              onAction: ($event, entity) => this.showContent($event, entity.body.error,
+                'event.error')
+            },
+            '48px')
+        );
+        break;
     }
     if (updateTableColumns) {
       this.getTable().columnsUpdated(true);

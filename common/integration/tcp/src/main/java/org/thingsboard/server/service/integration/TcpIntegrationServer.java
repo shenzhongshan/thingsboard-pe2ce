@@ -29,6 +29,8 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.Delimiters;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.json.JsonObjectDecoder;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,7 @@ import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
 
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -43,10 +46,14 @@ import java.util.Map;
 
 /**
  * In-process TCP server for a TCP integration: listens on the configured port and feeds each
- * received frame to the uplink processing chain. Configuration JSON: {port, handlerType:
- * 'TEXT'|'JSON'|'BINARY', maxFrameLength?, charsetName?, delimiter?}. TEXT/JSON frames are split
- * on a delimiter (line-based by default); BINARY passes each TCP read as one frame. CE port:
- * PE's richer binary length-field framing and socket tuning options are dropped.
+ * decoded frame to the uplink processing chain. Configuration JSON: {port, soBacklogOption,
+ * soRcvBuf, soSndBuf (KB), soKeepaliveOption, tcpNoDelay, handlerType: 'TEXT'|'JSON'|'BINARY',
+ * maxFrameLength, charsetName; TEXT-only: stripDelimiter, messageSeparator:
+ * 'SYSTEM_LINE_SEPARATOR'|'NUL'|'CUSTOM', customSeparatorRawValue; BINARY-only: lengthFieldOffset,
+ * lengthFieldLength, lengthAdjustment, initialBytesToStrip, byteOrder: 'BIG_ENDIAN'|'LITTLE_ENDIAN',
+ * failFast}. Field names and defaults match PE's real tb-tcp-integration-form/TcpIntegrationServer
+ * — TEXT uses Netty's DelimiterBasedFrameDecoder, JSON uses JsonObjectDecoder (self-delimiting on
+ * balanced braces/brackets, no extra config needed), BINARY uses LengthFieldBasedFrameDecoder.
  */
 @Slf4j
 public class TcpIntegrationServer implements IntegrationRuntime {
@@ -77,7 +84,12 @@ public class TcpIntegrationServer implements IntegrationRuntime {
         int maxFrameLength = cfg.has("maxFrameLength") ? cfg.get("maxFrameLength").asInt() : 65535;
         Charset charset = cfg.has("charsetName") && StringUtils.isNotEmpty(cfg.get("charsetName").asText())
                 ? Charset.forName(cfg.get("charsetName").asText()) : StandardCharsets.UTF_8;
-        boolean binary = "BINARY".equalsIgnoreCase(handlerType);
+
+        int soBacklog = cfg.has("soBacklogOption") ? cfg.get("soBacklogOption").asInt() : 128;
+        int soRcvBufBytes = (cfg.has("soRcvBuf") ? cfg.get("soRcvBuf").asInt() : 64) * 1024;
+        int soSndBufBytes = (cfg.has("soSndBuf") ? cfg.get("soSndBuf").asInt() : 64) * 1024;
+        boolean soKeepAlive = !cfg.has("soKeepaliveOption") || cfg.get("soKeepaliveOption").asBoolean(true);
+        boolean tcpNoDelay = cfg.has("tcpNoDelay") && cfg.get("tcpNoDelay").asBoolean();
 
         bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("tcp-integration-boss"));
         workerGroup = new NioEventLoopGroup(new DefaultThreadFactory("tcp-integration-worker"));
@@ -85,13 +97,23 @@ public class TcpIntegrationServer implements IntegrationRuntime {
             ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
-                    .option(ChannelOption.SO_BACKLOG, 128)
-                    .childOption(ChannelOption.SO_KEEPALIVE, true)
+                    .option(ChannelOption.SO_BACKLOG, soBacklog)
+                    .childOption(ChannelOption.SO_KEEPALIVE, soKeepAlive)
+                    .childOption(ChannelOption.TCP_NODELAY, tcpNoDelay)
+                    .childOption(ChannelOption.SO_RCVBUF, soRcvBufBytes)
+                    .childOption(ChannelOption.SO_SNDBUF, soSndBufBytes)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) {
-                            if (!binary) {
-                                ch.pipeline().addLast(new DelimiterBasedFrameDecoder(maxFrameLength, true, delimiter(cfg)));
+                            switch (handlerType) {
+                                case "BINARY":
+                                    ch.pipeline().addLast(binaryFrameDecoder(cfg, maxFrameLength));
+                                    break;
+                                case "JSON":
+                                    ch.pipeline().addLast(new JsonObjectDecoder(maxFrameLength));
+                                    break;
+                                default:
+                                    ch.pipeline().addLast(textFrameDecoder(cfg, maxFrameLength));
                             }
                             ch.pipeline().addLast(new UplinkHandler(charset));
                         }
@@ -104,12 +126,38 @@ public class TcpIntegrationServer implements IntegrationRuntime {
         }
     }
 
-    private ByteBuf[] delimiter(JsonNode cfg) {
-        if (cfg.has("delimiter") && StringUtils.isNotEmpty(cfg.get("delimiter").asText())) {
-            String d = cfg.get("delimiter").asText().replace("\\n", "\n").replace("\\r", "\r");
-            return new ByteBuf[]{io.netty.buffer.Unpooled.copiedBuffer(d, StandardCharsets.UTF_8)};
+    private LengthFieldBasedFrameDecoder binaryFrameDecoder(JsonNode cfg, int maxFrameLength) {
+        int lengthFieldOffset = cfg.has("lengthFieldOffset") ? cfg.get("lengthFieldOffset").asInt() : 0;
+        int lengthFieldLength = cfg.has("lengthFieldLength") ? cfg.get("lengthFieldLength").asInt() : 2;
+        int lengthAdjustment = cfg.has("lengthAdjustment") ? cfg.get("lengthAdjustment").asInt() : 0;
+        int initialBytesToStrip = cfg.has("initialBytesToStrip") ? cfg.get("initialBytesToStrip").asInt() : 0;
+        boolean failFast = !cfg.has("failFast") || cfg.get("failFast").asBoolean(true);
+        ByteOrder byteOrder = cfg.has("byteOrder") && "LITTLE_ENDIAN".equals(cfg.get("byteOrder").asText())
+                ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
+        return new LengthFieldBasedFrameDecoder(byteOrder, maxFrameLength, lengthFieldOffset, lengthFieldLength,
+                lengthAdjustment, initialBytesToStrip, failFast);
+    }
+
+    private DelimiterBasedFrameDecoder textFrameDecoder(JsonNode cfg, int maxFrameLength) {
+        boolean stripDelimiter = !cfg.has("stripDelimiter") || cfg.get("stripDelimiter").asBoolean(true);
+        String separatorType = cfg.has("messageSeparator") ? cfg.get("messageSeparator").asText() : "SYSTEM_LINE_SEPARATOR";
+        ByteBuf[] delimiter;
+        switch (separatorType) {
+            case "NUL":
+                delimiter = Delimiters.nulDelimiter();
+                break;
+            case "CUSTOM":
+                if (cfg.has("customSeparatorRawValue") && StringUtils.isNotEmpty(cfg.get("customSeparatorRawValue").asText())) {
+                    String d = cfg.get("customSeparatorRawValue").asText().replace("\\n", "\n").replace("\\r", "\r");
+                    delimiter = new ByteBuf[]{io.netty.buffer.Unpooled.copiedBuffer(d, StandardCharsets.UTF_8)};
+                } else {
+                    delimiter = Delimiters.lineDelimiter();
+                }
+                break;
+            default:
+                delimiter = Delimiters.lineDelimiter();
         }
-        return Delimiters.lineDelimiter();
+        return new DelimiterBasedFrameDecoder(maxFrameLength, stripDelimiter, delimiter);
     }
 
     @Override

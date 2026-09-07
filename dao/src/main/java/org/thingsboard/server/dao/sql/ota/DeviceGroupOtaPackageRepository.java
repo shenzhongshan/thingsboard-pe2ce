@@ -16,6 +16,10 @@
 package org.thingsboard.server.dao.sql.ota;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.ota.OtaPackageType;
 import org.thingsboard.server.dao.model.sql.DeviceGroupOtaPackageEntity;
 
@@ -28,6 +32,9 @@ public interface DeviceGroupOtaPackageRepository extends JpaRepository<DeviceGro
 
     List<DeviceGroupOtaPackageEntity> findByGroupId(UUID groupId);
 
-    void deleteByGroupIdAndOtaPackageType(UUID groupId, OtaPackageType otaPackageType);
+    @Transactional
+    @Modifying
+    @Query("DELETE FROM DeviceGroupOtaPackageEntity e WHERE e.groupId = :groupId AND e.otaPackageType = :otaPackageType")
+    void deleteByGroupIdAndOtaPackageType(@Param("groupId") UUID groupId, @Param("otaPackageType") OtaPackageType otaPackageType);
 
 }

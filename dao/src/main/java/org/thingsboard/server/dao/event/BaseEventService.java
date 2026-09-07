@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.event;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +39,9 @@ import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.dao.service.DataValidator;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -61,6 +64,11 @@ public class BaseEventService implements EventService {
         eventValidator.validate(event, Event::getTenantId);
         checkAndTruncateDebugEvent(event);
         return eventDao.saveAsync(event);
+    }
+
+    @Override
+    public Map<UUID, ArrayNode> findAggregatedDailyStats(TenantId tenantId, List<UUID> entityIds) {
+        return eventDao.findAggregatedDailyStats(tenantId.getId(), entityIds);
     }
 
     private void checkAndTruncateDebugEvent(Event event) {

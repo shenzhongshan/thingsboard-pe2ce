@@ -1,0 +1,48 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+@if (entityGroupSelectFormGroup) {
+  <div class="tb-entity-group-select flex flex-row gap-2"
+       [formGroup]="entityGroupSelectFormGroup"
+       [class.!hidden]="!ownerId && originator === 'ownerGroup'">
+    @if (displayGroupTypeSelect) {
+      <tb-entity-type-select class="flex-1" style="min-width: 100px"
+                             formControlName="groupType"
+                             [showLabel]="true"
+                             [required]="required"
+                             [allowedEntityTypes]="entityGroupTypeList"
+                             [appearance]="appearance">
+      </tb-entity-type-select>
+    }
+    <tb-entity-group-autocomplete class="flex-1"
+                                  formControlName="groupId"
+                                  [class.!hidden]="!entityGroupSelectFormGroup.get('groupType').value
+                                                   && !entityGroupSelectFormGroup.get('groupId').value
+                                                   && displayGroupTypeSelect"
+                                  [placeholderText]="placeholderText"
+                                  [notFoundText]="notFoundText"
+                                  [requiredText]="requiredText"
+                                  [required]="required"
+                                  [groupType]="getCurrentGroupType()"
+                                  [ownerId]="ownerId"
+                                  [appearance]="appearance"
+                                  [excludeGroupIds]="excludeGroupIds"
+                                  [excludeGroupAll]="excludeGroupAll"
+                                  (entityGroupLoaded)="entityGroupLoaded($event)">
+    </tb-entity-group-autocomplete>
+  </div>
+}

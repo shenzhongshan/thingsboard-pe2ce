@@ -1,0 +1,349 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+@if (target) {
+  <div class="tb-integration-details-panel">
+    <div class="tb-details-header">
+      <div class="flex flex-col">
+        <div class="tb-details-title">{{ entityName }}</div>
+        <div class="tb-details-subtitle">{{ subtitle | translate }}</div>
+      </div>
+      <span class="flex-1"></span>
+      <button mat-icon-button (click)="close()" type="button">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    @if (editMode) {
+      <button mat-fab color="accent" class="tb-details-edit-fab tb-details-cancel-fab" (click)="cancelEdit()"
+              [disabled]="saving" type="button"
+              matTooltip="{{ 'action.cancel' | translate }}" matTooltipPosition="left">
+        <mat-icon>close</mat-icon>
+      </button>
+      <button mat-fab color="accent" class="tb-details-edit-fab" (click)="saveEdit()"
+              [disabled]="saving" type="button"
+              matTooltip="{{ 'action.apply-changes' | translate }}" matTooltipPosition="left">
+        <mat-icon>done</mat-icon>
+      </button>
+    } @else {
+      <button mat-fab color="accent" class="tb-details-edit-fab" (click)="edit()" type="button"
+              matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="left">
+        <mat-icon>edit</mat-icon>
+      </button>
+    }
+
+    <mat-tab-group class="tb-details-tabs" [selectedIndex]="selectedIndex" mat-stretch-tabs="false">
+      <mat-tab label="{{ 'integration.details' | translate }}">
+        <ng-template matTabContent>
+          <div class="tb-details-overview flex flex-col gap-3">
+            <div class="tb-details-buttons">
+              <button mat-raised-button color="primary" type="button" [routerLink]="pageRoute">
+                {{ 'common.open-details-page' | translate }}
+              </button>
+              <!-- PE offers export only for converters; the integration view has no export action. -->
+              @if (target.kind === 'converter') {
+                <button mat-raised-button color="primary" type="button" (click)="exportConverter()">
+                  {{ 'converter.export' | translate }}
+                </button>
+              }
+              <button mat-raised-button color="primary" type="button" (click)="delete()">
+                {{ deleteLabel | translate }}
+              </button>
+              <div>
+                <button mat-raised-button type="button" (click)="copyToClipboard(entityId?.id, copyIdMessage)">
+                  <tb-icon>mdi:clipboard-arrow-left</tb-icon>
+                  {{ copyIdLabel | translate }}
+                </button>
+              </div>
+            </div>
+
+            @if (target.kind === 'integration' && integrationForm) {
+              <form [formGroup]="integrationForm">
+                <fieldset class="tb-int-fieldset">
+                  <div class="flex flex-row gap-2">
+                    <div class="flex flex-1 flex-row gap-2">
+                      <mat-form-field class="flex-1">
+                        <mat-label translate>integration.name</mat-label>
+                        <input matInput formControlName="name" required>
+                      </mat-form-field>
+                      <mat-form-field class="flex-1">
+                        <mat-label translate>integration.type</mat-label>
+                        <input matInput [value]="typeName" disabled required>
+                      </mat-form-field>
+                    </div>
+                    <tb-entity-debug-settings-button formControlName="debugSettings"
+                                                       [entityType]="EntityType.INTEGRATION">
+                    </tb-entity-debug-settings-button>
+                  </div>
+
+                  <div class="flex flex-col gap-1">
+                    <mat-slide-toggle formControlName="enabled">{{ 'integration.enabled' | translate }}</mat-slide-toggle>
+                    <mat-slide-toggle formControlName="allowCreateDevicesOrAssets">
+                      {{ 'integration.allow-create-devices-or-assets' | translate }}
+                    </mat-slide-toggle>
+                  </div>
+
+                  <!-- Converter slots. Read mode shows the name as a link to the converter page;
+                       edit mode swaps in PE's actions: ✕ clear + ✏️ edit when the slot is filled,
+                       and a "创建新的" button when it is empty. -->
+                  <div class="flex flex-row gap-2">
+                    <mat-form-field class="flex-1">
+                      <mat-label translate>integration.uplink-data-converter</mat-label>
+                      <input matInput [value]="uplinkConverterName || '-'" disabled required class="!hidden">
+                      @if (uplinkConverterName) {
+                        @if (editMode) {
+                          <span class="tb-details-converter-link">{{ uplinkConverterName }}</span>
+                        } @else {
+                          <a class="tb-details-converter-link" [routerLink]="['/integrations-center/converters', integration.defaultConverterId?.id]">{{ uplinkConverterName }}</a>
+                        }
+                      } @else {
+                        <span class="tb-details-converter-link">-</span>
+                      }
+                      @if (editMode) {
+                        <span matSuffix class="tb-converter-actions">
+                          @if (uplinkConverterName) {
+                            <button mat-icon-button type="button" (click)="clearConverter('uplink')"
+                                    matTooltip="{{ 'action.clear' | translate }}">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                            <button mat-icon-button type="button" (click)="editConverter('uplink')"
+                                    matTooltip="{{ 'action.edit' | translate }}">
+                              <mat-icon>edit</mat-icon>
+                            </button>
+                          } @else {
+                            <button mat-button color="primary" type="button" (click)="createConverter('uplink')">
+                              {{ 'entity.create-new' | translate }}
+                            </button>
+                          }
+                        </span>
+                      }
+                    </mat-form-field>
+                    <mat-form-field class="flex-1">
+                      <mat-label translate>integration.downlink-data-converter</mat-label>
+                      <input matInput [value]="downlinkConverterName || ('integration.no-downlink-converter' | translate)" disabled class="!hidden">
+                      @if (downlinkConverterName) {
+                        @if (editMode) {
+                          <span class="tb-details-converter-link">{{ downlinkConverterName }}</span>
+                        } @else {
+                          <a class="tb-details-converter-link" [routerLink]="['/integrations-center/converters', integration.downlinkConverterId?.id]">{{ downlinkConverterName }}</a>
+                        }
+                      } @else if (!editMode) {
+                        <span class="tb-details-converter-link">{{ 'integration.no-downlink-converter' | translate }}</span>
+                      }
+                      @if (editMode) {
+                        <span matSuffix class="tb-converter-actions">
+                          @if (downlinkConverterName) {
+                            <button mat-icon-button type="button" (click)="clearConverter('downlink')"
+                                    matTooltip="{{ 'action.clear' | translate }}">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                            <button mat-icon-button type="button" (click)="editConverter('downlink')"
+                                    matTooltip="{{ 'action.edit' | translate }}">
+                              <mat-icon>edit</mat-icon>
+                            </button>
+                          } @else {
+                            <button mat-button color="primary" type="button" (click)="createConverter('downlink')">
+                              {{ 'entity.create-new' | translate }}
+                            </button>
+                          }
+                        </span>
+                      }
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Every type, not just MQTT: the same component the add wizard renders. Before
+                       this, 24 of 29 types showed nothing here but a flat key/value dump of the raw
+                       configuration JSON, and could not be edited at all. -->
+                  @if (connectionForm) {
+                    <tb-integration-connection-form [connectionForm]="connectionForm"
+                                                    [type]="integration.type"
+                                                    [routingKey]="integration.routingKey"
+                                                    [secret]="integration.secret"
+                                                    [checkResult]="checkResult">
+                    </tb-integration-connection-form>
+                  }
+                </fieldset>
+              </form>
+            }
+
+            @if (target.kind === 'converter' && converterForm) {
+              <form [formGroup]="converterForm">
+                <fieldset class="tb-int-fieldset">
+                  <!-- Card-for-card mirror of converter-dialog.component.html so viewing/editing a
+                       converter here shows the same fields, widgets and order as creating one. -->
+                  <div class="tb-int-card">
+                    <div class="flex flex-row items-center justify-between">
+                      <span translate>converter.converter-type</span>
+                      <tb-toggle-select formControlName="type" appearance="fill" [attr.disabled]="true">
+                        <tb-toggle-option [value]="ConverterType.UPLINK">{{ 'converter.type-uplink' | translate }}</tb-toggle-option>
+                        <tb-toggle-option [value]="ConverterType.DOWNLINK">{{ 'converter.type-downlink' | translate }}</tb-toggle-option>
+                      </tb-toggle-select>
+                    </div>
+                    <mat-form-field class="w-full">
+                      <mat-label translate>converter.integration-type</mat-label>
+                      <mat-select formControlName="integrationType">
+                        <mat-option [value]="''">{{ 'converter.integration-type-all' | translate }}</mat-option>
+                        @for (type of integrationTypes; track type) {
+                          <mat-option [value]="type">{{ type }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+
+                  <div class="tb-int-card">
+                    <div class="tb-int-card-title">
+                      {{ (converterIsUplink ? 'integration.uplink-data-converter' : 'integration.downlink-data-converter') | translate }}
+                    </div>
+                    <div class="flex flex-row items-baseline gap-2">
+                      <mat-form-field class="flex-1">
+                        <mat-label translate>converter.name</mat-label>
+                        <input matInput formControlName="name" required>
+                        @if (converterForm.get('name').hasError('required')) {
+                          <mat-error>{{ 'converter.name-required' | translate }}</mat-error>
+                        }
+                      </mat-form-field>
+                      <tb-entity-debug-settings-button formControlName="debugSettings"
+                                                         [entityType]="EntityType.CONVERTER">
+                      </tb-entity-debug-settings-button>
+                    </div>
+                  </div>
+
+                  <div class="tb-int-card">
+                    <div class="tb-int-card-title">
+                      {{ (converterIsUplink ? 'converter.decoder-config' : 'converter.encoder-config') | translate }}
+                    </div>
+                    <tb-js-func
+                      formControlName="script"
+                      [functionName]="converterIsUplink ? 'Decoder' : 'Encoder'"
+                      [functionArgs]="converterIsUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
+                      [scriptLanguage]="converterScriptEditorLang"
+                      [disableUndefinedCheck]="true"
+                      [helpId]="converterScriptHelpId"
+                      [helpPopupStyle]="{width: '760px'}"
+                      noValidate="true"
+                      minHeight="320px">
+                      <tb-toggle-select toolbarPrefixButton formControlName="scriptLang" appearance="fill" class="min-w-16">
+                        <tb-toggle-option [value]="ConverterScriptLanguage.TBEL">TBEL</tb-toggle-option>
+                        <tb-toggle-option [value]="ConverterScriptLanguage.JS">JS</tb-toggle-option>
+                      </tb-toggle-select>
+                      <div toolbarSuffixButton
+                           matTooltip="{{ (converterIsUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}"
+                           matTooltipPosition="above">
+                        <button mat-icon-button type="button" color="primary" (click)="testConverterFunction()">
+                          <mat-icon>bug_report</mat-icon>
+                        </button>
+                      </div>
+                    </tb-js-func>
+                    <div>
+                      <button mat-raised-button color="primary" type="button" (click)="testConverterFunction()">
+                        {{ (converterIsUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="tb-int-card">
+                    <div class="tb-int-card-title">
+                      {{ (converterIsUplink ? 'converter.advanced-decode-params' : 'converter.advanced-encode-params') | translate }}
+                    </div>
+                    <tb-string-items-list
+                      formControlName="updateOnlyKeys"
+                      appearance="fill"
+                      [label]="'converter.update-only-keys' | translate">
+                    </tb-string-items-list>
+                    <div class="tb-int-hint" translate>converter.update-only-keys-hint</div>
+                  </div>
+
+                  <div class="tb-int-card">
+                    <mat-form-field class="w-full">
+                      <mat-label translate>converter.description</mat-label>
+                      <textarea matInput formControlName="description" rows="2"></textarea>
+                    </mat-form-field>
+                  </div>
+                </fieldset>
+              </form>
+            }
+          </div>
+        </ng-template>
+      </mat-tab>
+      <mat-tab [label]="eventsLabel | translate">
+        <ng-template matTabContent>
+          <tb-event-table
+            [active]="true"
+            [tenantId]="target.entity.tenantId?.id"
+            [entityId]="entityId"
+            [defaultEventType]="defaultEventType"
+            [debugEventTypes]="debugEventTypes"
+            [disableDebugEventAction]="true">
+          </tb-event-table>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'relation.relations' | translate }}">
+        <ng-template matTabContent>
+          <tb-relation-table [active]="true" [entityId]="entityId"></tb-relation-table>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'audit-log.audit-logs' | translate }}">
+        <ng-template matTabContent>
+          <tb-audit-log-table
+            [detailsMode]="true"
+            [active]="true"
+            [auditLogMode]="AuditLogMode.ENTITY"
+            [entityId]="entityId">
+          </tb-audit-log-table>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'version-control.version-control' | translate }}">
+        <ng-template matTabContent>
+          <tb-version-control
+            [detailsMode]="true"
+            [singleEntityMode]="true"
+            [active]="true"
+            [entityId]="entityId"
+            [entityName]="entityName"
+            [externalEntityId]="target.entity.externalId || entityId">
+          </tb-version-control>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'attribute.attributes' | translate }}">
+        <ng-template matTabContent>
+          <tb-attribute-table
+            [defaultAttributeScope]="AttributeScope.SERVER_SCOPE"
+            [active]="true"
+            [entityId]="entityId"
+            [entityName]="entityName">
+          </tb-attribute-table>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'attribute.latest-telemetry' | translate }}">
+        <ng-template matTabContent>
+          <tb-attribute-table
+            disableAttributeScopeSelection
+            [defaultAttributeScope]="LatestTelemetry.LATEST_TELEMETRY"
+            [active]="true"
+            [entityId]="entityId"
+            [entityName]="entityName">
+          </tb-attribute-table>
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="{{ 'alarm.alarms' | translate }}">
+        <ng-template matTabContent>
+          <tb-alarm-table [active]="true" [entityId]="entityId"></tb-alarm-table>
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+}

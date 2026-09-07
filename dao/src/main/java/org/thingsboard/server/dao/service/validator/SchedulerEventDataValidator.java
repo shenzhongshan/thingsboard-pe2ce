@@ -23,11 +23,14 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.OtaPackage;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.OtaPackageId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -38,6 +41,7 @@ import org.thingsboard.server.common.data.scheduler.TimerRepeat;
 import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.scheduler.SchedulerEventDao;
@@ -63,6 +67,8 @@ public class SchedulerEventDataValidator extends DataValidator<SchedulerEvent> {
     private CustomerDao customerDao;
     @Autowired
     private SchedulerEventDao schedulerEventDao;
+    @Autowired
+    private EntityGroupService entityGroupService;
 
     @Override
     protected SchedulerEvent validateUpdate(TenantId tenantId, SchedulerEvent schedulerEvent) {
@@ -139,7 +145,16 @@ public class SchedulerEventDataValidator extends DataValidator<SchedulerEvent> {
                         throw new DataValidationException("SchedulerEvent can't assign firmware with different deviceProfile!");
                     }
                 }
-                default -> throw new DataValidationException("Firmware update target must be a device or a device profile!");
+                case ENTITY_GROUP -> {
+                    // A device group can span multiple profiles, so (unlike DEVICE/DEVICE_PROFILE above) there's no
+                    // single deviceProfileId to compare against — the assignment is per-device at fire time
+                    // (BaseDeviceGroupOtaPackageService#cascadeToMemberDevices), so only the group itself is checked here.
+                    EntityGroup deviceGroup = entityGroupService.findEntityGroupById(tenantId, new EntityGroupId(originatorId.getId()));
+                    if (deviceGroup == null || deviceGroup.getType() != EntityType.DEVICE) {
+                        throw new DataValidationException("SchedulerEvent firmware update target group must be a device group!");
+                    }
+                }
+                default -> throw new DataValidationException("Firmware update target must be a device, a device profile or a device group!");
             }
         } else if (!"generateReport".equals(schedulerEvent.getType()) && schedulerEvent.getOriginatorId() == null) {
             throw new DataValidationException("SchedulerEvent originatorId should be specified!");

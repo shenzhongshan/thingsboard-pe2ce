@@ -19,7 +19,9 @@ import com.azure.core.amqp.AmqpRetryOptions;
 import com.azure.messaging.servicebus.ServiceBusClientBuilder;
 import com.azure.messaging.servicebus.ServiceBusErrorContext;
 import com.azure.messaging.servicebus.ServiceBusProcessorClient;
+import com.azure.messaging.servicebus.ServiceBusMessage;
 import com.azure.messaging.servicebus.ServiceBusReceiverClient;
+import com.azure.messaging.servicebus.ServiceBusSenderClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +34,14 @@ import java.util.Map;
 
 /**
  * Azure Service Bus consumer for an AZURE_SERVICE_BUS integration. Configuration JSON
- * (clientConfiguration): {connectionString, topicName, subName}.
- * CE simplification vs PE: downlink via a separate downlinkConnectionString/downlinkTopicName is
- * not implemented in this build (uplink-only).
+ * (clientConfiguration): {connectionString, topicName, subName, downlinkConnectionString?,
+ * downlinkTopicName?}.
+ * <p>
+ * Downlink mirrors PE's AzureServiceBusIntegration#initSenderClient: a separate
+ * {@link ServiceBusSenderClient} built from the downlink connection string + topic, because the
+ * downlink topic usually lives in a different namespace (or at least needs Send rather than Listen
+ * rights) than the uplink subscription. A blank downlink connection string falls back to the uplink
+ * one, which is the common single-namespace setup.
  */
 @Slf4j
 public class AzureServiceBusIntegrationConsumer implements IntegrationRuntime {
@@ -45,6 +52,7 @@ public class AzureServiceBusIntegrationConsumer implements IntegrationRuntime {
     private final TenantId tenantId;
 
     private volatile ServiceBusProcessorClient processorClient;
+    private volatile ServiceBusSenderClient senderClient;
 
     public AzureServiceBusIntegrationConsumer(Integration integration, IntegrationUplinkSink uplinkSink) {
         this.integration = integration;
@@ -95,6 +103,24 @@ public class AzureServiceBusIntegrationConsumer implements IntegrationRuntime {
                 .buildProcessorClient();
         processor.start();
         this.processorClient = processor;
+
+        // Only built when a downlink topic is configured; without it pushDownlink() reports the
+        // same "not supported" error as any other uplink-only runtime rather than failing obscurely.
+        String downlinkTopic = cfg.has("downlinkTopicName") ? cfg.get("downlinkTopicName").asText("") : "";
+        if (!downlinkTopic.isEmpty()) {
+            String downlinkCs = cfg.has("downlinkConnectionString") ? cfg.get("downlinkConnectionString").asText("") : "";
+            if (downlinkCs.isEmpty()) {
+                downlinkCs = connectionString;
+            }
+            this.senderClient = new ServiceBusClientBuilder()
+                    .connectionString(downlinkCs)
+                    .sender()
+                    .topicName(downlinkTopic)
+                    .buildClient();
+            log.info("[{}][{}] Azure Service Bus downlink sender ready, topic [{}]",
+                    tenantId, integration.getName(), downlinkTopic);
+        }
+
         log.info("[{}][{}] Azure Service Bus integration started, topic [{}], subscription [{}]",
                 tenantId, integration.getName(), topicName, subName);
     }
@@ -104,11 +130,43 @@ public class AzureServiceBusIntegrationConsumer implements IntegrationRuntime {
     }
 
     @Override
+    public void pushDownlink(byte[] payload, Map<String, String> metadata) {
+        ServiceBusSenderClient sender = this.senderClient;
+        if (sender == null) {
+            throw new IllegalStateException("Downlink topic is not configured for this Service Bus integration!");
+        }
+        ServiceBusMessage message = new ServiceBusMessage(payload);
+        if (metadata != null) {
+            // Same convention as the MQTT runtime: whatever the downlink converter puts in the
+            // returned metadata wins, and is forwarded as Service Bus application properties.
+            String contentType = metadata.get("contentType");
+            if (contentType != null && !contentType.isEmpty()) {
+                message.setContentType(contentType);
+            }
+            String messageId = metadata.get("messageId");
+            if (messageId != null && !messageId.isEmpty()) {
+                message.setMessageId(messageId);
+            }
+            metadata.forEach((k, v) -> {
+                if (v != null && !"contentType".equals(k) && !"messageId".equals(k)) {
+                    message.getApplicationProperties().put(k, v);
+                }
+            });
+        }
+        sender.sendMessage(message);
+    }
+
+    @Override
     public void stop() {
         ServiceBusProcessorClient c = this.processorClient;
         if (c != null) {
             c.stop();
             c.close();
+        }
+        ServiceBusSenderClient s = this.senderClient;
+        if (s != null) {
+            s.close();
+            this.senderClient = null;
         }
     }
 

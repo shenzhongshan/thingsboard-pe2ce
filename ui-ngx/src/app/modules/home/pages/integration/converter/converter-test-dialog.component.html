@@ -15,56 +15,99 @@
     limitations under the License.
 
 -->
-<div class="tb-converter-test-dialog">
+<div class="tb-converter-test-dialog flex flex-col">
   <mat-toolbar color="primary">
-    <h2>{{ (isUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }}</h2>
+    <h2>{{ (isUplink ? 'converter.test-decoder' : 'converter.test-encoder') | translate }} ({{ data.scriptLang }})</h2>
     <span class="flex-1"></span>
     <button mat-icon-button (click)="close()" type="button">
       <mat-icon class="material-icons">close</mat-icon>
     </button>
   </mat-toolbar>
-  <div mat-dialog-content>
-    <form [formGroup]="form" class="flex flex-col gap-2" style="padding-top: 8px;">
+  <div mat-dialog-content class="flex-1 relative">
+    <form [formGroup]="form" class="size-full">
+    <div class="tb-test-grid">
       @if (isUplink) {
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-payload</mat-label>
-          <textarea matInput formControlName="payload" rows="6"></textarea>
-        </mat-form-field>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-metadata</mat-label>
-          <textarea matInput formControlName="metadata" rows="3"></textarea>
-        </mat-form-field>
+        <div class="tb-test-panel flex flex-col gap-2">
+          <!-- PE lets you pick how the payload is interpreted (Json / Text / Binary); the decoder
+               receives a byte array either way, so this drives how the text is encoded before the
+               call and which syntax mode the editor uses. -->
+          <mat-form-field class="tb-test-content-type" subscriptSizing="dynamic">
+            <mat-label translate>converter.test-payload-content-type</mat-label>
+            <mat-select formControlName="payloadContentType">
+              @for (ct of contentTypes; track ct) {
+                <mat-option [value]="ct">{{ contentTypesMap.get(ct).name | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <tb-json-content class="flex-1 min-h-0" formControlName="payload"
+                            label="{{ 'converter.test-payload' | translate }}"
+                            [contentType]="payloadContentType" [fillHeight]="true" required="true">
+          </tb-json-content>
+        </div>
+        <div class="tb-test-panel flex flex-col">
+          <div class="tb-test-panel-title" translate>converter.test-metadata</div>
+          <tb-key-val-map class="flex-1" formControlName="metadata" isValueRequired="false"
+                           [keyPlaceholderText]="'integration.kv-key' | translate"
+                           [valuePlaceholderText]="'integration.kv-value' | translate">
+          </tb-key-val-map>
+        </div>
       } @else {
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-msg</mat-label>
-          <textarea matInput formControlName="msg" rows="4"></textarea>
-        </mat-form-field>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-msg-type</mat-label>
-          <input matInput formControlName="msgType">
-        </mat-form-field>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-metadata</mat-label>
-          <textarea matInput formControlName="metadata" rows="2"></textarea>
-        </mat-form-field>
-        <mat-form-field class="w-full">
-          <mat-label translate>converter.test-integration-metadata</mat-label>
-          <textarea matInput formControlName="integrationMetadata" rows="2"></textarea>
-        </mat-form-field>
+        <!-- PE's downlink layout: msgType sits above the message editor in the top-left quadrant,
+             and the two key/value maps sit side by side in the top-right quadrant. -->
+        <div class="tb-test-panel flex flex-col gap-2">
+          <mat-form-field class="tb-test-content-type" subscriptSizing="dynamic">
+            <mat-label translate>converter.test-msg-type</mat-label>
+            <input matInput formControlName="msgType" required>
+          </mat-form-field>
+          <tb-json-content class="flex-1 min-h-0" formControlName="msg"
+                            label="{{ 'converter.test-msg' | translate }}"
+                            [contentType]="ContentType.JSON" [fillHeight]="true" required="true">
+          </tb-json-content>
+        </div>
+        <div class="tb-test-panel flex flex-row gap-3">
+          <div class="flex flex-1 flex-col min-w-0">
+            <div class="tb-test-panel-title" translate>converter.test-metadata</div>
+            <tb-key-val-map class="flex-1" formControlName="metadata" isValueRequired="false"
+                             [keyPlaceholderText]="'integration.kv-key' | translate"
+                             [valuePlaceholderText]="'integration.kv-value' | translate">
+            </tb-key-val-map>
+          </div>
+          <div class="flex flex-1 flex-col min-w-0">
+            <div class="tb-test-panel-title" translate>converter.test-integration-metadata</div>
+            <tb-key-val-map class="flex-1" formControlName="integrationMetadata" isValueRequired="false"
+                             [keyPlaceholderText]="'integration.kv-key' | translate"
+                             [valuePlaceholderText]="'integration.kv-value' | translate">
+            </tb-key-val-map>
+          </div>
+        </div>
       }
-      <button mat-raised-button color="primary" type="button" [disabled]="testing" (click)="runTest()">
-        {{ 'converter.test-run' | translate }}
-      </button>
-      @if (result) {
-        <mat-form-field class="w-full">
-          <mat-label translate>{{ result.error ? 'converter.test-error' : 'converter.test-output' }}</mat-label>
-          <textarea matInput [value]="result.error || result.output" rows="8" readonly
-                    [class.tb-test-error]="result.error"></textarea>
-        </mat-form-field>
-      }
+      <div class="tb-test-panel">
+        <tb-js-func formControlName="script"
+                    [functionName]="isUplink ? 'decoder' : 'encoder'"
+                    [functionArgs]="isUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
+                    [scriptLanguage]="scriptEditorLang"
+                    [fillHeight]="true"
+                    [helpId]="scriptHelpId"
+                    [helpPopupStyle]="{width: '760px'}"
+                    noValidate="true">
+        </tb-js-func>
+      </div>
+      <div class="tb-test-panel">
+        <tb-json-content formControlName="output"
+                          label="{{ (result?.error ? 'converter.test-error' : 'common.output') | translate }}"
+                          [contentType]="ContentType.JSON" [fillHeight]="true" readonly="true"
+                          [class.tb-test-error]="result?.error">
+        </tb-json-content>
+      </div>
+    </div>
     </form>
   </div>
-  <div mat-dialog-actions class="flex items-center justify-end">
-    <button mat-button type="button" (click)="close()">{{ 'action.close' | translate }}</button>
+  <div mat-dialog-actions class="flex items-center justify-between">
+    <button mat-raised-button color="primary" type="button" [disabled]="testing" (click)="runTest()">
+      {{ 'converter.test-run' | translate }}
+    </button>
+    <span class="flex-1"></span>
+    <button mat-button type="button" (click)="close()">{{ 'action.cancel' | translate }}</button>
+    <button mat-raised-button color="primary" type="button" (click)="save()">{{ 'action.save' | translate }}</button>
   </div>
 </div>

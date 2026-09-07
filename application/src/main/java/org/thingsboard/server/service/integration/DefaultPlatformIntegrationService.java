@@ -22,7 +22,9 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.Device;
@@ -38,10 +40,15 @@ import org.thingsboard.server.common.msg.TbMsgDataType;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
+import org.thingsboard.server.common.data.event.ConverterDebugEvent;
+import org.thingsboard.server.common.data.event.IntegrationDebugEvent;
+import org.thingsboard.server.common.data.event.StatisticsEvent;
 import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.event.EventService;
 import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
+import org.thingsboard.server.queue.discovery.TbServiceInfoProvider;
 import org.thingsboard.server.service.integration.stats.IntegrationStatisticsService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.integration.rpc.TbRemoteIntegrationRpcService;
@@ -85,8 +92,21 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     private final DeviceService deviceService;
     private final TbClusterService clusterService;
     private final List<IntegrationRuntimeFactory> runtimeFactories;
+    private final EventService eventService;
+    private final TbServiceInfoProvider serviceInfoProvider;
     // present only when integrations.rpc.enabled=true
     private final Optional<TbRemoteIntegrationRpcService> remoteIntegrationRpcService;
+
+    /**
+     * Sink for the throwaway runtime used by {@link #checkConnection}: whatever arrives during the
+     * few hundred ms the probe is open belongs to nobody - the integration may be unsaved, and its
+     * converter must not run.
+     */
+    private static final IntegrationUplinkSink NOOP_UPLINK_SINK = (integration, payload, metadata) -> { };
+
+    // Debug-event direction labels; these land in the event table's "type" column.
+    private static final String UPLINK = "Uplink";
+    private static final String DOWNLINK = "Downlink";
 
     private final Map<IntegrationType, IntegrationRuntimeFactory> factoryByType = new ConcurrentHashMap<>();
 
@@ -96,12 +116,34 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     private final ConcurrentMap<IntegrationId, IntegrationRuntime> runtimes = new ConcurrentHashMap<>();
     // integrationId -> today's uplink message count (PE's "daily activity" metric)
     private final ConcurrentMap<IntegrationId, DailyCounter> dailyEventCounts = new ConcurrentHashMap<>();
+    // integrationId -> counters accumulated since the last statistics flush
+    private final ConcurrentMap<IntegrationId, PendingStats> pendingStats = new ConcurrentHashMap<>();
     // converterId+deviceId+key -> last value this converter produced for that key, used to
     // enforce a converter's "updateOnlyKeys" (only persist a key if it changed since the
     // previous converted message for that device).
     private final ConcurrentMap<String, JsonNode> lastConvertedValues = new ConcurrentHashMap<>();
 
     record IntegrationStatus(String status, String error) {}
+
+    /**
+     * Uplink counters accumulated between two statistics flushes. Drained into a single
+     * {@code stats_event} row per integration per flush; those rows are what
+     * {@code EventService#findAggregatedDailyStats} buckets by hour for the "daily activity"
+     * sparkline, so the flush interval also sets the sparkline's resolution.
+     */
+    private static final class PendingStats {
+        private final TenantId tenantId;
+        private final AtomicLong messagesProcessed = new AtomicLong();
+        private final AtomicLong errorsOccurred = new AtomicLong();
+
+        PendingStats(TenantId tenantId) {
+            this.tenantId = tenantId;
+        }
+
+        boolean isEmpty() {
+            return messagesProcessed.get() == 0 && errorsOccurred.get() == 0;
+        }
+    }
 
     private static final class DailyCounter {
         private volatile LocalDate day = LocalDate.now();
@@ -201,6 +243,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             stopIntegration(integration.getId());
             statuses.remove(integration.getId());
             dailyEventCounts.remove(integration.getId());
+            pendingStats.remove(integration.getId());
         });
     }
 
@@ -215,6 +258,94 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         DailyCounter counter = dailyEventCounts.get(integrationId);
         result.put("eventsCountToday", counter == null ? 0 : counter.get());
         return result;
+    }
+
+    @Override
+    public ObjectNode getIntegrationInfoStatus(Integration integration) {
+        if (!integration.isEnabled()) {
+            // The UI renders a disabled integration from the `enabled` flag alone; reporting a
+            // stale success/failure from before it was disabled would only be misleading.
+            return null;
+        }
+        if (integration.isRemote()) {
+            // A remote integration runs elsewhere: "started" means its process has an open gRPC
+            // session with us. Until one shows up it is pending, not failed - the remote may simply
+            // not have been launched yet.
+            boolean connected = remoteIntegrationRpcService
+                    .map(rpc -> rpc.isConnected(integration.getId()))
+                    .orElse(false);
+            if (!connected) {
+                return null;
+            }
+            ObjectNode result = JacksonUtil.newObjectNode();
+            result.put("success", true);
+            return result;
+        }
+        IntegrationStatus status = statuses.get(integration.getId());
+        if (status == null || "STOPPED".equals(status.status())) {
+            return null;
+        }
+        ObjectNode result = JacksonUtil.newObjectNode();
+        result.put("success", "ACTIVE".equals(status.status()));
+        if (status.error() != null) {
+            result.put("error", status.error());
+        }
+        return result;
+    }
+
+    @Override
+    public void checkConnection(Integration integration) throws Exception {
+        IntegrationType type = integration.getType();
+        if (PASSIVE_TYPES.contains(type)) {
+            // Nothing to dial: these are inbound webhooks resolved by routing key.
+            return;
+        }
+        IntegrationRuntimeFactory factory = factoryByType.get(type);
+        if (factory == null) {
+            throw new UnsupportedOperationException("Integration type " + type + " is not implemented in this build!");
+        }
+        // A throwaway runtime that is never registered in `runtimes`: it must not receive uplinks
+        // (the integration may not even exist yet) and must be stopped whatever happens, or a
+        // failed check would leak a broker connection per click.
+        IntegrationRuntime runtime = factory.create(withResolvedSecrets(integration), NOOP_UPLINK_SINK);
+        try {
+            runtime.start();
+        } finally {
+            try {
+                runtime.stop();
+            } catch (Exception e) {
+                log.debug("[{}] Failed to stop the connection-check runtime", integration.getName(), e);
+            }
+        }
+    }
+
+    /**
+     * Drains the accumulated per-integration counters into {@code stats_event} rows. One row per
+     * integration per interval; integrations with no traffic since the last flush are skipped so
+     * idle integrations do not fill the table.
+     */
+    @Scheduled(initialDelayString = "${integrations.statistics.persist_frequency:3600000}",
+            fixedDelayString = "${integrations.statistics.persist_frequency:3600000}")
+    public void persistStatistics() {
+        for (Map.Entry<IntegrationId, PendingStats> entry : pendingStats.entrySet()) {
+            PendingStats stats = entry.getValue();
+            if (stats.isEmpty()) {
+                continue;
+            }
+            long messages = stats.messagesProcessed.getAndSet(0);
+            long errors = stats.errorsOccurred.getAndSet(0);
+            try {
+                eventService.saveAsync(StatisticsEvent.builder()
+                        .tenantId(stats.tenantId)
+                        .entityId(entry.getKey().getId())
+                        .serviceId(serviceInfoProvider.getServiceId())
+                        .messagesProcessed(messages)
+                        .errorsOccurred(errors)
+                        .build());
+            } catch (Exception e) {
+                log.warn("[{}] Failed to persist integration statistics", entry.getKey(), e);
+            }
+        }
     }
 
     private void startIntegration(Integration integration) {
@@ -283,12 +414,81 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         // checked before the converter runs, so an over-limit tenant does not pay for script execution
         rateLimitService.checkLimit(integration.getTenantId(), () -> new String(payload, StandardCharsets.UTF_8));
         dailyEventCounts.computeIfAbsent(integration.getId(), id -> new DailyCounter()).increment();
+        PendingStats stats = pendingStats.computeIfAbsent(integration.getId(), id -> new PendingStats(integration.getTenantId()));
         try {
             doProcessUplink(integration, payload, metadata);
+            stats.messagesProcessed.incrementAndGet();
             statisticsService.onUplinkMsg(integration.getType(), true);
+            persistDebugEvent(integration, UPLINK, payload, metadata, null);
         } catch (Exception e) {
+            stats.errorsOccurred.incrementAndGet();
             statisticsService.onUplinkMsg(integration.getType(), false);
+            persistDebugEvent(integration, UPLINK, payload, metadata, e);
             throw e;
+        }
+    }
+
+    /**
+     * Writes an {@code integration_debug_event} row when this integration's debug settings ask for
+     * it: every message while "debug all" is within its window, or only failures when just
+     * "failures" is on. Never throws - debug persistence must not break message processing.
+     */
+    private void persistDebugEvent(Integration integration, String direction, byte[] payload,
+                                   Map<String, String> metadata, Exception error) {
+        boolean wanted = error != null
+                ? DebugModeUtil.isDebugFailuresAvailable(integration)
+                : DebugModeUtil.isDebugAllAvailable(integration);
+        if (!wanted) {
+            return;
+        }
+        try {
+            eventService.saveAsync(IntegrationDebugEvent.builder()
+                    .tenantId(integration.getTenantId())
+                    .entityId(integration.getId().getId())
+                    .serviceId(serviceInfoProvider.getServiceId())
+                    .eventType(direction)
+                    .messageType(integration.getType().name())
+                    .message(payload == null ? null : new String(payload, StandardCharsets.UTF_8))
+                    .status(error == null ? "OK" : "FAILURE")
+                    .error(error == null ? null : toErrorString(error))
+                    .build());
+        } catch (Exception e) {
+            log.debug("[{}] Failed to persist integration debug event", integration.getId(), e);
+        }
+    }
+
+    private static String toErrorString(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getName();
+    }
+
+    /**
+     * The converter's own debug row: the payload it was handed and the JSON it produced. Gated on
+     * the converter's debug settings, which are separate from the integration's - a converter is a
+     * shared entity and you often want to trace it without tracing every integration that uses it.
+     */
+    private void persistConverterDebugEvent(Converter converter, String direction, byte[] in, JsonNode out,
+                                            Map<String, String> metadata, Exception error) {
+        boolean wanted = error != null
+                ? DebugModeUtil.isDebugFailuresAvailable(converter)
+                : DebugModeUtil.isDebugAllAvailable(converter);
+        if (!wanted) {
+            return;
+        }
+        try {
+            eventService.saveAsync(ConverterDebugEvent.builder()
+                    .tenantId(converter.getTenantId())
+                    .entityId(converter.getId().getId())
+                    .serviceId(serviceInfoProvider.getServiceId())
+                    .eventType(direction)
+                    .inMsgType(converter.getType() == null ? null : converter.getType().name())
+                    .inMsg(in == null ? null : new String(in, StandardCharsets.UTF_8))
+                    .outMsgType(out == null ? null : out.getNodeType().name())
+                    .outMsg(out == null ? null : JacksonUtil.toString(out))
+                    .metadata(metadata == null ? null : JacksonUtil.toString(metadata))
+                    .error(error == null ? null : toErrorString(error))
+                    .build());
+        } catch (Exception e) {
+            log.debug("[{}] Failed to persist converter debug event", converter.getId(), e);
         }
     }
 
@@ -310,7 +510,14 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         String decoder = cfg.get("decoder").asText();
         Map<String, String> md = new HashMap<>(effectiveMetadata);
         md.put("integrationName", integration.getName());
-        JsonNode result = converterExecutorService.executeUplink(integration.getTenantId(), lang, decoder, effectivePayload, md);
+        JsonNode result;
+        try {
+            result = converterExecutorService.executeUplink(integration.getTenantId(), lang, decoder, effectivePayload, md);
+        } catch (Exception e) {
+            persistConverterDebugEvent(converter, UPLINK, effectivePayload, null, md, e);
+            throw e;
+        }
+        persistConverterDebugEvent(converter, UPLINK, effectivePayload, result, md, null);
         if (result == null || result.isNull()) {
             return;
         }
@@ -423,6 +630,10 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             }
             runtime.pushDownlink(payload, effectiveMetadata);
             success = true;
+            persistDebugEvent(integration, DOWNLINK, payload, effectiveMetadata, null);
+        } catch (Exception e) {
+            persistDebugEvent(integration, DOWNLINK, null, metadata, e);
+            throw e;
         } finally {
             statisticsService.onDownlinkMsg(integration.getType(), success);
         }
@@ -444,8 +655,16 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             throw new IllegalStateException("Downlink converter has no encoder script!");
         }
         Map<String, String> integrationMetadata = Map.of("integrationName", integration.getName());
-        JsonNode result = converterExecutorService.executeDownlink(integration.getTenantId(), lang,
-                cfg.get("encoder").asText(), msg, msgType, metadata, integrationMetadata);
+        JsonNode result;
+        try {
+            result = converterExecutorService.executeDownlink(integration.getTenantId(), lang,
+                    cfg.get("encoder").asText(), msg, msgType, metadata, integrationMetadata);
+        } catch (Exception e) {
+            persistConverterDebugEvent(converter, DOWNLINK, null, null, metadata, e);
+            throw e;
+        }
+        persistConverterDebugEvent(converter, DOWNLINK, JacksonUtil.toString(msg).getBytes(StandardCharsets.UTF_8),
+                result, metadata, null);
         if (result == null || result.isNull()) {
             throw new IllegalStateException("Downlink converter returned no result!");
         }

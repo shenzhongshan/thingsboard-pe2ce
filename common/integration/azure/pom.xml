@@ -53,6 +53,18 @@
             <artifactId>azure-messaging-eventhubs</artifactId>
             <version>${azure.eventhubs.version}</version>
         </dependency>
+        <!-- PE's persistent-checkpoint option: without a Blob-backed CheckpointStore an Event Hub
+             integration re-reads from the start position on every restart. -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-messaging-eventhubs-checkpointstore-blob</artifactId>
+            <version>${azure.eventhubs.checkpointstore.blob.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-blob</artifactId>
+            <version>${azure.storage.blob.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>

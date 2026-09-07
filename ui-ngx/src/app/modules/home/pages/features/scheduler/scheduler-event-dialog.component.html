@@ -51,79 +51,41 @@
                 <mat-slide-toggle formControlName="enabled">
                   {{ 'scheduler.enable-scheduler-event' | translate }}
                 </mat-slide-toggle>
-                @if (eventType !== SchedulerEventType.GENERATE_REPORT && !supportsGroupTargeting) {
+
+                <!-- Target: single entity / entity group / entity group owner (PE: tb-originator-select). -->
+                @if (eventType === SchedulerEventType.UPDATE_ATTRIBUTES) {
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.target</legend>
-                    <tb-entity-select
-                      formControlName="originatorId"
-                      required
-                      [allowedEntityTypes]="allowedOriginatorEntityTypes">
-                    </tb-entity-select>
+                    <tb-originator-select formControlName="originatorId"
+                                          required
+                                          [allowedEntityTypes]="allowedOriginatorEntityTypes"
+                                          (currentGroupType)="onCurrentGroupType($event)">
+                    </tb-originator-select>
                   </fieldset>
                 }
-                @if (supportsGroupTargeting) {
+                @if (eventType === SchedulerEventType.SEND_RPC_REQUEST) {
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.target</legend>
-                    <mat-button-toggle-group formControlName="targetMode" class="tb-se-target-mode">
-                      <mat-button-toggle [value]="TargetMode.SINGLE">{{ 'scheduler.target-mode-single' | translate }}</mat-button-toggle>
-                      <mat-button-toggle [value]="TargetMode.GROUP">{{ 'scheduler.target-mode-group' | translate }}</mat-button-toggle>
-                      <mat-button-toggle [value]="TargetMode.OWNER">{{ 'scheduler.target-mode-owner' | translate }}</mat-button-toggle>
-                    </mat-button-toggle-group>
-                    @if (form.get('targetMode').value === TargetMode.SINGLE) {
-                      <tb-entity-select
-                        formControlName="originatorId"
-                        required
-                        [allowedEntityTypes]="allowedOriginatorEntityTypes">
-                      </tb-entity-select>
-                    }
-                    @if (form.get('targetMode').value === TargetMode.GROUP || form.get('targetMode').value === TargetMode.OWNER) {
-                      <mat-form-field class="w-full">
-                        <mat-label translate>scheduler.target-entity-type</mat-label>
-                        <mat-select formControlName="targetEntityType" required>
-                          @for (type of groupableEntityTypes; track type) {
-                            <mat-option [value]="type">{{ entityTypeTranslations.get(type)?.type | translate }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-                    }
-                    @if (form.get('targetMode').value === TargetMode.GROUP) {
-                      <mat-form-field class="w-full">
-                        <mat-label translate>scheduler.target-entity-group</mat-label>
-                        <input matInput formControlName="targetEntityGroup" required
-                               [matAutocomplete]="entityGroupAuto">
-                        <mat-autocomplete #entityGroupAuto="matAutocomplete" [displayWith]="displayEntityGroupFn">
-                          @for (group of (filteredEntityGroups | async); track group.id.id) {
-                            <mat-option [value]="group">{{ group.name }}</mat-option>
-                          }
-                        </mat-autocomplete>
-                      </mat-form-field>
-                    }
-                    @if (form.get('targetMode').value === TargetMode.OWNER) {
-                      <mat-form-field class="w-full">
-                        <mat-label translate>scheduler.target-owner</mat-label>
-                        <input matInput formControlName="targetOwner" required
-                               [matAutocomplete]="ownerAuto">
-                        <mat-autocomplete #ownerAuto="matAutocomplete" [displayWith]="displayOwnerFn">
-                          @for (owner of (filteredOwners | async); track owner.id.id) {
-                            <mat-option [value]="owner">{{ owner.name }}</mat-option>
-                          }
-                        </mat-autocomplete>
-                      </mat-form-field>
-                    }
+                    <tb-originator-select formControlName="originatorId"
+                                          required
+                                          singleEntityText="scheduler.single-device"
+                                          groupOfEntitiesText="scheduler.group-of-devices"
+                                          entitiesGroupOwnerText="scheduler.devices-group-owner"
+                                          [allowedEntityTypes]="allowedOriginatorEntityTypes">
+                    </tb-originator-select>
                   </fieldset>
                 }
+                @if (isOtaType(eventType)) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.target</legend>
+                    <tb-target-select formControlName="originatorId" required></tb-target-select>
+                  </fieldset>
+                }
+
                 @if (eventType === SchedulerEventType.GENERATE_REPORT) {
-                  <mat-form-field class="w-full">
-                    <mat-label translate>report.report-template</mat-label>
-                    <mat-select formControlName="reportTemplateId" required>
-                      @for (t of reportTemplates; track t.id.id) {
-                        <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                      }
-                    </mat-select>
-                    @if (form.get('reportTemplateId').hasError('required')) {
-                      <mat-error translate>report.report-template-required</mat-error>
-                    }
-                  </mat-form-field>
+                  <tb-report-template-autocomplete formControlName="reportTemplateId" required
+                                                   [type]="ReportTemplateType.REPORT">
+                  </tb-report-template-autocomplete>
                   <tb-entity-select
                     formControlName="reportUserId"
                     required
@@ -133,92 +95,117 @@
                   </tb-timezone-select>
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.recipients</legend>
-                    <div class="flex flex-row items-end gap-2">
-                      <mat-form-field class="flex-1">
-                        <mat-label translate>scheduler.recipients</mat-label>
-                        <mat-select formControlName="reportTargets" multiple>
-                          @for (t of notificationTargets; track t.id.id) {
-                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-                      <button mat-button color="primary" type="button" (click)="createNotificationTarget()">
+                    <tb-entity-list formControlName="reportTargets"
+                                    [entityType]="EntityType.NOTIFICATION_TARGET"
+                                    subType="GENERAL"
+                                    [labelText]="'scheduler.recipients' | translate"
+                                    [placeholderText]="'scheduler.recipients' | translate">
+                      <button matSuffix mat-button color="primary" type="button" (click)="createNotificationTarget()">
                         {{ 'scheduler.create-new' | translate }}
                       </button>
-                    </div>
-                    <div class="flex flex-row items-end gap-2">
-                      <mat-form-field class="flex-1">
-                        <mat-label translate>scheduler.notification-template</mat-label>
-                        <mat-select formControlName="reportNotificationTemplateId">
-                          <mat-option [value]="null">{{ 'common.none' | translate }}</mat-option>
-                          @for (t of notificationTemplates; track t.id.id) {
-                            <mat-option [value]="t.id.id">{{ t.name }}</mat-option>
-                          }
-                        </mat-select>
-                      </mat-form-field>
-                      <button mat-button color="primary" type="button" (click)="createNotificationTemplate()">
-                        {{ 'scheduler.create-new' | translate }}
-                      </button>
-                    </div>
+                    </tb-entity-list>
+                    <tb-template-autocomplete formControlName="reportNotificationTemplateId"
+                                              [notificationTypes]="NotificationType.GENERAL"
+                                              allowCreate
+                                              allowEdit>
+                    </tb-template-autocomplete>
                   </fieldset>
                 }
+
                 @if (eventType === SchedulerEventType.UPDATE_ATTRIBUTES) {
                   <fieldset class="tb-se-fieldset">
-                    <legend translate>scheduler.attributes</legend>
-                    <mat-form-field class="w-full">
-                      <mat-label translate>scheduler.attributes-scope</mat-label>
-                      <mat-select formControlName="attributesScope">
-                        <mat-option [value]="AttributeScope.SERVER_SCOPE">{{ 'attribute.scope-server' | translate }}</mat-option>
-                        <mat-option [value]="AttributeScope.SHARED_SCOPE">{{ 'attribute.scope-shared' | translate }}</mat-option>
-                      </mat-select>
-                    </mat-form-field>
-                    <div formArrayName="attributes" class="flex flex-col gap-1">
-                      @for (row of attributesArray.controls; track row; let i = $index) {
-                        <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
-                          <mat-form-field class="flex-1">
-                            <mat-label translate>scheduler.attribute-key</mat-label>
-                            <input matInput formControlName="key" required>
-                          </mat-form-field>
-                          <mat-form-field class="flex-1">
-                            <mat-label translate>scheduler.attribute-value</mat-label>
-                            <input matInput formControlName="value" required>
-                          </mat-form-field>
-                          <button mat-icon-button type="button" (click)="removeAttribute(i)"
-                                  matTooltip="{{ 'action.remove' | translate }}">
-                            <mat-icon>delete</mat-icon>
-                          </button>
-                        </div>
-                      }
-                      @if (!attributesArray.length) {
-                        <div class="tb-se-no-attributes" translate>scheduler.add-attributes-prompt</div>
-                      }
-                      <div>
-                        <button mat-raised-button color="primary" type="button" (click)="addAttribute()">
-                          {{ 'action.add' | translate }}
-                        </button>
-                      </div>
+                    <legend translate>attribute.attributes</legend>
+                    <!-- Shared scope only exists on devices, so PE shows this select for device targets only. -->
+                    @if (sharedScopeSupported) {
+                      <mat-form-field class="w-full">
+                        <mat-label translate>attribute.attributes-scope</mat-label>
+                        <mat-select formControlName="attributesScope">
+                          <mat-option [value]="AttributeScope.SERVER_SCOPE">{{ 'attribute.scope-server' | translate }}</mat-option>
+                          <mat-option [value]="AttributeScope.SHARED_SCOPE">{{ 'attribute.scope-shared' | translate }}</mat-option>
+                        </mat-select>
+                      </mat-form-field>
+                    }
+                    @if (form.get('attributesScope').value === AttributeScope.SERVER_SCOPE) {
+                      <mat-expansion-panel class="mb-1" [expanded]="true">
+                        <mat-expansion-panel-header>
+                          <mat-panel-title>
+                            <div class="tb-panel-title" translate>attribute.scope-server</div>
+                          </mat-panel-title>
+                        </mat-expansion-panel-header>
+                        <tb-attribute-key-value-table formControlName="serverAttributes"
+                                                      titleText="attribute.scope-server"
+                                                      required
+                                                      requiredPrompt="attribute.add-attribute-prompt">
+                        </tb-attribute-key-value-table>
+                      </mat-expansion-panel>
+                    }
+                    @if (form.get('attributesScope').value === AttributeScope.SHARED_SCOPE) {
+                      <mat-expansion-panel class="mb-1" [expanded]="true">
+                        <mat-expansion-panel-header>
+                          <mat-panel-title>
+                            <div class="tb-panel-title" translate>attribute.scope-shared</div>
+                          </mat-panel-title>
+                        </mat-expansion-panel-header>
+                        <tb-attribute-key-value-table formControlName="sharedAttributes"
+                                                      titleText="attribute.scope-shared"
+                                                      required
+                                                      requiredPrompt="attribute.add-attribute-prompt">
+                        </tb-attribute-key-value-table>
+                      </mat-expansion-panel>
+                    }
+                  </fieldset>
+                }
+
+                @if (eventType === SchedulerEventType.SEND_RPC_REQUEST) {
+                  <fieldset class="tb-se-fieldset">
+                    <legend translate>scheduler.rpc-settings</legend>
+                    <div class="tb-form-row">
+                      <div class="tb-form-row-label tb-required" translate>scheduler.rpc-method</div>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-form-row-value">
+                        <input matInput formControlName="rpcMethod" required>
+                        @if (form.get('rpcMethod').hasError('required') || form.get('rpcMethod').hasError('pattern')) {
+                          <mat-icon matSuffix class="tb-error" matTooltipPosition="above" matTooltipClass="tb-error-tooltip"
+                                    [matTooltip]="(form.get('rpcMethod').hasError('required') ?
+                                      'scheduler.rpc-method-required' : 'scheduler.rpc-method-white-space') | translate">
+                            warning
+                          </mat-icon>
+                        }
+                      </mat-form-field>
+                    </div>
+                    <!-- No fillHeight: it forces the Ace pane to min-height 300px, which overflows a
+                         non-flex parent and overlaps the rows below. Unset, the editor sizes to its
+                         own 200px min-height and the siblings flow normally. -->
+                    <tb-json-object-edit formControlName="rpcParams"
+                                         class="tb-scheduler-event-configuration-json"
+                                         jsonRequired
+                                         [label]="'scheduler.rpc-params' | translate">
+                    </tb-json-object-edit>
+                    <div class="tb-form-row">
+                      <div class="tb-form-row-label" translate>scheduler.rpc-request-timeout</div>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tb-form-row-value tb-form-row-value-number">
+                        <input matInput type="number" min="0" formControlName="rpcTimeout"
+                               [placeholder]="'scheduler.set' | translate">
+                        @if (form.get('rpcTimeout').hasError('min')) {
+                          <mat-icon matSuffix class="tb-error" matTooltipPosition="above" matTooltipClass="tb-error-tooltip"
+                                    [matTooltip]="'scheduler.rpc-value-min-error' | translate: {min: 0}">
+                            warning
+                          </mat-icon>
+                        }
+                      </mat-form-field>
+                    </div>
+                    <div class="tb-form-row">
+                      <mat-slide-toggle formControlName="rpcOneway">
+                        {{ 'scheduler.rpc-request-oneway-command' | translate }}
+                      </mat-slide-toggle>
+                    </div>
+                    <div class="tb-form-row">
+                      <mat-slide-toggle formControlName="rpcPersistent">
+                        {{ 'scheduler.rpc-request-persistent' | translate }}
+                      </mat-slide-toggle>
                     </div>
                   </fieldset>
                 }
-                @if (eventType === SchedulerEventType.SEND_RPC_REQUEST) {
-                  <fieldset class="tb-se-fieldset">
-                    <legend translate>scheduler.rpc-request</legend>
-                    <mat-form-field class="w-full">
-                      <mat-label translate>scheduler.rpc-method</mat-label>
-                      <input matInput formControlName="rpcMethod" required>
-                    </mat-form-field>
-                    <mat-form-field class="w-full">
-                      <mat-label translate>scheduler.rpc-params</mat-label>
-                      <textarea matInput formControlName="rpcParams" rows="3"></textarea>
-                    </mat-form-field>
-                    <mat-checkbox formControlName="rpcOneway">
-                      {{ 'scheduler.rpc-oneway' | translate }}
-                    </mat-checkbox>
-                    <mat-checkbox formControlName="rpcPersistent">
-                      {{ 'scheduler.rpc-persistent' | translate }}
-                    </mat-checkbox>
-                  </fieldset>
-                }
+
                 @if (isOtaType(eventType)) {
                   <fieldset class="tb-se-fieldset">
                     <legend translate>scheduler.ota-package</legend>
@@ -226,7 +213,10 @@
                       formControlName="otaPackageId"
                       required
                       [type]="eventType === SchedulerEventType.UPDATE_FIRMWARE ? OtaUpdateType.FIRMWARE : OtaUpdateType.SOFTWARE"
-                      [deviceProfileId]="targetDeviceProfileId">
+                      [deviceProfileId]="targetDeviceProfileId"
+                      [deviceGroupId]="targetDeviceGroupId"
+                      [deviceGroupAll]="targetDeviceGroupAll"
+                      [useFullEntityId]="true">
                     </tb-ota-package-autocomplete>
                   </fieldset>
                 }

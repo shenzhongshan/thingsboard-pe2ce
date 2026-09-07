@@ -122,6 +122,7 @@ export enum MenuId {
   integrations = 'integrations',
   converters = 'converters',
   solution_templates = 'solution_templates',
+  device_simulators = 'device_simulators',
   users = 'users',
   roles = 'roles',
   secrets = 'secrets',
@@ -890,6 +891,16 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
+    MenuId.device_simulators,
+    {
+      id: MenuId.device_simulators,
+      name: 'device-simulator.device-simulators',
+      type: 'link',
+      path: '/deviceSimulators',
+      icon: 'smart_toy'
+    }
+  ],
+  [
     MenuId.reporting,
     {
       id: MenuId.reporting,
@@ -1088,6 +1099,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         ]
       },
       {id: MenuId.solution_templates},
+      {id: MenuId.device_simulators},
       {
         id: MenuId.entities,
         pages: [
@@ -1296,6 +1308,10 @@ const defaultHomeSectionMap = new Map<Authority, HomeSectionReference[]>([
       {
         name: 'solution-template.management',
         places: [MenuId.solution_templates]
+      },
+      {
+        name: 'device-simulator.management',
+        places: [MenuId.device_simulators]
       },
       {
         name: 'version-control.management',

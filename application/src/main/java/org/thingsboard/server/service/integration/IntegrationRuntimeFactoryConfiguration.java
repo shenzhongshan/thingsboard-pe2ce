@@ -16,8 +16,10 @@
 package org.thingsboard.server.service.integration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.thingsboard.server.coapserver.CoapServerService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 
 /**
@@ -54,8 +56,11 @@ public class IntegrationRuntimeFactoryConfiguration {
     }
 
     @Bean
-    public CoapIntegrationRuntimeFactory coapIntegrationRuntimeFactory() {
-        return new CoapIntegrationRuntimeFactory();
+    public CoapIntegrationRuntimeFactory coapIntegrationRuntimeFactory(
+            @Autowired(required = false) CoapServerService coapServerService) {
+        // Optional on purpose: TbCoapServerComponent only publishes this bean in monolith and
+        // tb-transport processes. When absent, CoAP integrations fall back to legacy port mode.
+        return new CoapIntegrationRuntimeFactory(coapServerService);
     }
 
     @Bean

@@ -15,7 +15,25 @@
  */
 :host {
   display: block;
-  padding: 16px;
+  height: 100%;
+
+  // Proven pattern from entities-table.component.scss: height:100% on the host propagates from
+  // the routed page's own layout, which mat-drawer-container needs to position its side drawer.
+  .tb-ic-drawer-container {
+    height: 100%;
+    overflow: clip;
+  }
+
+  // PE's own details drawer measures 773.5px wide at a 1440px window (verified live against the
+  // running PE instance) — wide enough that all 8 tabs render without a horizontal scroll arrow.
+  .tb-ic-details-drawer {
+    width: 800px;
+    max-width: 90vw;
+  }
+
+  mat-drawer-content {
+    padding: 16px;
+  }
 
   .tb-ic-header {
     align-items: center;
@@ -43,26 +61,16 @@
     color: rgba(0, 0, 0, 0.54);
   }
 
+  // Geometry copied from PE's integrationStatus() cell markup; the colours come from
+  // integrationStateStyle and are bound per-row rather than by class, since PE picks them from the
+  // same map it uses for the cell's text colour.
   .tb-int-status {
     display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-
-    &.tb-int-status-active {
-      background: rgba(76, 175, 80, 0.16);
-      color: #2e7d32;
-    }
-
-    &.tb-int-status-failed {
-      background: rgba(244, 67, 54, 0.14);
-      color: #c62828;
-    }
-
-    &.tb-int-status-stopped {
-      background: rgba(0, 0, 0, 0.08);
-      color: rgba(0, 0, 0, 0.6);
-    }
+    height: 32px;
+    line-height: 32px;
+    padding: 0 12px;
+    border-radius: 16px;
+    width: fit-content;
+    font-size: 14px;
   }
 }

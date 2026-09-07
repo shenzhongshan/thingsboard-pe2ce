@@ -1,0 +1,291 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+:host {
+  display: block;
+  height: 100%;
+  position: relative;
+
+  .tb-integration-details-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .tb-details-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 16px 56px 8px 24px;
+
+    .tb-details-title {
+      font-size: 20px;
+      font-weight: 500;
+    }
+
+    .tb-details-subtitle {
+      font-size: 13px;
+      color: rgba(0, 0, 0, 0.54);
+    }
+  }
+
+  // PE floats the edit button as a FAB overlapping the header/tab-bar boundary, top-right. In edit
+  // mode this becomes the "confirm" (done) FAB; a second "cancel" FAB sits just to its left.
+  .tb-details-edit-fab {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    z-index: 2;
+  }
+
+  .tb-details-cancel-fab {
+    right: 72px;
+  }
+
+  // Every level of this flex chain needs an explicit `min-height: 0`. A flex item defaults to
+  // `min-height: auto`, i.e. it refuses to shrink below its content — so without these the tab body
+  // grows to fit a tall form (e.g. the advanced-settings panel expanded) and the drawer stretches
+  // past the viewport with no scrollbar, instead of the body staying bounded and scrolling.
+  .tb-details-tabs {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    ::ng-deep .mat-mdc-tab-body-wrapper {
+      flex: 1;
+      min-height: 0;
+    }
+
+    ::ng-deep .mat-mdc-tab-body {
+      min-height: 0;
+    }
+
+    ::ng-deep .mat-mdc-tab-body-content {
+      overflow: auto;
+    }
+  }
+
+  .tb-details-overview {
+    padding: 16px 24px;
+  }
+
+  // PE groups [open details page]+[delete] in one row, then [copy ID] as a separate row below.
+  // This is deliberately NOT flex: PE's own markup relies on plain block flow — the raised buttons
+  // are inline-level so they sit side by side, and the div wrapping copy-id is block-level so it
+  // always starts its own line below them, with no media query or flex-wrap involved.
+  .tb-details-buttons {
+    button {
+      margin: 0 8px 8px 0;
+    }
+
+    > div {
+      margin-top: 4px;
+    }
+  }
+
+  .tb-int-fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    border: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+
+  // Copied from integration-dialog.component.scss / converter-dialog.component.scss so the
+  // read-only 详情 tab renders the same field groupings as the add/edit wizard it mirrors.
+  .tb-int-card {
+    background: var(--mat-sys-surface, #fff);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tb-int-card-title {
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  // Grouped field blocks render as a native fieldset+legend (title cut into the top border),
+  // matching PE's own tb-mqtt-integration-form. Values copied from PE's computed styles, which are
+  // in turn the same .fields-group convention CE already uses on the admin settings pages.
+  .fields-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px 8px;
+    margin: 0 0 10px;
+    border: 1px groove rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+    min-width: 0;
+
+    > legend.group-title {
+      color: rgba(0, 0, 0, 0.7);
+      font-size: 16px;
+      font-weight: 400;
+      padding: 0 2px;
+    }
+  }
+
+  // Titleless grouping (converter type block) - kept as a plain flex column, no border.
+  .tb-int-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tb-int-hint {
+    font-size: 12px;
+    color: rgba(0, 0, 0, 0.54);
+  }
+
+  // The remote panel's header hosts a mat-slide-toggle (34px) inside Material's `.mat-content`,
+  // whose line box is only 20px and defaults to `overflow: auto` — that renders a stray little
+  // scrollbar next to the expand chevron. PE sets `overflow: visible` here (verified against the
+  // running instance, where the same 20px/34px mismatch exists but produces no scrollbar).
+  .tb-int-remote-panel,
+  .tb-int-advanced-panel {
+    ::ng-deep .mat-expansion-panel-header .mat-content {
+      overflow: visible;
+    }
+  }
+
+  .tb-int-remote-panel {
+    box-shadow: none;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+  }
+
+  .tb-int-advanced-panel {
+    box-shadow: none;
+
+    ::ng-deep .mat-expansion-panel-header {
+      padding-right: 8px;
+    }
+  }
+
+  .tb-details-section {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+
+  .tb-details-section-title {
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .tb-details-row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .tb-details-label {
+    color: rgba(0, 0, 0, 0.54);
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .tb-details-value {
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .tb-details-value-mono {
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  // Copied from integration-dialog.component.scss so the check-connection result and the
+  // add-topic-filter button look identical in the details panel and the wizard.
+  .tb-int-check-result {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+
+    &.tb-int-check-ok {
+      background: rgba(25, 128, 56, 0.08);
+      color: #198038;
+    }
+
+    &.tb-int-check-fail {
+      background: rgba(209, 39, 48, 0.08);
+      color: #d12730;
+    }
+
+    .tb-int-check-error {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+  }
+
+  .tb-int-add-button {
+    width: 100%;
+    color: rgba(0, 0, 0, 0.87);
+    border: 1px dashed rgba(0, 0, 0, 0.24);
+  }
+
+  // Clear / edit / "create new" actions sit in the field's suffix slot, like PE's converter picker.
+  .tb-converter-actions {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .tb-details-converter-link {
+    display: block;
+    padding-top: 20px;
+    font-size: 14px;
+    color: inherit;
+
+    &:is(a) {
+      color: var(--mdc-theme-primary, #305680);
+      text-decoration: none;
+      cursor: pointer;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .tb-details-script {
+    margin: 0;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 4px;
+    font-size: 12px;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}

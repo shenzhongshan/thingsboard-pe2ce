@@ -18,6 +18,7 @@ package org.thingsboard.server.coapserver;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.californium.core.CoapResource;
 import org.eclipse.californium.core.CoapServer;
 import org.eclipse.californium.core.config.CoapConfig;
 import org.eclipse.californium.core.network.CoapEndpoint;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -100,6 +102,33 @@ public class DefaultCoapServerService implements CoapServerService, SmartInitial
         }
     }
 
+    /**
+     * Port of PE's DefaultCoapServerService#addResourceHierarchicallyAndReturnLast. Synchronized
+     * because several integrations may publish themselves concurrently under the same prefix and
+     * would otherwise race to create the same intermediate node twice.
+     */
+    @Override
+    public synchronized Resource addResourceHierarchicallyAndReturnLast(List<String> resourceHierarchy) throws UnknownHostException {
+        CoapServer coapServer = getCoapServer();
+        Resource parent = coapServer.getRoot();
+        Resource current = null;
+        for (int i = 0; i < resourceHierarchy.size(); i++) {
+            String name = resourceHierarchy.get(i);
+            Resource existing = parent.getChild(name);
+            if (existing == null) {
+                existing = new CoapResource(name);
+                if (i == 0) {
+                    coapServer.add(existing);
+                } else {
+                    parent.add(existing);
+                }
+            }
+            current = existing;
+            parent = existing;
+        }
+        return current;
+    }
+
     @Override
     public ConcurrentMap<TbCoapDtlsSessionKey, TbCoapDtlsSessionInfo> getDtlsSessionsMap() {
         return tbDtlsCertificateVerifier != null ? tbDtlsCertificateVerifier.getTbCoapDtlsSessionsMap() : null;
@@ -150,7 +179,8 @@ public class DefaultCoapServerService implements CoapServerService, SmartInitial
         }
     }
 
-    private boolean isDtlsEnabled() {
+    @Override
+    public boolean isDtlsEnabled() {
         return coapServerContext.getDtlsSettings() != null;
     }
 

@@ -15,6 +15,8 @@
     limitations under the License.
 
 -->
+<mat-drawer-container class="tb-ic-drawer-container" [hasBackdrop]="false" autosize>
+<mat-drawer-content>
 <div>
   <mat-card appearance="outlined">
     <mat-card-header class="tb-ic-header">
@@ -82,9 +84,17 @@
           <td mat-cell *matCellDef="let c">{{ c.additionalInfo?.description || '' }}</td>
         </ng-container>
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef style="width: 120px;"></th>
+          <th mat-header-cell *matHeaderCellDef style="width: 200px;"></th>
           <td mat-cell *matCellDef="let c">
             <div class="flex flex-row items-center justify-end">
+              <button mat-icon-button type="button" (click)="openDebugConfig($event, c)"
+                      [matTooltip]="debugTooltip(c)" matTooltipPosition="above">
+                <tb-icon>{{ isDebugActive(c) ? 'mdi:bug' : 'mdi:bug-outline' }}</tb-icon>
+              </button>
+              <button mat-icon-button type="button" (click)="editConverter($event, c)"
+                      matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
+                <mat-icon>edit</mat-icon>
+              </button>
               <button mat-icon-button type="button" (click)="exportConverter($event, c)"
                       matTooltip="{{ 'converter.export' | translate }}" matTooltipPosition="above">
                 <mat-icon>file_download</mat-icon>
@@ -99,7 +109,7 @@
         <tr mat-header-row *matHeaderRowDef="['createdTime', 'name', 'type', 'integrationType', 'description', 'actions']"></tr>
         <tr mat-row class="tb-ic-row"
             *matRowDef="let c; columns: ['createdTime', 'name', 'type', 'integrationType', 'description', 'actions'];"
-            (click)="editConverter($event, c)"></tr>
+            (click)="openConverterDetails($event, c)"></tr>
       </table>
       @if (!converters.length) {
         <div class="tb-ic-empty" translate>converter.no-converters-text</div>
@@ -110,3 +120,15 @@
     </mat-card-content>
   </mat-card>
 </div>
+</mat-drawer-content>
+<mat-drawer #detailsDrawer mode="over" position="end" class="tb-ic-details-drawer">
+  <tb-integration-details-panel
+    [target]="detailsTarget"
+    [focusTab]="detailsFocusTab"
+    (closed)="closeDetails()"
+    (editRequested)="onDetailsEdit()"
+    (deleteRequested)="onDetailsDelete()"
+    (saved)="reload()">
+  </tb-integration-details-panel>
+</mat-drawer>
+</mat-drawer-container>

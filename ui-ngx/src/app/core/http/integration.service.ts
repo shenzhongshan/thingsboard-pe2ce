@@ -20,7 +20,7 @@ import { Observable } from 'rxjs';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { PageData } from '@shared/models/page/page-data';
 import { PageLink } from '@shared/models/page/page-link';
-import { Integration, IntegrationStatus } from '@shared/models/integration.models';
+import { Integration, IntegrationInfo, IntegrationStatus } from '@shared/models/integration.models';
 
 @Injectable({
   providedIn: 'root'
@@ -33,6 +33,20 @@ export class IntegrationService {
   public getIntegrations(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Integration>> {
     return this.http.get<PageData<Integration>>(`/api/integrations${pageLink.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
+  }
+
+  /** Integrations with their runtime status and 24h activity series, in one request. */
+  public getIntegrationInfos(pageLink: PageLink, config?: RequestConfig): Observable<PageData<IntegrationInfo>> {
+    return this.http.get<PageData<IntegrationInfo>>(`/api/integrationInfos${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  /**
+   * Opens and closes a real connection with this configuration. Completes on success; errors with
+   * the underlying client's message on failure.
+   */
+  public checkIntegrationConnection(integration: Integration, config?: RequestConfig): Observable<void> {
+    return this.http.post<void>('/api/integration/check', integration, defaultHttpOptionsFromConfig(config));
   }
 
   public getIntegration(integrationId: string, config?: RequestConfig): Observable<Integration> {

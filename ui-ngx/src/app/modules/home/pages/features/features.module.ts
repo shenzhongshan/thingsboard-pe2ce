@@ -18,19 +18,32 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '@shared/shared.module';
 import { FeaturesRoutingModule } from '@home/pages/features/features-routing.module';
+import { HomeComponentsModule } from '@home/components/home-components.module';
 import { SchedulerEventsComponent } from '@home/pages/features/scheduler/scheduler-events.component';
 import { SchedulerEventDialogComponent } from '@home/pages/features/scheduler/scheduler-event-dialog.component';
+import {
+  AttributeKeyValueTableComponent
+} from '@home/pages/features/scheduler/attribute-key-value-table.component';
+import { TargetSelectComponent } from '@home/pages/features/scheduler/target-select.component';
+import {
+  ReportTemplateAutocompleteComponent
+} from '@home/pages/features/scheduler/report-template-autocomplete.component';
 import { TaskManagerComponent } from '@home/pages/features/tasks/task-manager.component';
 
 @NgModule({
   declarations: [
     SchedulerEventsComponent,
     SchedulerEventDialogComponent,
+    AttributeKeyValueTableComponent,
+    TargetSelectComponent,
+    ReportTemplateAutocompleteComponent,
     TaskManagerComponent
   ],
   imports: [
     CommonModule,
     SharedModule,
+    // tb-target-select renders tb-device-profile-autocomplete, which lives in the home components module.
+    HomeComponentsModule,
     FeaturesRoutingModule
   ],
   exports: [

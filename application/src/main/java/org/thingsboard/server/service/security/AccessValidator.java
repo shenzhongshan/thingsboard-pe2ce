@@ -39,15 +39,19 @@ import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
+import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.ApiUsageStateId;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
+import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
 import org.thingsboard.server.common.data.id.EntityGroupId;
@@ -66,12 +70,14 @@ import org.thingsboard.server.controller.HttpValidationCallback;
 import org.thingsboard.server.dao.alarm.AlarmService;
 import org.thingsboard.server.dao.asset.AssetProfileService;
 import org.thingsboard.server.dao.asset.AssetService;
+import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.dao.exception.IncorrectParameterException;
 import org.thingsboard.server.dao.ota.OtaPackageService;
@@ -103,6 +109,8 @@ public class AccessValidator {
     public static final String DEVICE_WITH_REQUESTED_ID_NOT_FOUND = "Device with requested id wasn't found!";
     public static final String EDGE_WITH_REQUESTED_ID_NOT_FOUND = "Edge with requested id wasn't found!";
     public static final String ENTITY_VIEW_WITH_REQUESTED_ID_NOT_FOUND = "Entity-view with requested id wasn't found!";
+    public static final String INTEGRATION_WITH_REQUESTED_ID_NOT_FOUND = "Integration with requested id wasn't found!";
+    public static final String CONVERTER_WITH_REQUESTED_ID_NOT_FOUND = "Converter with requested id wasn't found!";
 
     @Autowired
     protected TenantService tenantService;
@@ -154,6 +162,12 @@ public class AccessValidator {
 
     @Autowired
     protected EntityGroupService entityGroupService;
+
+    @Autowired
+    protected IntegrationService integrationService;
+
+    @Autowired
+    protected ConverterService converterService;
 
     private ExecutorService executor;
 
@@ -230,6 +244,8 @@ public class AccessValidator {
             case OTA_PACKAGE -> validateOtaPackage(currentUser, operation, entityId, callback);
             case RPC -> validateRpc(currentUser, operation, entityId, callback);
             case ENTITY_GROUP -> validateEntityGroup(currentUser, operation, entityId, callback);
+            case INTEGRATION -> validateIntegration(currentUser, operation, entityId, callback);
+            case CONVERTER -> validateConverter(currentUser, operation, entityId, callback);
             default ->
                 //TODO: add support of other entities
                 throw new IllegalStateException("Not Implemented!");
@@ -530,6 +546,44 @@ public class AccessValidator {
                     return ValidationResult.ok(entityView);
                 }
             }), executor);
+        }
+    }
+
+    private void validateIntegration(final SecurityUser currentUser, Operation operation, EntityId entityId, FutureCallback<ValidationResult> callback) {
+        if (currentUser.isSystemAdmin()) {
+            callback.onSuccess(ValidationResult.accessDenied(SYSTEM_ADMINISTRATOR_IS_NOT_ALLOWED_TO_PERFORM_THIS_OPERATION));
+        } else {
+            Integration integration = integrationService.findIntegrationById(currentUser.getTenantId(), new IntegrationId(entityId.getId()));
+            if (integration == null) {
+                callback.onSuccess(ValidationResult.entityNotFound(INTEGRATION_WITH_REQUESTED_ID_NOT_FOUND));
+            } else {
+                try {
+                    accessControlService.checkPermission(currentUser, Resource.INTEGRATION, operation, entityId, integration);
+                } catch (ThingsboardException e) {
+                    callback.onSuccess(ValidationResult.accessDenied(e.getMessage()));
+                    return;
+                }
+                callback.onSuccess(ValidationResult.ok(integration));
+            }
+        }
+    }
+
+    private void validateConverter(final SecurityUser currentUser, Operation operation, EntityId entityId, FutureCallback<ValidationResult> callback) {
+        if (currentUser.isSystemAdmin()) {
+            callback.onSuccess(ValidationResult.accessDenied(SYSTEM_ADMINISTRATOR_IS_NOT_ALLOWED_TO_PERFORM_THIS_OPERATION));
+        } else {
+            Converter converter = converterService.findConverterById(currentUser.getTenantId(), new ConverterId(entityId.getId()));
+            if (converter == null) {
+                callback.onSuccess(ValidationResult.entityNotFound(CONVERTER_WITH_REQUESTED_ID_NOT_FOUND));
+            } else {
+                try {
+                    accessControlService.checkPermission(currentUser, Resource.CONVERTER, operation, entityId, converter);
+                } catch (ThingsboardException e) {
+                    callback.onSuccess(ValidationResult.accessDenied(e.getMessage()));
+                    return;
+                }
+                callback.onSuccess(ValidationResult.ok(converter));
+            }
         }
     }
 

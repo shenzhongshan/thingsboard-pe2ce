@@ -77,7 +77,7 @@ public class AwsSqsIntegrationConsumer implements IntegrationRuntime {
 
         this.sqs = client;
         this.stopped = false;
-        this.pollThread = new Thread(() -> pollLoop(queueUrl, pollingPeriodSec), "aws-sqs-integration-" + integration.getId().getId());
+        this.pollThread = new Thread(() -> pollLoop(queueUrl, pollingPeriodSec), "aws-sqs-integration-" + IntegrationConfigUtil.safeId(integration));
         this.pollThread.setDaemon(true);
         this.pollThread.start();
         log.info("[{}][{}] AWS SQS integration polling queue [{}]", tenantId, integration.getName(), queueUrl);

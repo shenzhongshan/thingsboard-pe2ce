@@ -81,7 +81,7 @@ public class RabbitMqIntegrationConsumer implements IntegrationRuntime {
         String exchangeName = cfg.has("exchangeName") ? cfg.get("exchangeName").asText(null) : null;
         String routingKey = cfg.has("downlinkTopic") ? cfg.get("downlinkTopic").asText("#") : "#";
 
-        Connection conn = factory.newConnection("tb-integration-" + integration.getId().getId());
+        Connection conn = factory.newConnection("tb-integration-" + IntegrationConfigUtil.safeId(integration));
         Channel ch = conn.createChannel();
         DeliverCallback callback = (consumerTag, delivery) -> {
             Map<String, String> metadata = new HashMap<>();

@@ -29,12 +29,15 @@ import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceProfile;
 import org.thingsboard.server.common.data.OtaPackageInfo;
 import org.thingsboard.server.common.data.Tenant;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.OtaPackageId;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.page.PageDataIterable;
 import org.thingsboard.server.common.data.report.ReportConfig;
 import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
@@ -46,6 +49,8 @@ import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.ota.DeviceGroupOtaPackageService;
 import org.thingsboard.server.dao.ota.OtaPackageService;
 import org.thingsboard.server.dao.scheduler.SchedulerEventService;
 import org.thingsboard.server.dao.tenant.TenantService;
@@ -66,8 +71,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * CE port of PE's scheduler runtime. Differences vs PE: no EntityGroup branch, and event change
- * notifications arrive via direct method calls instead of queue protos (monolith). The
+ * CE port of PE's scheduler runtime. Difference vs PE: event change notifications arrive via direct
+ * method calls instead of queue protos (monolith). The
  * "generateReport" event type is handled synchronously on the scheduler's own executor thread
  * (render can take a few seconds; that's fine off the request thread).
  */
@@ -84,6 +89,8 @@ public class DefaultSchedulerService extends AbstractPartitionBasedService<Tenan
     private final DeviceProfileService deviceProfileService;
     private final OtaPackageService otaPackageService;
     private final OtaPackageStateService firmwareStateService;
+    private final EntityGroupService entityGroupService;
+    private final DeviceGroupOtaPackageService deviceGroupOtaPackageService;
     private final TbServiceInfoProvider serviceInfoProvider;
     private final org.thingsboard.server.service.report.ReportGenerationService reportGenerationService;
 
@@ -281,6 +288,21 @@ public class DefaultSchedulerService extends AbstractPartitionBasedService<Tenan
                         deviceProfile.setSoftwareId(otaPackageId);
                     }
                     firmwareStateService.update(deviceProfileService.saveDeviceProfile(deviceProfile), isFirmwareUpdate, isSoftwareUpdate);
+                }
+                case ENTITY_GROUP -> {
+                    EntityGroupId groupId = new EntityGroupId(originatorId.getId());
+                    EntityGroup deviceGroup = entityGroupService.findEntityGroupById(tenantId, groupId);
+                    if (deviceGroup == null) {
+                        throw new RuntimeException("Failed to process event: Device group with id [" + originatorId + "] not found!");
+                    }
+                    // Recording the assignment also pushes the package to every device currently in the group
+                    // (BaseDeviceGroupOtaPackageService#cascadeToMemberDevices), and that service reuses the
+                    // existing row's id when one is already assigned for this group+type.
+                    DeviceGroupOtaPackage assignment = new DeviceGroupOtaPackage();
+                    assignment.setGroupId(groupId);
+                    assignment.setOtaPackageType(otaPackageInfo.getType());
+                    assignment.setOtaPackageId(otaPackageId);
+                    deviceGroupOtaPackageService.saveDeviceGroupOtaPackage(tenantId, assignment);
                 }
                 default -> throw new RuntimeException("OTA update is not supported for entity type " + originatorId.getEntityType() + "!");
             }

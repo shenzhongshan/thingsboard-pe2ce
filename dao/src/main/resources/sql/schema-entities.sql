@@ -1256,3 +1256,17 @@ CREATE TABLE IF NOT EXISTS blob_entity (
     data varchar(10485760),
     additional_info varchar
 ) PARTITION BY RANGE (created_time);
+
+-- User-authored device telemetry simulator configs. `definition` is EmulatorDefinition-shaped JSON,
+-- the same format solution templates use for device_emulators.json — parsed at run time by the
+-- device-simulator service, never given its own strongly-typed column. Run state (running/stopped,
+-- publish counters) is in-memory only, not persisted here: it is inherently process-local.
+CREATE TABLE IF NOT EXISTS device_simulator (
+    id UUID NOT NULL CONSTRAINT device_simulator_pkey PRIMARY KEY,
+    created_time BIGINT NOT NULL,
+    tenant_id UUID NOT NULL,
+    device_id UUID NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    definition VARCHAR(1000000) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_simulator_tenant_id ON device_simulator(tenant_id);

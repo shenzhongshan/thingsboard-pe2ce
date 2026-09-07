@@ -1,0 +1,62 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+@if (kvListFormGroup) {
+  <section class="tb-attribute-kv-table flex flex-col" [formGroup]="kvListFormGroup">
+    <label class="tb-title no-padding" translate>{{ titleText }}</label>
+    @for (keyValControl of keyValsFormArray().controls; track keyValControl; let i = $index) {
+      <div class="flex flex-row items-center justify-start gap-2" formArrayName="keyVals">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                        class="tb-inline-field flex tb-suffix-absolute max-w-40% flex-full">
+          <input matInput [formControl]="keyValControl.get('key')"
+                 [placeholder]="'key-val.key' | translate">
+          @if (keyValControl.get('key').hasError('required') && keyValControl.get('key').touched) {
+            <mat-icon matSuffix class="tb-error" matTooltipPosition="above" matTooltipClass="tb-error-tooltip"
+                      [matTooltip]="'attribute.key-required' | translate">warning</mat-icon>
+          }
+        </mat-form-field>
+        <tb-value-input class="max-w-60% flex-full"
+                        requiredText="attribute.value-required"
+                        [formControl]="keyValControl.get('value')">
+        </tb-value-input>
+        <button mat-icon-button color="primary" type="button"
+                [class.!hidden]="disabled"
+                (click)="removeKeyVal(i)"
+                [disabled]="isLoading$ | async"
+                matTooltipPosition="above"
+                [matTooltip]="'key-val.remove-entry' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+    <span class="no-data-found flex items-center justify-center"
+          [class.!hidden]="keyValsFormArray().length"
+          [class.disabled]="disabled"
+          [class.required]="required"
+          translate>{{ required ? requiredPrompt : 'key-val.no-data' }}</span>
+    <div style="margin-top: 8px;">
+      <button mat-button mat-raised-button color="primary" type="button"
+              [class.!hidden]="disabled"
+              [disabled]="isLoading$ | async"
+              (click)="addKeyVal()"
+              matTooltipPosition="above"
+              [matTooltip]="'key-val.add-entry' | translate">
+        {{ 'action.add' | translate }}
+      </button>
+    </div>
+  </section>
+}
