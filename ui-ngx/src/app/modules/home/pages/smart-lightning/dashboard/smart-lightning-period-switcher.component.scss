@@ -1,0 +1,27 @@
+:host { display: inline-flex; }
+
+.period-switcher {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #9bb7dc;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.period-switcher button {
+  min-width: 25px;
+  height: 24px;
+  padding: 0 5px;
+  border: 0;
+  border-right: 1px solid #d5e0ed;
+  color: #71859a;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.period-switcher button:last-child { border-right: 0; }
+.period-switcher button:hover { color: #195ce8; background: #eef5ff; }
+.period-switcher button:focus-visible { position: relative; outline: 2px solid #195ce8; outline-offset: -2px; }
+.period-switcher button.active { color: #fff; background: #195ce8; font-weight: 700; }

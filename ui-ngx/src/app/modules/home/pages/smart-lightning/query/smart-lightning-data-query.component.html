@@ -1,0 +1,141 @@
+<main class="data-query-page" aria-label="智能防雷数据查询">
+  <aside class="asset-panel">
+    <tb-smart-lightning-root-asset-filter
+      [roots]="assetTree.roots"
+      [selectedRootAssetId]="selectedRootAssetId"
+      (rootAssetChange)="selectRootAsset($event)">
+    </tb-smart-lightning-root-asset-filter>
+    <div class="asset-panel-title">
+      <h2>项目 / 资产</h2>
+      <span>当前用户可见</span>
+    </div>
+    <label class="asset-search">
+      <tb-icon>search</tb-icon>
+      <input [(ngModel)]="assetSearch" placeholder="输入项目或设备名称" aria-label="搜索项目或设备名称">
+    </label>
+    @if (assetsLoading) {
+      <div class="asset-state">正在读取资产…</div>
+    } @else if (assetsLoadError) {
+      <div class="asset-state error">资产树读取失败</div>
+    } @else if (!assetTree.roots.length) {
+      <div class="asset-state">当前没有可见资产</div>
+    } @else {
+      <div class="asset-tree" role="tree">
+        @for (item of visibleAssetNodes; track item.node.id) {
+          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)"
+                  [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem"
+                  [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
+            @if (item.node.childIds.length) {
+              <span class="tree-toggle" (click)="toggleAssetNode($event, item.node)">
+                <tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon>
+              </span>
+            } @else {
+              <span class="tree-toggle spacer"></span>
+            }
+            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon>
+            <span>{{item.node.name}}</span>
+          </button>
+        }
+      </div>
+    }
+  </aside>
+
+  <section class="query-content">
+    <form class="filter-panel" novalidate (ngSubmit)="query()">
+      <label>
+        <span>产品名称</span>
+        <select [(ngModel)]="productNameFilter" name="productName">
+          <option value="">请选择</option>
+          @for (productName of productNames; track productName) {<option [value]="productName">{{productName}}</option>}
+        </select>
+      </label>
+      <label>
+        <span>功能</span>
+        <select [(ngModel)]="functionType" name="functionType">
+          <option value="">请选择</option>
+          @for (category of functionCategories; track category) {<option [value]="category">{{category}}</option>}
+        </select>
+      </label>
+      <label class="keyword-input">
+        <span>名称</span>
+        <input [(ngModel)]="keyword" name="keyword" placeholder="请输入设备名称、类型或产品名称" aria-label="设备名称搜索">
+        <tb-icon>search</tb-icon>
+      </label>
+      <div class="filter-actions">
+        <button type="submit" class="query-button">查询</button>
+        <button type="button" class="reset-button" (click)="reset()">重置</button>
+      </div>
+    </form>
+
+    <section class="result-panel">
+      <header class="result-toolbar">
+        <button type="button" class="export-button" (click)="exportRows()" [disabled]="!filteredRows.length">
+          <tb-icon>download</tb-icon>导出
+        </button>
+        <div class="status-tabs" role="tablist" aria-label="设备连接状态">
+          @for (status of statuses; track status) {
+            <button type="button" [class.active]="activeStatus === status" (click)="setStatus(status)" role="tab">
+              {{status}}
+            </button>
+          }
+        </div>
+        <div class="toolbar-tail">
+          <span class="selected-asset" [title]="selectedAssetName">{{selectedAssetName}}</span>
+        </div>
+      </header>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+          <tr>
+            <th><input type="checkbox" aria-label="选择本页全部设备" [checked]="allPageRowsSelected"
+                       (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
+            <th>序号</th>
+            <th>设备名称</th>
+            <th>设备类型</th>
+            <th>设备协议</th>
+            <th>状态</th>
+            <th>产品名称</th>
+            <th>操作</th>
+          </tr>
+          </thead>
+          <tbody>
+          @if (devicesLoading) {
+            <tr><td colspan="8" class="table-state">正在读取当前资产范围的设备…</td></tr>
+          } @else if (devicesLoadError) {
+            <tr><td colspan="8" class="table-state error">设备数据读取失败</td></tr>
+          } @else if (!pageRows.length) {
+            <tr><td colspan="8" class="table-state">当前条件下暂无设备</td></tr>
+          } @else {
+            @for (row of pageRows; track row.id; let index = $index) {
+              <tr [class.row-selected]="selectedRowIds.has(row.id)">
+                <td><input type="checkbox" [checked]="selectedRowIds.has(row.id)" (change)="toggleRow(row.id)"
+                           [attr.aria-label]="'选择设备' + row.deviceName"></td>
+                <td>{{(page - 1) * pageSize + index + 1}}</td>
+                <td [title]="row.assetPath">{{row.deviceName}}</td>
+                <td [title]="row.deviceType">{{row.deviceType}}</td>
+                <td [title]="row.protocol">{{row.protocol}}</td>
+                <td><span [class]="'status-tag ' + row.status">{{row.status}}</span></td>
+                <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
+                <td class="operation-cell">
+                  <button type="button" class="trace-button" (click)="openHistoryReview(row)" title="查看历史遥测数据">回顾</button>
+                  <a class="detail-button" [routerLink]="['/smart-lightning/query/device', row.id]" [queryParams]="{returnUrl: '/smart-lightning/query'}">详情</a>
+                </td>
+              </tr>
+            }
+          }
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="pagination" aria-label="查询结果分页">
+        <span>共 {{filteredRows.length}} 条</span>
+        <span>{{pageSize}} / 页</span>
+        <button type="button" (click)="setPage(page - 1)" [disabled]="page === 1">‹</button>
+        <button type="button" class="active">{{page}}</button>
+        <span>/ {{totalPages}}</span>
+        <button type="button" (click)="setPage(page + 1)" [disabled]="page === totalPages">›</button>
+      </nav>
+    </section>
+  </section>
+</main>

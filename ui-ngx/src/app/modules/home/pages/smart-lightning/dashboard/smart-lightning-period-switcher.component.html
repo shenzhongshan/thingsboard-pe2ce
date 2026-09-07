@@ -1,0 +1,8 @@
+<nav class="period-switcher" aria-label="图表时间范围">
+  @for (period of periods; track period.value) {
+    <button type="button" [class.active]="activePeriod === period.value" (click)="select(period.value)"
+            [attr.aria-pressed]="activePeriod === period.value" [attr.aria-label]="'切换至' + period.label + '视图'">
+      {{period.label}}
+    </button>
+  }
+</nav>

@@ -1,0 +1,91 @@
+<main class="lightning-page" aria-label="智能防雷看板">
+  <header class="lightning-heading">
+    <h1>智能防雷看板</h1>
+  </header>
+
+  <section class="dashboard-grid">
+    <article class="panel device-summary">
+      <div class="panel-title">
+        <h2>设备信息</h2>
+        @if (devicesLoading) {
+          <span class="period-readout">加载中</span>
+        } @else if (devicesLoadError) {
+          <span class="period-readout error">读取失败</span>
+        }
+      </div>
+      <div class="summary-content">
+        <div class="availability-ring" [style.--online-rate]="deviceSummary.onlineRate + '%'" [attr.aria-label]="'设备在线率 ' + deviceSummary.onlineRate + '%'">
+          <div><span>在线率</span><strong>{{devicesLoading || devicesLoadError ? '--' : deviceSummary.onlineRate + '%'}}</strong></div>
+        </div>
+        <dl class="summary-metrics">
+          <div><dt>设备总数</dt><dd class="blue">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.total}}</dd></div>
+          <div><dt>在线设备</dt><dd class="green">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.online}}</dd></div>
+          <div><dt>离线设备</dt><dd class="amber">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.offline}}</dd></div>
+          <div><dt>变量报警</dt><dd class="red">{{alarmsLoading || alarmsLoadError ? '--' : activeAlarmCount}}</dd></div>
+        </dl>
+      </div>
+      <div class="ring-legend"><span><i class="online"></i>在线</span><span><i class="offline"></i>离线</span></div>
+    </article>
+
+    <article class="panel map-panel">
+      <div class="map-toolbar">
+        <span><tb-icon>location_on</tb-icon> 防雷设备分布</span>
+        <span class="map-hint">点击点位查看状态</span>
+      </div>
+      <div #mapHost class="tianditu-map" aria-label="智能防雷设备地图"></div>
+    </article>
+
+    <article class="panel chart-panel ground-panel">
+      <div class="panel-title"><h2>地网监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.ground" (periodChange)="setChartPeriod('ground', $event)"></tb-smart-lightning-period-switcher></div>
+      <div #chartHost data-chart="ground" class="chart" aria-label="地网监测趋势图"></div>
+    </article>
+
+    <article class="panel chart-panel alarm-panel">
+      <div class="panel-title"><h2>报警信息</h2><span class="period-readout">当前未清除</span></div>
+      <div #chartHost data-chart="alarm" class="chart" aria-label="报警信息柱状图"></div>
+    </article>
+
+    <article class="panel chart-panel spd-panel">
+      <div class="panel-title"><h2>SPD监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.spd" (periodChange)="setChartPeriod('spd', $event)"></tb-smart-lightning-period-switcher></div>
+      <div #chartHost data-chart="spd" class="chart" aria-label="SPD 监测趋势图"></div>
+    </article>
+
+    <article class="panel chart-panel orders-panel">
+      <div class="panel-title"><h2>运维工单</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.orders" (periodChange)="setChartPeriod('orders', $event)"></tb-smart-lightning-period-switcher></div>
+      <div #chartHost data-chart="orders" class="chart" aria-label="运维工单统计图"></div>
+    </article>
+
+    <article class="panel records-panel">
+      <div class="panel-title">
+        <h2>告警记录</h2>
+        <a class="more-link" routerLink="/alarms/alarms">查看全部 <tb-icon>arrow_forward</tb-icon></a>
+      </div>
+      <div class="table-scroll">
+        @if (alarmsLoading) {
+          <div class="table-state">正在加载活动告警…</div>
+        } @else if (alarmsLoadError) {
+          <div class="table-state error">告警记录加载失败。<button type="button" (click)="loadLatestAlarms()">重试</button></div>
+        } @else if (!alarms.length) {
+          <div class="table-state">当前没有活动告警</div>
+        } @else {
+        <table>
+          <thead><tr><th title="来源位置">来源位置</th><th title="次级位置">次级位置</th><th title="设备类型">设备类型</th><th title="设备名称">设备名称</th><th title="告警类型">告警类型</th><th title="告警等级">告警等级</th><th title="确认状态">确认状态</th><th title="触发时间">触发时间</th></tr></thead>
+          <tbody>
+            @for (alarm of alarms; track alarm.source + alarm.device + alarm.startTs) {
+              <tr><td [title]="alarm.source">{{alarm.source}}</td><td [title]="alarm.secondaryLocation">{{alarm.secondaryLocation}}</td>
+                <td [title]="alarm.deviceType">{{alarm.deviceType}}</td><td [title]="alarm.deviceName">{{alarm.deviceName}}</td><td [title]="alarm.type">{{alarm.type}}</td>
+                <td><span class="alarm-severity" [class]="alarm.severityTone">{{alarm.severity}}</span></td>
+                <td [title]="alarm.status">{{alarm.status}}</td><td>{{alarm.startTs | date:'yyyy/MM/dd HH:mm'}}</td></tr>
+            }
+          </tbody>
+        </table>
+        }
+      </div>
+    </article>
+
+    <article class="panel chart-panel lightning-panel">
+      <div class="panel-title"><h2>雷电监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.lightning" (periodChange)="setChartPeriod('lightning', $event)"></tb-smart-lightning-period-switcher></div>
+      <div #chartHost data-chart="lightning" class="chart" aria-label="雷电监测横向柱状图"></div>
+    </article>
+  </section>
+</main>

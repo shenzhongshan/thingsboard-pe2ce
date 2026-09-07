@@ -1,0 +1,79 @@
+<section class="history-dialog" role="dialog" aria-labelledby="history-review-title">
+  <header class="dialog-header">
+    <div>
+      <h2 id="history-review-title">回顾</h2>
+      <p [title]="data.deviceName">{{data.deviceName}}</p>
+    </div>
+    <button type="button" class="close-button" (click)="close()" aria-label="关闭回顾窗口" title="关闭">
+      <tb-icon>close</tb-icon>
+    </button>
+  </header>
+
+  <form class="history-filter" novalidate (ngSubmit)="loadHistory()">
+    <label class="parameter-field">
+      <span>设备参数</span>
+      <select [(ngModel)]="selectedParameter" name="selectedParameter" [disabled]="keysLoading || !parameterKeys.length">
+        @if (keysLoading) {
+          <option value="">正在读取参数…</option>
+        } @else if (keysLoadError) {
+          <option value="">参数读取失败</option>
+        } @else if (!parameterKeys.length) {
+          <option value="">当前设备没有数值遥测参数</option>
+        } @else {
+          @for (key of parameterKeys; track key) {
+            <option [value]="key">{{parameterLabel(key)}}</option>
+          }
+        }
+      </select>
+    </label>
+
+    <div class="time-controls">
+      <div class="quick-ranges" role="group" aria-label="快速时间范围">
+        <span class="range-label">快速范围</span>
+        <button type="button" [class.active]="rangePreset === '24h'" [attr.aria-pressed]="rangePreset === '24h'"
+                (click)="setRangePreset('24h')">最近24小时</button>
+        <button type="button" [class.active]="rangePreset === '7d'" [attr.aria-pressed]="rangePreset === '7d'"
+                (click)="setRangePreset('7d')">最近7天</button>
+        <button type="button" [class.active]="rangePreset === '30d'" [attr.aria-pressed]="rangePreset === '30d'"
+                (click)="setRangePreset('30d')">最近30天</button>
+        @if (rangePreset === 'custom') {<span class="custom-range-label">自定义</span>}
+      </div>
+
+      <fieldset class="time-range-fieldset">
+        <legend>时间范围</legend>
+        <label class="time-field">
+          <span>开始</span>
+          <input [(ngModel)]="startTime" (change)="markCustomRange()" name="historyStartTime" type="datetime-local"
+                 [max]="endTime" step="60" aria-label="历史数据开始时间">
+        </label>
+        <span class="range-separator" aria-hidden="true">至</span>
+        <label class="time-field">
+          <span>结束</span>
+          <input [(ngModel)]="endTime" (change)="markCustomRange()" name="historyEndTime" type="datetime-local"
+                 [min]="startTime" step="60" aria-label="历史数据结束时间">
+        </label>
+        <button type="button" class="now-button" (click)="setEndNow()" title="将结束时间设为当前时间">现在</button>
+      </fieldset>
+    </div>
+
+    <button type="submit" class="query-history" [disabled]="historyLoading || !selectedParameter">
+      {{historyLoading ? '查询中…' : '查询'}}
+    </button>
+  </form>
+  @if (rangeError) {<p class="range-error" role="alert">{{rangeError}}</p>}
+
+  <div class="chart-panel">
+    <div #historyChart class="history-chart" role="img" [attr.aria-label]="selectedParameterLabel + '历史遥测折线图'"></div>
+    @if (keysLoading || historyLoading) {
+      <div class="chart-state">正在读取历史遥测数据…</div>
+    } @else if (keysLoadError) {
+      <div class="chart-state error">设备参数读取失败，请稍后重试</div>
+    } @else if (!parameterKeys.length) {
+      <div class="chart-state">当前设备没有可查询的数值遥测参数</div>
+    } @else if (historyLoadError) {
+      <div class="chart-state error">历史遥测数据读取失败</div>
+    } @else if (historyLoaded && !points.length) {
+      <div class="chart-state">所选时间范围内没有可绘制的数值遥测数据</div>
+    }
+  </div>
+</section>
