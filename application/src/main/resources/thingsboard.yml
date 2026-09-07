@@ -2240,8 +2240,9 @@ event:
 # General service parameters
 # Sets the deployment type (monolith or microservice) and assigns tenant profiles to specific Rule Engine instances.
 tb:
-  # Device types that receive a functionCategory server attribute when they are created.
+  # 设备创建后自动初始化产品分类相关的服务器属性。
   product-category:
+    # 细分功能分类：用于区分 SPD、接地电阻、雷电流、故障电弧等功能。
     by-device-type:
       DESA: spd_monitor
       DES4: spd_monitor
@@ -2255,21 +2256,44 @@ tb:
       G1A3: ground_resistance
       M1AI: lightning_current
       L2AI: lightning_current
+      LDH1: arc_fault
+      FAP1: arc_fault
+
     # Device Profile 名称对应的中文产品名。
     # 配置文件名称使用稳定的编码，不使用导入后可能变化的 UUID。
     product-name-by-device-profile:
-      DESA: FS防雷器监测模块（多要素）
-      DES4: FS防雷器监测模块（四要素）
-      DES9: FS防雷器监测模块（九要素）
-      DEM2: FSS智能型电涌保护器（单相无漏流，2P）
-      DEM4: FSS智能型电涌保护器（三相无漏流，4P）
-      DEA2: FSS智能型电涌保护器（单相全电流，2P）
-      DEA4: FSS智能型电涌保护器（三相全电流，4P）
+      DESA: FS防雷监测模块（全要素）
+      DES4: FS防雷监测模块（四要素）
+      DES9: FS防雷监测模块（九要素）
+      DEM2: FSS智能型电涌保护器（单相无漏流）
+      DEM4: FSS智能型电涌保护器（三相无漏流）
+      DEA2: FSS智能型电涌保护器（单相全电流）
+      DEA4: FSS智能型电涌保护器（三相全电流）
       ESM0: ESM防雷监测模组（基础版）
       ESM3: ESM防雷监测模组（旗舰版）
-      G1A3: FR接地电阻监测模块（地网阻值）
+      G1A3: FR接地电阻监测模块
       M1AI: FL雷电流峰值监测模块
       L2AI: FL瞬态电流监测模块
+      LDH1: FA故障电弧监测模块
+      FAP1: FAP故障电弧探测器（一体式）
+
+    # 产品大类：用于一级业务分类，例如防雷产品、电气安全产品。
+    # 当前文档中的这些型号均属于防雷产品，属性值写入 productCategory。
+    product-family-by-device-profile:
+      DESA: lightning
+      DES4: lightning
+      DES9: lightning
+      DEM2: lightning
+      DEM4: lightning
+      DEA2: lightning
+      DEA4: lightning
+      ESM0: lightning
+      ESM3: lightning
+      G1A3: lightning
+      M1AI: lightning
+      L2AI: lightning
+      LDH1: lightning
+      FAP1: lightning
 
 
 

@@ -26,14 +26,14 @@ import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 
-/**
+/***
  * 在设备新建成功后初始化其功能分类服务器属性。
  *
  * <p>功能分类属于平台侧的产品管理信息，而非设备遥测数据，因此保存到 {@link AttributeScope#SERVER_SCOPE}。
  * 设备通过 MQTT/HTTP 上报属性时不会覆盖这个值。</p>
  *
- * <p>未在配置中登记的设备类型不会写入任何属性；这样可以安全地先创建和调试新产品，
- * 待确认分类后再在配置文件中增加映射。</p>
+ * <p>每个映射独立生效：未登记的功能分类、产品名或产品大类只跳过对应属性写入，
+ * 不会阻止设备创建，便于先创建和调试新产品后再补充配置。</p>
  */
 @Service
 @TbCoreComponent
@@ -43,11 +43,14 @@ public class DeviceFunctionCategoryInitializer {
     private static final String FUNCTION_CATEGORY_ATTRIBUTE = "functionCategory";
     /** 统一的服务器属性键，用于存储产品的中文展示名称。 */
     private static final String PRODUCT_NAME_ATTRIBUTE = "productName";
+    /** 统一的服务器属性键，用于存储产品大类，例如 lightning、electric。 */
+    private static final String PRODUCT_CATEGORY_ATTRIBUTE = "productCategory";
 
     private final AttributesService attributesService;
     private final DeviceProfileService deviceProfileService;
     private final DeviceFunctionCategoryResolver functionCategoryResolver;
     private final DeviceFunctionCategoryResolver productNameResolver;
+    private final DeviceFunctionCategoryResolver productFamilyResolver;
 
     /**
      * Spring 运行时使用的构造器：将 YAML 配置转换为独立的解析器。
@@ -58,7 +61,8 @@ public class DeviceFunctionCategoryInitializer {
                                              DeviceFunctionCategoryProperties properties) {
         this(attributesService, deviceProfileService,
                 new DeviceFunctionCategoryResolver(properties.getByDeviceType()),
-                new DeviceFunctionCategoryResolver(properties.getProductNameByDeviceProfile()));
+                new DeviceFunctionCategoryResolver(properties.getProductNameByDeviceProfile()),
+                new DeviceFunctionCategoryResolver(properties.getProductFamilyByDeviceProfile()));
     }
 
     /**
@@ -67,10 +71,22 @@ public class DeviceFunctionCategoryInitializer {
     public DeviceFunctionCategoryInitializer(AttributesService attributesService, DeviceProfileService deviceProfileService,
                                              DeviceFunctionCategoryResolver functionCategoryResolver,
                                              DeviceFunctionCategoryResolver productNameResolver) {
+        this(attributesService, deviceProfileService, functionCategoryResolver, productNameResolver,
+                new DeviceFunctionCategoryResolver(java.util.Collections.emptyMap()));
+    }
+
+    /**
+     * 供单元测试或其他明确需要自定义映射的调用方使用。
+     */
+    public DeviceFunctionCategoryInitializer(AttributesService attributesService, DeviceProfileService deviceProfileService,
+                                             DeviceFunctionCategoryResolver functionCategoryResolver,
+                                             DeviceFunctionCategoryResolver productNameResolver,
+                                             DeviceFunctionCategoryResolver productFamilyResolver) {
         this.attributesService = attributesService;
         this.deviceProfileService = deviceProfileService;
         this.functionCategoryResolver = functionCategoryResolver;
         this.productNameResolver = productNameResolver;
+        this.productFamilyResolver = productFamilyResolver;
     }
 
     /**
@@ -97,6 +113,10 @@ public class DeviceFunctionCategoryInitializer {
         String productName = productNameResolver.resolve(profile.getName());
         if (productName != null) {
             saveAttribute(device, PRODUCT_NAME_ATTRIBUTE, productName);
+        }
+        String productCategory = productFamilyResolver.resolve(profile.getName());
+        if (productCategory != null) {
+            saveAttribute(device, PRODUCT_CATEGORY_ATTRIBUTE, productCategory);
         }
     }
 

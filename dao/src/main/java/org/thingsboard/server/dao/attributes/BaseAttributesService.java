@@ -34,6 +34,7 @@ import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.kv.AttributeKvEntry;
 import org.thingsboard.server.common.data.kv.AttributesSaveResult;
+import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.msg.edqs.EdqsService;
 import org.thingsboard.server.dao.service.Validator;
@@ -110,6 +111,18 @@ public class BaseAttributesService implements AttributesService {
     @Override
     public ListenableFuture<List<AttributeKvEntry>> findLatestByEntityIdsAndScopeAsync(TenantId tenantId, List<EntityId> entityIds, AttributeScope scope) {
         return attributesDao.findLatestByEntityIdsAndScopeAsync(tenantId, entityIds, scope);
+    }
+
+    @Override
+    public List<EntityAttributeKvEntry> findLatestByEntityIdsAndScopeWithEntityId(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys) {
+        return attributesDao.findLatestByEntityIdsAndScopeWithEntityId(tenantId, entityIds, scope, attributeKeys);
+    }
+
+    @Override
+    public ListenableFuture<List<EntityAttributeKvEntry>> findLatestByEntityIdsAndScopeWithEntityIdAsync(
+            TenantId tenantId, List<EntityId> entityIds, AttributeScope scope, Collection<String> attributeKeys) {
+        return attributesDao.findLatestByEntityIdsAndScopeWithEntityIdAsync(tenantId, entityIds, scope, attributeKeys);
     }
 
     @Override

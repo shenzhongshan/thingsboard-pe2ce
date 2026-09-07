@@ -29,6 +29,8 @@ import { ForceTwoFactorAuthLoginComponent } from '@modules/login/pages/login/for
 import { SignUpComponent } from '@modules/login/pages/login/sign-up.component';
 import { SignUpEmailVerifiedComponent } from '@modules/login/pages/login/sign-up-email-verified.component';
 
+
+
 @NgModule({
   declarations: [
     LoginComponent,

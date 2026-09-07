@@ -22,7 +22,8 @@
     flex: 1;
   }
   mat-sidenav.tb-site-sidenav {
-    width: 250px;
+    /* 与自定义导航栏宽度保持一致，避免内容区被按 250px 偏移产生右侧空隙。 */
+    width: 190px;
     @media (max-width:456px) {
       width: calc(100% - 56px);
     }

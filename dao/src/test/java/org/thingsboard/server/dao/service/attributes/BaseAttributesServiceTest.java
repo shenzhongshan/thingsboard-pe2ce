@@ -32,6 +32,7 @@ import org.thingsboard.server.common.data.kv.AttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BooleanDataEntry;
 import org.thingsboard.server.common.data.kv.DoubleDataEntry;
+import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.kv.LongDataEntry;
 import org.thingsboard.server.common.data.kv.StringDataEntry;
@@ -317,6 +318,28 @@ public abstract class BaseAttributesServiceTest extends AbstractServiceTest {
         List<AttributeKvEntry> clientResults = attributesDao.findLatestByEntityIdsAndScope(tenantId, List.of(device), AttributeScope.CLIENT_SCOPE);
         Assert.assertEquals(1, clientResults.size());
         Assert.assertEquals("clientKey", clientResults.get(0).getKey());
+    }
+
+    @Test
+    public void findLatestByEntityIdsAndScopeWithEntityId_keepsDeviceIdentity() {
+        var device1 = new DeviceId(UUID.randomUUID());
+        var device2 = new DeviceId(UUID.randomUUID());
+        saveAttribute(tenantId, device1, AttributeScope.SERVER_SCOPE, 1000,
+                new StringDataEntry("productCategory", "lightning"));
+        saveAttribute(tenantId, device2, AttributeScope.SERVER_SCOPE, 2000,
+                new StringDataEntry("productCategory", "electrical"));
+
+        List<EntityAttributeKvEntry> results = attributesDao.findLatestByEntityIdsAndScopeWithEntityId(
+                tenantId, List.of(device1, device2), AttributeScope.SERVER_SCOPE,
+                List.of("productCategory"));
+
+        Assert.assertEquals(2, results.size());
+        Map<UUID, String> valuesByDevice = new java.util.HashMap<>();
+        for (EntityAttributeKvEntry result : results) {
+            valuesByDevice.put(result.entityId(), result.attribute().getValueAsString());
+        }
+        Assert.assertEquals("lightning", valuesByDevice.get(device1.getId()));
+        Assert.assertEquals("electrical", valuesByDevice.get(device2.getId()));
     }
 
     private void testConcurrentFetchAndUpdate(TenantId tenantId, DeviceId deviceId, ListeningExecutorService pool) throws Exception {

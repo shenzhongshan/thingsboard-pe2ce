@@ -36,6 +36,7 @@ import { ImportExportService } from '@shared/import-export/import-export.service
 import { EntityDebugSettingsService } from '@home/components/entity/debug/entity-debug-settings.service';
 import { UtilsService } from '@core/services/utils.service';
 import { AlarmRulesTableConfig } from '@home/components/alarm-rules/alarm-rules-table-config';
+import { SmartLightningAlarmListComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-list.component';
 
 export const AlarmRulesTableConfigResolver: ResolveFn<AlarmRulesTableConfig> =
   (_route: ActivatedRouteSnapshot,
@@ -71,6 +72,51 @@ export const AlarmRulesTableConfigResolver: ResolveFn<AlarmRulesTableConfig> =
   };
 
 const routes: Routes = [
+  /**
+   * 智能防雷告警列表是独立页面：放在原生 alarms 路由之前，避免先进入
+   * RouterTabsComponent 后被原生告警页接管。目录与 smart-lightning 平级，
+   * 使用独立的 /deviceAlarms 路由，避免与原生 /alarms 路由混淆。
+   * 访问父路径时自动进入列表页，兼容 TB 菜单配置为 /deviceAlarms 或
+   * /deviceAlarms/list 两种写法。
+   */
+  {
+    path: 'deviceAlarms',
+    data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+    },
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'list'
+      },
+      {
+        path: 'list',
+        component: SmartLightningAlarmListComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '智能防雷报警信息',
+          breadcrumb: {
+            menuId: MenuId.alarms
+          },
+          isPage: true
+        }
+      },
+      {
+        path: 'dispatch',
+        component: SmartLightningAlarmListComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '告警派发',
+          dispatchMode: true,
+          breadcrumb: {
+            menuId: MenuId.alarms
+          },
+          isPage: true
+        }
+      }
+    ]
+  },
   {
     path: 'alarms',
     component: RouterTabsComponent,

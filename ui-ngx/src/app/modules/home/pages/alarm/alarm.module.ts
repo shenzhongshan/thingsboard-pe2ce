@@ -21,14 +21,18 @@ import { HomeDialogsModule } from '../../dialogs/home-dialogs.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { AlarmRoutingModule } from '@home/pages/alarm/alarm-routing.module';
 import { AlarmRulesTabsComponent } from '@home/pages/alarm/alarm-rules-tabs.component';
+import { SmartLightningAlarmListComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-list.component';
+import { SmartLightningRootAssetFilterComponent } from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
 
 @NgModule({
   declarations: [
-    AlarmRulesTabsComponent
+    AlarmRulesTabsComponent,
+    SmartLightningAlarmListComponent
   ],
   imports: [
     CommonModule,
     SharedModule,
+    SmartLightningRootAssetFilterComponent,
     HomeComponentsModule,
     HomeDialogsModule,
     AlarmRoutingModule

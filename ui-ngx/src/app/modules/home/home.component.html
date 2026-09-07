@@ -73,6 +73,7 @@
             <mat-icon class="material-icons">{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
           </button>
         }
+        <tb-device-status-summary [class.!hidden]="displaySearchMode()"></tb-device-status-summary>
         <tb-notification-bell></tb-notification-bell>
         <tb-user-menu [displayUserInfo]="!displaySearchMode()"></tb-user-menu>
       </mat-toolbar>
