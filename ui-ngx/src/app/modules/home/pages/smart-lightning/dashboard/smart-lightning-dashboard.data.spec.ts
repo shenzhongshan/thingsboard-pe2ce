@@ -10,6 +10,7 @@ import {
   calculateSmartLightningDeviceSummary,
   defaultSmartLightningChartPeriods,
   formatSmartLightningAlarm,
+  formatSmartLightningResistance,
   getSmartLightningParentDirectory,
   getSmartLightningProductName,
   getSmartLightningAlarmChartState,
@@ -100,6 +101,9 @@ assert.deepEqual(severityOrder, ['critical', 'major', 'minor', 'warning', 'indet
 assert.equal(SMART_LIGHTNING_ALARM_DISPLAY_LIMIT, 10);
 assert.equal(getSmartLightningProductName([{key: 'productName', value: '智能防雷终端'}]), '智能防雷终端');
 assert.equal(getSmartLightningProductName([]), '--');
+assert.equal(formatSmartLightningResistance(0.35), '0.35 Ω');
+assert.equal(formatSmartLightningResistance(12), '12 Ω');
+assert.equal(formatSmartLightningResistance(null), '--');
 assert.deepEqual(calculateSmartLightningDeviceSummary([true, 'true', false, 'false']), {
   total: 4,
   online: 2,

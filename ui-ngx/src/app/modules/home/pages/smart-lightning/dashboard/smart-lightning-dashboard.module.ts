@@ -10,9 +10,10 @@ import { SmartLightningDeviceDetailComponent } from '../monitoring/smart-lightni
 import { SmartLightningDataQueryComponent } from '../query/smart-lightning-data-query.component';
 import { SmartLightningHistoryReviewDialogComponent } from '../query/smart-lightning-history-review-dialog.component';
 import { SmartLightningRootAssetFilterComponent } from '../smart-lightning-root-asset-filter.component';
+import { SmartLightningAssetTreeModule } from '../shared/asset-tree/smart-lightning-asset-tree.module';
 
 @NgModule({
   declarations: [SmartLightningDashboardComponent, SmartLightningPeriodSwitcherComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent, SmartLightningHistoryReviewDialogComponent],
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningRootAssetFilterComponent]
+  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
 })
 export class SmartLightningDashboardModule {}

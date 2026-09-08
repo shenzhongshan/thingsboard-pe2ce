@@ -17,7 +17,7 @@ import { EntityRelationService } from '@core/http/entity-relation.service';
 import * as echarts from 'echarts';
 import { ECharts, EChartsOption } from 'echarts';
 import L from 'leaflet';
-import { catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil, tap } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmSearchStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { AttributeScope, AlarmCountCmd, TelemetrySubscriber } from '@shared/models/telemetry/telemetry.models';
@@ -25,7 +25,6 @@ import { AliasFilterType } from '@shared/models/alias.models';
 import { MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
 import {
   buildSmartLightningMock,
-  aggregateSmartLightningActiveAlarms,
   calculateSmartLightningDeviceSummary,
   compareSmartLightningAlarms,
   createSmartLightningAlarmQuery,
@@ -40,13 +39,17 @@ import {
   SmartLightningMock,
   SmartLightningPeriod,
   formatSmartLightningAlarm,
+  formatSmartLightningResistance,
   getSmartLightningParentDirectory,
   getSmartLightningProductName,
   getSmartLightningAlarmChartMessage,
   shouldReloadSmartLightningAlarms,
 } from './smart-lightning-dashboard.data';
 import { smartLightningTianDiTuMapConfig } from './smart-lightning-map.config';
-import { SmartLightningMonitoringApiService } from '../monitoring/smart-lightning-monitoring-api.service';
+import {
+  SmartLightningGroundMonitoringSummary,
+  SmartLightningMonitoringApiService
+} from '../monitoring/smart-lightning-monitoring-api.service';
 import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
 
 interface StationMarker {
@@ -79,9 +82,15 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   alarms: SmartLightningAlarmRow[] = [];
   alarmsLoading = true;
   alarmsLoadError = false;
+  alarmSummaryLoading = true;
+  alarmSummaryLoadError = false;
   deviceSummary: SmartLightningDeviceSummary = calculateSmartLightningDeviceSummary([]);
   devicesLoading = true;
   devicesLoadError = false;
+  groundAlarmPeriod = SmartLightningPeriod.day;
+  groundSummary: SmartLightningGroundMonitoringSummary | null = null;
+  groundLoading = true;
+  groundLoadError = false;
   activeAlarmCount: number | null = null;
   activeAlarmTypeTotals: SmartLightningAlarmTypeTotal[] = [];
 
@@ -108,8 +117,10 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.initializeMap();
     this.renderCharts();
     this.loadLatestAlarms();
+    this.loadAlarmSummary();
     this.subscribeToAlarmCount();
     this.loadDeviceSummary();
+    this.loadGroundSummary();
     this.resizeObserver = new ResizeObserver(() => this.charts.forEach(chart => chart.resize()));
     this.chartHosts.forEach(host => this.resizeObserver.observe(host.nativeElement));
   }
@@ -133,14 +144,23 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.cd.markForCheck();
   }
 
+  /** 地网模块的日/周/月只影响按告警触发时间统计的告警数。 */
+  setGroundAlarmPeriod(period: SmartLightningPeriod): void {
+    if (period === this.groundAlarmPeriod) {
+      return;
+    }
+    this.groundAlarmPeriod = period;
+    this.loadGroundSummary();
+  }
+
+  formatGroundResistance(value: number | null | undefined): string {
+    return formatSmartLightningResistance(value);
+  }
+
   loadLatestAlarms(): void {
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
     this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
-      tap((pageData) => {
-        this.activeAlarmCount = pageData.totalElements;
-        this.activeAlarmTypeTotals = aggregateSmartLightningActiveAlarms(pageData.data);
-      }),
       map((pageData) => pageData.data.map((alarm) => ({info: alarm, row: formatSmartLightningAlarm(alarm)}))
         .sort((left, right) => compareSmartLightningAlarms(left.row, right.row))
         .slice(0, SMART_LIGHTNING_ALARM_DISPLAY_LIMIT)
@@ -171,6 +191,29 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     });
   }
 
+  /** 告警统计由后端按当前用户可见防雷设备统一聚合，页面不再自行遍历告警记录。 */
+  private loadAlarmSummary(): void {
+    this.alarmSummaryLoading = true;
+    this.alarmSummaryLoadError = false;
+    this.monitoringApi.getLightningAlarmSummary().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (summary) => {
+        this.activeAlarmCount = summary.activeCount;
+        this.activeAlarmTypeTotals = summary.typeTotals;
+        this.alarmSummaryLoading = false;
+        this.renderChart('alarm');
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.activeAlarmCount = null;
+        this.activeAlarmTypeTotals = [];
+        this.alarmSummaryLoading = false;
+        this.alarmSummaryLoadError = true;
+        this.renderChart('alarm');
+        this.cd.markForCheck();
+      }
+    });
+  }
+
   /**
    * Subscribe to the server-side active-alarm count. The count update is used
    * as a lightweight invalidation signal; the existing REST loader remains the
@@ -194,6 +237,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       this.realtimeAlarmCount = update.count;
       if (this.initialAlarmLoadFinished && shouldReloadSmartLightningAlarms(previousCount, update.count)) {
         this.loadLatestAlarms();
+        this.loadAlarmSummary();
       }
     });
     subscriber.subscribe();
@@ -202,7 +246,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   private loadDeviceSummary(): void {
     this.devicesLoading = true;
     this.devicesLoadError = false;
-    this.monitoringApi.getLightningDevices(MAX_SAFE_PAGE_SIZE, 0).pipe(
+    this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0).pipe(
       map((pageData) => {
         const activeValues: unknown[] = [];
         for (const device of pageData.data) {
@@ -220,6 +264,27 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       error: () => {
         this.devicesLoadError = true;
         this.devicesLoading = false;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 读取地网模块的单个聚合接口，避免浏览器逐台读取属性、遥测和告警。 */
+  loadGroundSummary(): void {
+    this.groundLoading = true;
+    this.groundLoadError = false;
+    this.monitoringApi.getGroundMonitoringSummary(this.groundAlarmPeriod).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (summary) => {
+        this.groundSummary = summary;
+        this.groundLoading = false;
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.groundSummary = null;
+        this.groundLoadError = true;
+        this.groundLoading = false;
         this.cd.markForCheck();
       }
     });
@@ -374,8 +439,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   private alarmOption(): EChartsOption {
     const alarmTypeTotals = this.activeAlarmTypeTotals;
     const emptyStateText = getSmartLightningAlarmChartMessage(
-      this.alarmsLoading,
-      this.alarmsLoadError,
+      this.alarmSummaryLoading,
+      this.alarmSummaryLoadError,
       alarmTypeTotals
     );
     return {

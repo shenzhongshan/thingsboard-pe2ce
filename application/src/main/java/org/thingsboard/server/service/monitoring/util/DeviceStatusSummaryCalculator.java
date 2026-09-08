@@ -1,4 +1,6 @@
-package org.thingsboard.server.service.monitoring;
+package org.thingsboard.server.service.monitoring.util;
+
+import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
 
 import java.util.HashSet;
 import java.util.List;

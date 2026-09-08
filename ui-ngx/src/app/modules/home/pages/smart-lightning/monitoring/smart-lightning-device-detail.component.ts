@@ -28,6 +28,14 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   instrumentAddress = '--';
   alarmsLoading = false;
   alarmsLoadError = false;
+  /** 资产树设备节点的状态标记：当前设备存在未处理告警时显示红色竖条。 */
+  get activeAlarmDeviceIds(): Set<string> {
+    const hasUnhandledAlarm = this.detail.alarms.some((alarm) => alarm.status === '未处理');
+    return hasUnhandledAlarm && this.requestedDeviceId ? new Set([this.requestedDeviceId]) : new Set<string>();
+  }
+  get selectableAssetIds(): ReadonlySet<string> | null {
+    return this.requestedDeviceId ? new Set([this.requestedDeviceId]) : null;
+  }
   returnUrl = '/smart-lightning/monitoring';
   returnLabel = '返回';
   readonly chartPeriodOptions: ReadonlyArray<{value: SmartLightningChartPeriod; label: string}> = [
@@ -68,14 +76,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   private resolveReturnUrl(value: string | null): string {
     return value === '/smart-lightning/query' ? value : '/smart-lightning/monitoring';
   }
-  get visibleAssetNodes(): Array<{node: SmartLightningMonitoringAssetNode; depth: number}> {
-    const output: Array<{node: SmartLightningMonitoringAssetNode; depth: number}> = []; const query = this.assetSearch.trim().toLowerCase();
-    const includes = (node: SmartLightningMonitoringAssetNode): boolean => node.name.toLowerCase().includes(query) || node.childIds.some((id) => { const child = this.assetTree.nodes.get(id); return child ? includes(child) : false; });
-    const append = (node: SmartLightningMonitoringAssetNode, depth: number): void => { if (query && !includes(node)) { return; } output.push({node, depth}); if (query || this.expandedAssetIds.has(node.id)) { node.childIds.forEach((id) => { const child = this.assetTree.nodes.get(id); if (child) { append(child, depth + 1); } }); } };
-    this.assetTree.roots.forEach((node) => append(node, 0)); return output;
-  }
-  toggleAssetNode(event: Event, node: SmartLightningMonitoringAssetNode): void {
-    event.stopPropagation();
+  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
       this.expandedAssetIds.delete(node.id);
     } else {

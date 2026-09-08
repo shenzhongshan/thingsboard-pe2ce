@@ -21,7 +21,7 @@
           <div><dt>设备总数</dt><dd class="blue">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.total}}</dd></div>
           <div><dt>在线设备</dt><dd class="green">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.online}}</dd></div>
           <div><dt>离线设备</dt><dd class="amber">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.offline}}</dd></div>
-          <div><dt>变量报警</dt><dd class="red">{{alarmsLoading || alarmsLoadError ? '--' : activeAlarmCount}}</dd></div>
+          <div><dt>变量报警</dt><dd class="red">{{alarmSummaryLoading || alarmSummaryLoadError ? '--' : activeAlarmCount}}</dd></div>
         </dl>
       </div>
       <div class="ring-legend"><span><i class="online"></i>在线</span><span><i class="offline"></i>离线</span></div>
@@ -35,9 +35,42 @@
       <div #mapHost class="tianditu-map" aria-label="智能防雷设备地图"></div>
     </article>
 
-    <article class="panel chart-panel ground-panel">
-      <div class="panel-title"><h2>地网监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.ground" (periodChange)="setChartPeriod('ground', $event)"></tb-smart-lightning-period-switcher></div>
-      <div #chartHost data-chart="ground" class="chart" aria-label="地网监测趋势图"></div>
+    <article class="panel ground-panel">
+      <div class="panel-title">
+        <h2>地网监测</h2>
+        <div class="ground-period-control" title="日、周、月仅筛选告警触发数量">
+          <span>告警</span>
+          <tb-smart-lightning-period-switcher [activePeriod]="groundAlarmPeriod" (periodChange)="setGroundAlarmPeriod($event)"></tb-smart-lightning-period-switcher>
+        </div>
+      </div>
+      @if (groundLoading) {
+        <div class="ground-state">正在读取地网设备数据…</div>
+      } @else if (groundLoadError || !groundSummary) {
+        <div class="ground-state error">地网监测数据加载失败。<button type="button" (click)="loadGroundSummary()">重试</button></div>
+      } @else {
+        <div class="ground-overview">
+          <section class="ground-section ground-device-overview" aria-label="地网设备概况">
+            <h3><tb-icon>device_hub</tb-icon> 地网设备</h3>
+            <dl class="ground-device-metrics">
+              <div><dt>总数</dt><dd class="blue">{{groundSummary.total}}</dd></div>
+              <div><dt>在线</dt><dd class="green">{{groundSummary.online}}</dd></div>
+              <div><dt>离线</dt><dd class="amber">{{groundSummary.offline}}</dd></div>
+            </dl>
+          </section>
+          <section class="ground-section ground-alarm-overview" aria-label="地网告警信息">
+            <h3><tb-icon>notification_important</tb-icon> 报警信息</h3>
+            <p class="ground-number red">{{groundSummary.alarmCount}}</p>
+            <span>所选时段告警数</span>
+          </section>
+          <section class="ground-section ground-resistance-overview" aria-label="地网阻值范围">
+            <h3><tb-icon>analytics</tb-icon> 阻值范围</h3>
+            <dl class="ground-resistance-metrics">
+              <div><dt>最大阻值</dt><dd [title]="formatGroundResistance(groundSummary.maxResistance)">{{formatGroundResistance(groundSummary.maxResistance)}}</dd></div>
+              <div><dt>最小阻值</dt><dd [title]="formatGroundResistance(groundSummary.minResistance)">{{formatGroundResistance(groundSummary.minResistance)}}</dd></div>
+            </dl>
+          </section>
+        </div>
+      }
     </article>
 
     <article class="panel chart-panel alarm-panel">

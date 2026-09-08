@@ -1,16 +1,13 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { AttributeService } from '@core/http/attribute.service';
 import { AlarmService } from '@core/http/alarm.service';
 import { AlarmDetailsDialogComponent, AlarmDetailsDialogData } from '@home/components/alarm/alarm-details-dialog.component';
-import { DeviceInfo } from '@shared/models/device.models';
 import { AlarmInfo, AlarmQueryV2 } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
-import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
-import { catchError, forkJoin, map, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { catchError, forkJoin, map, of, Subject, takeUntil } from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningMonitoringRootAssetIds,
@@ -19,7 +16,7 @@ import {
   SmartLightningMonitoringAssetNode,
   SmartLightningMonitoringAssetTree
 } from '../../smart-lightning/monitoring/smart-lightning-monitoring.data';
-import { SmartLightningMonitoringApiService } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import { SmartLightningDeviceContext, SmartLightningMonitoringApiService } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
 import {
   filterSmartLightningAlarmListRows,
   formatSmartLightningAlarmListTime,
@@ -30,11 +27,6 @@ import {
   SmartLightningAlarmListSeverityTab,
   sortSmartLightningAlarmListRows
 } from './smart-lightning-alarm-list.data';
-
-interface AlarmDeviceContext {
-  devices: DeviceInfo[];
-  attributesByDeviceId: Map<string, SmartLightningAlarmListContext>;
-}
 
 @Component({
   selector: 'tb-smart-lightning-alarm-list',
@@ -57,6 +49,8 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   assetsLoadError = false;
   alarmsLoading = true;
   alarmsLoadError = false;
+  /** 资产树设备节点的状态标记：存在未清除告警时显示红色竖条。 */
+  activeAlarmDeviceIds = new Set<string>();
   readonly pageSize = 20;
   page = 1;
   readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '紧急', '一般', '正常'];
@@ -72,7 +66,6 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly attributeService: AttributeService,
     private readonly alarmService: AlarmService,
     private readonly dialog: MatDialog,
     private readonly cd: ChangeDetectorRef,
@@ -89,29 +82,6 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  get visibleAssetNodes(): Array<{node: SmartLightningMonitoringAssetNode; depth: number}> {
-    const result: Array<{node: SmartLightningMonitoringAssetNode; depth: number}> = [];
-    const query = this.assetSearch.trim().toLowerCase();
-    const hasMatch = (node: SmartLightningMonitoringAssetNode): boolean =>
-      node.name.toLowerCase().includes(query) || node.childIds.some((childId) => {
-        const child = this.assetTree.nodes.get(childId);
-        return child ? hasMatch(child) : false;
-      });
-    const append = (node: SmartLightningMonitoringAssetNode, depth: number): void => {
-      if (query && !hasMatch(node)) return;
-      result.push({node, depth});
-      if (query || this.expandedAssetIds.has(node.id)) {
-        node.childIds.forEach((childId) => {
-          const child = this.assetTree.nodes.get(childId);
-          if (child) append(child, depth + 1);
-        });
-      }
-    };
-    getSmartLightningMonitoringVisibleRoots(this.assetTree, this.selectedRootAssetId)
-      .forEach((root) => append(root, 0));
-    return result;
   }
 
   get filteredRows(): SmartLightningAlarmListRow[] {
@@ -163,8 +133,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     return 'unassigned';
   }
 
-  toggleAssetNode(event: Event, node: SmartLightningMonitoringAssetNode): void {
-    event.stopPropagation();
+  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) this.expandedAssetIds.delete(node.id);
     else this.expandedAssetIds.add(node.id);
     this.expandedAssetIds = new Set(this.expandedAssetIds);
@@ -304,17 +273,18 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   private loadDevicesAndAlarms(): void {
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
-    this.monitoringApi.getLightningDevices(MAX_SAFE_PAGE_SIZE, 0).pipe(
-      map((pageData) => pageData.data),
-      map((devices) => devices.filter((device) => this.assetTree.nodes.get(device.id.id)?.entityType === EntityType.DEVICE)),
-      switchMap((devices) => this.readDeviceContexts(devices)),
+    this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0).pipe(
+      map((pageData) => pageData.data.filter((device) =>
+        this.assetTree.nodes.get(device.deviceId)?.entityType === EntityType.DEVICE)),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: (context) => {
+      next: (contexts) => {
         this.deviceIds.clear();
-        context.devices.forEach((device) => this.deviceIds.add(device.id.id));
         this.deviceContexts.clear();
-        context.attributesByDeviceId.forEach((value, key) => this.deviceContexts.set(key, value));
+        contexts.forEach((context) => {
+          this.deviceIds.add(context.deviceId);
+          this.deviceContexts.set(context.deviceId, this.toAlarmContext(context));
+        });
         this.loadAlarms();
       },
       error: () => {
@@ -325,31 +295,15 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     });
   }
 
-  private readDeviceContexts(devices: DeviceInfo[]) {
-    if (!devices.length) return of<AlarmDeviceContext>({devices: [], attributesByDeviceId: new Map()});
-    const requests = devices.map((device) => this.attributeService.getEntityAttributes(
-      device.id,
-      AttributeScope.SERVER_SCOPE,
-      ['productName', 'functionCategory', 'gatewayIdentifier', 'gatewayId', 'meterAddress', 'circuitName', 'timeSetting']
-    ).pipe(
-      map((attributes) => {
-        const values = new Map<string, unknown>();
-        attributes.forEach((attribute) => values.set(attribute.key, attribute.value));
-        return [device.id.id, {
-          deviceType: device.deviceProfileName || device.type || '--',
-          productName: String(values.get('productName') || '--'),
-          gatewayIdentifier: String(values.get('gatewayIdentifier') || values.get('gatewayId') || '--'),
-          meterAddress: String(values.get('meterAddress') || '--'),
-          circuitName: String(values.get('circuitName') || '--'),
-          timeSetting: String(values.get('timeSetting') || '全时段')
-        }] as const;
-      }),
-      catchError(() => of([device.id.id, {deviceType: device.deviceProfileName || device.type || '--'}] as const))
-    ));
-    return forkJoin(requests).pipe(map((entries) => ({
-      devices,
-      attributesByDeviceId: new Map<string, SmartLightningAlarmListContext>(entries)
-    })));
+  private toAlarmContext(context: SmartLightningDeviceContext): SmartLightningAlarmListContext {
+    return {
+      deviceType: context.deviceProfileName || '--',
+      productName: context.productName || '--',
+      gatewayIdentifier: context.gatewayIdentifier || '--',
+      meterAddress: context.meterAddress || '--',
+      circuitName: context.circuitName || '--',
+      timeSetting: context.timeSetting || '全时段'
+    };
   }
 
   private loadAlarms(): void {
@@ -364,12 +318,17 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
           .filter((alarm) => alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))
           .map((alarm) => mapSmartLightningAlarmListRow(alarm, this.deviceContexts.get(alarm.originator.id)));
         this.allRows = sortSmartLightningAlarmListRows(rows);
+        this.activeAlarmDeviceIds = new Set(pageData.data
+          .filter((alarm) => (alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')
+            && alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))
+          .map((alarm) => alarm.originator.id));
         this.page = 1;
         this.alarmsLoading = false;
         this.cd.markForCheck();
       },
       error: () => {
         this.allRows = [];
+        this.activeAlarmDeviceIds = new Set();
         this.alarmsLoading = false;
         this.alarmsLoadError = true;
         this.cd.markForCheck();

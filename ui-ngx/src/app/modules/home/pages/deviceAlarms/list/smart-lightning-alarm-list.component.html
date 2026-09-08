@@ -12,36 +12,21 @@
       </div>
       <button type="button" class="asset-query-button" (click)="query()">查询</button>
     </div>
-    <label class="asset-search">
-      <tb-icon>search</tb-icon>
-      <input [(ngModel)]="assetSearch" placeholder="输入关键词进行搜索" aria-label="搜索项目或设备">
-    </label>
-    @if (assetsLoading) {
-      <div class="asset-state">正在读取资产…</div>
-    } @else if (assetsLoadError) {
-      <div class="asset-state error">资产树读取失败</div>
-    } @else if (!assetTree.roots.length) {
-      <div class="asset-state">当前没有可见资产</div>
-    } @else {
-      <div class="asset-tree" role="tree" aria-label="报警资产范围">
-        @for (item of visibleAssetNodes; track item.node.id) {
-          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)"
-                  [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem"
-                  [attr.aria-selected]="selectedAssetIds.has(item.node.id)"
-                  [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
-            @if (item.node.childIds.length) {
-              <span class="tree-toggle" (click)="toggleAssetNode($event, item.node)">
-                <tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon>
-              </span>
-            } @else {
-              <span class="tree-toggle spacer"></span>
-            }
-            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon>
-            <span class="asset-name" [title]="item.node.name">{{item.node.name}}</span>
-          </button>
-        }
-      </div>
-    }
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      searchPlaceholder="输入关键词进行搜索"
+      treeAriaLabel="报警资产范围"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
   </aside>
 
   <section class="alarm-content">

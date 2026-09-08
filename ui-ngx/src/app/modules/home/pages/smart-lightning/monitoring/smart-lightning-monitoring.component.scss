@@ -45,6 +45,42 @@
   .device-grid { gap: 10px; padding: 10px; }
 }
 
+/* 资产树选中态只保留左侧状态条，避免整行着色干扰层级阅读。 */
+.asset-node {
+  border-left-width: 12px !important;
+}
+
+.asset-node.selected {
+  color: #063b79 !important;
+  background: transparent !important;
+  border-left-color: var(--green) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit !important;
+}
+
+/* 未选中的设备不显示状态条；选中后再按告警状态着色。 */
+.asset-node.device-node {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: var(--green) !important;
+}
+
+.asset-node.device-node.device-alarm,
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: var(--red) !important;
+}
+
 /* 进入平板宽度后，分析卡片两列排布，避免固定最小宽度造成页面溢出。 */
 @media (max-width: 980px) {
   .analysis-grid { min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }

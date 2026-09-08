@@ -5,25 +5,19 @@ import {
   OnDestroy,
   OnInit
 } from '@angular/core';
-import { AttributeService } from '@core/http/attribute.service';
 import { AlarmService } from '@core/http/alarm.service';
-import { DeviceService } from '@core/http/device.service';
-import { selectAuthUser } from '@core/auth/auth.selectors';
-import { AppState } from '@core/core.state';
-import { catchError, forkJoin, map, of, Subject, switchMap, take, takeUntil } from 'rxjs';
-import { select, Store } from '@ngrx/store';
-import { Authority } from '@shared/models/authority.enum';
+import { forkJoin, map, Subject, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmQueryV2, AlarmSearchStatus } from '@shared/models/alarm.models';
-import { DeviceInfo, DeviceInfoQuery } from '@shared/models/device.models';
+import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { CustomerId } from '@shared/models/id/customer-id';
-import { MAX_SAFE_PAGE_SIZE, PageLink, TimePageLink } from '@shared/models/page/page-link';
+import { DeviceId } from '@shared/models/id/device-id';
+import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
-import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   buildSmartLightningMonitoringDeviceCards,
   calculateSmartLightningMonitoringAlarmSummary,
+  getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringRootAssetIds,
   getSmartLightningMonitoringVisibleRoots,
@@ -36,7 +30,7 @@ import {
   SmartLightningMonitoringAlarmSummary,
   SMART_LIGHTNING_ANALYSIS_CARDS
 } from './smart-lightning-monitoring.data';
-import { SmartLightningMonitoringApiService } from './smart-lightning-monitoring-api.service';
+import { SmartLightningDeviceContext, SmartLightningMonitoringApiService } from './smart-lightning-monitoring-api.service';
 
 interface MonitoringDeviceContext {
   devices: DeviceInfo[];
@@ -68,21 +62,21 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   devicesLoading = true;
   devicesLoadError = false;
   nodeAlarms: SmartLightningMonitoringAlarmRecord[] = [];
+  /** 资产树设备节点的状态标记：存在未清除告警时显示红色竖条。 */
+  activeAlarmDeviceIds = new Set<string>();
   alarmsLoading = true;
   alarmsLoadError = false;
   readonly analysisCards = SMART_LIGHTNING_ANALYSIS_CARDS;
 
   private nodeDevices: DeviceInfo[] = [];
   private nodeDeviceAttributes = new Map<string, SmartLightningMonitoringDeviceAttributes>();
+  private nodeDeviceAssetPaths = new Map<string, string>();
 
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly attributeService: AttributeService,
     private readonly alarmService: AlarmService,
-    private readonly deviceService: DeviceService,
-    private readonly store: Store<AppState>,
     private readonly cd: ChangeDetectorRef
   ) {}
 
@@ -93,34 +87,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  get visibleAssetNodes(): Array<{node: SmartLightningMonitoringAssetNode; depth: number}> {
-    const result: Array<{node: SmartLightningMonitoringAssetNode; depth: number}> = [];
-    const query = this.assetSearch.trim().toLowerCase();
-    const hasVisibleDescendant = (node: SmartLightningMonitoringAssetNode): boolean =>
-      node.name.toLowerCase().includes(query) || node.childIds.some((id) => {
-        const child = this.assetTree.nodes.get(id);
-        return child ? hasVisibleDescendant(child) : false;
-      });
-    const append = (node: SmartLightningMonitoringAssetNode, depth: number) => {
-      if (query && !hasVisibleDescendant(node)) {
-        return;
-      }
-      result.push({node, depth});
-      const shouldShowChildren = query || this.expandedAssetIds.has(node.id);
-      if (shouldShowChildren) {
-        node.childIds.forEach((id) => {
-          const child = this.assetTree.nodes.get(id);
-          if (child) {
-            append(child, depth + 1);
-          }
-        });
-      }
-    };
-    getSmartLightningMonitoringVisibleRoots(this.assetTree, this.selectedRootAssetId)
-      .forEach((node) => append(node, 0));
-    return result;
   }
 
   get categories(): string[] {
@@ -163,8 +129,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     );
   }
 
-  toggleAssetNode(event: Event, node: SmartLightningMonitoringAssetNode): void {
-    event.stopPropagation();
+  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
       this.expandedAssetIds.delete(node.id);
     } else {
@@ -217,6 +182,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
+        this.nodeDeviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
         this.assetTree.roots.forEach((node) => this.expandedAssetIds.add(node.id));
         this.expandedAssetIds = new Set(this.expandedAssetIds);
         this.selectRootAsset('');
@@ -235,51 +201,12 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * 先取得当前登录用户可见的设备，再以资产树中的设备节点为准筛选；
-   * 这样既不会显示树外设备，也不会因为当前选中资产变化而重复请求服务器属性。
-   */
+  /** 后端一次返回设备基础信息与服务器属性，前端只按资产树节点做范围过滤。 */
   private loadNodeDeviceCards(): void {
     this.devicesLoading = true;
     this.devicesLoadError = false;
-    this.store.pipe(
-      select(selectAuthUser),
-      take(1),
-      switchMap((authUser) => {
-        const filter = authUser.authority === Authority.CUSTOMER_USER
-          ? {customerId: new CustomerId(authUser.customerId)}
-          : {};
-        return this.deviceService.getDeviceInfosByQuery(new DeviceInfoQuery(
-          new PageLink(MAX_SAFE_PAGE_SIZE),
-          filter
-        ));
-      }),
-      switchMap((pageData) => {
-        const treeDeviceIds = new Set([...this.assetTree.nodes.values()]
-          .filter((node) => node.entityType === EntityType.DEVICE)
-          .map((node) => node.id));
-        const devices = pageData.data.filter((device) => treeDeviceIds.has(device.id.id));
-        if (!devices.length) {
-          return of<MonitoringDeviceContext>({devices: [], attributesByDeviceId: new Map()});
-        }
-        return forkJoin(devices.map((device) => this.attributeService.getEntityAttributes(
-          device.id,
-          AttributeScope.SERVER_SCOPE,
-          ['active', 'functionCategory', 'productName', 'lastActivityTime']
-        ).pipe(
-          map((attributes) => [device.id.id, {
-            active: attributes.find((attribute) => attribute.key === 'active')?.value,
-            functionCategory: attributes.find((attribute) => attribute.key === 'functionCategory')?.value,
-            productName: attributes.find((attribute) => attribute.key === 'productName')?.value,
-            lastActivityTime: attributes.find((attribute) => attribute.key === 'lastActivityTime')?.value
-          }] as const),
-          // 单个设备属性读取失败时保留卡片，并以离线/未分类展示，不影响其他设备。
-          catchError(() => of([device.id.id, {}] as const))
-        ))).pipe(map((entries) => ({
-          devices,
-          attributesByDeviceId: new Map<string, SmartLightningMonitoringDeviceAttributes>(entries)
-        })));
-      }),
+    this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0).pipe(
+      map((pageData) => this.toMonitoringDeviceContext(pageData.data)),
       takeUntil(this.destroy$)
     ).subscribe({
       next: ({devices, attributesByDeviceId}) => {
@@ -301,6 +228,39 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
         this.cd.markForCheck();
       }
     });
+  }
+
+  private toMonitoringDeviceContext(contexts: SmartLightningDeviceContext[]): MonitoringDeviceContext {
+    const treeDeviceIds = new Set([...this.assetTree.nodes.values()]
+      .filter((node) => node.entityType === EntityType.DEVICE)
+      .map((node) => node.id));
+    const devices: DeviceInfo[] = [];
+    const attributesByDeviceId = new Map<string, SmartLightningMonitoringDeviceAttributes>();
+    for (const context of contexts) {
+      if (!treeDeviceIds.has(context.deviceId)) {
+        continue;
+      }
+      // DeviceInfo 是接口而不是可实例化类；这里组装页面所需的最小设备对象。
+      const device = {
+        id: new DeviceId(context.deviceId),
+        name: context.deviceName || context.deviceId,
+        label: context.label || '',
+        type: context.deviceProfileName || '--',
+        deviceProfileName: context.deviceProfileName || '--',
+        active: context.active === true,
+        customerTitle: '',
+        customerIsPublic: false,
+        groups: ''
+      } as DeviceInfo;
+      devices.push(device);
+      attributesByDeviceId.set(context.deviceId, {
+        active: context.active,
+        functionCategory: context.functionCategory,
+        productName: context.productName,
+        lastActivityTime: context.lastActivityTime
+      });
+    }
+    return {devices, attributesByDeviceId};
   }
 
   /**
@@ -362,7 +322,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
 
   /** 活动告警优先于在线状态展示，避免有告警的在线设备仍被误标为“正常”。 */
   private rebuildNodeDeviceCards(): void {
-    const activeAlarmDeviceIds = new Set(this.nodeAlarms
+    this.activeAlarmDeviceIds = new Set(this.nodeAlarms
       .filter((alarm) => alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')
       .map((alarm) => alarm.originator?.id)
       .filter((id): id is string => !!id));
@@ -370,7 +330,8 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
       this.nodeDevices,
       new Set(this.assetTree.nodes.keys()),
       this.nodeDeviceAttributes,
-      activeAlarmDeviceIds
+      this.activeAlarmDeviceIds,
+      this.nodeDeviceAssetPaths
     );
   }
 

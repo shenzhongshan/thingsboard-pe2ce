@@ -64,6 +64,15 @@ export const calculateSmartLightningDeviceSummary = (activeValues: unknown[]): S
   };
 };
 
+/** Formats the latest ground-resistance aggregate without turning missing data into a false zero. */
+export const formatSmartLightningResistance = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '--';
+  }
+  const roundedValue = Math.round(value * 100) / 100;
+  return `${roundedValue} Ω`;
+};
+
 export const getSmartLightningActiveValue = (attributes: AttributeData[]): unknown =>
   attributes.find((attribute) => attribute.key === 'active')?.value;
 

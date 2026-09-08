@@ -16,6 +16,34 @@
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 
+/* 资产树统一交互：未选中不显示标记，选中只保留加宽的左侧竖条。 */
+.asset-node {
+  border-left-width: 12px !important;
+}
+
+.asset-node.selected {
+  color: #063b79 !important;
+  background: transparent !important;
+  border-left-color: var(--green) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit !important;
+}
+
+/* 未选中的设备不显示状态条；选中后显示绿色状态条。
+   数据查询页不加载告警数据，因此不绑定告警红色标记。 */
+.asset-node.device-node {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: var(--green) !important;
+}
+
 .asset-panel,
 .filter-panel,
 .result-panel {
@@ -95,9 +123,9 @@
 .table-wrap th:nth-child(8) { width: 138px; }
 .product-cell { white-space: normal !important; line-height: 1.35; }
 .status-tag { display: inline-block; min-width: 42px; padding: 3px 7px; border: 1px solid; border-radius: 3px; font-size: 11px; }
-.status-tag.在线 { border-color: #13b654; color: #07843b; background: #edfff4; }
+.status-tag.报警 { border-color: #f04444; color: #d52626; background: #fff0f0; font-weight: 700; }
+.status-tag.正常 { border-color: #13b654; color: #07843b; background: #edfff4; }
 .status-tag.离线 { border-color: #9ba9b5; color: #6e7c89; background: #edf0f2; }
-.status-tag.未连接 { border-color: #f2a52b; color: #c77900; background: #fff8e8; }
 .operation-cell { overflow: visible !important; white-space: nowrap !important; }
 .trace-button,
 .detail-button { display: inline-flex; min-height: 29px; align-items: center; justify-content: center; margin: 0 3px; padding: 0 9px; border: 1px solid #195ce8; color: #195ce8; background: #fff; text-decoration: none; }

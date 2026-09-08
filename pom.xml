@@ -128,7 +128,7 @@
         <pulsar.client.version>4.0.1</pulsar.client.version>
         <azure.eventhubs.version>5.20.2</azure.eventhubs.version>
         <azure.servicebus.version>7.17.10</azure.servicebus.version>
-        <azure.eventhubs.checkpointstore.blob.version>1.23.0</azure.eventhubs.checkpointstore.blob.version>
+        <azure.eventhubs.checkpointstore.blob.version>1.20.6</azure.eventhubs.checkpointstore.blob.version>
         <azure.storage.blob.version>12.27.0</azure.storage.blob.version>
         <milo.version>0.6.13</milo.version>
 

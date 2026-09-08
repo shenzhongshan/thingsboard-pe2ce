@@ -9,6 +9,7 @@ import {
   buildSmartLightningMonitoringDeviceCards,
   calculateSmartLightningMonitoringAlarmSummary,
   getSmartLightningFunctionCategoryLabel,
+  getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringSelectedAssetIds,
   SMART_LIGHTNING_ANALYSIS_CARDS
@@ -78,6 +79,10 @@ const apiTree = buildSmartLightningMonitoringAssetTreeFromRoots([
 assert.deepEqual(apiTree.roots.map((node) => node.id), ['project']);
 assert.deepEqual(apiTree.nodes.get('project')?.childIds, ['device-a']);
 assert.deepEqual(getSmartLightningMonitoringSelectedAssetIds(apiTree.nodes, 'project'), ['project', 'device-a']);
+assert.deepEqual([...getSmartLightningMonitoringAssetPaths(apiTree).entries()], [
+  ['project', '智慧园区'],
+  ['device-a', '智慧园区/防雷终端 A-01']
+]);
 
 const deviceCards = buildSmartLightningMonitoringDeviceCards(
   [
@@ -106,7 +111,8 @@ const deviceCards = buildSmartLightningMonitoringDeviceCards(
     }],
     ['device-b', {active: false, functionCategory: 'ground_resistance'}]
   ]),
-  new Set(['device-a'])
+  new Set(['device-a']),
+  getSmartLightningMonitoringAssetPaths(apiTree)
 );
 assert.deepEqual(deviceCards, [{
   id: 'device-a',
@@ -114,10 +120,41 @@ assert.deepEqual(deviceCards, [{
   category: 'SPD监测',
   status: '报警',
   icon: 'electric_meter',
+  assetPath: '智慧园区/防雷终端 A-01',
   productName: 'FS防雷监测模块(全要素)',
   productType: 'DESA',
   lastActiveTime: '2026-09-02 16:18:00'
 }]);
+
+const orderedDeviceCards = buildSmartLightningMonitoringDeviceCards(
+  [
+    {
+      id: {id: 'device-a', entityType: EntityType.DEVICE},
+      name: 'Z-防雷终端 A-01',
+      deviceProfileName: 'DESA'
+    },
+    {
+      id: {id: 'device-b', entityType: EntityType.DEVICE},
+      name: 'A-接地监测柜 B-03',
+      deviceProfileName: 'G1A3'
+    },
+    {
+      id: {id: 'device-c', entityType: EntityType.DEVICE},
+      name: '0-在线设备 C-01',
+      deviceProfileName: 'DES4',
+      active: true
+    }
+  ] as DeviceInfo[],
+  new Set(['device-a', 'device-b', 'device-c']),
+  new Map([
+    ['device-a', {active: 1, productName: '防雷模块'}],
+    ['device-b', {active: false, productName: '接地模块'}],
+    ['device-c', {productName: '在线模块'}]
+  ]),
+  new Set(['device-a', 'device-b']),
+  new Map()
+);
+assert.deepEqual(orderedDeviceCards.map((card) => card.status), ['报警', '报警', '正常']);
 
 const startOfToday = new Date(2026, 8, 2).getTime();
 const alarmSummary = calculateSmartLightningMonitoringAlarmSummary([

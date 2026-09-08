@@ -1,0 +1,146 @@
+:host {
+  display: block;
+}
+
+.asset-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  margin: 14px 0 10px;
+  padding: 0 8px;
+  border: 1px solid #ccd7e0;
+  border-radius: 4px;
+  color: #6a8093;
+}
+
+.asset-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+
+.asset-search tb-icon {
+  font-size: 18px;
+}
+
+.asset-state {
+  display: grid;
+  min-height: 100px;
+  place-items: center;
+  color: #73879a;
+  font-size: 12px;
+}
+
+.asset-state.error {
+  color: #c72f3d;
+}
+
+.asset-tree {
+  display: grid;
+  gap: 2px;
+}
+
+.asset-node {
+  --depth: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 4px 0 calc(4px + var(--depth) * 19px);
+  border: 0;
+  border-left: 12px solid transparent;
+  color: #476075;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+
+.asset-node:hover {
+  color: #063b79;
+  background: #cfe5ff;
+}
+
+.asset-node.selected {
+  color: #063b79;
+  background: transparent;
+  border-left-color: #16df65;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.asset-node.device-node {
+  border-left-color: transparent;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: #16df65;
+}
+
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: #e53935;
+}
+
+.asset-node.locked {
+  color: #9aa9b5;
+  cursor: not-allowed;
+}
+
+.asset-node.locked:hover {
+  color: #9aa9b5;
+  background: transparent;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit;
+}
+
+.asset-node:focus-visible,
+.tree-toggle:focus-visible {
+  outline: 2px solid #195ce8;
+  outline-offset: 1px;
+}
+
+.tree-toggle {
+  display: inline-grid;
+  width: 20px;
+  height: 24px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 3px;
+  color: #6d8192;
+}
+
+.tree-toggle:hover {
+  background: #d8e8f8;
+}
+
+.tree-toggle tb-icon {
+  font-size: 18px;
+}
+
+.tree-toggle.spacer {
+  pointer-events: none;
+}
+
+.asset-icon {
+  margin-right: 6px;
+  color: #4e88cf;
+  font-size: 16px;
+}
+
+.asset-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

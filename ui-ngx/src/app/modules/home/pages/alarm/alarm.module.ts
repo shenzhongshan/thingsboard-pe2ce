@@ -23,6 +23,7 @@ import { AlarmRoutingModule } from '@home/pages/alarm/alarm-routing.module';
 import { AlarmRulesTabsComponent } from '@home/pages/alarm/alarm-rules-tabs.component';
 import { SmartLightningAlarmListComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-list.component';
 import { SmartLightningRootAssetFilterComponent } from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
+import { SmartLightningAssetTreeModule } from '@home/pages/smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
 
 @NgModule({
   declarations: [
@@ -33,6 +34,7 @@ import { SmartLightningRootAssetFilterComponent } from '@home/pages/smart-lightn
     CommonModule,
     SharedModule,
     SmartLightningRootAssetFilterComponent,
+    SmartLightningAssetTreeModule,
     HomeComponentsModule,
     HomeDialogsModule,
     AlarmRoutingModule

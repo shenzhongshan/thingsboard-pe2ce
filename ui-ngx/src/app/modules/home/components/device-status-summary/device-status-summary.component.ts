@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { select, Store } from '@ngrx/store';
-import { filter, Subject, take, takeUntil } from 'rxjs';
+import { distinctUntilChanged, filter, map, retry, Subject, takeUntil } from 'rxjs';
 import { AppState } from '@core/core.state';
-import { selectAuthUser } from '@core/auth/auth.selectors';
+import { selectAuth } from '@core/auth/auth.selectors';
 import { Authority } from '@shared/models/authority.enum';
 import { AuthUser } from '@shared/models/user.model';
 import { AlarmSearchStatus } from '@shared/models/alarm.models';
@@ -41,16 +41,24 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.store.pipe(
-      select(selectAuthUser),
-      filter((authUser): authUser is AuthUser => !!authUser),
-      take(1),
+      // authUser 非空不代表登录初始化已经完成。必须等待 isUserLoaded，
+      // 并持续观察最终用户状态；令牌刷新期间的临时权限不能让卡片永久隐藏。
+      select(selectAuth),
+      filter((authState) => authState.isUserLoaded),
+      map((authState) => authState.authUser),
+      distinctUntilChanged((previousUser, currentUser) =>
+        previousUser?.userId === currentUser?.userId && previousUser?.authority === currentUser?.authority),
       takeUntil(this.destroy$)
-    ).subscribe((authUser) => {
+    ).subscribe((authState) => {
+      const authUser = authState as AuthUser | null;
       this.authUser = authUser;
-      this.visible = authUser.authority === Authority.TENANT_ADMIN || authUser.authority === Authority.CUSTOMER_USER;
+      this.visible = !!authUser && (authUser.authority === Authority.TENANT_ADMIN || authUser.authority === Authority.CUSTOMER_USER);
       if (this.visible) {
         this.loadSummary();
-        this.subscribeToAlarmChanges();
+        // 用户状态后续更新时只重新拉取统计，不能重复创建 WebSocket 订阅。
+        if (!this.alarmCountSubscriber) {
+          this.subscribeToAlarmChanges();
+        }
       }
       this.cd.markForCheck();
     });
@@ -68,7 +76,11 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
     }
     this.loading = true;
     this.loadError = false;
-    this.monitoringApi.getDeviceStatusSummary().pipe(takeUntil(this.destroy$)).subscribe({
+    this.monitoringApi.getDeviceStatusSummary().pipe(
+      // 后端刚启动、令牌刚刷新等短暂失败不要求用户手动刷新整个页面。
+      retry({count: 2, delay: 500}),
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (summary) => {
         this.summary = summary;
         this.loading = false;

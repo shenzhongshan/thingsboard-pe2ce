@@ -64,3 +64,39 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 资产树统一交互：未选中不显示标记，选中只保留加宽的左侧竖条。 */
+.asset-node {
+  border-left-width: 12px !important;
+}
+
+.asset-node.selected {
+  color: #063b79 !important;
+  background: transparent !important;
+  border-left-color: #16df65 !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit !important;
+}
+
+/* 未选中的设备不显示状态条；选中后再按告警状态着色（红 = 存在未清除告警）。 */
+.asset-node.device-node {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: #16df65 !important;
+}
+
+.asset-node.device-node.device-alarm,
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: #ef3f4c !important;
+}

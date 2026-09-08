@@ -1,4 +1,4 @@
-package org.thingsboard.server.service.monitoring;
+package org.thingsboard.server.service.monitoring.dto;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

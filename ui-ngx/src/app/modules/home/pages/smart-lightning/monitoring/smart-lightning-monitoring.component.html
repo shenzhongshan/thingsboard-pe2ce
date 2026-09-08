@@ -6,27 +6,21 @@
       (rootAssetChange)="selectRootAsset($event)">
     </tb-smart-lightning-root-asset-filter>
     <div class="asset-panel-title"><h2>资产树</h2><span>当前用户可见</span></div>
-    <label class="asset-search"><tb-icon>search</tb-icon><input [(ngModel)]="assetSearch" placeholder="搜索资产名称" aria-label="搜索资产名称"></label>
-    @if (assetsLoading) {
-      <div class="asset-state">正在读取资产…</div>
-    } @else if (assetsLoadError) {
-      <div class="asset-state error">资产树读取失败</div>
-    } @else if (!assetTree.roots.length) {
-      <div class="asset-state">当前没有可见资产</div>
-    } @else {
-      <div class="asset-tree" role="tree" aria-label="资产层级">
-        @for (item of visibleAssetNodes; track item.node.id) {
-          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)" [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem" [attr.aria-selected]="selectedAssetIds.has(item.node.id)" [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
-            @if (item.node.childIds.length) {
-              <span class="tree-toggle" tabindex="0" (click)="toggleAssetNode($event, item.node)" (keydown.enter)="toggleAssetNode($event, item.node)" (keydown.space)="toggleAssetNode($event, item.node)"><tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon></span>
-            } @else {
-              <span class="tree-toggle spacer"></span>
-            }
-            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon><span>{{item.node.name}}</span>
-          </button>
-        }
-      </div>
-    }
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      searchPlaceholder="搜索资产名称"
+      treeAriaLabel="资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
   </aside>
 
   <section class="monitoring-content">
@@ -82,7 +76,7 @@
           <div class="device-grid-state">当前节点及下属节点没有符合条件的设备</div>
         } @else {
           @for (card of pagedMonitoringCards; track card.id) {
-            <article class="device-card" [class.selected-range]="selectedAssetIds.size > 0"><header><h3>{{card.name}}</h3><span [class]="'device-status ' + card.status">{{card.status}}</span></header><div class="device-body"><div class="device-icon"><tb-icon>{{card.icon}}</tb-icon></div><div class="device-details"><p><span>产品名称：</span><strong class="product-name-value" [class.compact]="card.productName.length > 18" [class.tight]="card.productName.length > 32">{{card.productName}}</strong></p><p><span>产品类型：</span><strong>{{card.productType}}</strong></p><p><span>最近活跃时间：</span><strong>{{card.lastActiveTime}}</strong></p></div></div><footer><a class="detail" [routerLink]="['/smart-lightning/monitoring/device', card.id]" [queryParams]="{returnUrl: '/smart-lightning/monitoring'}">详情</a><button type="button">复位</button><button type="button">漏电自检</button><button type="button">分闸</button><button type="button">刷新</button></footer></article>
+            <article class="device-card" [class.selected-range]="selectedAssetIds.size > 0"><header><h3 [title]="card.productName === '--' ? card.name : card.name + '/' + card.productName">{{card.productName === '--' ? card.name : card.name + '/' + card.productName}}</h3><span [class]="'device-status ' + card.status">{{card.status === '报警' ? '告警' : card.status}}</span></header><div class="device-body"><div class="device-icon"><tb-icon>{{card.icon}}</tb-icon></div><div class="device-details"><p><span>设备地址：</span><strong [title]="card.assetPath">{{card.assetPath}}</strong></p><p><span>产品型号：</span><strong [title]="card.productType">{{card.productType}}</strong></p><p><span>最近活跃时间：</span><strong>{{card.lastActiveTime}}</strong></p></div></div><footer><a class="detail" [routerLink]="['/smart-lightning/monitoring/device', card.id]" [queryParams]="{returnUrl: '/smart-lightning/monitoring'}">详情</a><button type="button">复位</button><button type="button">漏电自检</button><button type="button">分闸</button><button type="button">刷新</button></footer></article>
           }
         }
       </div>

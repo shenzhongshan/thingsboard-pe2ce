@@ -40,9 +40,10 @@ const rows = buildSmartLightningQueryRows([
   ['device-a', {active: true, productName: '智能电涌保护器', functionCategory: 'spd_monitor', lastActivityTime: 1788310800000}],
   ['device-b', {active: false, productName: '接地电阻监测仪', functionCategory: 'ground_resistance', lastActivityTime: 1788310000000}],
   ['device-c', {productName: '雷电流监测仪', functionCategory: 'lightning_current'}]
-]));
+]), new Set(['device-a']), new Map([['device-a', '紧急']]));
 
-assert.deepEqual(rows.map((row) => row.status), ['在线', '离线', '未连接']);
+assert.deepEqual(rows.map((row) => row.status), ['报警', '离线', '离线']);
+assert.equal(rows[0].alarmSeverity, '紧急');
 assert.equal(rows[0].deviceType, 'DESA');
 assert.equal(rows[1].deviceType, 'G1A3');
 assert.equal(rows[0].protocol, 'MQTT');

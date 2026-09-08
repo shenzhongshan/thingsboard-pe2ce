@@ -1351,3 +1351,118 @@ pre.tb-highlight {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * 微物联全局导航主题。
+ * 原先配置在白标“高级 CSS”中；写入源码后，开发与生产环境都会随前端构建稳定生效，
+ * 不再依赖登录后异步读取白标配置。
+ */
+mat-sidenav.tb-site-sidenav {
+  width: 190px !important;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  background: #083b78 !important;
+}
+
+mat-sidenav.tb-site-sidenav .mat-drawer-inner-container,
+mat-sidenav.tb-site-sidenav .tb-nav-header-toolbar,
+mat-sidenav.tb-site-sidenav .tb-side-menu-toolbar {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  background: #083b78 !important;
+  color: #edf7ff !important;
+}
+
+/* Logo 与一级菜单保持紧凑的深蓝基底。 */
+mat-sidenav.tb-site-sidenav .tb-nav-header-toolbar {
+  border-bottom: 1px solid rgba(255, 255, 255, .16) !important;
+}
+
+mat-sidenav.tb-site-sidenav .tb-side-menu > li {
+  border-bottom-color: rgba(255, 255, 255, .12) !important;
+}
+
+/* 一级、二级未选中项统一为深蓝。 */
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button {
+  min-height: 40px !important;
+  height: 40px !important;
+  margin-right: 0 !important;
+  padding: 0 14px !important;
+  color: #edf7ff !important;
+  background: #083b78 !important;
+  font-size: 14px;
+  --mdc-text-button-label-text-color: #edf7ff;
+}
+
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button .mat-icon,
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button tb-icon,
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button span {
+  color: inherit !important;
+}
+
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button:hover {
+  background: rgba(255, 255, 255, .12) !important;
+}
+
+/* 二级菜单容器与缩进。 */
+mat-sidenav.tb-site-sidenav .tb-menu-toggle-list {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  background: rgba(0, 0, 0, .12);
+}
+
+mat-sidenav.tb-site-sidenav .tb-menu-toggle-list a.mat-mdc-button {
+  padding-left: 36px !important;
+  padding-right: 0 !important;
+  font-size: 13px;
+}
+
+/*
+ * 层级状态：一级直接选中或包含当前二级页时为浅蓝；
+ * 当前二级页使用绿色，避免和所属一级混淆。
+ */
+mat-sidenav.tb-site-sidenav .tb-side-menu > li > tb-menu-link a.mat-mdc-button.tb-active,
+mat-sidenav.tb-site-sidenav .tb-side-menu > li > tb-menu-toggle > a.mat-mdc-button.tb-active,
+mat-sidenav.tb-site-sidenav .tb-side-menu > li:has(.tb-menu-toggle-list a.mat-mdc-button.tb-active)
+> tb-menu-toggle > a.mat-mdc-button {
+  color: #edf7ff !important;
+  background: #1a62b6 !important;
+  font-weight: 700;
+  --mdc-text-button-label-text-color: #edf7ff;
+}
+
+mat-sidenav.tb-site-sidenav .tb-menu-toggle-list a.mat-mdc-button.tb-active {
+  color: #06315f !important;
+  background: #17e878 !important;
+  font-weight: 700;
+  --mdc-text-button-label-text-color: #06315f;
+}
+
+mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -3px;
+}
+
+/* 顶部工具栏采用白底，与深色侧栏形成稳定的层级。 */
+mat-sidenav-content .tb-primary-toolbar {
+  background: #fff !important;
+  color: #17466f !important;
+  box-shadow: 0 1px 6px rgba(16, 54, 88, .16);
+}
+
+mat-sidenav-content .tb-primary-toolbar .mat-icon,
+mat-sidenav-content .tb-primary-toolbar button {
+  color: #17466f !important;
+}
+
+@media (max-width: 456px) {
+  mat-sidenav.tb-site-sidenav {
+    width: calc(100% - 56px) !important;
+  }
+}
+
+@media (min-width: 457px) and (max-width: 720px) {
+  mat-sidenav.tb-site-sidenav {
+    width: 170px !important;
+  }
+}

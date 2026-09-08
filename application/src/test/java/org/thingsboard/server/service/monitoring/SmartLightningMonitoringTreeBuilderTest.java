@@ -20,6 +20,8 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
+import org.thingsboard.server.service.monitoring.service.impl.SmartLightningMonitoringTreeBuilder;
 
 import java.util.List;
 import java.util.UUID;
@@ -57,7 +59,7 @@ class SmartLightningMonitoringTreeBuilderTest {
                 assertThat(building.name()).isEqualTo("1号楼");
                 assertThat(building.children()).singleElement().satisfies(cabinet -> {
                     assertThat(cabinet.name()).isEqualTo("配电柜 A");
-                    assertThat(cabinet.children()).extracting(SmartLightningMonitoringTreeBuilder.TreeNode::name)
+                    assertThat(cabinet.children()).extracting(SmartLightningMonitoringTreeResponse.TreeNode::name)
                             .containsExactly("防雷终端 A-01");
                 });
             });

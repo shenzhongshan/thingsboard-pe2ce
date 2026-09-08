@@ -38,6 +38,7 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-wei
 .tianditu-map { min-height: 412px; height: calc(100% - 47px); background: #dfeef4; }.tianditu-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }.tianditu-map .leaflet-popup-content { margin: 10px 12px; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
 
 .chart { width: 100%; height: calc(100% - 47px); min-height: 205px; }.chart-panel { display: flex; flex-direction: column; }.chart-panel .chart { flex: 1; min-height: 190px; }
+.ground-panel { display: flex; flex-direction: column; }.ground-period-control { display: inline-flex; align-items: center; gap: 6px; color: #718397; font-size: 11px; font-weight: 500; }.ground-overview { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; gap: 0; padding: 12px 15px; }.ground-section { min-width: 0; padding: 9px 12px; }.ground-section h3 { display: flex; align-items: center; gap: 5px; margin: 0; color: #526a80; font-size: 12px; font-weight: 700; }.ground-section h3 tb-icon { width: 15px; height: 15px; color: var(--blue); font-size: 15px; }.ground-device-overview { grid-column: 1 / -1; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid #e7edf2; }.ground-device-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 9px 0 0; }.ground-device-metrics div { min-width: 0; }.ground-device-metrics dt, .ground-resistance-metrics dt { color: #718397; font-size: 11px; }.ground-device-metrics dd { margin: 3px 0 0; font-size: 22px; font-weight: 600; line-height: 1.1; }.ground-alarm-overview { display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #e7edf2; }.ground-alarm-overview > span { color: #718397; font-size: 11px; }.ground-number { margin: 6px 0 2px; font-size: 28px; font-weight: 600; line-height: 1; }.ground-resistance-overview { display: flex; flex-direction: column; justify-content: center; }.ground-resistance-metrics { display: grid; grid-template-columns: 1fr; gap: 7px; margin: 9px 0 0; }.ground-resistance-metrics div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }.ground-resistance-metrics dd { overflow: hidden; margin: 0; color: #1d5be6; font-size: 14px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.ground-state { display: grid; flex: 1; min-height: 205px; place-items: center; padding: 12px; color: #718397; font-size: 13px; text-align: center; }.ground-state.error { color: #bc3544; }.ground-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
 .records-panel { display: flex; flex-direction: column; height: 300px; max-height: 300px; }.more-link { display: inline-flex; align-items: center; gap: 4px; color: #07994b; font-size: 12px; font-weight: 700; text-decoration: none; }.more-link:hover, .more-link:focus-visible { color: #047e3d; text-decoration: underline; }.more-link tb-icon { font-size: 15px; width: 15px; height: 15px; }.table-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 5px 6px; }table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 10px; }th { position: sticky; top: 0; z-index: 1; overflow: hidden; padding: 6px 3px; color: #526579; background: #f0f3f6; font-weight: 700; text-align: left; white-space: nowrap; text-overflow: clip; }td { padding: 5px 3px; border-bottom: 1px solid #edf1f4; color: #40576b; line-height: 1.28; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }th:nth-child(1), td:nth-child(1) { width: 13%; }th:nth-child(2), td:nth-child(2) { width: 13%; }th:nth-child(3), td:nth-child(3) { width: 12%; }th:nth-child(4), td:nth-child(4) { width: 13%; }th:nth-child(5), td:nth-child(5) { width: 13%; }th:nth-child(6), td:nth-child(6) { width: 11%; }th:nth-child(7), td:nth-child(7) { width: 11%; }th:nth-child(8), td:nth-child(8) { width: 14%; }tbody tr:hover { background: #f7fbfd; }.alarm-severity { display: inline-block; min-width: 0; padding: 2px 4px; border-radius: 3px; font-size: 10px; text-align: center; }.alarm-severity.critical { color: #c22534; background: #ffe3e6; }.alarm-severity.major { color: #a85600; background: #fff0de; }.alarm-severity.minor { color: #a56600; background: #fff7d7; }.alarm-severity.warning { color: #827000; background: #fffbd7; }.alarm-severity.indeterminate { color: #596c7b; background: #edf1f4; }.table-state { display: grid; min-height: 160px; place-items: center; color: #718397; font-size: 13px; }.table-state.error { color: #bc3544; }.table-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
 
 /* 告警表在笔记本分栏布局中宽度较窄：表头优先压缩字重、字号和横向留白。 */
@@ -65,6 +66,10 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-wei
   .summary-metrics dd { font-size: clamp(20px, 2.1vw, 27px); }
   .chart { min-height: 178px; }
   .map-panel, .device-summary, .ground-panel, .alarm-panel, .spd-panel { min-height: 245px; }
+  .ground-overview { padding: 10px 12px; }
+  .ground-section { padding-right: 9px; padding-left: 9px; }
+  .ground-device-metrics dd { font-size: 20px; }
+  .ground-number { font-size: 25px; }
   .tianditu-map { min-height: 305px; }
 }
 
@@ -85,6 +90,14 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-wei
   .summary-metrics dt { font-size: 10px; }
   .summary-metrics dd { margin-top: 4px; font-size: 22px; }
   .ring-legend { gap: 12px; padding: 0 18px; font-size: 10px; }
+  .ground-period-control > span { display: none; }
+  .ground-overview { padding: 10px; }
+  .ground-section { padding-right: 7px; padding-left: 7px; }
+  .ground-section h3 { font-size: 11px; }
+  .ground-device-metrics dt, .ground-resistance-metrics dt, .ground-alarm-overview > span { font-size: 10px; }
+  .ground-device-metrics dd { font-size: 19px; }
+  .ground-number { font-size: 23px; }
+  .ground-resistance-metrics dd { font-size: 12px; }
   .records-panel { height: 270px; max-height: 270px; }
   .records-panel thead th, .records-panel tbody td { padding: 5px 2px; font-size: 9px; }
 }

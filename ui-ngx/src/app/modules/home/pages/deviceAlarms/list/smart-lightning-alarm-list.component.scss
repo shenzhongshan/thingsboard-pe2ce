@@ -25,3 +25,39 @@
 .pagination { display: flex; align-items: center; justify-content: end; gap: 8px; min-height: 58px; padding: 0 20px; color: #718397; font-size: 12px; }.pagination button { width: 30px; height: 28px; border: 1px solid #c9d4de; border-radius: 4px; color: #436078; background: #fff; cursor: pointer; }.pagination button.active { color: #fff; border-color: var(--blue); background: var(--blue); }.pagination button:disabled { color: #b7c1c9; cursor: not-allowed; }
 @media (max-width: 1100px) { .alarm-list-page { grid-template-columns: 220px minmax(0, 1fr); }.filter-panel { grid-template-columns: repeat(2, minmax(160px, 1fr)); }.result-toolbar { align-items: stretch; flex-wrap: wrap; padding: 12px 16px; }.severity-tabs { order: 3; width: 100%; justify-content: center; }.result-count { margin-left: auto; } }
 @media (max-width: 760px) { .alarm-list-page { grid-template-columns: 1fr; padding: 10px; }.asset-panel { min-height: auto; }.filter-panel { grid-template-columns: 1fr; padding: 14px; }.filter-panel .time-range { grid-column: auto; }.time-range input { width: 100%; }.filter-actions { grid-column: auto; }.result-toolbar { gap: 10px; }.severity-tabs { justify-content: start; overflow-x: auto; }.pagination { justify-content: center; padding: 0 10px; } }
+
+/* 资产树统一交互：未选中不显示标记，选中只保留加宽的左侧竖条。 */
+.asset-node {
+  border-left-width: 12px !important;
+}
+
+.asset-node.selected {
+  color: #063b79 !important;
+  background: transparent !important;
+  border-left-color: var(--green) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit !important;
+}
+
+/* 未选中的设备不显示状态条；选中后再按告警状态着色（红 = 存在未清除告警）。 */
+.asset-node.device-node {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: var(--green) !important;
+}
+
+.asset-node.device-node.device-alarm,
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.device-alarm.selected {
+  border-left-color: #ef3f4c !important;
+}

@@ -84,10 +84,18 @@ export interface SmartLightningMonitoringDeviceCard {
   category: string;
   status: '正常' | '报警' | '离线';
   icon: string;
+  assetPath: string;
   productName: string;
   productType: string;
   lastActiveTime: string;
 }
+
+/** 设备总览卡片的业务排序：报警优先，其次离线，最后正常。 */
+const smartLightningDeviceStatusOrder: Record<SmartLightningMonitoringDeviceCard['status'], number> = {
+  报警: 0,
+  离线: 1,
+  正常: 2
+};
 
 /** 当前设备卡片需要的服务器属性。functionCategory 是业务分类，不使用设备型号替代。 */
 export interface SmartLightningMonitoringDeviceAttributes {
@@ -123,6 +131,15 @@ export const formatSmartLightningMonitoringLastActivityTime = (value: unknown): 
   const pad = (part: number) => String(part).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
     `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+/** 兼容服务器属性返回的布尔值、数字值和字符串值，并回退到设备实体的 active 字段。 */
+export const isSmartLightningDeviceActive = (value: unknown, fallbackValue?: unknown): boolean => {
+  const candidate = value === undefined || value === null ? fallbackValue : value;
+  if (candidate === true || candidate === 1) {
+    return true;
+  }
+  return typeof candidate === 'string' && ['true', '1'].includes(candidate.trim().toLowerCase());
 };
 
 /** 仅统计选中资产子树内设备产生的告警，避免把其他项目的告警混入当前节点。 */
@@ -238,6 +255,29 @@ export const buildSmartLightningMonitoringAssetTreeFromRoots = (
   return {roots, nodes};
 };
 
+/** 返回每个资产/设备从根节点开始的完整层级地址，用于设备总览卡片展示。 */
+export const getSmartLightningMonitoringAssetPaths = (
+  tree: SmartLightningMonitoringAssetTree
+): Map<string, string> => {
+  const paths = new Map<string, string>();
+  const visit = (node: SmartLightningMonitoringAssetNode, ancestors: string[]): void => {
+    if (paths.has(node.id)) {
+      return;
+    }
+    const name = node.name.trim() || node.id;
+    const path = [...ancestors, name];
+    paths.set(node.id, path.join('/'));
+    node.childIds.forEach((childId) => {
+      const child = tree.nodes.get(childId);
+      if (child) {
+        visit(child, path);
+      }
+    });
+  };
+  tree.roots.forEach((root) => visit(root, []));
+  return paths;
+};
+
 /** Returns the selected asset plus every known descendant, once each. */
 export const getSmartLightningMonitoringSelectedAssetIds = (
   nodes: Map<string, SmartLightningMonitoringAssetNode>,
@@ -296,7 +336,8 @@ export const buildSmartLightningMonitoringDeviceCards = (
   devices: DeviceInfo[],
   selectedIds: Set<string>,
   attributesByDeviceId: Map<string, SmartLightningMonitoringDeviceAttributes>,
-  activeAlarmDeviceIds: Set<string> = new Set()
+  activeAlarmDeviceIds: Set<string> = new Set(),
+  assetPathByDeviceId: ReadonlyMap<string, string> = new Map()
 ): SmartLightningMonitoringDeviceCard[] => devices
   .filter((device) => !!device.id?.id && selectedIds.has(device.id.id))
   .map((device) => {
@@ -305,16 +346,18 @@ export const buildSmartLightningMonitoringDeviceCards = (
     const attributes = attributesByDeviceId.get(id);
     const active = attributes?.active;
     const functionCategory = getSmartLightningFunctionCategoryLabel(attributes?.functionCategory);
-    const isOnline = active === true || active === 'true';
-    const status: SmartLightningMonitoringDeviceCard['status'] = !isOnline
-      ? '离线'
-      : activeAlarmDeviceIds.has(id) ? '报警' : '正常';
+    const isOnline = isSmartLightningDeviceActive(active, device.active);
+    const hasActiveAlarm = activeAlarmDeviceIds.has(id);
+    const status: SmartLightningMonitoringDeviceCard['status'] = hasActiveAlarm
+      ? '报警'
+      : isOnline ? '正常' : '离线';
     return {
       id,
       name: device.name || '未命名设备',
       category: functionCategory,
       status,
       icon: 'electric_meter',
+      assetPath: assetPathByDeviceId.get(id) || '--',
       productName: typeof attributes?.productName === 'string' && attributes.productName.trim()
         ? attributes.productName.trim()
         : '--',
@@ -322,7 +365,10 @@ export const buildSmartLightningMonitoringDeviceCards = (
       lastActiveTime: formatSmartLightningMonitoringLastActivityTime(attributes?.lastActivityTime)
     };
   })
-  .sort((left, right) => left.name.localeCompare(right.name));
+  .sort((left, right) => {
+    const statusOrder = smartLightningDeviceStatusOrder[left.status] - smartLightningDeviceStatusOrder[right.status];
+    return statusOrder || left.name.localeCompare(right.name);
+  });
 
 /**
  * 通过 ThingsBoard 原生告警字段形成设备节点统计。

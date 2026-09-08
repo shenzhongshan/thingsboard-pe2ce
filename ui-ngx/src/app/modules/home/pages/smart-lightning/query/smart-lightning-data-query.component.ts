@@ -1,24 +1,20 @@
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {MatDialog} from '@angular/material/dialog';
-import {select, Store} from '@ngrx/store';
-import {AttributeService} from '@core/http/attribute.service';
-import {DeviceService} from '@core/http/device.service';
-import {selectAuthUser} from '@core/auth/auth.selectors';
-import {AppState} from '@core/core.state';
-import {Authority} from '@shared/models/authority.enum';
-import {DeviceInfo, DeviceInfoQuery} from '@shared/models/device.models';
+import {AlarmService} from '@core/http/alarm.service';
+import {AlarmInfo} from '@shared/models/alarm.models';
+import {DeviceInfo} from '@shared/models/device.models';
 import {EntityType} from '@shared/models/entity-type.models';
-import {CustomerId} from '@shared/models/id/customer-id';
-import {MAX_SAFE_PAGE_SIZE, PageLink} from '@shared/models/page/page-link';
-import {AttributeScope} from '@shared/models/telemetry/telemetry.models';
-import {catchError, forkJoin, map, of, Subject, switchMap, take, takeUntil} from 'rxjs';
+import {DeviceId} from '@shared/models/id/device-id';
+import {MAX_SAFE_PAGE_SIZE} from '@shared/models/page/page-link';
+import {catchError, forkJoin, map, of, Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningMonitoringSelectedAssetIds,
   SmartLightningMonitoringAssetNode,
   SmartLightningMonitoringAssetTree
 } from '../monitoring/smart-lightning-monitoring.data';
-import {SmartLightningMonitoringApiService} from '../monitoring/smart-lightning-monitoring-api.service';
+import {SmartLightningDeviceContext, SmartLightningMonitoringApiService} from '../monitoring/smart-lightning-monitoring-api.service';
+import {createSmartLightningAlarmQuery} from '../dashboard/smart-lightning-dashboard.data';
 import {
   buildSmartLightningQueryRows,
   filterSmartLightningQueryRows,
@@ -62,18 +58,19 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   activeStatus: '全部' | SmartLightningQueryStatus = '全部';
   page = 1;
   readonly pageSize = 20;
-  readonly statuses: Array<'全部' | SmartLightningQueryStatus> = ['全部', '在线', '离线', '未连接'];
+  readonly statuses: Array<'全部' | SmartLightningQueryStatus> = ['全部', '报警', '离线', '正常'];
 
   private devices: DeviceInfo[] = [];
   private deviceAttributes = new Map<string, SmartLightningQueryDeviceAttributes>();
+  /** 传给共享资产树：选中的告警设备显示红色竖条。 */
+  activeAlarmDeviceIds = new Set<string>();
+  private alarmSeverityByDeviceId = new Map<string, string>();
   private readonly devicePaths = new Map<string, string>();
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly deviceService: DeviceService,
-    private readonly attributeService: AttributeService,
-    private readonly store: Store<AppState>,
+    private readonly alarmService: AlarmService,
     private readonly dialog: MatDialog,
     private readonly cd: ChangeDetectorRef
   ) {}
@@ -87,48 +84,28 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  get visibleAssetNodes(): Array<{node: SmartLightningMonitoringAssetNode; depth: number}> {
-    const output: Array<{node: SmartLightningMonitoringAssetNode; depth: number}> = [];
-    const query = this.assetSearch.trim().toLowerCase();
-    const includes = (node: SmartLightningMonitoringAssetNode): boolean =>
-      node.name.toLowerCase().includes(query) || node.childIds.some((id) => {
-        const child = this.assetTree.nodes.get(id);
-        return child ? includes(child) : false;
-      });
-    const append = (node: SmartLightningMonitoringAssetNode, depth: number): void => {
-      if (query && !includes(node)) {
-        return;
-      }
-      output.push({node, depth});
-      if (query || this.expandedAssetIds.has(node.id)) {
-        node.childIds.forEach((id) => {
-          const child = this.assetTree.nodes.get(id);
-          if (child) {
-            append(child, depth + 1);
-          }
-        });
-      }
-    };
-    getSmartLightningQueryVisibleRoots(this.assetTree, this.selectedRootAssetId)
-      .forEach((node) => append(node, 0));
-    return output;
-  }
-
   get rows(): SmartLightningQueryRow[] {
     const selectedDeviceIds = new Set([...this.selectedAssetIds]
       .filter((id) => this.assetTree.nodes.get(id)?.entityType === EntityType.DEVICE));
     return buildSmartLightningQueryRows(
-      this.devices.map((device) => ({
-        id: device.id.id,
-        name: device.name,
-        label: device.label,
-        deviceProfileName: device.deviceProfileName || device.type || '--',
-        protocol: device.deviceData?.transportConfiguration?.type,
-        active: device.active
-      })),
+      this.devices.map((device) => {
+        const attributes = this.deviceAttributes.get(device.id.id);
+        return {
+          id: device.id.id,
+          name: device.name,
+          label: device.label,
+          deviceProfileName: device.deviceProfileName || device.type || '--',
+          protocol: typeof attributes?.deviceProtocol === 'string'
+            ? attributes.deviceProtocol
+            : device.deviceData?.transportConfiguration?.type,
+          active: device.active
+        };
+      }),
       selectedDeviceIds,
       this.devicePaths,
-      this.deviceAttributes
+      this.deviceAttributes,
+      this.activeAlarmDeviceIds,
+      this.alarmSeverityByDeviceId
     );
   }
 
@@ -163,8 +140,7 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     return this.pageRows.length > 0 && this.pageRows.every((row) => this.selectedRowIds.has(row.id));
   }
 
-  toggleAssetNode(event: Event, node: SmartLightningMonitoringAssetNode): void {
-    event.stopPropagation();
+  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     this.expandedAssetIds.has(node.id) ? this.expandedAssetIds.delete(node.id) : this.expandedAssetIds.add(node.id);
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
@@ -289,49 +265,28 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * 读取当前账号可见设备，再读取页面需要的服务器属性；单台属性失败不会阻断整张表。
-   * 未连接状态严格由 lastActivityTime 为空判定。
-   */
+  /** 后端批量返回设备上下文，并一次读取当前活动告警用于设备状态标记。 */
   private loadDevices(): void {
     this.devicesLoading = true;
     this.devicesLoadError = false;
-    this.store.pipe(
-      select(selectAuthUser),
-      take(1),
-      switchMap((authUser) => {
-        const filter = authUser.authority === Authority.CUSTOMER_USER
-          ? {customerId: new CustomerId(authUser.customerId)}
-          : {};
-        return this.deviceService.getDeviceInfosByQuery(new DeviceInfoQuery(new PageLink(MAX_SAFE_PAGE_SIZE), filter));
-      }),
-      switchMap((pageData) => {
-        const treeDeviceIds = new Set([...this.assetTree.nodes.values()]
-          .filter((node) => node.entityType === EntityType.DEVICE)
-          .map((node) => node.id));
-        const devices = pageData.data.filter((device) => treeDeviceIds.has(device.id.id));
-        if (!devices.length) {
-          return of<QueryDeviceContext>({devices: [], attributesByDeviceId: new Map()});
-        }
-        return forkJoin(devices.map((device) => this.attributeService.getEntityAttributes(
-          device.id,
-          AttributeScope.SERVER_SCOPE,
-          ['active', 'functionCategory', 'productName', 'lastActivityTime', 'deviceProtocol']
-        ).pipe(
-          map((attributes) => [device.id.id, Object.fromEntries(
-            attributes.map((attribute) => [attribute.key, attribute.value])
-          ) as SmartLightningQueryDeviceAttributes] as const),
-          catchError(() => of([device.id.id, {}] as const))
-        ))).pipe(map((entries) => ({
-          devices,
-          attributesByDeviceId: new Map<string, SmartLightningQueryDeviceAttributes>(entries)
-        })));
-      }),
+    const deviceContexts$ = this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0);
+    const activeAlarms$ = this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
+      map((pageData) => this.toActiveAlarmContext(pageData.data)),
+      // 告警请求失败不应阻断设备查询；此时设备先按正常/离线显示。
+      catchError(() => of({deviceIds: new Set<string>(), severityByDeviceId: new Map<string, string>()}))
+    );
+    forkJoin({devicePage: deviceContexts$, activeAlarms: activeAlarms$}).pipe(
+      map(({devicePage, activeAlarms}) => ({
+        devices: this.toQueryDeviceContext(devicePage.data),
+        activeAlarms
+      })),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: ({devices, attributesByDeviceId}) => {
-        this.devices = devices;
-        this.deviceAttributes = attributesByDeviceId;
+      next: ({devices, activeAlarms}) => {
+        this.devices = devices.devices;
+        this.deviceAttributes = devices.attributesByDeviceId;
+        this.activeAlarmDeviceIds = activeAlarms.deviceIds;
+        this.alarmSeverityByDeviceId = activeAlarms.severityByDeviceId;
         this.devicesLoading = false;
         this.page = 1;
         this.cd.markForCheck();
@@ -339,11 +294,85 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
       error: () => {
         this.devices = [];
         this.deviceAttributes = new Map();
+        this.activeAlarmDeviceIds = new Set();
+        this.alarmSeverityByDeviceId = new Map();
         this.devicesLoading = false;
         this.devicesLoadError = true;
         this.cd.markForCheck();
       }
     });
+  }
+
+  private toActiveAlarmContext(alarms: AlarmInfo[]): {
+    deviceIds: Set<string>;
+    severityByDeviceId: Map<string, string>;
+  } {
+    const deviceIds = new Set<string>();
+    const severityByDeviceId = new Map<string, string>();
+    const severityRank: Record<string, number> = {
+      CRITICAL: 5,
+      MAJOR: 4,
+      MINOR: 3,
+      WARNING: 2,
+      INDETERMINATE: 1
+    };
+    const severityLabels: Record<string, string> = {
+      CRITICAL: '紧急',
+      MAJOR: '重要',
+      MINOR: '次要',
+      WARNING: '警告',
+      INDETERMINATE: '不确定'
+    };
+    const severityRanksByDeviceId = new Map<string, number>();
+    for (const alarm of alarms) {
+      if (alarm.originator?.entityType !== EntityType.DEVICE ||
+          (alarm.status !== 'ACTIVE_UNACK' && alarm.status !== 'ACTIVE_ACK')) {
+        continue;
+      }
+      const deviceId = alarm.originator.id;
+      const severity = String(alarm.severity || 'INDETERMINATE');
+      const rank = severityRank[severity] || 1;
+      deviceIds.add(deviceId);
+      if ((severityRanksByDeviceId.get(deviceId) || 0) < rank) {
+        severityRanksByDeviceId.set(deviceId, rank);
+        severityByDeviceId.set(deviceId, severityLabels[severity] || '不确定');
+      }
+    }
+    return {deviceIds, severityByDeviceId};
+  }
+
+  private toQueryDeviceContext(contexts: SmartLightningDeviceContext[]): QueryDeviceContext {
+    const treeDeviceIds = new Set([...this.assetTree.nodes.values()]
+      .filter((node) => node.entityType === EntityType.DEVICE)
+      .map((node) => node.id));
+    const devices: DeviceInfo[] = [];
+    const attributesByDeviceId = new Map<string, SmartLightningQueryDeviceAttributes>();
+    for (const context of contexts) {
+      if (!treeDeviceIds.has(context.deviceId)) {
+        continue;
+      }
+      // DeviceInfo 是接口而不是可实例化类；这里组装页面所需的最小设备对象。
+      const device = {
+        id: new DeviceId(context.deviceId),
+        name: context.deviceName || context.deviceId,
+        label: context.label || '',
+        type: context.deviceProfileName || '--',
+        deviceProfileName: context.deviceProfileName || '--',
+        active: context.active === true,
+        customerTitle: '',
+        customerIsPublic: false,
+        groups: ''
+      } as DeviceInfo;
+      devices.push(device);
+      attributesByDeviceId.set(context.deviceId, {
+        active: context.active,
+        productName: context.productName,
+        functionCategory: context.functionCategory,
+        lastActivityTime: context.lastActivityTime,
+        deviceProtocol: context.deviceProtocol
+      });
+    }
+    return {devices, attributesByDeviceId};
   }
 
   private openDescendants(id: string): void {
