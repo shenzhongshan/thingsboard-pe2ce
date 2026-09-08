@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnIni
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { AlarmService } from '@core/http/alarm.service';
-import { AlarmDetailsDialogComponent, AlarmDetailsDialogData } from '@home/components/alarm/alarm-details-dialog.component';
+import { DialogService } from '@core/services/dialog.service';
+import { AlarmCommentDialogComponent, AlarmCommentDialogData } from '@home/components/alarm/alarm-comment-dialog.component';
 import { AlarmInfo, AlarmQueryV2 } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
@@ -10,6 +11,8 @@ import { Direction } from '@shared/models/page/sort-order';
 import { catchError, forkJoin, map, of, Subject, takeUntil } from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
+  getSmartLightningActiveAlarmDeviceIds,
+  getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringRootAssetIds,
   getSmartLightningMonitoringVisibleRoots,
   getSmartLightningMonitoringSelectedAssetIds,
@@ -27,6 +30,14 @@ import {
   SmartLightningAlarmListSeverityTab,
   sortSmartLightningAlarmListRows
 } from './smart-lightning-alarm-list.data';
+import {
+  SmartLightningAlarmDetailsDialogComponent,
+  SmartLightningAlarmDetailsDialogData
+} from './smart-lightning-alarm-details-dialog.component';
+import {
+  SmartLightningAlarmDispatchDialogComponent,
+  SmartLightningAlarmDispatchDialogData
+} from './smart-lightning-alarm-dispatch-dialog.component';
 
 @Component({
   selector: 'tb-smart-lightning-alarm-list',
@@ -36,9 +47,13 @@ import {
   standalone: false
 })
 export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
-  /** 由路由数据区分普通告警列表和告警派发页面。 */
-  readonly dispatchMode: boolean;
-  readonly pageTitle: string;
+  /** 由路由数据区分普通列表、告警派发和告警处理页面。
+   *  同一组件在 /deviceAlarms/* 多个路由间导航时会被 Angular 复用，
+   *  因此模式不能在构造器读取一次快照，必须订阅路由数据变化。 */
+  dispatchMode = false;
+  processingMode = false;
+  pageTitle = '智能防雷报警信息';
+  private routeDataLoaded = false;
   assetTree: SmartLightningMonitoringAssetTree = {roots: [], nodes: new Map()};
   expandedAssetIds = new Set<string>();
   selectedAssetIds = new Set<string>();
@@ -53,7 +68,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   activeAlarmDeviceIds = new Set<string>();
   readonly pageSize = 20;
   page = 1;
-  readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '紧急', '一般', '正常'];
+  readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '严重', '重要', '次要', '警告', '不确定'];
   selectedRows = new Set<string>();
   filters: SmartLightningAlarmListFilters = {
     severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''
@@ -62,21 +77,33 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   private allRows: SmartLightningAlarmListRow[] = [];
   private readonly deviceIds = new Set<string>();
   private readonly deviceContexts = new Map<string, SmartLightningAlarmListContext>();
+  /** 设备的资产树绝对地址（根资产到设备逐级 / 分隔），用于仪表地址列展示。 */
+  private deviceAssetPaths = new Map<string, string>();
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly alarmService: AlarmService,
     private readonly dialog: MatDialog,
+    private readonly dialogService: DialogService,
     private readonly cd: ChangeDetectorRef,
     private readonly route: ActivatedRoute
   ) {
-    this.dispatchMode = this.route.snapshot.data['dispatchMode'] === true;
-    this.pageTitle = this.route.snapshot.data['title'] || '智能防雷报警信息';
   }
 
   ngOnInit(): void {
-    this.loadAssetTree();
+    // 路由数据订阅放在 ngOnInit：组件复用期间路由切换会推送新的 data，
+    // 操作列（派发/确认/清除/备注）按最新模式重新渲染。
+    this.route.data.pipe(takeUntil(this.destroy$)).subscribe((data) => {
+      this.dispatchMode = data['dispatchMode'] === true;
+      this.processingMode = data['processingMode'] === true;
+      this.pageTitle = data['title'] || '智能防雷报警信息';
+      this.cd.markForCheck();
+    });
+    if (!this.routeDataLoaded) {
+      this.routeDataLoaded = true;
+      this.loadAssetTree();
+    }
   }
 
   ngOnDestroy(): void {
@@ -116,7 +143,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   get workOrderStatuses(): string[] {
-    return ['未派发', '已派发', '已处理'];
+    return ['未派发', '已派发'];
   }
 
   get allPageRowsSelected(): boolean {
@@ -128,9 +155,17 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   workOrderTone(status: string): string {
-    if (status === '已处理') return 'handled';
     if (status === '已派发') return 'assigned';
     return 'unassigned';
+  }
+
+  alarmStatusTone(status: string): string {
+    switch (status) {
+      case '已确认未清除': return 'active-ack';
+      case '未确认已清除': return 'cleared-unack';
+      case '已确认已清除': return 'cleared-ack';
+      default: return 'active-unack';
+    }
   }
 
   toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
@@ -196,10 +231,10 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     this.selectedRows = next;
   }
 
-  /** 一键处理只确认当前选中的活动告警；已处理行不会再次请求。 */
+  /** 一键处理只确认当前仍可由 ThingsBoard 原生接口确认的告警。 */
   acknowledgeSelected(): void {
     const ids = this.pageRows
-      .filter((row) => this.selectedRows.has(row.id) && row.workOrderStatus !== '已处理')
+      .filter((row) => this.selectedRows.has(row.id) && this.canAcknowledge(row))
       .map((row) => row.id);
     if (!ids.length) return;
     const requests = ids.map((id) => this.alarmService.ackAlarm(id).pipe(catchError(() => of(null))));
@@ -210,24 +245,63 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 详情直接打开系统已有告警详情对话框；派发页启用受理人、确认和处理操作。 */
+  /** 详情为只读弹窗；派发、确认、清除、备注从各自独立入口处理。 */
   openAlarmDetails(row: SmartLightningAlarmListRow): void {
-    const data: AlarmDetailsDialogData = {
-      alarmId: row.id,
-      allowAcknowledgment: this.dispatchMode,
-      allowClear: this.dispatchMode,
-      displayDetails: true,
-      allowAssign: this.dispatchMode
-    };
-    this.dialog.open(AlarmDetailsDialogComponent, {
+    const data: SmartLightningAlarmDetailsDialogData = {alarmId: row.id};
+    this.dialog.open<SmartLightningAlarmDetailsDialogComponent, SmartLightningAlarmDetailsDialogData>(SmartLightningAlarmDetailsDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog'],
+      data
+    });
+  }
+
+  openAlarmDispatch(row: SmartLightningAlarmListRow): void {
+    const data: SmartLightningAlarmDispatchDialogData = {alarmId: row.id};
+    this.dialog.open<SmartLightningAlarmDispatchDialogComponent, SmartLightningAlarmDispatchDialogData, boolean>(
+      SmartLightningAlarmDispatchDialogComponent,
+      {disableClose: true, panelClass: ['tb-dialog'], data}
+    ).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
+      if (updated) this.loadAlarms();
+    });
+  }
+
+  acknowledgeAlarm(row: SmartLightningAlarmListRow): void {
+    if (!this.canAcknowledge(row)) return;
+    this.dialogService.confirm('确认告警', `确认“${row.alarmType}”告警后，告警仍会保持活动状态。`, '取消', '确认')
+      .pipe(takeUntil(this.destroy$)).subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.alarmService.ackAlarm(row.id).pipe(takeUntil(this.destroy$)).subscribe(() => this.loadAlarms());
+      });
+  }
+
+  clearAlarm(row: SmartLightningAlarmListRow): void {
+    if (!this.canClear(row)) return;
+    this.dialogService.confirm('清除告警', `清除“${row.alarmType}”告警后，该告警将进入已处理状态。`, '取消', '清除')
+      .pipe(takeUntil(this.destroy$)).subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.alarmService.clearAlarm(row.id).pipe(takeUntil(this.destroy$)).subscribe(() => this.loadAlarms());
+      });
+  }
+
+  openAlarmComment(row: SmartLightningAlarmListRow): void {
+    const data: AlarmCommentDialogData = {alarmId: row.id};
+    this.dialog.open<AlarmCommentDialogComponent, AlarmCommentDialogData, void>(AlarmCommentDialogComponent, {
       disableClose: true,
       panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
       data
-    }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
-      if (updated) {
-        this.loadAlarms();
-      }
     });
+  }
+
+  canAcknowledge(row: SmartLightningAlarmListRow): boolean {
+    return row.status === 'ACTIVE_UNACK' || row.status === 'CLEARED_UNACK';
+  }
+
+  canClear(row: SmartLightningAlarmListRow): boolean {
+    return row.status === 'ACTIVE_UNACK' || row.status === 'ACTIVE_ACK';
+  }
+
+  canDispatch(row: SmartLightningAlarmListRow): boolean {
+    return row.workOrderStatus === '未派发' && (row.status === 'ACTIVE_UNACK' || row.status === 'ACTIVE_ACK');
   }
 
   exportRows(): void {
@@ -237,9 +311,9 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     if (!rows.length) return;
     const escape = (value: string): string => `"${value.replace(/"/g, '""')}"`;
     const lines = [
-      ['项目/设备/企业名称', '报警时间', '工单状态', '报警类型', '报警等级', '网关识别号', '设备型号', '仪表地址', '回路名称', '时段设置', '详情描述'],
-      ...rows.map((row) => [row.projectDeviceName, this.formatTime(row.alarmTime), row.workOrderStatus, row.alarmType,
-        row.severity, row.gatewayIdentifier, row.deviceType, row.meterAddress, row.circuitName, row.timeSetting, row.detailDescription])
+      ['设备名', '报警时间', '告警状态', '工单状态', '报警类型', '报警等级', '设备型号', '仪表地址'],
+      ...rows.map((row) => [row.projectDeviceName, this.formatTime(row.alarmTime), row.alarmStatus, row.workOrderStatus, row.alarmType,
+        row.severity, row.deviceType, row.meterAddress])
     ];
     const blob = new Blob([`\uFEFF${lines.map((line) => line.map(escape).join(',')).join('\r\n')}`], {type: 'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
@@ -254,6 +328,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
+        this.deviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
         this.assetTree.roots.forEach((root) => this.expandedAssetIds.add(root.id));
         this.expandedAssetIds = new Set(this.expandedAssetIds);
         this.selectRootAsset('');
@@ -299,9 +374,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     return {
       deviceType: context.deviceProfileName || '--',
       productName: context.productName || '--',
-      gatewayIdentifier: context.gatewayIdentifier || '--',
       meterAddress: context.meterAddress || '--',
-      circuitName: context.circuitName || '--',
       timeSetting: context.timeSetting || '全时段'
     };
   }
@@ -316,12 +389,13 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       next: (pageData) => {
         const rows = pageData.data
           .filter((alarm) => alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))
-          .map((alarm) => mapSmartLightningAlarmListRow(alarm, this.deviceContexts.get(alarm.originator.id)));
+          .map((alarm) => mapSmartLightningAlarmListRow(
+            alarm,
+            this.deviceContexts.get(alarm.originator.id),
+            this.deviceAssetPaths.get(alarm.originator.id) || ''
+          ));
         this.allRows = sortSmartLightningAlarmListRows(rows);
-        this.activeAlarmDeviceIds = new Set(pageData.data
-          .filter((alarm) => (alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')
-            && alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))
-          .map((alarm) => alarm.originator.id));
+        this.activeAlarmDeviceIds = getSmartLightningActiveAlarmDeviceIds(pageData.data, this.deviceIds);
         this.page = 1;
         this.alarmsLoading = false;
         this.cd.markForCheck();

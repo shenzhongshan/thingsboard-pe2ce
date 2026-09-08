@@ -8,6 +8,7 @@ import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   buildSmartLightningMonitoringDeviceCards,
   calculateSmartLightningMonitoringAlarmSummary,
+  getSmartLightningActiveAlarmDeviceIds,
   getSmartLightningFunctionCategoryLabel,
   getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringPage,
@@ -198,6 +199,13 @@ assert.deepEqual(alarmSummary, {
   assigned: 1,
   handled: 1
 });
+
+assert.deepEqual([...getSmartLightningActiveAlarmDeviceIds([
+  {originator: {id: 'device-a', entityType: EntityType.DEVICE}, status: 'ACTIVE_UNACK'},
+  {originator: {id: 'device-a', entityType: EntityType.DEVICE}, status: 'ACTIVE_ACK'},
+  {originator: {id: 'device-b', entityType: EntityType.DEVICE}, status: 'CLEARED_ACK'},
+  {originator: {id: 'other', entityType: EntityType.DEVICE}, status: 'ACTIVE_UNACK'}
+], new Set(['device-a', 'device-b']))], ['device-a']);
 
 assert.deepEqual(getSmartLightningMonitoringPage(['a', 'b', 'c'], 2, 2), {
   items: ['c'],

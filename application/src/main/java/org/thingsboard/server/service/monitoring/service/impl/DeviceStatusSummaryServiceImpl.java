@@ -32,12 +32,12 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.SortOrder;
 import org.thingsboard.server.common.data.page.TimePageLink;
-import org.thingsboard.server.dao.alarm.AlarmService;
 import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
 import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
+import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
 import org.thingsboard.server.service.monitoring.util.DeviceStatusSummaryCalculator;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -60,7 +60,7 @@ public class DeviceStatusSummaryServiceImpl implements DeviceStatusSummaryServic
 
     private final UserEntitiesService userEntitiesService;
     private final AttributesService attributesService;
-    private final AlarmService alarmService;
+    private final MonitoringAlarmQueryService alarmQueryService;
 
     @Override
     public DeviceStatusSummary getSummary(SecurityUser user) throws ThingsboardException {
@@ -100,25 +100,16 @@ public class DeviceStatusSummaryServiceImpl implements DeviceStatusSummaryServic
     }
 
     /** 逐页读取未清除告警，避免固定上限造成异常设备统计遗漏。 */
-    private List<UUID> findActiveAlarmDeviceIds(SecurityUser user) {
+    private List<UUID> findActiveAlarmDeviceIds(SecurityUser user) throws ThingsboardException {
         List<UUID> deviceIds = new ArrayList<>();
         TimePageLink pageLink = new TimePageLink(QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC);
-        while (pageLink != null) {
-            AlarmQueryV2 query = new AlarmQueryV2(
-                    null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ACTIVE), Collections.emptyList(), null);
-            PageData<AlarmInfo> pageData;
-            if (user.isCustomerUser()) {
-                pageData = alarmService.findCustomerAlarmsV2(user.getTenantId(), user.getCustomerId(), query);
-            } else {
-                pageData = alarmService.findAlarmsV2(user.getTenantId(), query);
+        AlarmQueryV2 query = new AlarmQueryV2(
+                null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ACTIVE), Collections.emptyList(), null);
+        for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
+            EntityId originator = alarm.getOriginator();
+            if (originator != null && originator.getEntityType() == EntityType.DEVICE) {
+                deviceIds.add(originator.getId());
             }
-            for (AlarmInfo alarm : pageData.getData()) {
-                EntityId originator = alarm.getOriginator();
-                if (originator != null && originator.getEntityType() == EntityType.DEVICE) {
-                    deviceIds.add(originator.getId());
-                }
-            }
-            pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
         }
         return deviceIds;
     }

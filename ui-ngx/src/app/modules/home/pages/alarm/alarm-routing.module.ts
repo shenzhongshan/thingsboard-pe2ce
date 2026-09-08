@@ -37,6 +37,7 @@ import { EntityDebugSettingsService } from '@home/components/entity/debug/entity
 import { UtilsService } from '@core/services/utils.service';
 import { AlarmRulesTableConfig } from '@home/components/alarm-rules/alarm-rules-table-config';
 import { SmartLightningAlarmListComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-list.component';
+import { SmartLightningAlarmAnalysisComponent } from '@home/pages/deviceAlarms/analysis/smart-lightning-alarm-analysis.component';
 
 export const AlarmRulesTableConfigResolver: ResolveFn<AlarmRulesTableConfig> =
   (_route: ActivatedRouteSnapshot,
@@ -95,7 +96,9 @@ const routes: Routes = [
         component: SmartLightningAlarmListComponent,
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-          title: '智能防雷报警信息',
+          title: '告警处理',
+          /* 自定义菜单“告警处理”当前已配置为 /deviceAlarms/list，因此此路由直接启用操作列。 */
+          processingMode: true,
           breadcrumb: {
             menuId: MenuId.alarms
           },
@@ -109,6 +112,31 @@ const routes: Routes = [
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: '告警派发',
           dispatchMode: true,
+          breadcrumb: {
+            menuId: MenuId.alarms
+          },
+          isPage: true
+        }
+      },
+      {
+        path: 'processing',
+        component: SmartLightningAlarmListComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '告警处理',
+          processingMode: true,
+          breadcrumb: {
+            menuId: MenuId.alarms
+          },
+          isPage: true
+        }
+      },
+      {
+        path: 'analysis',
+        component: SmartLightningAlarmAnalysisComponent,
+        data: {
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '告警分析',
           breadcrumb: {
             menuId: MenuId.alarms
           },

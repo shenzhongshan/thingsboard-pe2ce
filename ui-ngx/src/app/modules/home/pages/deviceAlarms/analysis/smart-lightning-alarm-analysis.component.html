@@ -1,0 +1,99 @@
+<main class="alarm-analysis-page" aria-label="告警分析">
+  <section class="analysis-content">
+    <header class="page-heading">
+      <div>
+        <h1>告警分析</h1>
+        <p class="heading-note">当前用户全部可见设备 · 告警趋势与处置效率</p>
+      </div>
+      <span class="scope-chip" title="当前统计范围">
+        @if (summaryLoading) {统计读取中} @else if (summaryError) {统计读取失败} @else {当前用户可见设备}
+      </span>
+    </header>
+
+    <section class="summary-grid" aria-label="告警周期统计">
+      @for (card of periods; track card.key) {
+        <article class="summary-card" [class]="'summary-card ' + card.tone">
+          <div class="summary-icon" aria-hidden="true">{{card.label}}</div>
+          <div class="summary-values">
+            <div><span>{{card.currentLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.total}}</strong></div>
+            <div><span>{{card.previousLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.previous}}</strong></div>
+            <div><span>{{card.changeLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.change}}</strong></div>
+          </div>
+        </article>
+      }
+    </section>
+
+    <section class="analysis-grid">
+      <article class="surface site-panel">
+        <header class="panel-heading">
+          <div>
+            <h2>站点告警排名</h2>
+            <p>按告警总量排序，展示重点处置对象</p>
+          </div>
+          <button type="button" class="period-button" title="当前统计周期">日</button>
+        </header>
+        <div class="date-filter" aria-label="站点告警日期范围">
+          <span>日期</span>
+          <span class="date-placeholder">开始日期</span>
+          <b>至</b>
+          <span class="date-placeholder">结束日期</span>
+          <tb-icon aria-hidden="true">calendar_today</tb-icon>
+        </div>
+        <div class="site-table-wrap">
+          <table class="site-table">
+            <caption class="visually-hidden">站点告警排名</caption>
+            <thead>
+            <tr><th scope="col">序号</th><th scope="col">站点名称</th><th scope="col">告警处理率</th><th scope="col">告警数目</th><th scope="col">操作</th></tr>
+            </thead>
+            <tbody>
+            @for (row of siteRows; track row.name; let index = $index) {
+              <tr>
+                <td>{{index + 1}}</td>
+                <td class="site-name" [title]="row.name">{{row.name}}</td>
+                <td>
+                  <div class="rate-cell" [attr.aria-label]="'处理率 ' + row.handledRate + '%'">
+                    <span class="rate-track"><span [style.width.%]="row.handledRate"></span></span>
+                    <span>{{row.handledRate}}%</span>
+                  </div>
+                </td>
+                <td>{{row.count}}</td>
+                <td><button type="button" class="action-button">一键确认</button></td>
+              </tr>
+            }
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer"><span>共 {{siteRows.length}} 个站点</span><span>1 / 1</span></footer>
+      </article>
+
+      <article class="surface ranking-panel">
+        <header class="panel-heading compact">
+          <div>
+            <h2>告警排行榜</h2>
+            <p>按站点或告警类型查看排行</p>
+          </div>
+          <div class="ranking-tabs" role="tablist" aria-label="告警排行榜维度">
+            <button type="button" [class.active]="selectedRankingTab === 'site'" (click)="selectRankingTab('site')" role="tab">站点</button>
+            <button type="button" [class.active]="selectedRankingTab === 'type'" (click)="selectRankingTab('type')" role="tab">类型</button>
+          </div>
+        </header>
+        <div #rankingChart class="ranking-chart" role="img" aria-label="告警排行榜柱状图"></div>
+      </article>
+    </section>
+
+    <article class="surface trend-panel">
+      <header class="panel-heading compact">
+        <div>
+          <h2>平台告警统计</h2>
+          <p>告警数量按周期聚合</p>
+        </div>
+        <div class="period-tabs" role="tablist" aria-label="平台告警统计周期">
+          @for (period of periods; track period.key) {
+            <button type="button" [class.active]="activePeriod === period.key" (click)="setPeriod(period.key)" role="tab">{{period.label}}</button>
+          }
+        </div>
+      </header>
+      <div #trendChart class="trend-chart" role="img" aria-label="平台告警统计柱状图"></div>
+    </article>
+  </section>
+</main>

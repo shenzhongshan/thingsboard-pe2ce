@@ -30,12 +30,18 @@ import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
 import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmSummaryDTO;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmAnalysisSummaryDTO;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningLeafAssetAlarmCountDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
 import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmSummaryService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmAnalysisService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningLeafAssetAlarmService;
 import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
 import org.thingsboard.server.service.monitoring.service.GroundMonitoringSummaryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
+
+import java.util.List;
 
 /**
  * 智能防雷数据监测页专用接口。
@@ -54,6 +60,8 @@ public class SmartLightningMonitoringController extends BaseController {
     private final GroundMonitoringSummaryService groundMonitoringSummaryService;
     private final SmartLightningDeviceService smartLightningDeviceService;
     private final SmartLightningAlarmSummaryService smartLightningAlarmSummaryService;
+    private final SmartLightningAlarmAnalysisService smartLightningAlarmAnalysisService;
+    private final SmartLightningLeafAssetAlarmService smartLightningLeafAssetAlarmService;
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
@@ -66,7 +74,7 @@ public class SmartLightningMonitoringController extends BaseController {
      *
      * <p>此接口不按 productCategory 过滤，范围是当前登录用户拥有 READ 权限的全部设备。
      * 在线状态只读取设备 SERVER_SCOPE 中的 active 属性（true/1），不使用 DeviceInfo.active；
-     * 未清除告警按设备去重后计入异常。</p>
+     * 未清除告警设备与 active 不是 true/1 的设备合并去重后计入异常。</p>
      */
     @GetMapping("/device-status-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
@@ -121,5 +129,21 @@ public class SmartLightningMonitoringController extends BaseController {
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     public SmartLightningAlarmSummaryDTO getLightningAlarmSummary() throws ThingsboardException {
         return smartLightningAlarmSummaryService.getSummary(getCurrentUser());
+    }
+
+    /** 返回告警分析页的日、月、年触发次数及其对比周期统计。 */
+    @GetMapping("/alarm-analysis-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public SmartLightningAlarmAnalysisSummaryDTO getLightningAlarmAnalysisSummary() throws ThingsboardException {
+        return smartLightningAlarmAnalysisService.getSummary(getCurrentUser());
+    }
+
+    /** 返回每个末级资产下属设备在指定周期内的告警数量、已处理数量和处理率。 */
+    @GetMapping("/alarm-analysis/leaf-assets")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public List<SmartLightningLeafAssetAlarmCountDTO> getLeafAssetAlarmCounts(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return smartLightningLeafAssetAlarmService.getCounts(getCurrentUser(), period);
     }
 }

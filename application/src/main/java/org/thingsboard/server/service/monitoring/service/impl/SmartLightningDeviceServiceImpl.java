@@ -38,6 +38,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 
 /** 智能防雷数据监测页设备列表的业务实现。 */
@@ -91,6 +93,33 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             contexts.add(toDeviceContext(device, attributes));
         }
         return createContextPageData(contexts, pageLink);
+    }
+
+    @Override
+    public Set<UUID> getLightningDeviceIds(SecurityUser user) throws ThingsboardException {
+        Set<UUID> deviceIds = new HashSet<>();
+        PageLink pageLink = new PageLink(QUERY_PAGE_SIZE, 0);
+        while (pageLink != null) {
+            PageData<SmartLightningDeviceContextDTO> pageData = getLightningDeviceContexts(user, pageLink);
+            for (SmartLightningDeviceContextDTO context : pageData.getData()) {
+                if (context.getDeviceId() != null) {
+                    deviceIds.add(context.getDeviceId());
+                }
+            }
+            pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
+        }
+        return deviceIds;
+    }
+
+    @Override
+    public Set<UUID> getVisibleDeviceIds(SecurityUser user) throws ThingsboardException {
+        Set<UUID> deviceIds = new HashSet<>();
+        for (DeviceInfo device : findVisibleDevices(user, null)) {
+            if (device.getId() != null && device.getId().getId() != null) {
+                deviceIds.add(device.getId().getId());
+            }
+        }
+        return deviceIds;
     }
 
     /** 平台授权服务同时覆盖租户、客户和通过实体组分享得到的设备权限。 */

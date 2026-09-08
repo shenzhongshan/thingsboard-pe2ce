@@ -17,6 +17,7 @@ import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   buildSmartLightningMonitoringDeviceCards,
   calculateSmartLightningMonitoringAlarmSummary,
+  getSmartLightningActiveAlarmDeviceIds,
   getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringRootAssetIds,
@@ -322,10 +323,10 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
 
   /** 活动告警优先于在线状态展示，避免有告警的在线设备仍被误标为“正常”。 */
   private rebuildNodeDeviceCards(): void {
-    this.activeAlarmDeviceIds = new Set(this.nodeAlarms
-      .filter((alarm) => alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')
-      .map((alarm) => alarm.originator?.id)
-      .filter((id): id is string => !!id));
+    this.activeAlarmDeviceIds = getSmartLightningActiveAlarmDeviceIds(
+      this.nodeAlarms,
+      new Set(this.nodeDevices.map((device) => device.id?.id).filter((id): id is string => !!id))
+    );
     this.nodeDeviceCards = buildSmartLightningMonitoringDeviceCards(
       this.nodeDevices,
       new Set(this.assetTree.nodes.keys()),

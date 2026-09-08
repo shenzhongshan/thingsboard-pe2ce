@@ -12,7 +12,7 @@ import java.util.UUID;
  * 顶部设备状态统计的纯计算逻辑。
  *
  * <p>正常设备必须同时满足服务器属性 active 为 true/1，且没有未清除告警；
- * 异常设备只要存在未清除告警即计入一次。离线且无告警设备不属于这两个标签。</p>
+ * 异常设备为“存在未清除告警”与“已经离线”两组设备的并集，按设备 ID 去重。</p>
  */
 public final class DeviceStatusSummaryCalculator {
 
@@ -34,7 +34,11 @@ public final class DeviceStatusSummaryCalculator {
 
         int normal = 0;
         for (UUID deviceId : visibleDeviceIds) {
-            if (isActive(activeValuesByDeviceId.get(deviceId)) && !abnormalDeviceIds.contains(deviceId)) {
+            boolean active = isActive(activeValuesByDeviceId.get(deviceId));
+            if (!active) {
+                abnormalDeviceIds.add(deviceId);
+            }
+            if (active && !abnormalDeviceIds.contains(deviceId)) {
                 normal++;
             }
         }

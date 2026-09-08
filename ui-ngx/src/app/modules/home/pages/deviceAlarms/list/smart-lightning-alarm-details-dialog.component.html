@@ -1,0 +1,33 @@
+<section class="alarm-detail-dialog" aria-label="告警详情">
+  <header>
+    <div>
+      <h2>告警详情</h2>
+      <p>仅查看基本信息与详细信息</p>
+    </div>
+    <button type="button" aria-label="关闭" (click)="close()">×</button>
+  </header>
+
+  @if (loading) {
+    <div class="dialog-state">正在读取告警详情…</div>
+  } @else if (loadError) {
+    <div class="dialog-state error">告警详情读取失败，请关闭后重试。</div>
+  } @else if (alarm) {
+    <div class="detail-grid">
+      <div><span>来源设备</span><strong>{{alarm.originatorLabel || alarm.originatorDisplayName || alarm.originatorName || '--'}}</strong></div>
+      <div><span>告警类型</span><strong>{{alarm.type || '--'}}</strong></div>
+      <div><span>告警等级</span><strong [class]="'severity ' + (alarm.severity || '').toLowerCase()">{{severityLabel(alarm.severity)}}</strong></div>
+      <div><span>告警状态</span><strong>{{statusLabel(alarm.status)}}</strong></div>
+      <div><span>告警时间</span><strong>{{formatTime(alarm.startTs || alarm.createdTime)}}</strong></div>
+      <div><span>受理人</span><strong>{{assigneeLabel(alarm)}}</strong></div>
+      <div><span>派发时间</span><strong>{{formatTime(alarm.assignTs)}}</strong></div>
+      <div><span>确认时间</span><strong>{{formatTime(alarm.ackTs)}}</strong></div>
+      <div><span>清除时间</span><strong>{{formatTime(alarm.clearTs)}}</strong></div>
+    </div>
+    <section class="detail-content">
+      <h3>详细信息</h3>
+      <pre>{{detailText(alarm.details)}}</pre>
+    </section>
+  }
+
+  <footer><button type="button" (click)="close()">关闭</button></footer>
+</section>

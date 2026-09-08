@@ -61,3 +61,79 @@
 .asset-node.device-node.device-alarm.selected {
   border-left-color: #ef3f4c !important;
 }
+
+/* 告警操作保持独立入口：一行内可直观看到详情、派发、确认、清除和备注。 */
+.table-wrap th:nth-child(13) {
+  width: 260px;
+}
+
+.operation-cell {
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.operation-cell button {
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 5px;
+}
+
+.operation-cell button.dispatch-button {
+  color: #7650bc;
+  border-color: #7650bc;
+}
+
+.operation-cell button.ack-button {
+  color: #0c8a50;
+  border-color: #0c8a50;
+}
+
+.operation-cell button.clear-button {
+  color: #db4d35;
+  border-color: #db4d35;
+}
+
+.operation-cell button.comment-button {
+  color: #587086;
+  border-color: #91a3b4;
+}
+
+/* 移除网关识别号、回路名称后，重新分配表格列宽。 */
+.table-wrap th:nth-child(7) { width: 106px; }
+.table-wrap th:nth-child(8) { width: 112px; }
+.table-wrap th:nth-child(9) { width: 84px; }
+.table-wrap th:nth-child(10) { width: 260px; }
+
+/* 操作按钮在单元格两端分布，按钮较多时仍允许自动换行。 */
+.operation-cell {
+  display: grid !important;
+  grid-template-columns: repeat(5, 42px);
+  justify-content: center;
+  align-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 5px;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+.operation-cell button { width: 42px; flex: 0 0 auto; }
+.operation-cell button.action-hidden { visibility: hidden; pointer-events: none; }
+
+/* 告警状态独立展示；工单状态仅保留是否派发。 */
+.alarm-status-tag { display: inline-block; min-width: 74px; padding: 4px 6px; border: 1px solid currentColor; border-radius: 5px; font-size: 11px; white-space: nowrap; }
+.alarm-status-tag.active-unack { color: #e23b49; background: #fff3f4; }
+.alarm-status-tag.active-ack { color: #e07b00; background: #fff8e9; }
+.alarm-status-tag.cleared-unack { color: #4f79b8; background: #f1f6ff; }
+.alarm-status-tag.cleared-ack { color: #71808d; background: #f2f4f5; }
+
+/* 名称列改为“设备名”后收窄列宽，把空间让给操作列与状态列。 */
+.table-wrap table { min-width: 1400px; }
+.table-wrap th:nth-child(2) { width: 100px; }
+.table-wrap th:nth-child(3) { width: 126px; }
+.table-wrap th:nth-child(4) { width: 94px; }
+.table-wrap th:nth-child(5) { width: 82px; }
+.table-wrap th:nth-child(6) { width: 82px; }
+.table-wrap th:nth-child(7) { width: 76px; }
+.table-wrap th:nth-child(8) { width: 104px; }
+.table-wrap th:nth-child(9) { width: 108px; }
+.table-wrap th:nth-child(10) { width: 260px; }

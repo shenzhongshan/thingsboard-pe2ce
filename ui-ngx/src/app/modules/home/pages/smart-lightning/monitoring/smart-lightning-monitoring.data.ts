@@ -161,6 +161,26 @@ export interface SmartLightningMonitoringAlarmRecord {
   clearTs: number;
 }
 
+/**
+ * 从告警结果中提取当前资产树范围内仍处于活动状态的设备 ID。
+ * 资产树只负责展示，告警状态由页面的公共数据层统一计算，避免各页面重复实现筛选条件。
+ */
+export const getSmartLightningActiveAlarmDeviceIds = (
+  alarms: ReadonlyArray<Pick<SmartLightningMonitoringAlarmRecord, 'originator' | 'status'>>,
+  visibleDeviceIds: ReadonlySet<string>
+): Set<string> => {
+  const activeDeviceIds = new Set<string>();
+  alarms.forEach((alarm) => {
+    const deviceId = alarm.originator?.id;
+    if (deviceId && visibleDeviceIds.has(deviceId) &&
+      alarm.originator?.entityType === EntityType.DEVICE &&
+      (alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')) {
+      activeDeviceIds.add(deviceId);
+    }
+  });
+  return activeDeviceIds;
+};
+
 /** 与后端 /api/smart-lightning/monitoring/tree 对应的轻量树节点。 */
 export interface SmartLightningMonitoringTreeResponseNode {
   id: string;

@@ -10,7 +10,6 @@
         <h1>企业 / 项目</h1>
         <span>资产数：{{assetCount}}</span>
       </div>
-      <button type="button" class="asset-query-button" (click)="query()">查询</button>
     </div>
     <tb-smart-lightning-asset-tree
       [tree]="assetTree"
@@ -64,7 +63,6 @@
         <input type="datetime-local" [(ngModel)]="filters.endTime" name="endTime" aria-label="结束时间">
       </label>
       <div class="filter-actions">
-        <button type="submit" class="query-button">查询</button>
         <button type="button" class="reset-button" (click)="reset()">重置</button>
       </div>
     </form>
@@ -76,7 +74,7 @@
             <tb-icon>download</tb-icon>导出
           </button>
           <button type="button" class="process-button" (click)="acknowledgeSelected()" [disabled]="!selectedRows.size">
-            <tb-icon>touch_app</tb-icon>一键处理
+            <tb-icon>touch_app</tb-icon>批量确认
           </button>
         </div>
         <div class="severity-tabs" role="tablist" aria-label="报警等级筛选">
@@ -94,27 +92,24 @@
           <tr>
             <th class="check-column"><input type="checkbox" aria-label="选择本页全部告警" [checked]="allPageRowsSelected"
                        (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
-            <th>项目/设备/企业名称</th>
+            <th>设备名</th>
             <th>报警时间</th>
+            <th>告警状态</th>
             <th>工单状态</th>
             <th>报警类型</th>
             <th>报警等级</th>
-            <th>网关识别号</th>
             <th>设备型号</th>
             <th>仪表地址</th>
-            <th>回路名称</th>
-            <th>时段设置</th>
-            <th>详情描述</th>
             <th>操作</th>
           </tr>
           </thead>
           <tbody>
           @if (alarmsLoading) {
-            <tr><td colspan="13" class="table-state">正在读取告警信息…</td></tr>
+            <tr><td colspan="10" class="table-state">正在读取告警信息…</td></tr>
           } @else if (alarmsLoadError) {
-            <tr><td colspan="13" class="table-state error">告警信息读取失败，请稍后重试</td></tr>
+            <tr><td colspan="10" class="table-state error">告警信息读取失败，请稍后重试</td></tr>
           } @else if (!pageRows.length) {
-            <tr><td colspan="13" class="table-state">当前资产范围暂无符合条件的告警</td></tr>
+            <tr><td colspan="10" class="table-state">当前资产范围暂无符合条件的告警</td></tr>
           } @else {
             @for (row of pageRows; track row.id) {
               <tr [class.row-selected]="selectedRows.has(row.id)">
@@ -122,17 +117,30 @@
                     (change)="toggleRow(row.id)" [attr.aria-label]="'选择告警' + row.alarmType"></td>
                 <td class="name-cell" [title]="row.projectDeviceName">{{row.projectDeviceName}}</td>
                 <td>{{formatTime(row.alarmTime)}}</td>
+                <td><span [class]="'alarm-status-tag ' + alarmStatusTone(row.alarmStatus)">{{row.alarmStatus}}</span></td>
                 <td><span [class]="'work-order-tag ' + workOrderTone(row.workOrderStatus)">{{row.workOrderStatus}}</span></td>
                 <td>{{row.alarmType}}</td>
                 <td><span [class]="'severity-tag ' + row.severityTone">{{row.severity}}</span></td>
-                <td [title]="row.gatewayIdentifier">{{row.gatewayIdentifier}}</td>
                 <td [title]="row.deviceType">{{row.deviceType}}</td>
                 <td [title]="row.meterAddress">{{row.meterAddress}}</td>
-                <td [title]="row.circuitName">{{row.circuitName}}</td>
-                <td>{{row.timeSetting}}</td>
-                <td class="description-cell" [title]="row.detailDescription">{{row.detailDescription}}</td>
                 <td class="operation-cell">
                   <button type="button" class="detail-button" (click)="openAlarmDetails(row)">详情</button>
+                  <button type="button" class="dispatch-button"
+                          [class.action-hidden]="!(dispatchMode || processingMode) || !canDispatch(row)"
+                          [attr.aria-hidden]="!(dispatchMode || processingMode) || !canDispatch(row)"
+                          (click)="openAlarmDispatch(row)">派发</button>
+                  <button type="button" class="ack-button"
+                          [class.action-hidden]="!processingMode || !canAcknowledge(row)"
+                          [attr.aria-hidden]="!processingMode || !canAcknowledge(row)"
+                          (click)="acknowledgeAlarm(row)">确认</button>
+                  <button type="button" class="clear-button"
+                          [class.action-hidden]="!processingMode || !canClear(row)"
+                          [attr.aria-hidden]="!processingMode || !canClear(row)"
+                          (click)="clearAlarm(row)">清除</button>
+                  <button type="button" class="comment-button"
+                          [class.action-hidden]="!processingMode"
+                          [attr.aria-hidden]="!processingMode"
+                          (click)="openAlarmComment(row)">备注</button>
                 </td>
               </tr>
             }

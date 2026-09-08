@@ -54,6 +54,26 @@ export interface SmartLightningAlarmSummary {
   typeTotals: SmartLightningAlarmTypeTotal[];
 }
 
+export interface SmartLightningAlarmPeriodSummary {
+  currentCount: number;
+  previousCount: number;
+  changePercent: number;
+}
+
+export interface SmartLightningAlarmAnalysisSummary {
+  day: SmartLightningAlarmPeriodSummary;
+  month: SmartLightningAlarmPeriodSummary;
+  year: SmartLightningAlarmPeriodSummary;
+}
+
+export interface SmartLightningLeafAssetAlarmCount {
+  assetId: string;
+  assetName: string;
+  alarmCount: number;
+  handledCount: number;
+  handledRate: number;
+}
+
 /**
  * 数据监测页的聚合接口。后端已按当前登录用户过滤权限并拼接完整层级，
  * 因此组件不再逐个资产请求通用关系接口。
@@ -89,6 +109,21 @@ export class SmartLightningMonitoringApiService {
   /** 查询当前用户可见防雷设备的未清除告警总数及按类型汇总。 */
   getLightningAlarmSummary(): Observable<SmartLightningAlarmSummary> {
     return this.http.get<SmartLightningAlarmSummary>('/api/smart-lightning/monitoring/alarm-summary');
+  }
+
+  /** 查询告警分析页日、月、年触发次数；统计范围由后端按当前用户权限过滤。 */
+  getLightningAlarmAnalysisSummary(): Observable<SmartLightningAlarmAnalysisSummary> {
+    return this.http.get<SmartLightningAlarmAnalysisSummary>(
+      '/api/smart-lightning/monitoring/alarm-analysis-summary'
+    );
+  }
+
+  /** 查询每个末级资产下属设备在指定周期内的告警触发次数。 */
+  getLeafAssetAlarmCounts(period: 'day' | 'month' | 'year'): Observable<SmartLightningLeafAssetAlarmCount[]> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningLeafAssetAlarmCount[]>(
+      '/api/smart-lightning/monitoring/alarm-analysis/leaf-assets', {params}
+    );
   }
 
   /**

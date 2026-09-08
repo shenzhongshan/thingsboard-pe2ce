@@ -22,6 +22,9 @@ import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
+import java.util.Set;
+import java.util.UUID;
+
 /** 智能防雷设备列表的业务接口。 */
 public interface SmartLightningDeviceService {
 
@@ -31,4 +34,10 @@ public interface SmartLightningDeviceService {
     /** 批量返回当前用户可见防雷设备及其服务器属性，并在 productCategory 过滤后分页。 */
     PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException;
+
+    /** 返回当前用户可见且 productCategory=lightning 的全部设备 ID。 */
+    Set<UUID> getLightningDeviceIds(SecurityUser user) throws ThingsboardException;
+
+    /** 返回当前用户有读取权限的全部设备 ID，不按产品分类过滤。 */
+    Set<UUID> getVisibleDeviceIds(SecurityUser user) throws ThingsboardException;
 }

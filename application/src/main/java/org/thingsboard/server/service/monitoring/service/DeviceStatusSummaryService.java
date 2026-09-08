@@ -22,6 +22,6 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 /** 顶部导航栏设备正常/异常统计的业务接口。 */
 public interface DeviceStatusSummaryService {
 
-    /** 统计当前用户可见设备中正常与存在未清除告警的设备数量。 */
+    /** 统计当前用户可见设备中正常以及存在未清除告警或离线的设备数量。 */
     DeviceStatusSummary getSummary(SecurityUser user) throws ThingsboardException;
 }
