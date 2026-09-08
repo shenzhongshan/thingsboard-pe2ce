@@ -13,6 +13,10 @@ mvn clean install -T6 -DskipTests -Dpkg.skip=true
 # Full build with all packaging (bootjar, deb, rpm, zip)
 mvn clean install -T6 -DskipTests
 
+# Windows monolith installer only (boot jar + ZIP, no deb/rpm)
+# -> application/target/thingsboard-windows.zip
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=false
+
 # Frontend
 cd ui-ngx && yarn start          # dev server at http://localhost:4200
 cd ui-ngx && yarn build:prod     # production build

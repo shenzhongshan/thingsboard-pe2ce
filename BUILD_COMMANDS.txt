@@ -1,18 +1,28 @@
 ========================================================================
-thingsboard-ce 打包命令（排除 deb / rpm / 分发 zip / docker）
-生成日期：2026-09-08
+thingsboard-ce 打包命令
+生成日期：2026-09-08（2026-09-08 修订：packaging profile 激活方式）
 ========================================================================
 
-【命令】在 D:\ws_prj\ws_tb\pe_refactor\thingsboard-ce 目录下执行：
+【命令 A：只编译，不出发行包】在 thingsboard-ce 目录下执行：
 
 mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true
 
-换行写法（bash / git bash）：
+【命令 B：出 Windows 单体 zip（不出 deb / rpm）】
 
-mvn clean install -T6 -DskipTests \
-  -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=false
 
-PowerShell 换行用反引号 `，不要用反斜杠。
+  产物：application/target/thingsboard-windows.zip   （单体 Windows 安装包）
+        application/target/thingsboard-4.4.0-SNAPSHOT-boot.jar
+
+  zip 内部结构（2026-09-08 实测，1722 个文件 / 约 530MB）：
+        thingsboard/lib/thingsboard.jar     boot jar
+        thingsboard/thingsboard.exe         WinSW 服务包装器
+        thingsboard/thingsboard.xml         服务定义
+        thingsboard/install.bat  uninstall.bat  upgrade.bat
+        thingsboard/conf/  data/  install/  logs/
+  与 PE 的 thingsboard-windows-4.3.1.1pe 目录结构一致。
+
+换行写法（bash / git bash）用反斜杠 \，PowerShell 用反引号 `。
 
 
 ------------------------------------------------------------------------
@@ -41,6 +51,9 @@ PowerShell 换行用反引号 `，不要用反斜杠。
 
 -Dpkg.skip.zip=true
     跳过 maven-assembly-plugin 生成的 Windows 分发 ZIP。
+    置 false（或不写）才会产出 application/target/thingsboard-windows.zip。
+    描述符：packaging/java/assembly/windows.xml（其中 <id>windows</id>
+    是文件名里 "-windows" 后缀的来源）。
 
 docker 镜像
     不需要任何参数。msa/pom.xml:40 的 <dockerfile.skip>true</dockerfile.skip>
@@ -62,10 +75,60 @@ pkg.skip.bootjar 一起打开，把 application/target/thingsboard-*-boot.jar
 
 
 ------------------------------------------------------------------------
+【已修复的坑：-Dpkg.skip.deb=true 曾经把整个 packaging profile 关掉】
+（2026-09-08 修复，改动在根 pom.xml。老版本工作树上仍然会踩）
+------------------------------------------------------------------------
+
+症状：命令 B（zip=false）不产出 thingsboard.zip，也不报错；
+      连 application/target/*-boot.jar 都没有。
+
+原因：Maven 的 DefaultProfileSelector 规则 ——
+      同一个 POM 里只要有任意一个 profile 被激活（-P 或属性激活），
+      该 POM 中所有 activeByDefault 的 profile 全部失效。
+
+      根 pom.xml 里所有打包插件的配置（assembly 的 ZIP、spring-boot
+      repackage、gradle deb/rpm、winsw 拷贝）都在 packaging profile 的
+      pluginManagement 里，而它原本靠 activeByDefault 生效。
+      -Dpkg.skip.deb=true 会按属性激活 skip-deb profile，于是
+      packaging（和空的 default）被连坐踢掉 —— assembly 插件在
+      effective-pom 里只剩 artifactId + version，没有 executions、
+      没有 descriptor，所以既不干活也不报错。
+
+      注意这条规则是"按 POM 分组"的：ui-ngx 的 yarn-build 属于
+      ui-ngx/pom.xml 自己的 profile 组，不受根 pom 影响（已实测）。
+
+修复：packaging profile 改成属性缺失激活，不受该规则影响：
+
+      <activation><property><name>!pkg.packaging.disabled</name></property></activation>
+
+      想主动关掉打包插件配置时传 -Dpkg.packaging.disabled=true。
+
+      同时新增内部属性 pkg.dist.phase（默认 = pkg.package.phase，
+      skip-pkg profile 里置 none），用来绑定两个没有自己 skip 开关的
+      execution：gradle-maven-plugin（deb/rpm）和 winsw service.exe 拷贝。
+      否则 packaging profile 一直生效后，-Dpkg.skip=true 会平白多跑一次
+      Gradle 和一次 winsw 下载，失去"纯编译"快速路径的意义。
+
+验证（不用真跑构建）：
+
+      mvn -N help:active-profiles -Dpkg.skip.deb=true
+      # 修复前只有 skip-deb；修复后是 skip-deb + packaging
+
+      mvn -pl application help:effective-pom -Dpkg.skip.deb=true -Doutput=eff.xml
+      # 搜 maven-assembly-plugin，应能看到
+      #   assembly@package + skipAssembly=false + windows.xml 描述符
+
+
+------------------------------------------------------------------------
 【坑 1：clean 会清掉前端产物】
 ------------------------------------------------------------------------
 
-ui-ngx 的 Angular 编译只在 yarn-build profile 下执行（默认不激活）。
+ui-ngx 的 Angular 编译只在 yarn-build profile 下执行。
+（更正 2026-09-08：yarn-build 是 activeByDefault，实测在 -Dpkg.skip=true
+ 和 -Dpkg.skip.deb=true 下都仍然激活 —— 上面那条"打包开关会把它关掉"的
+ 推断不成立，profile 的 activeByDefault 规则按 POM 分组，根 pom 的 profile
+ 影响不到 ui-ngx/pom.xml。只有传 -Dyarn-start 才会顶掉它。
+ 如果当时确实打出了空的前端 jar，原因在别处，需要重新定位。）
 clean 会删掉 ui-ngx/target/generated-resources/public 里已构建的前端产物，
 重新打出来的 ui-ngx jar 就是空的，运行起来没有界面。
 
@@ -107,6 +170,10 @@ deb / rpm / zip 三个跳过参数全部正常工作，msa/tb-node 对 applicati
   说明这个改动之后该模块从未成功编译过（之前都用 -pl 只构建受影响模块，绕开了它）。
 
 待确认后再跑全量构建。
+
+  状态更新 2026-09-08：根 pom.xml:138 现在是 1.20.6（与 PE 一致），
+  且 ~/.m2 里 1.20.6 和 1.23.0 都在，这个阻塞点看起来已经消掉。
+  （只核对了版本号和本地仓库，没有重跑全量 reactor 构建来证实。）
 
 
 ------------------------------------------------------------------------

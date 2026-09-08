@@ -58,6 +58,13 @@
              skipped instead of failing on a non-existent .deb file. Packaging modules inherit
              "package" via pkg.package.phase; msa/* docker modules set it explicitly in msa/pom.xml. -->
         <pkg.deb.phase>${pkg.package.phase}</pkg.deb.phase>
+        <!-- Internal: resolved phase for the two executions that build the OS distributions but
+             have no skip flag of their own — the Gradle invocation (deb/rpm) and the WinSW
+             service.exe download (input to the Windows ZIP). Overridden to "none" by the skip-pkg
+             profile so -Dpkg.skip=true stays a pure "compile only, no packaging" fast path.
+             With only -Dpkg.skip.deb/rpm=true the Gradle invocation still runs, but buildDeb and
+             buildRpm are onlyIf-skipped inside build.gradle, so it produces nothing. -->
+        <pkg.dist.phase>${pkg.package.phase}</pkg.dist.phase>
         <pkg.user>thingsboard</pkg.user>
         <pkg.implementationTitle>${project.name}</pkg.implementationTitle>
         <pkg.unixLogFolder>/var/log/${pkg.name}</pkg.unixLogFolder>
@@ -229,7 +236,10 @@
 
         <!-- Activated by -Dpkg.skip.deb=true. Sets the attach-artifact lifecycle phase to "none"
              so the build-helper goal that registers the .deb with the Maven reactor is silently
-             skipped. Without this, the goal would fail because the .deb file does not exist. -->
+             skipped. Without this, the goal would fail because the .deb file does not exist.
+             NOTE: activating this profile used to disable the activeByDefault "packaging" profile
+             below (Maven drops activeByDefault profiles once any sibling profile activates); that
+             profile is now activated by property absence instead, so the two coexist. -->
         <profile>
             <id>skip-deb</id>
             <activation>
@@ -261,13 +271,23 @@
                 <pkg.skip.rpm>true</pkg.skip.rpm>
                 <pkg.skip.zip>true</pkg.skip.zip>
                 <pkg.deb.phase>none</pkg.deb.phase>
+                <pkg.dist.phase>none</pkg.dist.phase>
             </properties>
         </profile>
 
+        <!-- Always active. Deliberately NOT activeByDefault: Maven drops every activeByDefault
+             profile of a POM as soon as any other profile of that same POM is activated, and
+             skip-deb/skip-pkg above are activated by plain -D properties. With activeByDefault,
+             passing -Dpkg.skip.deb=true silently removed this whole pluginManagement block, so
+             the boot jar and the Windows ZIP were never built no matter what pkg.skip.zip said.
+             Property-absence activation is immune to that rule; pass -Dpkg.packaging.disabled
+             (any value) to turn the block off on purpose. -->
         <profile>
             <id>packaging</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>!pkg.packaging.disabled</name>
+                </property>
             </activation>
             <build>
                 <pluginManagement>
@@ -531,7 +551,7 @@
                             <executions>
                                 <execution>
                                     <id>copy-winsw-service</id>
-                                    <phase>${pkg.package.phase}</phase>
+                                    <phase>${pkg.dist.phase}</phase>
                                     <goals>
                                         <goal>copy</goal>
                                     </goals>
@@ -628,7 +648,7 @@
                             </configuration>
                             <executions>
                                 <execution>
-                                    <phase>${pkg.package.phase}</phase>
+                                    <phase>${pkg.dist.phase}</phase>
                                     <goals>
                                         <goal>invoke</goal>
                                     </goals>
