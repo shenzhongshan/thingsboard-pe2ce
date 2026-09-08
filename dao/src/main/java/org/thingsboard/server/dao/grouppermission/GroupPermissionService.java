@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface GroupPermissionService {
 
@@ -53,5 +54,11 @@ public interface GroupPermissionService {
     List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId);
+
+    /**
+     * The public (isPublic=true) group permission granted on the given entity group, if any.
+     * Used by makePrivate to locate and remove it.
+     */
+    Optional<GroupPermission> findPublicGroupPermissionByTenantIdAndEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId);
 
 }

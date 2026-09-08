@@ -23,12 +23,14 @@ import { EntityViewTableHeaderComponent } from './entity-view-table-header.compo
 import { EntityViewRoutingModule } from './entity-view-routing.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { EntityViewTabsComponent } from '@home/pages/entity-view/entity-view-tabs.component';
+import { EntityViewOwnerGroupsDialogComponent } from '@home/pages/entity-view/entity-view-owner-groups-dialog.component';
 
 @NgModule({
   declarations: [
     EntityViewComponent,
     EntityViewTabsComponent,
-    EntityViewTableHeaderComponent
+    EntityViewTableHeaderComponent,
+    EntityViewOwnerGroupsDialogComponent
   ],
   imports: [
     CommonModule,

@@ -406,10 +406,10 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
         this.deleteEditingGroup(action.entity);
         return true;
       case 'makePublic':
-        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, true).subscribe(() => this.select(this.editingGroupNode));
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id).subscribe(() => this.select(this.editingGroupNode));
         return true;
       case 'makePrivate':
-        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, false).subscribe(() => this.select(this.editingGroupNode));
+        this.entityGroupService.makeEntityGroupPrivate(action.entity.id.id).subscribe(() => this.select(this.editingGroupNode));
         return true;
       default:
         return false;

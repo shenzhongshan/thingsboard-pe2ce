@@ -19,7 +19,6 @@ import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, Router } from '@angular/router';
 import {
   CellActionDescriptor,
-  checkBoxCell,
   DateEntityTableColumn,
   EntityTableColumn,
   EntityTableConfig,
@@ -64,6 +63,10 @@ import {
   AddEntitiesToEdgeDialogComponent,
   AddEntitiesToEdgeDialogData
 } from '@home/dialogs/add-entities-to-edge-dialog.component';
+import {
+  AssetOwnerGroupsDialogComponent,
+  AssetOwnerGroupsDialogData
+} from '@home/pages/asset/asset-owner-groups-dialog.component';
 
 @Injectable()
 export class AssetsTableConfigResolver  {
@@ -177,10 +180,6 @@ export class AssetsTableConfigResolver  {
     if (assetScope === 'tenant') {
       columns.push(
         new EntityTableColumn<AssetInfo>('customerTitle', 'customer.customer', '25%'),
-        new EntityTableColumn<AssetInfo>('customerIsPublic', 'asset.public', '60px',
-          entity => {
-            return checkBoxCell(entity.customerIsPublic);
-          }, () => ({}), false),
         // Not sortable: groups is stitched in after the query (BaseAssetService.withGroups), so
         // it is not a queryable property — sortProperty=groups would blow up in the JPQL.
         new EntityTableColumn<AssetInfo>('groups', 'asset.groups', '25%',
@@ -212,44 +211,20 @@ export class AssetsTableConfigResolver  {
     if (assetScope === 'tenant') {
       actions.push(
         {
-          name: this.translate.instant('asset.make-public'),
-          icon: 'share',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.makePublic($event, entity)
-        },
-        {
-          name: this.translate.instant('asset.assign-to-customer'),
-          icon: 'assignment_ind',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.assignToCustomer($event, [entity.id])
-        },
-        {
-          name: this.translate.instant('asset.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('asset.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('asset.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         }
       );
     }
     if (assetScope === 'customer') {
       actions.push(
         {
-          name: this.translate.instant('asset.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('asset.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('asset.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         }
       );
     }
@@ -481,10 +456,29 @@ export class AssetsTableConfigResolver  {
     );
   }
 
+  manageOwnerAndGroups($event: Event, asset: AssetInfo) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.dialog.open<AssetOwnerGroupsDialogComponent, AssetOwnerGroupsDialogData, boolean>(
+      AssetOwnerGroupsDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data: {asset}
+      }).afterClosed().subscribe((res) => {
+      if (res) {
+        this.config.updateData(this.config.componentsData.assetScope !== 'tenant');
+      }
+    });
+  }
+
   onAssetAction(action: EntityAction<AssetInfo>, config: EntityTableConfig<AssetInfo>): boolean {
     switch (action.action) {
       case 'open':
         this.openAsset(action.event, action.entity, config);
+        return true;
+      case 'manageOwnerAndGroups':
+        this.manageOwnerAndGroups(action.event, action.entity);
         return true;
       case 'makePublic':
         this.makePublic(action.event, action.entity);
