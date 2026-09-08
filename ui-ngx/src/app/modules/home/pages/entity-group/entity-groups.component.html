@@ -87,6 +87,19 @@
                       matTooltip="{{ 'entity-group.share-group' | translate }}" matTooltipPosition="above">
                 <mat-icon>contact_page</mat-icon>
               </button>
+              @if (canBePublic(g)) {
+                @if (!isPublicGroup(g)) {
+                  <button mat-icon-button type="button" (click)="togglePublic($event, g, true)"
+                          matTooltip="{{ 'entity-group.make-public' | translate }}" matTooltipPosition="above">
+                    <mat-icon>public</mat-icon>
+                  </button>
+                } @else {
+                  <button mat-icon-button type="button" (click)="togglePublic($event, g, false)"
+                          matTooltip="{{ 'entity-group.make-private' | translate }}" matTooltipPosition="above">
+                    <mat-icon>lock</mat-icon>
+                  </button>
+                }
+              }
               <button mat-icon-button type="button" (click)="editGroup($event, g)"
                       [disabled]="isGroupAll(g)"
                       matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">

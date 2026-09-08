@@ -83,10 +83,15 @@ public interface EntityGroupService {
                                                       List<EntityGroupId> groupIds, boolean includeOwnerScope,
                                                       PageLink pageLink);
 
-    EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId, boolean isPublic);
+    EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId);
+
+    EntityGroup makePrivate(TenantId tenantId, EntityGroupId entityGroupId);
 
     /** Ensures + returns the "All" group id for the given owner+type (tenant-owned when ownerId is null). */
     EntityGroupId findOrCreateAllGroupId(TenantId tenantId, CustomerId ownerId, EntityType groupType);
+
+    /** Ensures + returns the "Public Users" USER group owned by the given customer (PE parity). */
+    EntityGroup findOrCreatePublicUsersGroup(TenantId tenantId, CustomerId customerId);
 
     /**
      * All entity-group ids the given entity belongs to: its tenant-level (and, if customerId is

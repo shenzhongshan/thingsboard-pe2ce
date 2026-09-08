@@ -24,12 +24,6 @@
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
-          (click)="onEntityAction($event, 'makePublic')"
-          [class.!hidden]="isEdit || edgeScope !== 'tenant' || isAssignedToCustomer(entity) || entity?.customerIsPublic">
-    {{'edge.make-public' | translate }}
-  </button>
-  <button mat-raised-button color="primary"
-          [disabled]="(isLoading$ | async)"
           (click)="onEntityAction($event, 'assignToCustomer')"
           [class.!hidden]="isEdit || edgeScope !== 'tenant' || isAssignedToCustomer(entity)">
     {{'edge.assign-to-customer' | translate }}
@@ -38,7 +32,7 @@
           [disabled]="(isLoading$ | async)"
           (click)="onEntityAction($event, 'unassignFromCustomer')"
           [class.!hidden]="isEdit || (edgeScope !== 'customer' && edgeScope !== 'tenant') || !isAssignedToCustomer(entity)">
-    {{ (entity?.customerIsPublic ? 'edge.make-private' : 'edge.unassign-from-customer') | translate }}
+    {{ 'edge.unassign-from-customer' | translate }}
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
