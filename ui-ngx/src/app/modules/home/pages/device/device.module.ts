@@ -36,6 +36,7 @@ import { SnmpDeviceTransportConfigurationComponent } from './data/snmp-device-tr
 import { DeviceCredentialsModule } from '@home/components/device/device-credentials.module';
 import { DeviceProfileCommonModule } from '@home/components/profile/device/common/device-profile-common.module';
 import { DeviceCheckConnectivityDialogComponent } from './device-check-connectivity-dialog.component';
+import { DeviceOwnerGroupsDialogComponent } from './device-owner-groups-dialog.component';
 
 @NgModule({
   declarations: [
@@ -52,7 +53,8 @@ import { DeviceCheckConnectivityDialogComponent } from './device-check-connectiv
     DeviceTabsComponent,
     DeviceTableHeaderComponent,
     DeviceCredentialsDialogComponent,
-    DeviceCheckConnectivityDialogComponent
+    DeviceCheckConnectivityDialogComponent,
+    DeviceOwnerGroupsDialogComponent
   ],
   imports: [
     CommonModule,

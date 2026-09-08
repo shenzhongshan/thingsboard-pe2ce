@@ -89,9 +89,15 @@ export class EntityGroupService {
       defaultHttpOptionsFromConfig(config));
   }
 
-  public makeEntityGroupPublic(entityGroupId: string, isPublic: boolean,
+  public makeEntityGroupPublic(entityGroupId: string,
                                config?: RequestConfig): Observable<EntityGroup> {
-    return this.http.post<EntityGroup>(`/api/entityGroup/${entityGroupId}/makePublic?isPublic=${isPublic}`, null,
+    return this.http.post<EntityGroup>(`/api/entityGroup/${entityGroupId}/makePublic`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public makeEntityGroupPrivate(entityGroupId: string,
+                                config?: RequestConfig): Observable<EntityGroup> {
+    return this.http.post<EntityGroup>(`/api/entityGroup/${entityGroupId}/makePrivate`, null,
       defaultHttpOptionsFromConfig(config));
   }
 

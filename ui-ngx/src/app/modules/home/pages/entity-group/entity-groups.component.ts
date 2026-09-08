@@ -171,13 +171,13 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
         this.groupDetailsOpen = false;
         return true;
       case 'makePublic':
-        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, true).subscribe(() => {
+        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id).subscribe(() => {
           this.groupDetailsPanel?.reloadEntity();
           this.reload();
         });
         return true;
       case 'makePrivate':
-        this.entityGroupService.makeEntityGroupPublic(action.entity.id.id, false).subscribe(() => {
+        this.entityGroupService.makeEntityGroupPrivate(action.entity.id.id).subscribe(() => {
           this.groupDetailsPanel?.reloadEntity();
           this.reload();
         });
@@ -226,6 +226,24 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
         disableClose: true,
         data: { entityGroup: group }
       });
+  }
+
+  canBePublic(group: EntityGroup): boolean {
+    return !isGroupAll(group) && [
+      EntityType.ASSET, EntityType.DEVICE, EntityType.ENTITY_VIEW, EntityType.EDGE, EntityType.DASHBOARD
+    ].includes(group.type);
+  }
+
+  isPublicGroup(group: EntityGroup): boolean {
+    return group?.additionalInfo?.isPublic === true;
+  }
+
+  togglePublic($event: Event, group: EntityGroup, isPublic: boolean) {
+    $event?.stopPropagation();
+    const request = isPublic
+      ? this.entityGroupService.makeEntityGroupPublic(group.id.id)
+      : this.entityGroupService.makeEntityGroupPrivate(group.id.id);
+    request.subscribe(() => this.reload());
   }
 
   deleteGroup($event: Event, group: EntityGroup) {

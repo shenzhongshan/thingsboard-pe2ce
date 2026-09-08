@@ -83,6 +83,10 @@ import {
   DeviceCheckConnectivityDialogComponent,
   DeviceCheckConnectivityDialogData
 } from '@home/pages/device/device-check-connectivity-dialog.component';
+import {
+  DeviceOwnerGroupsDialogComponent,
+  DeviceOwnerGroupsDialogData
+} from '@home/pages/device/device-owner-groups-dialog.component';
 import { EntityId } from '@shared/models/id/entity-id';
 
 interface DevicePageQueryParams extends PageQueryParam {
@@ -228,8 +232,6 @@ export class DevicesTableConfigResolver  {
     if (deviceScope === 'tenant') {
       columns.push(
         new EntityTableColumn<DeviceInfo>('customerTitle', 'customer.customer', '25%'),
-        new EntityTableColumn<DeviceInfo>('customerIsPublic', 'device.public', '60px',
-          entity => checkBoxCell(entity.customerIsPublic), () => ({})),
       );
     }
     columns.push(
@@ -298,28 +300,10 @@ export class DevicesTableConfigResolver  {
     if (deviceScope === 'tenant') {
       actions.push(
         {
-          name: this.translate.instant('device.make-public'),
-          icon: 'share',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.makePublic($event, entity)
-        },
-        {
-          name: this.translate.instant('device.assign-to-customer'),
-          icon: 'assignment_ind',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.assignToCustomer($event, [entity.id])
-        },
-        {
-          name: this.translate.instant('device.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('device.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('device.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         },
         {
           name: this.translate.instant('device.manage-credentials'),
@@ -332,16 +316,10 @@ export class DevicesTableConfigResolver  {
     if (deviceScope === 'customer') {
       actions.push(
         {
-          name: this.translate.instant('device.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('device.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('device.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         },
         {
           name: this.translate.instant('device.manage-credentials'),
@@ -634,10 +612,29 @@ export class DevicesTableConfigResolver  {
     });
   }
 
+  manageOwnerAndGroups($event: Event, device: DeviceInfo) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.dialog.open<DeviceOwnerGroupsDialogComponent, DeviceOwnerGroupsDialogData, boolean>(
+      DeviceOwnerGroupsDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data: {device}
+      }).afterClosed().subscribe((res) => {
+      if (res) {
+        this.config.updateData(this.config.componentsData.deviceScope !== 'tenant');
+      }
+    });
+  }
+
   onDeviceAction(action: EntityAction<DeviceInfo>, config: EntityTableConfig<DeviceInfo>): boolean {
     switch (action.action) {
       case 'open':
         this.openDevice(action.event, action.entity, config);
+        return true;
+      case 'manageOwnerAndGroups':
+        this.manageOwnerAndGroups(action.event, action.entity);
         return true;
       case 'makePublic':
         this.makePublic(action.event, action.entity);

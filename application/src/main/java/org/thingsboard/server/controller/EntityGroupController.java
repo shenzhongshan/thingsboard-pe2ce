@@ -479,20 +479,19 @@ public class EntityGroupController extends BaseController {
         return entityGroupService.findGroupEntities(getTenantId(), entityGroupId, pageLink);
     }
 
-    @ApiOperation(value = "Make Entity Group public or private (makeEntityGroupPublic)",
-            notes = "Stores the public flag on the group. CE simplification: cosmetic only — no public-customer permission machinery.")
+    @ApiOperation(value = "Make Entity Group public (makeEntityGroupPublic)",
+            notes = "Makes the group available to public (non-authorized) users and stores the public flag. " +
+                    "Only ASSET, DEVICE, ENTITY_VIEW, EDGE and DASHBOARD groups can be public.")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/makePublic"})
     public EntityGroup makeEntityGroupPublic(
             @Parameter(description = "A string value representing the entity group id", required = true)
-            @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId,
-            @Parameter(description = "true to make public, false to make private")
-            @RequestParam(defaultValue = "true") boolean isPublic) throws ThingsboardException {
+            @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId) throws ThingsboardException {
         checkParameter(ENTITY_GROUP_ID, strEntityGroupId);
         accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.WRITE);
         EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
         checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)), Operation.WRITE);
-        return entityGroupService.makePublic(getTenantId(), entityGroupId, isPublic);
+        return entityGroupService.makePublic(getTenantId(), entityGroupId);
     }
 
     @ApiOperation(value = "Get entity group owners (getEntityGroupOwners)",
@@ -704,14 +703,18 @@ public class EntityGroupController extends BaseController {
     }
 
     @ApiOperation(value = "Make Entity Group private (makeEntityGroupPrivate)",
-            notes = "Clears the public flag. Equivalent to makeEntityGroupPublic with isPublic=false; exists because " +
-                    "PE exposes it as its own endpoint.")
+            notes = "Removes the public group permission and clears the public flag. " +
+                    "Only ASSET, DEVICE, ENTITY_VIEW, EDGE and DASHBOARD groups can be public.")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/makePrivate"})
     public EntityGroup makeEntityGroupPrivate(
             @Parameter(description = "A string value representing the entity group id", required = true)
             @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId) throws ThingsboardException {
-        return makeEntityGroupPublic(strEntityGroupId, false);
+        checkParameter(ENTITY_GROUP_ID, strEntityGroupId);
+        accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.WRITE);
+        EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
+        checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)), Operation.WRITE);
+        return entityGroupService.makePrivate(getTenantId(), entityGroupId);
     }
 
     @ApiOperation(value = "Get owners (getOwners)",
