@@ -14,15 +14,16 @@
   min-height: 100%;
   /* 页面与左侧导航栏保留 8px 视觉间隙；全局侧栏不受此规则影响。 */
   margin-left: 8px;
-  padding: 18px 20px 18px 0;
+  /* 看板主体贴近顶部，避免标题区占用监控内容的首屏空间。 */
+  padding: 4px 20px 18px 0;
   color: #173753;
   background: var(--canvas);
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 
-.lightning-heading { padding: 2px 4px 12px; }
+.lightning-heading { padding: 0 4px 6px; }
 h2, p { margin: 0; }
-h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-weight: 800; letter-spacing: .02em; }
+h1 { margin: 0; color: var(--ink); font-size: clamp(18px, 1.65vw, 23px); font-weight: 400; line-height: 1.15; letter-spacing: .01em; }
 
 .dashboard-grid { display: grid; grid-template-columns: minmax(260px, .92fr) minmax(430px, 1.8fr) minmax(270px, .92fr); grid-template-areas: "device map ground" "alarm map spd" "orders records lightning"; gap: 14px; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid #d5dee6; background: var(--panel); box-shadow: 0 7px 18px rgba(29, 60, 87, .07); }
@@ -49,11 +50,11 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-wei
 
 @media (max-width: 1350px) { .dashboard-grid { grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.45fr); grid-template-areas: "device map" "ground spd" "alarm orders" "records lightning"; }.map-panel { min-height: 390px; }.tianditu-map { min-height: 342px; } }
 @media (max-width: 1024px) { .records-panel thead th { padding: 4px 1px; font-size: 8px; font-weight: 500; letter-spacing: -.04em; } }
-@media (max-width: 860px) { .lightning-page { padding: 14px 12px 14px 0; }.dashboard-grid { grid-template-columns: 1fr; grid-template-areas: "device" "map" "ground" "spd" "alarm" "orders" "lightning" "records"; }.panel, .map-panel { min-height: 260px; }.tianditu-map { min-height: 330px; }.summary-content { justify-content: center; } }
+@media (max-width: 860px) { .lightning-page { padding: 4px 12px 14px 0; }.dashboard-grid { grid-template-columns: 1fr; grid-template-areas: "device" "map" "ground" "spd" "alarm" "orders" "lightning" "records"; }.panel, .map-panel { min-height: 260px; }.tianditu-map { min-height: 330px; }.summary-content { justify-content: center; } }
 
 /* 响应式密度：中等屏幕缩小卡片间距和标题字号，但保持桌面端三栏信息层级。 */
 @media (max-width: 1200px) and (min-width: 861px) {
-  .lightning-page { padding-top: 14px; }
+  .lightning-page { padding-top: 4px; }
   .dashboard-grid { grid-template-columns: minmax(220px, .86fr) minmax(360px, 1.45fr); gap: 10px; }
   .panel-title, .map-toolbar { min-height: 42px; padding: 0 12px; }
   .panel-title h2 { font-size: clamp(13px, 1.25vw, 16px); }
@@ -75,9 +76,9 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(23px, 2.2vw, 32px); font-wei
 
 /* 小屏幕改用更紧凑的单列卡片，所有内容保持在视口宽度内。 */
 @media (max-width: 720px) {
-  .lightning-page { padding: 10px 8px 10px 0; }
-  .lightning-heading { padding: 0 2px 9px; }
-  h1 { font-size: clamp(21px, 7vw, 28px); }
+  .lightning-page { padding: 4px 8px 10px 0; }
+  .lightning-heading { padding: 0 2px 6px; }
+  h1 { font-size: clamp(18px, 5vw, 22px); }
   .dashboard-grid { gap: 10px; }
   .panel-title, .map-toolbar { min-height: 40px; padding: 0 10px; }
   .panel-title h2 { font-size: 13px; }
