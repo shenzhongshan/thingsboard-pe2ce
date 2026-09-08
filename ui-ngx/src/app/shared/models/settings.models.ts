@@ -32,6 +32,11 @@ export enum SmtpProtocol {
 }
 
 export interface MailServerSettings {
+  /**
+   * Tenant-level only: when true (or absent) the tenant has no mail server of its own and outgoing
+   * mail falls back to the platform's. Lives on the tenant's own row, never on the system one.
+   */
+  useSystemMailSettings?: boolean;
   showChangePassword?: boolean;
   mailFrom: string;
   smtpProtocol: SmtpProtocol;

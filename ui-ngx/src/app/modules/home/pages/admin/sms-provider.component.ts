@@ -26,7 +26,7 @@ import { HasConfirmForm } from '@core/guards/confirm-on-exit.guard';
 import { MatDialog } from '@angular/material/dialog';
 import { SendTestSmsDialogComponent, SendTestSmsDialogData } from '@home/pages/admin/send-test-sms-dialog.component';
 import { NotificationSettings } from '@shared/models/notification.models';
-import { deepTrim, isNotEmptyStr } from '@core/utils';
+import { deepTrim, isDefinedAndNotNull, isNotEmptyStr } from '@core/utils';
 import { NotificationService } from '@core/http/notification.service';
 import { Authority } from '@shared/models/authority.enum';
 import { AuthUser } from '@shared/models/user.model';
@@ -41,6 +41,8 @@ import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 export class SmsProviderComponent extends PageComponent implements HasConfirmForm {
 
   smsProvider: FormGroup;
+  /** Tenant admins can fall back to the platform's SMS provider; sys admin has nothing above it. */
+  useSystemSmsSettings = true;
   private adminSettings: AdminSettings<SmsProviderConfiguration>;
 
   notificationSettingsForm: FormGroup;
@@ -64,20 +66,50 @@ export class SmsProviderComponent extends PageComponent implements HasConfirmFor
         this.notificationSettingsForm.reset(this.notificationSettings);
       }
     );
+    // PE shows the SMS provider card to tenant admins too, with a "use system settings" toggle -
+    // a tenant can either point SMS at its own provider or keep using the platform's.
+    this.adminService.getAdminSettings<SmsProviderConfiguration>('sms', {ignoreErrors: true}).subscribe({
+      next: adminSettings => {
+        this.adminSettings = adminSettings;
+        this.applyLoadedSmsSettings();
+      },
+      error: () => {
+        this.adminSettings = {
+          key: 'sms',
+          jsonValue: null
+        };
+        this.applyLoadedSmsSettings();
+      }
+    });
+  }
+
+  private applyLoadedSmsSettings(): void {
+    const jsonValue: any = this.adminSettings.jsonValue;
+    if (!this.isSysAdmin()) {
+      // an empty placeholder row means the tenant never configured its own provider, i.e. it is
+      // still on the system one - so default the toggle on rather than off
+      this.useSystemSmsSettings = isDefinedAndNotNull(jsonValue?.useSystemSmsSettings)
+        ? jsonValue.useSystemSmsSettings : !jsonValue?.type;
+    }
+    this.smsProvider.reset({configuration: jsonValue?.type ? jsonValue : null});
+    this.applyUseSystemSmsSettings();
+  }
+
+  useSystemSmsSettingsChanged(useSystem: boolean): void {
+    this.useSystemSmsSettings = useSystem;
+    this.applyUseSystemSmsSettings();
+    this.smsProvider.markAsDirty();
+  }
+
+  private applyUseSystemSmsSettings(): void {
     if (this.isSysAdmin()) {
-      this.adminService.getAdminSettings<SmsProviderConfiguration>('sms', {ignoreErrors: true}).subscribe({
-        next: adminSettings => {
-          this.adminSettings = adminSettings;
-          this.smsProvider.reset({configuration: this.adminSettings.jsonValue});
-        },
-        error: () => {
-          this.adminSettings = {
-            key: 'sms',
-            jsonValue: null
-          };
-          this.smsProvider.reset({configuration: this.adminSettings.jsonValue});
-        }
-      });
+      return;
+    }
+    // disabling clears the required validator's grip on Save while the fields are hidden
+    if (this.useSystemSmsSettings) {
+      this.smsProvider.disable({emitEvent: false});
+    } else {
+      this.smsProvider.enable({emitEvent: false});
     }
   }
 
@@ -99,11 +131,19 @@ export class SmsProviderComponent extends PageComponent implements HasConfirmFor
   }
 
   save(): void {
-    this.adminSettings.jsonValue = this.smsProvider.value.configuration;
+    this.adminSettings.jsonValue = this.smsProvider.getRawValue().configuration;
+    if (!this.isSysAdmin()) {
+      // the flag rides along inside the provider-configuration JSON, which is what the backend
+      // reads back in DefaultSmsService#resolveSmsSender
+      this.adminSettings.jsonValue = {
+        ...(this.adminSettings.jsonValue as any),
+        useSystemSmsSettings: this.useSystemSmsSettings
+      } as any;
+    }
     this.adminService.saveAdminSettings(this.adminSettings).subscribe(
       (adminSettings) => {
         this.adminSettings = adminSettings;
-        this.smsProvider.reset({configuration: this.adminSettings.jsonValue});
+        this.applyLoadedSmsSettings();
       }
     );
   }

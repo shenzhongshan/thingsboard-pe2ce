@@ -30,7 +30,11 @@ public interface MailService {
 
     void sendEmail(TenantId tenantId, String email, String subject, String message) throws ThingsboardException;
 
-    void sendTestMail(JsonNode config, String email) throws ThingsboardException;
+    /**
+     * @param tenantId the tenant whose settings are being tested, {@code SYS_TENANT_ID} for the
+     *                 system mail server. Scopes {@code ${secret:...}} resolution inside the config.
+     */
+    void sendTestMail(TenantId tenantId, JsonNode config, String email) throws ThingsboardException;
 
     void sendActivationEmail(String activationLink, long ttlMs, String email) throws ThingsboardException;
 

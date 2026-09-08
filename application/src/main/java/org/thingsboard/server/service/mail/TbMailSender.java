@@ -58,12 +58,27 @@ public class TbMailSender extends JavaMailSenderImpl {
     @Getter
     private volatile long tokenExpires;
 
+    /** Which tenant's settings this sender was built from; scopes secrets and OAuth2 tokens. */
+    private final TenantId settingsTenantId;
+
     public TbMailSender(TbMailContextComponent ctx, JsonNode jsonConfig) {
+        this(ctx, TenantId.SYS_TENANT_ID, jsonConfig);
+    }
+
+    /**
+     * @param settingsTenantId the tenant whose settings {@code jsonConfig} came from, or
+     *                         {@code SYS_TENANT_ID} for the system-wide mail configuration. A
+     *                         tenant's own mail settings reference that tenant's secrets and rotate
+     *                         that tenant's OAuth2 refresh token, so resolving either against the
+     *                         system scope would read - and write back - the wrong rows.
+     */
+    public TbMailSender(TbMailContextComponent ctx, TenantId settingsTenantId, JsonNode jsonConfig) {
         super();
         this.lock = new ReentrantLock();
         this.tokenExpires = 0L;
         this.ctx = ctx;
-        ctx.getSecretConfigurationService().replaceSecretUsages(TenantId.SYS_TENANT_ID, jsonConfig);
+        this.settingsTenantId = settingsTenantId == null ? TenantId.SYS_TENANT_ID : settingsTenantId;
+        ctx.getSecretConfigurationService().replaceSecretUsages(this.settingsTenantId, jsonConfig);
         this.oauth2Enabled = jsonConfig.has("enableOauth2") && jsonConfig.get("enableOauth2").asBoolean();
 
         setHost(jsonConfig.get("smtpHost").asText());
@@ -151,13 +166,13 @@ public class TbMailSender extends JavaMailSenderImpl {
         lock.lock();
         try {
             if (System.currentTimeMillis() > getTokenExpires()) {
-                AdminSettings settings = ctx.getAdminSettingsService().findAdminSettingsByKey(TenantId.SYS_TENANT_ID, "mail");
+                AdminSettings settings = ctx.getAdminSettingsService().findAdminSettingsByTenantIdAndKey(settingsTenantId, "mail");
                 JsonNode jsonValue = settings.getJsonValue();
                 // resolve secrets on a copy: 'jsonValue' is saved back to the DB below (refresh
                 // token rotation) and must keep the original ${secret:...} placeholder, not the
                 // decrypted value
                 JsonNode resolvedJsonValue = JacksonUtil.clone(jsonValue);
-                ctx.getSecretConfigurationService().replaceSecretUsages(TenantId.SYS_TENANT_ID, resolvedJsonValue);
+                ctx.getSecretConfigurationService().replaceSecretUsages(settingsTenantId, resolvedJsonValue);
 
                 String clientId = resolvedJsonValue.get("clientId").asText();
                 String clientSecret = resolvedJsonValue.get("clientSecret").asText();
@@ -172,7 +187,7 @@ public class TbMailSender extends JavaMailSenderImpl {
                 if (MailOauth2Provider.OFFICE_365.name().equals(providerId)) {
                     ((ObjectNode) jsonValue).put("refreshToken", tokenResponse.getRefreshToken());
                     ((ObjectNode) jsonValue).put("refreshTokenExpires", Instant.now().plus(Duration.ofDays(AZURE_DEFAULT_REFRESH_TOKEN_LIFETIME_IN_DAYS)).toEpochMilli());
-                    ctx.getAdminSettingsService().saveAdminSettings(TenantId.SYS_TENANT_ID, settings);
+                    ctx.getAdminSettingsService().saveAdminSettings(settingsTenantId, settings);
                 }
                 accessToken = tokenResponse.getAccessToken();
                 tokenExpires = System.currentTimeMillis() + (tokenResponse.getExpiresInSeconds().intValue() * 1000);

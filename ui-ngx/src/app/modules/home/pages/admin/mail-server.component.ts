@@ -17,6 +17,8 @@
 import { Component, Inject, OnDestroy, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
+import { getCurrentAuthUser } from '@core/auth/auth.selectors';
+import { Authority } from '@shared/models/authority.enum';
 import { PageComponent } from '@shared/components/page.component';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import {
@@ -47,6 +49,10 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
   adminSettings: AdminSettings<MailServerSettings>;
   smtpProtocols = Object.values(SmtpProtocol);
   showChangePassword = false;
+
+  /** Tenant admins get the extra "use system mail server" toggle; sys admin has nothing to inherit. */
+  isTenantAdmin = false;
+  useSystemMailSettings = true;
 
   protocols: DomainSchema[] = Object.values(DomainSchema).filter(value => value !== DomainSchema.MIXED);
   domainSchemaTranslations = domainSchemaTranslations;
@@ -137,6 +143,7 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
   }
 
   ngOnInit() {
+    this.isTenantAdmin = getCurrentAuthUser(this.store)?.authority === Authority.TENANT_ADMIN;
     this.mailServerSettingsForm();
     this.domainFormConfiguration();
 
@@ -148,6 +155,13 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
       this.loginProcessingUrl = data.loginProcessingUrl;
       this.initTemplates(data.mailConfigTemplate);
       this.adminSettings = data.adminSettings;
+      if (this.isTenantAdmin) {
+        // a tenant that has never saved its own settings gets an empty placeholder row back, which
+        // means "still on the system mail server" - so default the toggle on rather than off
+        this.useSystemMailSettings = isDefinedAndNotNull(this.adminSettings.jsonValue?.useSystemMailSettings)
+          ? this.adminSettings.jsonValue.useSystemMailSettings
+          : !this.adminSettings.jsonValue?.smtpHost;
+      }
       if (this.adminSettings.jsonValue && isString(this.adminSettings.jsonValue.enableTls)) {
         this.adminSettings.jsonValue.enableTls = (this.adminSettings.jsonValue.enableTls as any) === 'true';
       }
@@ -170,7 +184,38 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
       } else {
         this.mailSettings.get('enableOauth2').patchValue(false, {emitEvent: false});
       }
+      this.applyUseSystemMailSettings();
     });
+  }
+
+  /**
+   * With the toggle on there is nothing for the tenant to fill in, so the whole SMTP form is
+   * disabled - which also stops its required-field validators from blocking Save (see the
+   * conditional-required-validator trap: a hidden-but-enabled required control stays invalid
+   * forever with no visible field to fix).
+   */
+  useSystemMailSettingsChanged(useSystem: boolean): void {
+    this.useSystemMailSettings = useSystem;
+    this.applyUseSystemMailSettings();
+    this.mailSettings.markAsDirty();
+  }
+
+  private applyUseSystemMailSettings(): void {
+    if (!this.isTenantAdmin) {
+      return;
+    }
+    if (this.useSystemMailSettings) {
+      this.mailSettings.disable({emitEvent: false});
+      this.domainForm.disable({emitEvent: false});
+    } else {
+      this.mailSettings.enable({emitEvent: false});
+      this.domainForm.enable({emitEvent: false});
+      // re-apply the sub-form enable/disable rules the blanket enable() above just undid
+      this.enableMailPassword(!this.showChangePassword);
+      this.enableProxyChanged();
+      this.enableTls(this.mailSettings.get('enableTls').value);
+      this.enableOauth2(!!this.mailSettings.get('enableOauth2').value);
+    }
   }
 
   ngOnDestroy() {
@@ -354,6 +399,9 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
 
   save(): void {
     this.adminSettings.jsonValue = {...this.adminSettings.jsonValue, ...this.mailSettingsFormValue};
+    if (this.isTenantAdmin) {
+      this.adminSettings.jsonValue.useSystemMailSettings = this.useSystemMailSettings;
+    }
     this.adminService.saveAdminSettings(this.adminSettings).subscribe(
       (adminSettings) => {
         this.adminSettings = adminSettings;
@@ -361,6 +409,7 @@ export class MailServerComponent extends PageComponent implements OnInit, OnDest
         this.mailSettings.reset(this.adminSettings.jsonValue, {emitEvent: false});
         this.domainForm.reset(this.domainForm.value);
         this.parseUrl(this.adminSettings.jsonValue.redirectUri);
+        this.applyUseSystemMailSettings();
       }
     );
   }
