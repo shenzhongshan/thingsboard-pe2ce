@@ -546,6 +546,19 @@ export class EventTableConfig extends EntityTableConfig<Event, TimePageLink> {
           onAction: (_, entity) => this.debugEventSelected.next(entity.body)
         });
         break;
+      case DebugEventType.DEBUG_CONVERTER:
+        if (this.testButtonLabel) {
+          this.cellActionDescriptors.push({
+            name: this.translate.instant('converter.test-with-this-message',
+              {test: this.translate.instant(this.testButtonLabel)}),
+            icon: 'bug_report',
+            // Needs a recorded input to replay: a row whose script blew up before reading the
+            // payload has none, and replaying an empty message would just reproduce nothing.
+            isEnabled: (entity) => !this.disableDebugEventAction && !!entity.body.in?.length,
+            onAction: ($event, entity) => this.debugEventSelected.next(entity.body)
+          });
+        }
+        break;
     }
     this.getTable()?.cellActionDescriptorsUpdated();
   }

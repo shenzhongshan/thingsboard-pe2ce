@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.IntegrationId;
@@ -91,12 +93,20 @@ public class IntegrationController extends BaseController {
             @RequestBody Integration integration) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.WRITE);
         integration.setTenantId(getTenantId());
+        ActionType actionType = integration.getId() == null ? ActionType.ADDED : ActionType.UPDATED;
         if (integration.getId() != null) {
             checkAccess(checkNotNull(integrationService.findIntegrationById(getTenantId(), integration.getId())));
         }
-        Integration saved = integrationService.saveIntegration(integration);
-        platformIntegrationService.onIntegrationUpdated(saved);
-        return saved;
+        try {
+            Integration saved = integrationService.saveIntegration(integration);
+            platformIntegrationService.onIntegrationUpdated(saved);
+            logEntityActionService.logEntityAction(getTenantId(), saved.getId(), saved, actionType, getCurrentUser());
+            return saved;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(getTenantId(), emptyId(EntityType.INTEGRATION), integration,
+                    actionType, getCurrentUser(), e);
+            throw e;
+        }
     }
 
     @ApiOperation(value = "Get Integrations (getIntegrations)")
@@ -193,8 +203,16 @@ public class IntegrationController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.DELETE);
         IntegrationId integrationId = new IntegrationId(toUUID(strIntegrationId));
         Integration integration = checkAccess(checkNotNull(integrationService.findIntegrationById(getTenantId(), integrationId)));
-        integrationService.deleteIntegration(getTenantId(), integrationId);
-        platformIntegrationService.onIntegrationDeleted(integration);
+        try {
+            integrationService.deleteIntegration(getTenantId(), integrationId);
+            platformIntegrationService.onIntegrationDeleted(integration);
+            logEntityActionService.logEntityAction(getTenantId(), integrationId, integration, ActionType.DELETED,
+                    getCurrentUser(), strIntegrationId);
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(getTenantId(), emptyId(EntityType.INTEGRATION), ActionType.DELETED,
+                    getCurrentUser(), e, strIntegrationId);
+            throw e;
+        }
     }
 
     private Integration checkAccess(Integration integration) throws ThingsboardException {

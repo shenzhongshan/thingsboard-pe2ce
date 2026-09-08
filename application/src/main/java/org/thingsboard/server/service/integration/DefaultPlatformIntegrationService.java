@@ -16,7 +16,9 @@
 package org.thingsboard.server.service.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -27,7 +29,17 @@ import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cluster.TbClusterService;
+import org.thingsboard.server.common.data.AttributeScope;
 import org.thingsboard.server.common.data.Device;
+import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
+import org.thingsboard.server.common.data.kv.BasicTsKvEntry;
+import org.thingsboard.server.common.data.kv.JsonDataEntry;
+import org.thingsboard.server.common.data.kv.LongDataEntry;
+import org.thingsboard.server.common.data.kv.StringDataEntry;
+import org.thingsboard.server.common.data.kv.TsKvEntry;
+import org.thingsboard.server.dao.attributes.AttributesService;
+import org.thingsboard.rule.engine.api.TimeseriesSaveRequest;
+import org.thingsboard.server.service.telemetry.TelemetrySubscriptionService;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
@@ -42,6 +54,7 @@ import org.thingsboard.server.common.msg.queue.ServiceType;
 import org.thingsboard.server.common.msg.queue.TopicPartitionInfo;
 import org.thingsboard.server.common.data.event.ConverterDebugEvent;
 import org.thingsboard.server.common.data.event.IntegrationDebugEvent;
+import org.thingsboard.server.common.data.event.LifecycleEvent;
 import org.thingsboard.server.common.data.event.StatisticsEvent;
 import org.thingsboard.server.dao.converter.ConverterService;
 import org.thingsboard.server.dao.device.DeviceService;
@@ -94,6 +107,9 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     private final List<IntegrationRuntimeFactory> runtimeFactories;
     private final EventService eventService;
     private final TbServiceInfoProvider serviceInfoProvider;
+    private final IntegrationActivityManager activityManager;
+    private final AttributesService attributesService;
+    private final TelemetrySubscriptionService telemetryService;
     // present only when integrations.rpc.enabled=true
     private final Optional<TbRemoteIntegrationRpcService> remoteIntegrationRpcService;
 
@@ -230,9 +246,13 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         scheduledExecutor.submit(() -> {
             stopIntegration(integration.getId());
             if (integration.isEnabled()) {
-                startIntegration(integration);
+                startIntegration(integration, ComponentLifecycleEvent.UPDATED);
             } else {
+                // flush whatever it processed since the last interval before it stops counting as
+                // started, so those messages are not silently lost (PE: persistCurrentStatistics)
+                doPersistStatistics(integration.getId(), System.currentTimeMillis(), true);
                 statuses.put(integration.getId(), new IntegrationStatus("STOPPED", null));
+                persistLifecycleEvent(integration, ComponentLifecycleEvent.STOPPED, null);
             }
         });
     }
@@ -320,35 +340,91 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
     }
 
     /**
-     * Drains the accumulated per-integration counters into {@code stats_event} rows. One row per
-     * integration per interval; integrations with no traffic since the last flush are skipped so
-     * idle integrations do not fill the table.
+     * Drains the accumulated per-integration counters. Mirrors PE's
+     * {@code DefaultIntegrationManagerService#persistStatistics}: every *started* integration gets
+     * a row each interval even when its counters are zero, because the telemetry this also writes
+     * doubles as a per-node heartbeat - skipping idle integrations would leave their {@code _state}
+     * series stale rather than showing them as running.
      */
     @Scheduled(initialDelayString = "${integrations.statistics.persist_frequency:3600000}",
             fixedDelayString = "${integrations.statistics.persist_frequency:3600000}")
     public void persistStatistics() {
-        for (Map.Entry<IntegrationId, PendingStats> entry : pendingStats.entrySet()) {
-            PendingStats stats = entry.getValue();
-            if (stats.isEmpty()) {
-                continue;
-            }
-            long messages = stats.messagesProcessed.getAndSet(0);
-            long errors = stats.errorsOccurred.getAndSet(0);
-            try {
-                eventService.saveAsync(StatisticsEvent.builder()
-                        .tenantId(stats.tenantId)
-                        .entityId(entry.getKey().getId())
-                        .serviceId(serviceInfoProvider.getServiceId())
-                        .messagesProcessed(messages)
-                        .errorsOccurred(errors)
-                        .build());
-            } catch (Exception e) {
-                log.warn("[{}] Failed to persist integration statistics", entry.getKey(), e);
-            }
+        long ts = System.currentTimeMillis();
+        for (IntegrationId integrationId : pendingStats.keySet()) {
+            doPersistStatistics(integrationId, ts, false);
+        }
+    }
+
+    /**
+     * @param skipEmpty when true, nothing is written unless something happened since the last
+     *                  flush - used for the extra flush on shutdown so a stop does not append an
+     *                  all-zero row (PE's {@code persistCurrentStatistics})
+     */
+    private void doPersistStatistics(IntegrationId integrationId, long ts, boolean skipEmpty) {
+        PendingStats stats = pendingStats.get(integrationId);
+        if (stats == null) {
+            return;
+        }
+        IntegrationStatus status = statuses.get(integrationId);
+        // PE returns early unless the integration's current lifecycle state is STARTED
+        if (status == null || !"ACTIVE".equals(status.status())) {
+            return;
+        }
+        if (skipEmpty && stats.isEmpty()) {
+            return;
+        }
+        long messages = stats.messagesProcessed.getAndSet(0);
+        long errors = stats.errorsOccurred.getAndSet(0);
+        String serviceId = serviceInfoProvider.getServiceId();
+        try {
+            eventService.saveAsync(StatisticsEvent.builder()
+                    .tenantId(stats.tenantId)
+                    .entityId(integrationId.getId())
+                    .serviceId(serviceId)
+                    .messagesProcessed(messages)
+                    .errorsOccurred(errors)
+                    .build());
+        } catch (Exception e) {
+            log.warn("[{}] Failed to persist integration statistics", integrationId, e);
+        }
+        // The same numbers as timeseries on the integration entity itself, keyed by service id so a
+        // clustered deployment gets one series per node. PE's exact key names and value types.
+        try {
+            List<TsKvEntry> statsTs = List.of(
+                    new BasicTsKvEntry(ts, new LongDataEntry(serviceId + "_messagesCount", messages)),
+                    new BasicTsKvEntry(ts, new LongDataEntry(serviceId + "_errorsCount", errors)),
+                    new BasicTsKvEntry(ts, new StringDataEntry(serviceId + "_state", ComponentLifecycleEvent.STARTED.name())));
+            telemetryService.saveTimeseriesInternal(TimeseriesSaveRequest.builder()
+                    .tenantId(stats.tenantId)
+                    .entityId(integrationId)
+                    .entries(statsTs)
+                    .callback(new FutureCallback<>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            log.trace("[{}] Persisted statistics telemetry: {}/{}", integrationId, messages, errors);
+                        }
+
+                        @Override
+                        public void onFailure(Throwable t) {
+                            log.warn("[{}] Failed to persist statistics telemetry", integrationId, t);
+                        }
+                    })
+                    .build());
+        } catch (Exception e) {
+            log.warn("[{}] Failed to persist integration statistics telemetry", integrationId, e);
         }
     }
 
     private void startIntegration(Integration integration) {
+        startIntegration(integration, ComponentLifecycleEvent.STARTED);
+    }
+
+    /**
+     * @param successEvent the lifecycle event to record when the start succeeds - STARTED on a cold
+     *                     start, UPDATED when this start is the second half of a config change
+     *                     (PE records the same distinction)
+     */
+    private void startIntegration(Integration integration, ComponentLifecycleEvent successEvent) {
         if (integration.isRemote()) {
             statuses.put(integration.getId(), new IntegrationStatus("REMOTE", null));
             return;
@@ -359,6 +435,50 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         } finally {
             statisticsService.onIntegrationStateUpdate(integration.getType(),
                     started ? ComponentLifecycleEvent.STARTED : ComponentLifecycleEvent.FAILED, started);
+            IntegrationStatus status = statuses.get(integration.getId());
+            persistLifecycleEvent(integration, started ? successEvent : ComponentLifecycleEvent.FAILED,
+                    started || status == null ? null : status.error());
+        }
+    }
+
+    /**
+     * Writes an {@code lc_event} row for this integration and mirrors it into the
+     * {@code integration_status_<serviceId>} SERVER_SCOPE attribute, the way PE does - that
+     * attribute is what makes the integration's own "Attributes" tab show which node is running it
+     * and whether the last start succeeded. Never throws: a failed audit trail must not abort a
+     * lifecycle transition.
+     */
+    private void persistLifecycleEvent(Integration integration, ComponentLifecycleEvent lcEvent, String error) {
+        String serviceId = serviceInfoProvider.getServiceId();
+        try {
+            eventService.saveAsync(LifecycleEvent.builder()
+                    .tenantId(integration.getTenantId())
+                    .entityId(integration.getId().getId())
+                    .serviceId(serviceId)
+                    .lcEventType(lcEvent.name())
+                    .success(error == null)
+                    .error(error)
+                    .build());
+        } catch (Exception e) {
+            log.debug("[{}] Failed to persist integration lifecycle event", integration.getId(), e);
+        }
+        String key = "integration_status_" + serviceId.toLowerCase();
+        try {
+            if (lcEvent == ComponentLifecycleEvent.STOPPED) {
+                attributesService.removeAll(integration.getTenantId(), integration.getId(),
+                        AttributeScope.SERVER_SCOPE, Collections.singletonList(key));
+            } else {
+                ObjectNode value = JacksonUtil.newObjectNode();
+                value.put("success", error == null);
+                if (error != null) {
+                    value.put("serviceId", serviceId);
+                    value.put("error", error);
+                }
+                attributesService.save(integration.getTenantId(), integration.getId(), AttributeScope.SERVER_SCOPE,
+                        new BaseAttributeKvEntry(new JsonDataEntry(key, JacksonUtil.toString(value)), System.currentTimeMillis()));
+            }
+        } catch (Exception e) {
+            log.debug("[{}] Failed to update integration status attribute", integration.getId(), e);
         }
     }
 
@@ -393,6 +513,10 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
                 runtimes.put(integration.getId(), runtime);
             }
             statuses.put(integration.getId(), new IntegrationStatus("ACTIVE", null));
+            // Created here, not on the first uplink, so the statistics flush can find every started
+            // integration - including ones that never receive a message - and still emit their
+            // heartbeat telemetry.
+            pendingStats.computeIfAbsent(integration.getId(), id -> new PendingStats(integration.getTenantId()));
             log.info("[{}][{}] Integration started", integration.getTenantId(), integration.getName());
             return true;
         } catch (Exception e) {
@@ -461,10 +585,48 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         return e.getMessage() != null ? e.getMessage() : e.getClass().getName();
     }
 
+    /** PE's downlink debug-event input shape: {@code [{"msg":..,"msgType":..,"metadata":{..}}]}. */
+    private static byte[] downlinkDebugInput(JsonNode msg, String msgType, Map<String, String> metadata) {
+        ObjectNode entry = JacksonUtil.newObjectNode();
+        entry.set("msg", msg == null ? JacksonUtil.newObjectNode() : msg);
+        entry.put("msgType", msgType);
+        entry.set("metadata", JacksonUtil.valueToTree(metadata == null ? Map.of() : metadata));
+        ArrayNode array = JacksonUtil.newArrayNode();
+        array.add(entry);
+        return JacksonUtil.toString(array).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Classifies a raw converter input the way PE's debug events label it, so the "test with this
+     * message" action can put the payload back into the right editor mode. PE knows the content
+     * type from the integration that produced the message; this build does not carry it that far,
+     * so it is inferred: parseable as JSON -> JSON, otherwise decodable as UTF-8 -> TEXT, else
+     * BINARY (the dialog then treats the value as Base64, matching how it encodes BINARY payloads).
+     */
+    private static String contentTypeOf(byte[] in) {
+        if (in == null) {
+            return null;
+        }
+        String text = new String(in, StandardCharsets.UTF_8);
+        if (text.getBytes(StandardCharsets.UTF_8).length != in.length) {
+            return "BINARY";
+        }
+        try {
+            // throws IllegalArgumentException on anything that is not valid JSON
+            return JacksonUtil.toJsonNode(text) != null ? "JSON" : "TEXT";
+        } catch (Exception e) {
+            return "TEXT";
+        }
+    }
+
     /**
      * The converter's own debug row: the payload it was handed and the JSON it produced. Gated on
      * the converter's debug settings, which are separate from the integration's - a converter is a
      * shared entity and you often want to trace it without tracing every integration that uses it.
+     *
+     * <p>{@code inMsgType} carries the payload's <b>content type</b> (JSON/TEXT/BINARY), not the
+     * converter type - that is what PE stores there and what its "test with this message" action
+     * reads back to pick the right editor mode in the test dialog.
      */
     private void persistConverterDebugEvent(Converter converter, String direction, byte[] in, JsonNode out,
                                             Map<String, String> metadata, Exception error) {
@@ -480,7 +642,7 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
                     .entityId(converter.getId().getId())
                     .serviceId(serviceInfoProvider.getServiceId())
                     .eventType(direction)
-                    .inMsgType(converter.getType() == null ? null : converter.getType().name())
+                    .inMsgType(contentTypeOf(in))
                     .inMsg(in == null ? null : new String(in, StandardCharsets.UTF_8))
                     .outMsgType(out == null ? null : out.getNodeType().name())
                     .outMsg(out == null ? null : JacksonUtil.toString(out))
@@ -571,6 +733,12 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
         if (attributes != null && !attributes.isEmpty()) {
             pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, attributes, msgMetaData);
         }
+        if ((telemetry != null && !telemetry.isEmpty()) || (attributes != null && !attributes.isEmpty())) {
+            // An integration-fed device never opens a transport session, so this is the only thing
+            // that will ever mark it active - without it the device stays "inactive" forever no
+            // matter how much data arrives. Throttled by IntegrationActivityManager's strategy.
+            activityManager.onUplink(new IntegrationActivityKey(tenantId, device.getId()));
+        }
     }
 
     private List<String> getUpdateOnlyKeys(Converter converter) {
@@ -655,16 +823,19 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             throw new IllegalStateException("Downlink converter has no encoder script!");
         }
         Map<String, String> integrationMetadata = Map.of("integrationName", integration.getName());
+        // PE records the downlink converter's input as an array of {msg, msgType, metadata}; the
+        // "test with this message" action replays the last element of it into the test dialog, so
+        // the msgType and metadata have to travel inside the payload rather than beside it.
+        byte[] debugIn = downlinkDebugInput(msg, msgType, metadata);
         JsonNode result;
         try {
             result = converterExecutorService.executeDownlink(integration.getTenantId(), lang,
                     cfg.get("encoder").asText(), msg, msgType, metadata, integrationMetadata);
         } catch (Exception e) {
-            persistConverterDebugEvent(converter, DOWNLINK, null, null, metadata, e);
+            persistConverterDebugEvent(converter, DOWNLINK, debugIn, null, metadata, e);
             throw e;
         }
-        persistConverterDebugEvent(converter, DOWNLINK, JacksonUtil.toString(msg).getBytes(StandardCharsets.UTF_8),
-                result, metadata, null);
+        persistConverterDebugEvent(converter, DOWNLINK, debugIn, result, metadata, null);
         if (result == null || result.isNull()) {
             throw new IllegalStateException("Downlink converter returned no result!");
         }
