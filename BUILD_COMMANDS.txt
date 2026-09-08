@@ -1,0 +1,133 @@
+========================================================================
+thingsboard-ce 打包命令（排除 deb / rpm / 分发 zip / docker）
+生成日期：2026-09-08
+========================================================================
+
+【命令】在 D:\ws_prj\ws_tb\pe_refactor\thingsboard-ce 目录下执行：
+
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true
+
+换行写法（bash / git bash）：
+
+mvn clean install -T6 -DskipTests \
+  -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true
+
+PowerShell 换行用反引号 `，不要用反斜杠。
+
+
+------------------------------------------------------------------------
+【各参数含义】
+------------------------------------------------------------------------
+
+-T6
+    并行构建，6 个线程。并行粒度是"模块之间"，有依赖关系的模块仍按顺序构建。
+    -T1C 表示每核 1 线程（机器换了不用改数字）；不写则串行。
+    副作用：多模块日志交错。排查失败时直接看日志末尾的 Reactor Summary，
+    不要顺着往下读。
+    本仓库对并行做过防护：msa/pom.xml 里把 ui-ngx -> web-ui -> js-executor
+    用纯 reactor 依赖串起来，避免多个 yarn install 同时抢 ~/.cache/yarn
+    造成偶发的 "tsc: not found"。所以 -T6 在这个项目里是安全的。
+
+-DskipTests
+    跳过测试（仍然编译测试代码）。
+
+-Dpkg.skip.deb=true
+    跳过 Gradle buildDeb + Maven attach-artifact。
+    出处：根 pom.xml 的 skip-deb profile -> pkg.deb.phase=none，
+    并向 Gradle 传 -PskipDeb=true。
+
+-Dpkg.skip.rpm=true
+    跳过 Gradle buildRpm（向 Gradle 传 -PskipRpm=true）。
+
+-Dpkg.skip.zip=true
+    跳过 maven-assembly-plugin 生成的 Windows 分发 ZIP。
+
+docker 镜像
+    不需要任何参数。msa/pom.xml:40 的 <dockerfile.skip>true</dockerfile.skip>
+    本来就是默认值，全仓库没有任何地方把它置回 false。
+    只有显式传 -Ddockerfile.skip=false 才会打镜像。
+    想写明白防止将来默认值被改，可以加 -Ddockerfile.skip=true（幂等）。
+
+
+------------------------------------------------------------------------
+【为什么不用 -Dpkg.skip=true】
+------------------------------------------------------------------------
+
+-Dpkg.skip=true 是四合一开关（bootjar + deb + rpm + zip），会连
+pkg.skip.bootjar 一起打开，把 application/target/thingsboard-*-boot.jar
+也跳掉 —— 那正是用来实际运行的产物。
+上面这组保留 boot jar，只砍掉发行包。
+
+四个开关的对照表见 thingsboard-ce/TEST_FAST.md 的 "pkg.skip.* flags reference"。
+
+
+------------------------------------------------------------------------
+【坑 1：clean 会清掉前端产物】
+------------------------------------------------------------------------
+
+ui-ngx 的 Angular 编译只在 yarn-build profile 下执行（默认不激活）。
+clean 会删掉 ui-ngx/target/generated-resources/public 里已构建的前端产物，
+重新打出来的 ui-ngx jar 就是空的，运行起来没有界面。
+
+两种做法二选一：
+  a) 加 -P yarn-build（会重新跑 Angular 编译，慢）
+  b) 不加 clean（增量构建，前端产物保留）
+
+单独重建前端并让运行中的后端生效：
+  cd ui-ngx && node_modules/.bin/ng build --configuration development
+  cd .. && mvn -o install -pl ui-ngx -DskipTests -Dpkg.skip=true
+（第二步不会重跑 Angular 编译，只是把 generated-resources 打进 jar；
+ 必须做，否则后端从 ~/.m2 读到的还是旧 jar，界面不会更新）
+
+
+------------------------------------------------------------------------
+【坑 2：当前工作树上这条命令会失败，原因与打包参数无关】
+------------------------------------------------------------------------
+
+2026-09-08 实测（离线 -o 模式）结果：
+
+  Failed to execute goal on project integration-azure:
+  Could not resolve dependencies
+  com.azure:azure-messaging-eventhubs-checkpointstore-blob:jar:1.21.8
+
+deb / rpm / zip 三个跳过参数全部正常工作，msa/tb-node 对 application:deb
+的依赖也没有解析失败。失败点在 integration-azure 的依赖版本上：
+
+  提交 12a6898567 "亚马逊集成库版本修改" (2026-09-07) 把根 pom.xml 的
+  -  <azure.eventhubs.checkpointstore.blob.version>1.23.0</...>
+  +  <azure.eventhubs.checkpointstore.blob.version>1.21.8</...>
+
+  * 本地 ~/.m2 里只有 1.23.0，没有 1.21.8
+  * PE 实际用的是 1.20.6
+    (thingsboard/lib/.../azure-messaging-eventhubs-checkpointstore-blob-1.20.6.jar)
+  * 提交信息写的是"亚马逊(AWS)"，改的却是 Azure 的属性；
+    AWS 的版本属性是另外两个（aws.sdk.version / awssdk.v2.version），没动过
+
+  common/integration/azure/target/ 里的 jar 是 2026-09-05 构建的，
+  说明这个改动之后该模块从未成功编译过（之前都用 -pl 只构建受影响模块，绕开了它）。
+
+待确认后再跑全量构建。
+
+
+------------------------------------------------------------------------
+【附：只想跳过整个 msa 微服务子树时】
+------------------------------------------------------------------------
+
+mvn clean install -T6 -DskipTests \
+  -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true \
+  -pl '!msa/tb,!msa/web-ui,!msa/vc-executor,!msa/vc-executor-docker,!msa/tb-node,!msa/transport,!msa/js-executor,!msa/monitoring,!msa/edqs'
+
+
+------------------------------------------------------------------------
+【附：本地启动后端（非打包）】
+------------------------------------------------------------------------
+
+cd thingsboard-ce
+SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/thingsboard_ce" \
+EDGES_ENABLED=true \
+mvn -o spring-boot:run -pl application -Dlicense.skip=true -Dmaven.gitcommitid.skip=true
+
+注意：spring-boot:run 从 ~/.m2 加载兄弟模块，不是从各模块的 target/。
+改了 application 以外的模块后，必须先
+  mvn -o install -pl <被改的模块> -am -DskipTests
+否则重启后跑的还是旧代码。
