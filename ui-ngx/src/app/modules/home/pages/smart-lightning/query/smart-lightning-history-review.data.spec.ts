@@ -1,3 +1,5 @@
+/** 文件职责：数据查询模块的 smart-lightning-history-review.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 历史回顾数据层单测：折线点构造与参数筛选（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
 import {
   buildSmartLightningHistoryPoints,

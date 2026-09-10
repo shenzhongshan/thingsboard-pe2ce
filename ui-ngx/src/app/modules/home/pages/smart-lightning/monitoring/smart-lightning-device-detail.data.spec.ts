@@ -1,6 +1,8 @@
+/** 文件职责：数据监测模块的 smart-lightning-device-detail.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 设备详情数据层单测：实时指标映射、模拟曲线与时间轴构造（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
-import { buildSmartLightningDeviceDetailMock, buildSmartLightningChartTimes, fitSmartLightningMockSeries } from './smart-lightning-device-detail.data';
-import { buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions } from './smart-lightning-device-detail.data';
+import { buildSmartLightningDeviceDetailMock, buildSmartLightningChartTimes, fitSmartLightningMockSeries } from './smart-lightning-device-detail.data.ts';
+import { buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions } from './smart-lightning-device-detail.data.ts';
 
 const detail = buildSmartLightningDeviceDetailMock('1234567890');
 assert.equal(detail.title, '设备监测 · 12345678');
@@ -25,7 +27,8 @@ assert.equal(buildSmartLightningChartTimes('week', chartNow).length, 7);
 assert.equal(buildSmartLightningChartTimes('month', chartNow).length, 30);
 // 扩展到不同时间粒度时使用线性插值，避免 mock 曲线出现重复平台。
 assert.deepEqual(fitSmartLightningMockSeries([0, 10], 5), [0, 2.5, 5, 7.5, 10]);
-assert.equal(detail.alarms[0].status, '未处理');
+// 告警由接口加载，详情初始模型不再预置演示记录。
+assert.equal(detail.alarms.length, 0);
 
 // 规则链未输出规范键时，页面也必须能够读取原始测点并完成中文状态转换。
 const ldh1Definitions = getSmartLightningRealtimeMetricDefinitions('LDH1');
@@ -56,6 +59,16 @@ assert.equal(esm3Metrics.find((metric) => metric.label === '防雷器状态')?.v
 assert.equal(esm3Metrics.find((metric) => metric.label === 'A相电压')?.value, '220V');
 assert.equal(esm3Metrics.find((metric) => metric.label === 'A相漏流')?.value, '3.5mA');
 assert.equal(esm3Metrics.find((metric) => metric.label === '环境温度')?.value, '26℃');
+
+// 雷电设备规则链输出规范键时，详情页应直接读取 surgePeak/surgeCount/surgePolarity。
+const m1aiMetrics = buildSmartLightningRealtimeMetrics(
+  'M1AI',
+  new Map<string, unknown>([['surgePeak', 125.4], ['surgeCount', 5], ['surgePolarity', 1]]),
+  []
+);
+assert.equal(m1aiMetrics.find((metric) => metric.label === '雷电流峰值')?.value, '125.4kA');
+assert.equal(m1aiMetrics.find((metric) => metric.label === '电涌次数')?.value, '5次');
+assert.equal(m1aiMetrics.find((metric) => metric.label === '极性')?.value, '正极');
 
 for (const profile of ['DESA', 'DES4', 'DES9', 'DEM2', 'DEM4', 'DEA2', 'DEA4', 'ESM0', 'ESM3', 'G1A3', 'M1AI', 'L2AI', 'LDH1', 'FAP1']) {
   assert.ok(getSmartLightningRealtimeMetricDefinitions(profile).length > 0, `${profile} must have metric mappings`);

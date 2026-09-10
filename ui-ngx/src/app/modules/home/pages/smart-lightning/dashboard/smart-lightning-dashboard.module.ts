@@ -1,3 +1,4 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard.module，声明 Angular 模块、组件与依赖导入。 */
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';

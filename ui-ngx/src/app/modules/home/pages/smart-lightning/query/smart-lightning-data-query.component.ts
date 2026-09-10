@@ -1,3 +1,4 @@
+/** 文件职责：数据查询模块的 smart-lightning-data-query.component，负责页面状态管理、接口调用与用户交互。 */
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {MatDialog} from '@angular/material/dialog';
 import {AlarmService} from '@core/http/alarm.service';
@@ -9,6 +10,7 @@ import {MAX_SAFE_PAGE_SIZE} from '@shared/models/page/page-link';
 import {catchError, forkJoin, map, of, Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
+  getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringSelectedAssetIds,
   SmartLightningMonitoringAssetNode,
   SmartLightningMonitoringAssetTree
@@ -31,6 +33,12 @@ interface QueryDeviceContext {
   attributesByDeviceId: Map<string, SmartLightningQueryDeviceAttributes>;
 }
 
+/**
+ * 智能防雷数据查询页面组件。
+ *
+ * <p>左侧共享资产树联动筛选，右侧按产品名称/功能/关键字查询设备表格，
+ * 支持状态三态筛选、CSV 导出与历史遥测回顾弹窗。</p>
+ */
 @Component({
   selector: 'tb-smart-lightning-data-query',
   templateUrl: './smart-lightning-data-query.component.html',
@@ -140,11 +148,13 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     return this.pageRows.length > 0 && this.pageRows.every((row) => this.selectedRowIds.has(row.id));
   }
 
+  /** 展开/折叠资产节点，同步为不可变集合触发变更检测。 */
   toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     this.expandedAssetIds.has(node.id) ? this.expandedAssetIds.delete(node.id) : this.expandedAssetIds.add(node.id);
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
 
+  /** 选中资产节点：选中集合包含其全部后代，作为设备表格的数据范围。 */
   selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
     this.selectedAssetIds = new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
     this.selectedAssetName = node.name;
@@ -155,27 +165,26 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   }
 
   /** 根资产筛选与节点选择共用同一套递归下属节点逻辑，确保右侧列表同步更新。 */
-  selectRootAsset(rootAssetId: string): void {
+  selectRootAsset(rootAssetId: string, expandDescendants = true): void {
     this.selectedRootAssetId = rootAssetId;
     const roots = getSmartLightningQueryVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningQueryRootAssetIds(this.assetTree, rootAssetId));
     this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
-    roots.forEach((root) => this.openDescendants(root.id));
+    if (expandDescendants) {
+      roots.forEach((root) => this.openDescendants(root.id));
+    }
     this.selectedRowIds.clear();
     this.page = 1;
     this.cd.markForCheck();
   }
 
+  /** 切换状态页签（全部/在线/离线/未连接）并回到第一页。 */
   setStatus(status: '全部' | SmartLightningQueryStatus): void {
     this.activeStatus = status;
     this.page = 1;
   }
 
-  query(): void {
-    this.selectedRowIds.clear();
-    this.page = 1;
-  }
-
+  /** 重置全部筛选条件并恢复默认状态页签。 */
   reset(): void {
     this.functionType = '';
     this.productNameFilter = '';
@@ -185,15 +194,18 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     this.page = 1;
   }
 
+  /** 表格翻页，页码钳制在有效范围内。 */
   setPage(page: number): void {
     this.page = Math.min(Math.max(1, page), this.totalPages);
   }
 
+  /** 勾选/取消勾选单行设备，同步为不可变集合触发变更检测。 */
   toggleRow(rowId: string): void {
     this.selectedRowIds.has(rowId) ? this.selectedRowIds.delete(rowId) : this.selectedRowIds.add(rowId);
     this.selectedRowIds = new Set(this.selectedRowIds);
   }
 
+  /** 全选/取消勾选当前页的全部设备行。 */
   togglePageRows(): void {
     const next = new Set(this.selectedRowIds);
     if (this.allPageRowsSelected) {
@@ -204,6 +216,7 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     this.selectedRowIds = next;
   }
 
+  /** 打开历史遥测回顾弹窗，携带设备与档案上下文。 */
   openHistoryReview(row: SmartLightningQueryRow): void {
     this.dialog.open(SmartLightningHistoryReviewDialogComponent, {
       data: {
@@ -244,14 +257,14 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     URL.revokeObjectURL(url);
   }
 
+  /** 加载共享资产树并初始化展开状态与根资产选择，失败时标记错误状态。 */
   private loadAssetTree(): void {
     this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
         this.buildDevicePaths();
-        this.assetTree.roots.forEach((node) => this.expandedAssetIds.add(node.id));
-        this.expandedAssetIds = new Set(this.expandedAssetIds);
-        this.selectRootAsset('');
+        this.expandedAssetIds = getSmartLightningDefaultExpandedAssetIds(this.assetTree);
+        this.selectRootAsset('', false);
         this.assetsLoading = false;
         this.loadDevices();
         this.cd.markForCheck();
@@ -375,6 +388,7 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     return {devices, attributesByDeviceId};
   }
 
+  /** 递归展开选中节点的全部后代资产。 */
   private openDescendants(id: string): void {
     const node = this.assetTree.nodes.get(id);
     if (!node) {
@@ -387,6 +401,7 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
 
+  /** 计算每台设备在资产树中的绝对地址，用于表格悬浮展示。 */
   private buildDevicePaths(): void {
     this.devicePaths.clear();
     const visit = (node: SmartLightningMonitoringAssetNode, parentPath: string): void => {

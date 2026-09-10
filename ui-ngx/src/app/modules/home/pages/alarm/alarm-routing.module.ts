@@ -83,7 +83,7 @@ const routes: Routes = [
   {
     path: 'deviceAlarms',
     data: {
-      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER]
     },
     children: [
       {
@@ -99,9 +99,7 @@ const routes: Routes = [
           title: '告警处理',
           /* 自定义菜单“告警处理”当前已配置为 /deviceAlarms/list，因此此路由直接启用操作列。 */
           processingMode: true,
-          breadcrumb: {
-            menuId: MenuId.alarms
-          },
+          breadcrumb: {label: '告警处理', icon: 'assignment_turned_in'},
           isPage: true
         }
       },
@@ -112,9 +110,7 @@ const routes: Routes = [
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: '告警派发',
           dispatchMode: true,
-          breadcrumb: {
-            menuId: MenuId.alarms
-          },
+          breadcrumb: {label: '告警派发', icon: 'assignment_ind'},
           isPage: true
         }
       },
@@ -125,9 +121,7 @@ const routes: Routes = [
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: '告警处理',
           processingMode: true,
-          breadcrumb: {
-            menuId: MenuId.alarms
-          },
+          breadcrumb: {label: '告警处理', icon: 'assignment_turned_in'},
           isPage: true
         }
       },
@@ -137,9 +131,7 @@ const routes: Routes = [
         data: {
           auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: '告警分析',
-          breadcrumb: {
-            menuId: MenuId.alarms
-          },
+          breadcrumb: {label: '告警分析', icon: 'analytics'},
           isPage: true
         }
       }

@@ -1,3 +1,5 @@
+/** 文件职责：数据监测模块的 smart-lightning-monitoring.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 监测数据层单测：树构建、告警标记集合、设备卡片与统计（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
 import { AssetInfo } from '@shared/models/asset.models';
 import { EntityType } from '@shared/models/entity-type.models';
@@ -11,6 +13,8 @@ import {
   getSmartLightningActiveAlarmDeviceIds,
   getSmartLightningFunctionCategoryLabel,
   getSmartLightningMonitoringAssetPaths,
+  getSmartLightningAlarmAssetIds,
+  getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringSelectedAssetIds,
   SMART_LIGHTNING_ANALYSIS_CARDS
@@ -60,6 +64,8 @@ assert.deepEqual(tree.nodes.get('building')?.childIds, ['cabinet']);
 assert.deepEqual(tree.nodes.get('cabinet')?.childIds, ['device-a']);
 assert.equal(tree.nodes.get('device-a')?.entityType, EntityType.DEVICE);
 assert.deepEqual(getSmartLightningMonitoringSelectedAssetIds(tree.nodes, 'project'), ['project', 'building', 'cabinet', 'device-a']);
+assert.deepEqual([...getSmartLightningAlarmAssetIds(tree, new Set(['device-a']))], ['cabinet', 'building', 'project']);
+assert.deepEqual([...getSmartLightningDefaultExpandedAssetIds(tree)], ['project']);
 assert.deepEqual(getSmartLightningMonitoringSelectedAssetIds(tree.nodes, 'standalone'), ['standalone']);
 
 const cycleSafeTree = buildSmartLightningMonitoringAssetTree(assets, devices, [
@@ -84,6 +90,28 @@ assert.deepEqual([...getSmartLightningMonitoringAssetPaths(apiTree).entries()], 
   ['project', '智慧园区'],
   ['device-a', '智慧园区/防雷终端 A-01']
 ]);
+
+// 同一上级下有多个告警分支时，不能因为前一个分支已命中告警而跳过后续分支。
+const siblingAlarmTree = buildSmartLightningMonitoringAssetTreeFromRoots([
+  {
+    id: 'root', name: '根资产', entityType: EntityType.ASSET, children: [
+      {
+        id: 'cabinet-a', name: '测试电柜-009', entityType: EntityType.ASSET, children: [
+          {id: 'device-a', name: 'DES4-006', entityType: EntityType.DEVICE, children: []}
+        ]
+      },
+      {
+        id: 'cabinet-b', name: '测试电柜-010', entityType: EntityType.ASSET, children: [
+          {id: 'device-b', name: 'DES4-007', entityType: EntityType.DEVICE, children: []}
+        ]
+      }
+    ]
+  }
+]);
+assert.deepEqual(
+  [...getSmartLightningAlarmAssetIds(siblingAlarmTree, new Set(['device-a', 'device-b']))],
+  ['cabinet-a', 'cabinet-b', 'root']
+);
 
 const deviceCards = buildSmartLightningMonitoringDeviceCards(
   [

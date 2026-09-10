@@ -1,3 +1,4 @@
+/** 文件职责：告警列表模块的 smart-lightning-alarm-dispatch-dialog.component，负责页面状态管理、接口调用与用户交互。 */
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { AlarmService } from '@core/http/alarm.service';
@@ -8,6 +9,12 @@ export interface SmartLightningAlarmDispatchDialogData {
 }
 
 /** 仅负责派发：受理人选择和原生 assign 接口复用 tb-alarm-assignee。 */
+/**
+ * 告警派发弹窗组件。
+ *
+ * <p>选择受理人后调用原生 assign 接口完成派发；
+ * 关闭时通过 dialogRef 回传 true 通知列表刷新。</p>
+ */
 @Component({
   selector: 'tb-smart-lightning-alarm-dispatch-dialog',
   templateUrl: './smart-lightning-alarm-dispatch-dialog.component.html',

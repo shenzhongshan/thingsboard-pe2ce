@@ -1,3 +1,5 @@
+/* 文件职责：数据监测模块的 smart-lightning-monitoring.component，负责页面局部布局、响应式与视觉样式。 */
+/* 数据监测页样式：左树右内容的双栏网格，含分析卡、统计区与设备卡片的响应式密度适配。 */
 :host { display: block; min-height: 100%; }
 
 .monitoring-page { --ink: #0a356a; --blue: #195ce8; --green: #16df65; --red: #ef3f4c; --amber: #f4ae14; min-height: 100%; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; margin-left: 8px; padding: 14px 14px 14px 0; color: #263c50; background: #edf1f4; font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif; }
@@ -63,7 +65,7 @@
   color: inherit !important;
 }
 
-/* 未选中的设备不显示状态条；选中后再按告警状态着色。 */
+/* 设备行在普通监测页不渲染；告警状态只由直属上级资产显示。 */
 .asset-node.device-node {
   border-left-color: transparent !important;
 }
@@ -72,12 +74,8 @@
   border-left-color: var(--green) !important;
 }
 
-.asset-node.device-node.device-alarm,
-.asset-node.device-node.device-alarm.selected {
-  border-left-color: transparent !important;
-}
-
-.asset-node.device-node.device-alarm.selected {
+.asset-node.asset-alarm,
+.asset-node.asset-alarm.selected {
   border-left-color: var(--red) !important;
 }
 
@@ -242,4 +240,30 @@
 @media (prefers-reduced-motion: reduce) {
   .device-card::before, .device-icon, .device-card header, .device-card h3 { transition: none; }
   .device-card:hover .device-icon, .device-card:focus-within .device-icon { transform: none; }
+}
+
+/* 页面外边界、左右栏和主要面板统一使用同一间距。 */
+.monitoring-page {
+  gap: var(--tb-smart-page-spacing);
+  margin: 0;
+  padding: var(--tb-smart-page-spacing);
+}
+
+.monitoring-page > .asset-panel {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.analysis-grid {
+  gap: var(--tb-smart-page-spacing);
+}
+
+.selection-summary,
+.device-overview {
+  margin-top: var(--tb-smart-page-spacing);
+}
+
+/* 雷电监测峰值包含单位 kA；在较窄的能力卡中缩小字号，避免显示成省略号。 */
+.analysis-card.current .analysis-feature strong {
+  font-size: clamp(17px, 1.55vw, 23px);
+  letter-spacing: -.04em;
 }

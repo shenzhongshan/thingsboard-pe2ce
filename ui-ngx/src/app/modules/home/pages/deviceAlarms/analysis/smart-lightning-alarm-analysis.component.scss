@@ -1,3 +1,4 @@
+/* 文件职责：告警分析模块的 smart-lightning-alarm-analysis.component，负责页面局部布局、响应式与视觉样式。 */
 :host {
   --analysis-blue: #195ce8;
   --analysis-ink: #0a356a;
@@ -7,6 +8,7 @@
   min-width: 0;
 }
 
+/* 告警分析页样式：顶部统计卡三列排布，下方排名与趋势图左右分栏。 */
 .alarm-analysis-page {
   display: block;
   min-height: calc(100vh - 96px);
@@ -20,26 +22,11 @@
   padding-top: 0;
 }
 
-.page-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 54px;
-}
-
-.page-heading h1,
-.page-heading p { margin: 0; }
-
-.page-heading h1 { color: var(--analysis-ink); font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
-.heading-note { margin-top: 4px !important; color: #72879a; font-size: 12px; }
-.scope-chip { padding: 6px 10px; border: 1px solid #c8d9ed; border-radius: 6px; color: #35658d; background: #f7fbff; font-size: 11px; white-space: nowrap; }
-
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .summary-card {
@@ -129,7 +116,6 @@ button:focus-visible { outline: 2px solid var(--analysis-blue); outline-offset: 
 
 @media (max-width: 640px) {
   .alarm-analysis-page { padding-right: 0; }
-  .page-heading { align-items: start; flex-direction: column; padding: 4px 0; }
   .summary-grid { grid-template-columns: 1fr; }
   .summary-card { min-height: 82px; }
   .panel-heading { align-items: start; flex-direction: column; padding: 12px; }
@@ -142,4 +128,19 @@ button:focus-visible { outline: 2px solid var(--analysis-blue); outline-offset: 
 
 @media (prefers-reduced-motion: reduce) {
   .action-button, .ranking-tabs button, .period-tabs button { transition: none; }
+}
+
+/* 页面外边界与主要模块之间统一使用同一间距。 */
+.alarm-analysis-page {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.summary-grid,
+.analysis-grid {
+  gap: var(--tb-smart-page-spacing);
+}
+
+.analysis-grid,
+.trend-panel {
+  margin-top: var(--tb-smart-page-spacing);
 }

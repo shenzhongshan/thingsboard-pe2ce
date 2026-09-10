@@ -23,6 +23,17 @@
 @import './scss/mixins';
 @import './scss/fonts';
 
+/* 智能防雷与告警业务页共用的页面级留白，避免各页面单独维护后产生偏差。 */
+:root {
+  --tb-smart-page-spacing: 14px;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --tb-smart-page-spacing: 10px;
+  }
+}
+
 body, html {
   height: 100%;
   min-height: 100%;
@@ -1443,18 +1454,6 @@ mat-sidenav.tb-site-sidenav .tb-side-menu a.mat-mdc-button:focus-visible {
   outline-offset: -3px;
 }
 
-/* 顶部工具栏采用白底，与深色侧栏形成稳定的层级。 */
-mat-sidenav-content .tb-primary-toolbar {
-  background: #fff !important;
-  color: #17466f !important;
-  box-shadow: 0 1px 6px rgba(16, 54, 88, .16);
-}
-
-mat-sidenav-content .tb-primary-toolbar .mat-icon,
-mat-sidenav-content .tb-primary-toolbar button {
-  color: #17466f !important;
-}
-
 @media (max-width: 456px) {
   mat-sidenav.tb-site-sidenav {
     width: calc(100% - 56px) !important;
@@ -1465,4 +1464,75 @@ mat-sidenav-content .tb-primary-toolbar button {
   mat-sidenav.tb-site-sidenav {
     width: 170px !important;
   }
+}
+
+/*
+ * 智能防雷地图弹窗外层状态样式。
+ * Leaflet 的 popup 容器由地图运行时动态创建，不属于 Angular 组件模板，
+ * 因此必须在全局样式中覆盖 content-wrapper 和下方箭头的默认白色背景。
+ */
+.leaflet-popup.smart-lightning-map-popup-container .leaflet-popup-content-wrapper {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .2);
+}
+
+/* 去掉 Leaflet 内容层默认的白色留白，让颜色覆盖整个弹窗面板。 */
+.leaflet-popup.smart-lightning-map-popup-container .leaflet-popup-content {
+  margin: 0 !important;
+  padding: 10px 12px !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-alarm .leaflet-popup-content-wrapper {
+  border-color: #e53935 !important;
+  background: #fee2e2 !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-alarm .leaflet-popup-content {
+  background: #fee2e2 !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-offline .leaflet-popup-content-wrapper {
+  border-color: #8b95a5 !important;
+  background: #e5e7eb !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-offline .leaflet-popup-content {
+  background: #e5e7eb !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-online .leaflet-popup-content-wrapper {
+  border-color: #16a34a !important;
+  background: #dcfce7 !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-online .leaflet-popup-content {
+  background: #dcfce7 !important;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-alarm .leaflet-popup-tip {
+  background: #fee2e2;
+  border: 2px solid #e53935;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-offline .leaflet-popup-tip {
+  background: #e5e7eb;
+  border: 2px solid #8b95a5;
+}
+
+.leaflet-popup.smart-lightning-map-popup-container.smart-lightning-map-popup-online .leaflet-popup-tip {
+  background: #dcfce7;
+  border: 2px solid #16a34a;
+}
+
+/*
+ * 智能防雷告警自定义详情弹窗使用 CDK Overlay 渲染。
+ * 原生活动组件受 Angular 样式隔离影响，默认的 max-width: 600px 优先级高于普通全局规则。
+ * 这里用弹窗专属面板、详情容器和活动分区共同限定作用域，并提高宽度规则优先级，
+ * 仅让该弹窗的活动区与详情、派发区域等宽，不影响系统其他原生告警弹窗。
+ */
+.smart-lightning-alarm-detail-panel .alarm-detail-dialog .activity-section .tb-alarm-comments {
+  width: 100% !important;
+  max-width: none !important;
 }

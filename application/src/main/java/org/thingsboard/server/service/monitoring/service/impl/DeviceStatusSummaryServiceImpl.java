@@ -62,6 +62,16 @@ public class DeviceStatusSummaryServiceImpl implements DeviceStatusSummaryServic
     private final AttributesService attributesService;
     private final MonitoringAlarmQueryService alarmQueryService;
 
+    /**
+     * 统计当前用户可见设备中“正常”与“异常”的数量。
+     *
+     * <p>正常 = 在线（active 为 true/1）且没有未清除告警；
+     * 异常 = 存在未清除告警的设备（按设备去重，无论在线离线）；
+     * 离线且无告警的设备不计入这两项。</p>
+     *
+     * @param user 当前登录用户，用于执行权限过滤
+     * @return 正常与异常设备数量
+     */
     @Override
     public DeviceStatusSummary getSummary(SecurityUser user) throws ThingsboardException {
         List<UUID> visibleDeviceIds = findVisibleDeviceIds(user);
@@ -70,6 +80,7 @@ public class DeviceStatusSummaryServiceImpl implements DeviceStatusSummaryServic
         return DeviceStatusSummaryCalculator.calculate(visibleDeviceIds, activeValuesByDeviceId, activeAlarmDeviceIds);
     }
 
+    /** 经平台授权服务读取当前用户有 READ 权限的全部设备 ID，保留租户、客户和共享实体的权限边界。 */
     private List<UUID> findVisibleDeviceIds(SecurityUser user) throws ThingsboardException {
         PageData<? extends HasName> pageData = userEntitiesService.findUserEntities(
                 user, EntityType.DEVICE, Operation.READ, new PageLink(QUERY_PAGE_SIZE, 0));

@@ -1,3 +1,7 @@
+<!-- 文件职责：数据查询模块的 smart-lightning-data-query.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  智能防雷数据查询模板：左共享资产树，右筛选表单 + 设备表格（三态状态、CSV 导出、回顾弹窗、详情）。
+-->
 <main class="data-query-page" aria-label="智能防雷数据查询">
   <aside class="asset-panel">
     <tb-smart-lightning-root-asset-filter
@@ -5,20 +9,17 @@
       [selectedRootAssetId]="selectedRootAssetId"
       (rootAssetChange)="selectRootAsset($event)">
     </tb-smart-lightning-root-asset-filter>
-    <div class="asset-panel-title">
-      <h2>项目 / 资产</h2>
-      <span>当前用户可见</span>
-    </div>
     <tb-smart-lightning-asset-tree
       [tree]="assetTree"
       [selectedIds]="selectedAssetIds"
       [expandedIds]="expandedAssetIds"
       [rootAssetId]="selectedRootAssetId"
       [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
       [search]="assetSearch"
       [loading]="assetsLoading"
       [loadError]="assetsLoadError"
-      searchPlaceholder="输入项目或设备名称"
+      searchPlaceholder="输入资产名称"
       treeAriaLabel="资产层级"
       (searchChange)="assetSearch = $event"
       (selectNode)="selectAssetNode($event)"
@@ -27,18 +28,18 @@
   </aside>
 
   <section class="query-content">
-    <form class="filter-panel" novalidate (ngSubmit)="query()">
+    <div class="filter-panel" role="search" aria-label="设备筛选">
       <label>
         <span>产品名称</span>
         <select [(ngModel)]="productNameFilter" name="productName">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (productName of productNames; track productName) {<option [value]="productName">{{productName}}</option>}
         </select>
       </label>
       <label>
         <span>功能</span>
         <select [(ngModel)]="functionType" name="functionType">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (category of functionCategories; track category) {<option [value]="category">{{category}}</option>}
         </select>
       </label>
@@ -48,10 +49,9 @@
         <tb-icon>search</tb-icon>
       </label>
       <div class="filter-actions">
-        <button type="submit" class="query-button">查询</button>
         <button type="button" class="reset-button" (click)="reset()">重置</button>
       </div>
-    </form>
+    </div>
 
     <section class="result-panel">
       <header class="result-toolbar">

@@ -1,3 +1,5 @@
+/** 文件职责：告警列表模块的 smart-lightning-alarm-list.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 告警列表数据层单测：行排序、筛选与仪表地址取值优先级（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
 import {
   filterSmartLightningAlarmListRows,

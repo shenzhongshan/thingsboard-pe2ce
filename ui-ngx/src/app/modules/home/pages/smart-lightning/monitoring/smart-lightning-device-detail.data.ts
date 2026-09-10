@@ -1,3 +1,6 @@
+/** 文件职责：数据监测模块的 smart-lightning-device-detail.data，定义数据模型、接口结果映射与纯函数。 */
+import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
+
 export interface SmartLightningDeviceDetailMock {
   title: string;
   metrics: Array<{label: string; value: string}>;
@@ -68,22 +71,24 @@ const POLARITY_VALUES: Readonly<Record<string, string>> = {0: '负极', 1: '正�
 const statusMetric = (
   key: string,
   label: string,
-  sourceKey = key,
+  sourceKey: string | readonly string[] = key,
   fallbackValue = '正常',
   valueMap: Readonly<Record<string, string>> = ALARM_STATUS_VALUES
-): SmartLightningRealtimeMetricDefinition => ({
-  key, label, unit: '', valueType: 'status', fallbackValue, sourceKeys: sourceKey === key ? undefined : [sourceKey], valueMap
-});
+): SmartLightningRealtimeMetricDefinition => {
+  const sourceKeys = Array.isArray(sourceKey) ? [...sourceKey] : sourceKey === key ? undefined : [sourceKey];
+  return {key, label, unit: '', valueType: 'status', fallbackValue, sourceKeys, valueMap};
+};
 
 const telemetryMetric = (
   key: string,
   label: string,
   unit: string,
-  sourceKey = key,
+  sourceKey: string | readonly string[] = key,
   fallbackValue = '--'
-): SmartLightningRealtimeMetricDefinition => ({
-  key, label, unit, valueType: 'telemetry', fallbackValue, sourceKeys: sourceKey === key ? undefined : [sourceKey]
-});
+): SmartLightningRealtimeMetricDefinition => {
+  const sourceKeys = Array.isArray(sourceKey) ? [...sourceKey] : sourceKey === key ? undefined : [sourceKey];
+  return {key, label, unit, valueType: 'telemetry', fallbackValue, sourceKeys};
+};
 
 const phaseMetrics = (count: number, prefix: string, label: string, unit: string, sourcePrefix = prefix, start = 1): SmartLightningRealtimeMetricDefinition[] =>
   Array.from({length: count}, (_, index) => {
@@ -103,62 +108,71 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
   DESA: [
     statusMetric('breakerStatus', '断路器状态', 'K'),
     statusMetric('groundStatus', '接地状态', 'G'),
-    telemetryMetric('voltageA', 'A相电压', 'V', 'U1', '0.00'),
-    telemetryMetric('voltageB', 'B相电压', 'V', 'U2', '0.00'),
-    telemetryMetric('voltageC', 'C相电压', 'V', 'U3', '0.00'),
-    telemetryMetric('leakageA', 'A相漏电流', 'mA', 'I1', '0.0'),
-    telemetryMetric('leakageB', 'B相漏电流', 'mA', 'I2', '0.0'),
-    telemetryMetric('leakageC', 'C相漏电流', 'mA', 'I3', '0.0'),
-    telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD', '100'),
-    telemetryMetric('lightningCount', '雷击次数', '次', 'J', '0'),
+    telemetryMetric('voltageA', 'A相电压', SMART_LIGHTNING_UNITS.voltage, 'U1', '0.00'),
+    telemetryMetric('voltageB', 'B相电压', SMART_LIGHTNING_UNITS.voltage, 'U2', '0.00'),
+    telemetryMetric('voltageC', 'C相电压', SMART_LIGHTNING_UNITS.voltage, 'U3', '0.00'),
+    telemetryMetric('leakageA', 'A相漏电流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I1', '0.0'),
+    telemetryMetric('leakageB', 'B相漏电流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I2', '0.0'),
+    telemetryMetric('leakageC', 'C相漏电流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I3', '0.0'),
+    telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD', '100'),
+    telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J', '0'),
     statusMetric('spdStatus', '防雷器状态', 'Y'),
-    telemetryMetric('temperatureA', 'A相温度', '℃', 'T1', '23.4'),
-    telemetryMetric('temperatureB', 'B相温度', '℃', 'T2', '23.1')
+    telemetryMetric('temperatureA', 'A相温度', SMART_LIGHTNING_UNITS.temperature, 'T1', '23.4'),
+    telemetryMetric('temperatureB', 'B相温度', SMART_LIGHTNING_UNITS.temperature, 'T2', '23.1')
   ],
-  DES4: [statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'), telemetryMetric('lightningCount', '雷击次数', '次', 'J', '0')],
+  DES4: [statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'), telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J', '0')],
   DES9: [
     statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'),
-    telemetryMetric('lightningCount', '雷击次数', '次', 'J', '0'),
-    telemetryMetric('leakageA', 'A相漏流', 'mA', 'I1'), telemetryMetric('leakageB', 'B相漏流', 'mA', 'I2'), telemetryMetric('leakageC', 'C相漏流', 'mA', 'I3'),
-    telemetryMetric('temperatureA', '温度1', '℃', 'T1'), telemetryMetric('temperatureB', '温度2', '℃', 'T2')
+    telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J', '0'),
+    telemetryMetric('leakageA', 'A相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I1'), telemetryMetric('leakageB', 'B相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I2'), telemetryMetric('leakageC', 'C相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I3'),
+    telemetryMetric('temperatureA', '温度1', SMART_LIGHTNING_UNITS.temperature, 'T1'), telemetryMetric('temperatureB', '温度2', SMART_LIGHTNING_UNITS.temperature, 'T2')
   ],
   DEM2: [
     statusMetric('phaseVoltageStatusA', 'A相电压状态', 'VS1'), statusMetric('groundStatus', '接地状态', 'G'),
     statusMetric('tripStatus1', '脱扣1', 'SW1'), statusMetric('tripStatus2', '脱扣2', 'SW2'),
-    telemetryMetric('temperatureA', '温度1', '℃', 'T1'), telemetryMetric('temperatureB', '温度2', '℃', 'T2'),
-    telemetryMetric('lightningCount', '雷击次数', '次', 'J'), telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD')
+    telemetryMetric('temperatureA', '温度1', SMART_LIGHTNING_UNITS.temperature, 'T1'), telemetryMetric('temperatureB', '温度2', SMART_LIGHTNING_UNITS.temperature, 'T2'),
+    telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J'), telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD')
   ],
   DEM4: [
     ...phaseStatusMetrics(3, 'phaseVoltageStatus', '相电压状态', 'VS'), statusMetric('groundStatus', '接地状态', 'G'),
     ...Array.from({length: 4}, (_, index) => statusMetric(`tripStatus${index + 1}`, `脱扣${index + 1}`, `SW${index + 1}`)),
-    ...Array.from({length: 4}, (_, index) => telemetryMetric(`temperature${String.fromCharCode(65 + index)}`, `温度${index + 1}`, '℃', `T${index + 1}`)),
-    telemetryMetric('lightningCount', '雷击次数', '次', 'J'), telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD')
+    ...Array.from({length: 4}, (_, index) => telemetryMetric(`temperature${String.fromCharCode(65 + index)}`, `温度${index + 1}`, SMART_LIGHTNING_UNITS.temperature, `T${index + 1}`)),
+    telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J'), telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD')
   ],
   DEA2: [
     statusMetric('phaseVoltageStatusA', 'A相电压状态', 'VS1'), statusMetric('groundStatus', '接地状态', 'G'),
-    statusMetric('tripStatus1', '脱扣1', 'SW1'), statusMetric('tripStatus2', '脱扣2', 'SW2'), telemetryMetric('leakageA', 'A相漏流', 'mA', 'I1'),
-    telemetryMetric('temperatureA', '温度1', '℃', 'T1'), telemetryMetric('temperatureB', '温度2', '℃', 'T2'), telemetryMetric('lightningCount', '雷击次数', '次', 'J'), telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD')
+    statusMetric('tripStatus1', '脱扣1', 'SW1'), statusMetric('tripStatus2', '脱扣2', 'SW2'), telemetryMetric('leakageA', 'A相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I1'),
+    telemetryMetric('temperatureA', '温度1', SMART_LIGHTNING_UNITS.temperature, 'T1'), telemetryMetric('temperatureB', '温度2', SMART_LIGHTNING_UNITS.temperature, 'T2'), telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J'), telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD')
   ],
   DEA4: [
     ...phaseStatusMetrics(3, 'phaseVoltageStatus', '相电压状态', 'VS'), statusMetric('groundStatus', '接地状态', 'G'),
     ...Array.from({length: 4}, (_, index) => statusMetric(`tripStatus${index + 1}`, `脱扣${index + 1}`, `SW${index + 1}`)),
-    ...phaseMetrics(3, 'leakage', '相漏流', 'mA', 'I', 1),
-    ...Array.from({length: 4}, (_, index) => telemetryMetric(`temperature${String.fromCharCode(65 + index)}`, `温度${index + 1}`, '℃', `T${index + 1}`)),
-    telemetryMetric('lightningCount', '雷击次数', '次', 'J'), telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD')
+    ...phaseMetrics(3, 'leakage', '相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I', 1),
+    ...Array.from({length: 4}, (_, index) => telemetryMetric(`temperature${String.fromCharCode(65 + index)}`, `温度${index + 1}`, SMART_LIGHTNING_UNITS.temperature, `T${index + 1}`)),
+    telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J'), telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD')
   ],
-  ESM0: [statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'), telemetryMetric('temperatureA', 'SPD温度', '℃', 'T'), telemetryMetric('lightningCount', '雷击次数', '次', 'J')],
+  ESM0: [statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'), telemetryMetric('temperatureA', 'SPD温度', SMART_LIGHTNING_UNITS.temperature, 'T'), telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J')],
   ESM3: [
     statusMetric('spdStatus', '防雷器状态', 'Y'), statusMetric('breakerStatus', '空开状态', 'K'), statusMetric('groundStatus', '接地状态', 'G'),
-    ...phaseMetrics(3, 'phaseVoltage', '相电压', 'V', 'U', 1), ...phaseMetrics(3, 'leakage', '相漏流', 'mA', 'I', 1),
-    telemetryMetric('temperatureA', '环境温度', '℃', 'T1'), telemetryMetric('temperatureB', 'SPD温度', '℃', 'T2'), telemetryMetric('lightningCount', '雷击次数', '次', 'J'), telemetryMetric('lifePercent', '防雷器寿命', '%', 'SPD')
+    ...phaseMetrics(3, 'phaseVoltage', '相电压', SMART_LIGHTNING_UNITS.voltage, 'U', 1), ...phaseMetrics(3, 'leakage', '相漏流', SMART_LIGHTNING_UNITS.leakageCurrent, 'I', 1),
+    telemetryMetric('temperatureA', '环境温度', SMART_LIGHTNING_UNITS.temperature, 'T1'), telemetryMetric('temperatureB', 'SPD温度', SMART_LIGHTNING_UNITS.temperature, 'T2'), telemetryMetric('lightningCount', '雷击次数', SMART_LIGHTNING_UNITS.count, 'J'), telemetryMetric('lifePercent', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage, 'SPD')
   ],
-  G1A3: [telemetryMetric('groundResistance', '地网阻值', 'Ω', 'DR'), telemetryMetric('acquisitionCount', '采集次数', '次', 'DJ'), telemetryMetric('acquisitionInterval', '采集周期', 'min', 'MIN')],
-  M1AI: [telemetryMetric('peakCurrent', '雷电流峰值', '', 'F'), telemetryMetric('surgeCount', '电涌次数', '次', 'LJ'), statusMetric('polarity', '极性', 'JX', '负极', POLARITY_VALUES)],
-  L2AI: [telemetryMetric('peakCurrent', '瞬态电流峰值', '', 'F'), telemetryMetric('surgeCount', '电涌次数', '次', 'LJ'), statusMetric('polarity', '极性', 'JX', '负极', POLARITY_VALUES)],
-  LDH1: [statusMetric('deviceStatus', '设备状态', 'ALM'), telemetryMetric('arcFaultCount', '故障电弧次数', '次', 'AJ')],
+  G1A3: [telemetryMetric('groundResistance', '地网阻值', SMART_LIGHTNING_UNITS.resistance, 'DR'), telemetryMetric('acquisitionCount', '采集次数', SMART_LIGHTNING_UNITS.count, 'DJ'), telemetryMetric('acquisitionInterval', '采集周期', SMART_LIGHTNING_UNITS.interval, 'MIN')],
+  M1AI: [
+    telemetryMetric('peakCurrent', '雷电流峰值', SMART_LIGHTNING_UNITS.lightningCurrent, ['surgePeak', 'F']),
+    telemetryMetric('surgeCount', '电涌次数', SMART_LIGHTNING_UNITS.count, ['surgeCount', 'LJ']),
+    statusMetric('polarity', '极性', ['surgePolarity', 'JX'], '负极', POLARITY_VALUES)
+  ],
+  L2AI: [
+    telemetryMetric('peakCurrent', '瞬态电流峰值', SMART_LIGHTNING_UNITS.lightningCurrent, ['surgePeak', 'F']),
+    telemetryMetric('surgeCount', '电涌次数', SMART_LIGHTNING_UNITS.count, ['surgeCount', 'LJ']),
+    statusMetric('polarity', '极性', ['surgePolarity', 'JX'], '负极', POLARITY_VALUES)
+  ],
+  LDH1: [statusMetric('deviceStatus', '设备状态', 'ALM'), telemetryMetric('arcFaultCount', '故障电弧次数', SMART_LIGHTNING_UNITS.count, 'AJ')],
   FAP1: [statusMetric('deviceStatus', '设备状态', 'ALM')]
 };
 
+/** 按设备配置名称返回实时指标定义；未匹配的型号返回空列表。 */
 export const getSmartLightningRealtimeMetricDefinitions = (deviceProfileName?: string): SmartLightningRealtimeMetricDefinition[] =>
   deviceProfileName ? smartLightningRealtimeMetricDefinitions[deviceProfileName] || [] : [];
 
@@ -181,7 +195,7 @@ export const buildSmartLightningRealtimeMetrics = (
   });
 };
 
-/** 真实设备遥测接入前的固定页面数据；资产树仍由现有接口提供。 */
+/** 设备详情初始展示数据；实时遥测与告警加载后会覆盖对应字段。 */
 export const buildSmartLightningDeviceDetailMock = (deviceId?: string): SmartLightningDeviceDetailMock => ({
   title: deviceId ? `设备监测 · ${deviceId.slice(0, 8)}` : '设备监测',
   metrics: [
@@ -192,10 +206,6 @@ export const buildSmartLightningDeviceDetailMock = (deviceId?: string): SmartLig
     {label: 'B相电流', value: '5.9A'}, {label: 'C相电流', value: '6.4A'},
     {label: '剩余电流', value: '12mA'}, {label: '接地状态', value: '正常'}
   ],
-  alarms: [
-    {item: '相电流', severity: '紧急', status: '未处理', time: '2026/09/02 10:23'},
-    {item: '温度1', severity: '紧急', status: '已处理', time: '2026/09/02 09:45'},
-    {item: '温度2', severity: '隐患', status: '已处理', time: '2026/09/01 18:10'},
-    {item: '剩余电流', severity: '隐患', status: '未处理', time: '2026/09/01 16:30'}
-  ]
+  // 告警表由设备告警接口填充，初始为空，避免接口返回前显示过期演示告警。
+  alarms: []
 });

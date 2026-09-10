@@ -33,6 +33,8 @@ import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmSummaryD
 import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmAnalysisSummaryDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningLeafAssetAlarmCountDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
+import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
+import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
 import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmSummaryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmAnalysisService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningLeafAssetAlarmService;
@@ -40,6 +42,8 @@ import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryServ
 import org.thingsboard.server.service.monitoring.service.GroundMonitoringSummaryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
+import org.thingsboard.server.service.monitoring.service.SpdMonitoringSummaryService;
+import org.thingsboard.server.service.monitoring.service.LightningCurrentMonitoringSummaryService;
 
 import java.util.List;
 
@@ -62,6 +66,8 @@ public class SmartLightningMonitoringController extends BaseController {
     private final SmartLightningAlarmSummaryService smartLightningAlarmSummaryService;
     private final SmartLightningAlarmAnalysisService smartLightningAlarmAnalysisService;
     private final SmartLightningLeafAssetAlarmService smartLightningLeafAssetAlarmService;
+    private final SpdMonitoringSummaryService spdMonitoringSummaryService;
+    private final LightningCurrentMonitoringSummaryService lightningCurrentMonitoringSummaryService;
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
@@ -89,6 +95,24 @@ public class SmartLightningMonitoringController extends BaseController {
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
         return groundMonitoringSummaryService.getSummary(getCurrentUser(), period);
+    }
+
+    /** SPD 监测摘要：设备状态为当前快照，告警和最大漏流按周期统计。 */
+    @GetMapping("/spd-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public SpdMonitoringSummary getSpdMonitoringSummary(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return spdMonitoringSummaryService.getSummary(getCurrentUser(), period);
+    }
+
+    /** 雷电流监测摘要：单条 surgeCount 直接计数，多条记录按累计计数器差值汇总。 */
+    @GetMapping("/lightning-current-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public LightningCurrentMonitoringSummary getLightningCurrentMonitoringSummary(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return lightningCurrentMonitoringSummaryService.getSummary(getCurrentUser(), period);
     }
 
     /**

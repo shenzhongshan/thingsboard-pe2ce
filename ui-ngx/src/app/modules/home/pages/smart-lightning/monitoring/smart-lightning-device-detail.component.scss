@@ -1,3 +1,5 @@
+/* 文件职责：数据监测模块的 smart-lightning-device-detail.component，负责页面局部布局、响应式与视觉样式。 */
+/* 设备详情页样式：双栏布局，趋势图 2×2 网格与设备摘要卡等高对齐。 */
 :host { display: block; min-height: 100%; }
 .device-detail-page { --ink:#0a356a; --blue:#195ce8; --green:#16df65; display:grid; grid-template-columns:260px minmax(0,1fr); gap:16px; min-height:100%; margin-left:8px; padding:14px 14px 14px 0; color:#263c50; background:#edf1f4; font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif; }.surface,.asset-panel { border:1px solid #d5dee6; background:#fff; box-shadow:0 7px 18px rgba(29,60,87,.07); }.asset-panel { min-height:calc(100vh - 120px); padding:16px 14px; }.asset-panel-title { display:flex; justify-content:space-between; align-items:baseline; }.asset-panel h2,.detail-heading h1,.detail-heading p,.chart-card h2,.realtime-panel h2,.alarms-panel h2,.alarms-panel p { margin:0; }.asset-panel-title h2 { font-size:16px; }.asset-panel-title span { color:#718397; font-size:11px; }.asset-search { display:flex; align-items:center; gap:6px; height:34px; margin:14px 0 10px; padding:0 8px; border:1px solid #ccd7e0; border-radius:5px; color:#6a8093; }.asset-search input { width:100%; min-width:0; border:0; outline:0; font:inherit; font-size:12px; }.asset-search tb-icon { font-size:18px; }.asset-state { display:grid; min-height:100px; place-items:center; color:#73879a; font-size:12px; }.asset-state.error { color:#c72f3d; }.asset-tree { display:grid; gap:2px; }.asset-node { --depth:0; display:flex; align-items:center; width:100%; min-height:32px; padding:0 4px 0 calc(4px + var(--depth) * 19px); border:0; border-left:4px solid transparent; color:#476075; background:transparent; cursor:pointer; font:inherit; font-size:13px; text-align:left; }.asset-node:hover { color:#063b79; background:#cfe5ff; }.asset-node.selected { border-left-color:#16df65; color:#fff; background:#1267db; box-shadow:0 2px 7px rgba(18,103,219,.3); font-weight:700; }.asset-node.selected .asset-icon,.asset-node.selected .tree-toggle { color:#fff; }.tree-toggle { display:inline-grid; width:20px; height:24px; place-items:center; border-radius:3px; color:#6d8192; }.tree-toggle:hover { background:#d8e8f8; }.tree-toggle tb-icon { font-size:18px; }.tree-toggle.spacer { pointer-events:none; }.asset-icon { margin-right:6px; color:#4e88cf; font-size:16px; }
 .detail-content { min-width:0; }.back-link { display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; color:#32649b; font-size:12px; text-decoration:none; }.back-link:hover { color:#195ce8; text-decoration:underline; }.back-link tb-icon { font-size:16px; }.detail-grid { display:grid; grid-template-columns:minmax(330px,.83fr) minmax(580px,1.17fr); grid-template-rows:344px 344px; gap:14px; }.device-summary { grid-column:1; grid-row:1; min-height:0; }.realtime-panel { grid-column:1; grid-row:2; }.chart-grid { grid-column:2; grid-row:1 / span 2; }.summary-top { display:flex; gap:12px; padding:14px; border-bottom:1px solid #e7edf2; }.device-mark { display:grid; flex:0 0 100px; min-height:104px; place-items:center; border-radius:7px; color:#527087; background:#eef2f4; text-align:center; }.device-mark tb-icon { color:#205eab; font-size:42px; }.product-name { width:100%; padding:0 6px; color:#36546c; font-size:13px; font-weight:600; line-height:1.38; overflow-wrap:anywhere; word-break:break-word; }.mock-actions { display:flex; flex-wrap:wrap; align-content:start; gap:7px; }.mock-actions button,.alarms-panel header button { min-height:28px; padding:0 9px; border:0; border-radius:3px; color:#fff; background:#078b3f; cursor:pointer; font:inherit; font-size:11px; }.mock-actions button:hover,.alarms-panel header button:hover { background:#067234; }.device-fields { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin:0; padding:3px 16px 10px 126px; }.device-fields div { display:grid; grid-template-columns:104px minmax(0,1fr); gap:5px; min-height:27px; align-items:center; border-bottom:1px dashed #edf1f4; }.device-fields dt,.device-fields dd { margin:0; font-size:11px; }.device-fields dt { color:#75899a; }.device-fields dd { overflow:hidden; color:#42596b; text-overflow:ellipsis; white-space:nowrap; }.device-fields dd.ok { color:#079545; font-weight:700; }
@@ -83,7 +85,7 @@
   color: inherit !important;
 }
 
-/* 未选中的设备不显示状态条；选中后再按告警状态着色（红 = 存在未清除告警）。 */
+/* 详情页同时标记告警设备与其直属上级资产（红 = 存在未清除告警）。 */
 .asset-node.device-node {
   border-left-color: transparent !important;
 }
@@ -92,11 +94,27 @@
   border-left-color: #16df65 !important;
 }
 
-.asset-node.device-node.device-alarm,
-.asset-node.device-node.device-alarm.selected {
-  border-left-color: transparent !important;
+.asset-node.asset-alarm,
+.asset-node.asset-alarm.selected {
+  border-left-color: #ef3f4c !important;
 }
 
-.asset-node.device-node.device-alarm.selected {
-  border-left-color: #ef3f4c !important;
+/* 页面外边界、左右栏和详情模块统一使用同一间距。 */
+.device-detail-page {
+  gap: var(--tb-smart-page-spacing);
+  margin: 0;
+  padding: var(--tb-smart-page-spacing);
+}
+
+.device-detail-page > .asset-panel {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.detail-grid,
+.chart-grid {
+  gap: var(--tb-smart-page-spacing);
+}
+
+.alarms-panel {
+  margin-top: var(--tb-smart-page-spacing);
 }

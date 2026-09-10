@@ -1,3 +1,4 @@
+/** 文件职责：数据查询模块的 smart-lightning-data-query.data，定义数据模型、接口结果映射与纯函数。 */
 import {
   getSmartLightningFunctionCategoryLabel,
   getSmartLightningMonitoringRootAssetIds,

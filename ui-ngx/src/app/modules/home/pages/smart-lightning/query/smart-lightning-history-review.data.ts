@@ -1,3 +1,4 @@
+/** 文件职责：数据查询模块的 smart-lightning-history-review.data，定义数据模型、接口结果映射与纯函数。 */
 import {TimeseriesData} from '@shared/models/telemetry/telemetry.models';
 import {getSmartLightningRealtimeMetricDefinitions} from '../monitoring/smart-lightning-device-detail.data';
 
@@ -19,6 +20,7 @@ export const getSmartLightningTelemetryParameterLabel = (deviceProfileName: stri
   return definition ? `${definition.label}（${key}）` : key;
 };
 
+/** 返回指定遥测参数的单位；未配置的参数返回空字符串。 */
 export const getSmartLightningTelemetryParameterUnit = (deviceProfileName: string, key: string): string =>
   getSmartLightningRealtimeMetricDefinitions(deviceProfileName).find((item) => item.key === key)?.unit || '';
 

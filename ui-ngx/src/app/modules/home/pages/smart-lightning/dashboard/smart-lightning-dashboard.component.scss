@@ -1,3 +1,5 @@
+/* 文件职责：看板模块的 smart-lightning-dashboard.component，负责页面局部布局、响应式与视觉样式。 */
+/* 智能防雷看板样式：CSS Grid 多面板监控大屏布局，窄屏降级为纵向堆叠。 */
 :host { display: block; min-height: 100%; }
 
 .lightning-page {
@@ -21,9 +23,7 @@
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 
-.lightning-heading { padding: 0 4px 6px; }
 h2, p { margin: 0; }
-h1 { margin: 0; color: var(--ink); font-size: clamp(18px, 1.65vw, 23px); font-weight: 400; line-height: 1.15; letter-spacing: .01em; }
 
 .dashboard-grid { display: grid; grid-template-columns: minmax(260px, .92fr) minmax(430px, 1.8fr) minmax(270px, .92fr); grid-template-areas: "device map ground" "alarm map spd" "orders records lightning"; gap: 14px; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid #d5dee6; background: var(--panel); box-shadow: 0 7px 18px rgba(29, 60, 87, .07); }
@@ -39,8 +39,8 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(18px, 1.65vw, 23px); font-we
 .tianditu-map { min-height: 412px; height: calc(100% - 47px); background: #dfeef4; }.tianditu-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }.tianditu-map .leaflet-popup-content { margin: 10px 12px; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
 
 .chart { width: 100%; height: calc(100% - 47px); min-height: 205px; }.chart-panel { display: flex; flex-direction: column; }.chart-panel .chart { flex: 1; min-height: 190px; }
-.ground-panel { display: flex; flex-direction: column; }.ground-period-control { display: inline-flex; align-items: center; gap: 6px; color: #718397; font-size: 11px; font-weight: 500; }.ground-overview { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; gap: 0; padding: 12px 15px; }.ground-section { min-width: 0; padding: 9px 12px; }.ground-section h3 { display: flex; align-items: center; gap: 5px; margin: 0; color: #526a80; font-size: 12px; font-weight: 700; }.ground-section h3 tb-icon { width: 15px; height: 15px; color: var(--blue); font-size: 15px; }.ground-device-overview { grid-column: 1 / -1; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid #e7edf2; }.ground-device-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 9px 0 0; }.ground-device-metrics div { min-width: 0; }.ground-device-metrics dt, .ground-resistance-metrics dt { color: #718397; font-size: 11px; }.ground-device-metrics dd { margin: 3px 0 0; font-size: 22px; font-weight: 600; line-height: 1.1; }.ground-alarm-overview { display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #e7edf2; }.ground-alarm-overview > span { color: #718397; font-size: 11px; }.ground-number { margin: 6px 0 2px; font-size: 28px; font-weight: 600; line-height: 1; }.ground-resistance-overview { display: flex; flex-direction: column; justify-content: center; }.ground-resistance-metrics { display: grid; grid-template-columns: 1fr; gap: 7px; margin: 9px 0 0; }.ground-resistance-metrics div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }.ground-resistance-metrics dd { overflow: hidden; margin: 0; color: #1d5be6; font-size: 14px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.ground-state { display: grid; flex: 1; min-height: 205px; place-items: center; padding: 12px; color: #718397; font-size: 13px; text-align: center; }.ground-state.error { color: #bc3544; }.ground-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
-.records-panel { display: flex; flex-direction: column; height: 300px; max-height: 300px; }.more-link { display: inline-flex; align-items: center; gap: 4px; color: #07994b; font-size: 12px; font-weight: 700; text-decoration: none; }.more-link:hover, .more-link:focus-visible { color: #047e3d; text-decoration: underline; }.more-link tb-icon { font-size: 15px; width: 15px; height: 15px; }.table-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 5px 6px; }table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 10px; }th { position: sticky; top: 0; z-index: 1; overflow: hidden; padding: 6px 3px; color: #526579; background: #f0f3f6; font-weight: 700; text-align: left; white-space: nowrap; text-overflow: clip; }td { padding: 5px 3px; border-bottom: 1px solid #edf1f4; color: #40576b; line-height: 1.28; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }th:nth-child(1), td:nth-child(1) { width: 13%; }th:nth-child(2), td:nth-child(2) { width: 13%; }th:nth-child(3), td:nth-child(3) { width: 12%; }th:nth-child(4), td:nth-child(4) { width: 13%; }th:nth-child(5), td:nth-child(5) { width: 13%; }th:nth-child(6), td:nth-child(6) { width: 11%; }th:nth-child(7), td:nth-child(7) { width: 11%; }th:nth-child(8), td:nth-child(8) { width: 14%; }tbody tr:hover { background: #f7fbfd; }.alarm-severity { display: inline-block; min-width: 0; padding: 2px 4px; border-radius: 3px; font-size: 10px; text-align: center; }.alarm-severity.critical { color: #c22534; background: #ffe3e6; }.alarm-severity.major { color: #a85600; background: #fff0de; }.alarm-severity.minor { color: #a56600; background: #fff7d7; }.alarm-severity.warning { color: #827000; background: #fffbd7; }.alarm-severity.indeterminate { color: #596c7b; background: #edf1f4; }.table-state { display: grid; min-height: 160px; place-items: center; color: #718397; font-size: 13px; }.table-state.error { color: #bc3544; }.table-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
+.ground-panel { display: flex; flex-direction: column; }.ground-overview { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; gap: 0; padding: 12px 15px; }.ground-section { min-width: 0; padding: 9px 12px; }.ground-device-overview { grid-column: 1 / -1; padding-top: 2px; padding-bottom: 12px; border-bottom: 1px solid #e7edf2; }.ground-device-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 9px 0 0; }.ground-device-metrics div { min-width: 0; }.ground-device-metrics dt, .ground-resistance-metrics dt { color: #718397; font-size: 11px; }.ground-device-metrics dd { margin: 3px 0 0; font-size: 22px; font-weight: 600; line-height: 1.1; }.ground-alarm-overview { display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid #e7edf2; }.ground-alarm-overview > span { color: #718397; font-size: 11px; }.ground-number { margin: 0; font-size: 28px; font-weight: 600; line-height: 1; }.ground-resistance-overview { display: flex; flex-direction: column; justify-content: center; }.ground-resistance-metrics { display: grid; grid-template-columns: 1fr; gap: 7px; margin: 9px 0 0; }.ground-resistance-metrics div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }.ground-resistance-metrics dd { overflow: hidden; margin: 0; color: #1d5be6; font-size: 14px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }.ground-state { display: grid; flex: 1; min-height: 205px; place-items: center; padding: 12px; color: #718397; font-size: 13px; text-align: center; }.ground-state.error { color: #bc3544; }.ground-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
+.records-panel { display: flex; flex-direction: column; height: 300px; max-height: 300px; }.more-link { display: inline-flex; align-items: center; gap: 4px; color: #07994b; font-size: 12px; font-weight: 700; text-decoration: none; }.more-link:hover, .more-link:focus-visible { color: #047e3d; text-decoration: underline; }.more-link tb-icon { font-size: 15px; width: 15px; height: 15px; }.table-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 5px 6px; }table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 10px; }th { position: sticky; top: 0; z-index: 1; overflow: hidden; padding: 6px 3px; border-bottom: 1px solid #c9d5e0; color: #526579; background: #f0f3f6; font-weight: 700; text-align: center; vertical-align: middle; white-space: nowrap; text-overflow: clip; }td { padding: 5px 3px; border-bottom: 1px solid #d5dee6; color: #40576b; line-height: 1.28; text-align: center; vertical-align: middle; overflow-wrap: anywhere; word-break: break-word; white-space: normal; }th:nth-child(1), td:nth-child(1) { width: 13%; }th:nth-child(2), td:nth-child(2) { width: 13%; }th:nth-child(3), td:nth-child(3) { width: 12%; }th:nth-child(4), td:nth-child(4) { width: 13%; }th:nth-child(5), td:nth-child(5) { width: 13%; }th:nth-child(6), td:nth-child(6) { width: 11%; }th:nth-child(7), td:nth-child(7) { width: 11%; }th:nth-child(8), td:nth-child(8) { width: 14%; }tbody tr:hover { background: #f7fbfd; }.alarm-severity { display: inline-flex; align-items: center; justify-content: center; min-width: 0; padding: 2px 4px; border-radius: 3px; font-size: 10px; text-align: center; }.alarm-severity.critical { color: #c22534; background: #ffe3e6; }.alarm-severity.major { color: #a85600; background: #fff0de; }.alarm-severity.minor { color: #a56600; background: #fff7d7; }.alarm-severity.warning { color: #827000; background: #fffbd7; }.alarm-severity.indeterminate { color: #596c7b; background: #edf1f4; }.table-state { display: grid; min-height: 160px; place-items: center; color: #718397; font-size: 13px; }.table-state.error { color: #bc3544; }.table-state button { margin-left: 8px; border: 0; color: #195ce8; background: transparent; cursor: pointer; font: inherit; text-decoration: underline; }
 
 /* 告警表在笔记本分栏布局中宽度较窄：表头优先压缩字重、字号和横向留白。 */
 .records-panel thead th { padding: 6px 3px; font-size: 10px; font-weight: 600; letter-spacing: -.02em; }
@@ -77,8 +77,6 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(18px, 1.65vw, 23px); font-we
 /* 小屏幕改用更紧凑的单列卡片，所有内容保持在视口宽度内。 */
 @media (max-width: 720px) {
   .lightning-page { padding: 4px 8px 10px 0; }
-  .lightning-heading { padding: 0 2px 6px; }
-  h1 { font-size: clamp(18px, 5vw, 22px); }
   .dashboard-grid { gap: 10px; }
   .panel-title, .map-toolbar { min-height: 40px; padding: 0 10px; }
   .panel-title h2 { font-size: 13px; }
@@ -91,14 +89,412 @@ h1 { margin: 0; color: var(--ink); font-size: clamp(18px, 1.65vw, 23px); font-we
   .summary-metrics dt { font-size: 10px; }
   .summary-metrics dd { margin-top: 4px; font-size: 22px; }
   .ring-legend { gap: 12px; padding: 0 18px; font-size: 10px; }
-  .ground-period-control > span { display: none; }
   .ground-overview { padding: 10px; }
   .ground-section { padding-right: 7px; padding-left: 7px; }
-  .ground-section h3 { font-size: 11px; }
   .ground-device-metrics dt, .ground-resistance-metrics dt, .ground-alarm-overview > span { font-size: 10px; }
   .ground-device-metrics dd { font-size: 19px; }
   .ground-number { font-size: 23px; }
   .ground-resistance-metrics dd { font-size: 12px; }
   .records-panel { height: 270px; max-height: 270px; }
   .records-panel thead th, .records-panel tbody td { padding: 5px 2px; font-size: 9px; }
+}
+
+/* 页面外边界与主要模块之间统一使用同一间距。 */
+.lightning-page {
+  margin: 0;
+  padding: var(--tb-smart-page-spacing);
+}
+
+.dashboard-grid {
+  gap: var(--tb-smart-page-spacing);
+}
+
+/* 告警记录表：加重表格线，并让表头、数据和状态标签统一居中。 */
+.records-panel .table-scroll {
+  border: 1px solid #aebdca;
+}
+
+.records-panel table {
+  border: 1px solid #9aaebe;
+}
+
+.records-panel thead th,
+.records-panel tbody td {
+  border: 1px solid #aeb8c3;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.records-panel thead th {
+  background: #dbe7f1;
+  font-weight: 700;
+}
+
+.records-panel tbody tr:hover {
+  background: #eef6fb;
+}
+
+/* 地图工具栏保留点位操作入口；按钮只负责当前页面选点，不伪造设备数据。 */
+.map-toolbar-actions {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.map-add-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid #b9cde2;
+  border-radius: 4px;
+  color: #195ce8;
+  background: #f7fbff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.map-add-point tb-icon {
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+}
+
+.map-add-point:hover,
+.map-add-point.active {
+  border-color: #195ce8;
+  color: #fff;
+  background: #195ce8;
+}
+
+.map-panel {
+  position: relative;
+}
+
+.map-point-binding-panel {
+  position: absolute;
+  z-index: 800;
+  top: 58px;
+  right: 14px;
+  width: min(250px, calc(100% - 28px));
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #c8d8e8;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .97);
+  box-shadow: 0 6px 18px rgba(25, 67, 104, .18);
+}
+
+.map-point-binding-title {
+  color: #263c50;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.map-point-binding-coordinates {
+  margin-top: 6px;
+  color: #718397;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.map-point-binding-panel select {
+  width: 100%;
+  height: 30px;
+  margin-top: 8px;
+  padding: 0 7px;
+  border: 1px solid #c8d8e8;
+  border-radius: 4px;
+  color: #29465d;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+}
+
+.map-point-binding-error {
+  margin-top: 6px;
+  color: #bc3544;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.map-point-binding-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.map-point-binding-actions button {
+  min-height: 27px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.map-point-cancel {
+  border: 1px solid #b9cde2;
+  color: #526a80;
+  background: #fff;
+}
+
+.map-point-confirm {
+  border: 1px solid #195ce8;
+  color: #fff;
+  background: #195ce8;
+}
+
+.map-point-confirm:disabled {
+  border-color: #b9cde2;
+  color: #8da0b2;
+  background: #edf2f6;
+  cursor: not-allowed;
+}
+
+/* 三张监测卡片统一为“顶部设备概况、底部左右两块”的三段式结构。 */
+.ground-overview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto 1fr;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.ground-section {
+  display: flex;
+  box-sizing: border-box;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid #dfe8f0;
+  border-radius: 6px;
+  background: #f8fbfd;
+  text-align: center;
+}
+
+.ground-alarm-overview {
+  border-right: 1px solid #dfe8f0;
+}
+
+.ground-resistance-overview {
+  border-right: 1px solid #dfe8f0;
+}
+
+.ground-device-overview {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  border-bottom: 1px solid #dfe8f0;
+}
+
+/* 地网设备的总数、在线、离线三个指标在第一段内等宽居中。 */
+.ground-device-metrics {
+  width: 100%;
+  justify-items: center;
+  text-align: center;
+}
+
+.ground-device-metrics dt,
+.ground-resistance-metrics dt,
+.ground-alarm-overview > span {
+  font-size: clamp(10px, .72vw, 12px);
+  font-weight: 500;
+}
+
+.ground-resistance-overview {
+  align-items: center;
+}
+
+.ground-resistance-metrics {
+  width: 100%;
+}
+
+/* SPD 与雷电监测也保持同样结构：顶部设备概况、底部告警数和核心指标。 */
+.monitoring-summary-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.monitoring-summary-overview {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto 1fr;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.monitoring-device-metrics {
+  display: grid;
+  box-sizing: border-box;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #dfe8f0;
+  border-radius: 6px;
+  background: #f8fbfd;
+  text-align: center;
+}
+
+.monitoring-summary-overview > section:last-child {
+  border-right: 1px solid #dfe8f0;
+}
+
+.monitoring-device-metrics div,
+.monitoring-primary-metric div {
+  min-width: 0;
+}
+
+.monitoring-device-metrics span,
+.monitoring-alarm-metric span,
+.monitoring-primary-metric span {
+  display: block;
+  color: #718397;
+  font-size: clamp(10px, .72vw, 12px);
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+
+.monitoring-device-metrics strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.monitoring-alarm-metric,
+.monitoring-primary-metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+}
+
+.monitoring-alarm-metric {
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid #dfe8f0;
+  border-radius: 6px;
+  background: #f8fbfd;
+  text-align: center;
+}
+
+.monitoring-alarm-metric strong {
+  margin-top: 6px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.monitoring-primary-metric {
+  gap: 7px;
+  box-sizing: border-box;
+  align-items: center;
+  border: 1px solid #dfe8f0;
+  border-radius: 6px;
+  background: #f8fbfd;
+  text-align: center;
+}
+
+.monitoring-primary-metric strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 雷电最大峰值同时显示数值和 kA；窄卡片下缩小字号，避免单位被省略。 */
+.lightning-primary-metric strong {
+  min-width: 0;
+  font-size: clamp(11px, 1.05vw, 16px);
+  letter-spacing: -.04em;
+  text-overflow: clip;
+}
+
+.monitoring-primary-metric small {
+  overflow: hidden;
+  color: #718397;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lightning-primary-metric {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  column-gap: 12px;
+}
+
+.monitoring-summary-state {
+  display: grid;
+  flex: 1;
+  min-height: 205px;
+  place-items: center;
+  padding: 12px;
+  color: #718397;
+  font-size: 13px;
+  text-align: center;
+}
+
+.monitoring-summary-state.error {
+  color: #bc3544;
+}
+
+.monitoring-summary-state button {
+  margin-left: 8px;
+  border: 0;
+  color: #195ce8;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+@media (max-width: 1200px) and (min-width: 861px) {
+  .monitoring-summary-overview { padding: 10px 12px; }
+  .monitoring-device-metrics { padding-right: 9px; padding-left: 9px; }
+  .monitoring-device-metrics strong { font-size: 20px; }
+  .monitoring-alarm-metric strong { font-size: 25px; }
+  .monitoring-primary-metric strong { font-size: 15px; }
+}
+
+@media (max-width: 720px) {
+  /* 窄屏仍保持三段结构，只压缩留白与字号，不产生横向滚动。 */
+  .ground-section { padding: 7px 6px; }
+  .ground-device-metrics { gap: 4px; }
+  .ground-device-metrics dd { font-size: 18px; }
+  .ground-resistance-metrics { gap: 5px; }
+  .ground-resistance-metrics div { gap: 4px; }
+  .ground-resistance-metrics dd { font-size: 12px; }
+  .monitoring-summary-overview { padding: 10px; }
+  .monitoring-device-metrics { gap: 4px; padding-right: 6px; padding-left: 6px; }
+  .monitoring-device-metrics span,
+  .monitoring-alarm-metric span,
+  .monitoring-primary-metric span { font-size: 10px; }
+  .monitoring-device-metrics strong { font-size: 19px; }
+  .monitoring-alarm-metric strong { font-size: 23px; }
+  .monitoring-primary-metric strong { font-size: 13px; }
+  .map-toolbar-actions { gap: 5px; }
+  .map-hint { display: none; }
+  .map-add-point { padding: 3px 7px; font-size: 10px; }
 }

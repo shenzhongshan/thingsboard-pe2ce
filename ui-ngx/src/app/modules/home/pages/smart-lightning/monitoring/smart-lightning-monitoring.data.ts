@@ -1,7 +1,9 @@
+/** 文件职责：数据监测模块的 smart-lightning-monitoring.data，定义数据模型、接口结果映射与纯函数。 */
 import { AssetInfo } from '@shared/models/asset.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityRelation } from '@shared/models/relation.models';
+import {formatSmartLightningMeasurement, SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
 
 export interface SmartLightningMonitoringAssetNode {
   id: string;
@@ -53,7 +55,7 @@ export const SMART_LIGHTNING_ANALYSIS_CARDS: readonly SmartLightningAnalysisCard
     title: '接地电阻雷电流AI分析',
     visual: 'ground',
     icon: 'device_hub',
-    primaryMetric: '0.35Ω',
+    primaryMetric: formatSmartLightningMeasurement('0.35', SMART_LIGHTNING_UNITS.resistance),
     primaryMetricLabel: '当前接地电阻',
     caption: '地网采样稳定 · 接地状态正常'
   },
@@ -62,18 +64,19 @@ export const SMART_LIGHTNING_ANALYSIS_CARDS: readonly SmartLightningAnalysisCard
     title: '雷电防护电流分析',
     visual: 'current',
     icon: 'electric_meter',
-    primaryMetric: '32.8kA',
+    // 雷电流模块的监测峰值是雷击脉冲峰值电流，产品单位为 kA。
+    primaryMetric: formatSmartLightningMeasurement('32.8', SMART_LIGHTNING_UNITS.lightningCurrent),
     primaryMetricLabel: '监测峰值',
-    caption: '近 7 日峰值趋势 · 雷击计数 6 次'
+    caption: `近 7 日峰值趋势 · 雷击计数 6 ${SMART_LIGHTNING_UNITS.count}`
   },
   {
     id: 'voltage',
     title: '雷电/过电压能力监测评估',
     visual: 'voltage',
     icon: 'show_chart',
-    primaryMetric: '2.5kV',
+    primaryMetric: formatSmartLightningMeasurement('2.5', SMART_LIGHTNING_UNITS.highVoltage),
     primaryMetricLabel: '峰值电压',
-    caption: 'A/B/C 相电压在线 · 越限 0 次'
+    caption: `A/B/C 相电压在线 · 越限 0 ${SMART_LIGHTNING_UNITS.count}`
   }
 ];
 
@@ -113,6 +116,7 @@ const smartLightningFunctionCategoryLabels: Record<string, string> = {
   arc_fault: '故障电弧监测'
 };
 
+/** 把后端功能分类枚举值映射为中文标签；未配置或未知值原样展示。 */
 export const getSmartLightningFunctionCategoryLabel = (value: unknown): string => {
   if (typeof value !== 'string' || !value.trim()) {
     return '未分类';
@@ -181,6 +185,70 @@ export const getSmartLightningActiveAlarmDeviceIds = (
   return activeDeviceIds;
 };
 
+/**
+ * 返回存在未清除告警设备的资产及其全部上级资产。
+ * 此函数只计算资产节点标记；设备自身的标记由共享树组件直接使用告警设备 ID 判断。
+ */
+export const getSmartLightningAlarmAssetIds = (
+  tree: SmartLightningMonitoringAssetTree,
+  alarmDeviceIds: ReadonlySet<string>
+): Set<string> => {
+  const alarmAssetIds = new Set<string>();
+  const visiting = new Set<string>();
+  const hasAlarmDescendant = (node: SmartLightningMonitoringAssetNode): boolean => {
+    if (visiting.has(node.id)) {
+      return false;
+    }
+    visiting.add(node.id);
+    let containsAlarm = false;
+    // 必须遍历全部子分支：Array.some() 会在第一个告警分支返回 true 后提前停止，
+    // 导致同级后续资产（例如测试电柜-010）没有被计算告警标记。
+    for (const childId of node.childIds) {
+      const child = tree.nodes.get(childId);
+      if (!child) {
+        continue;
+      }
+      const childContainsAlarm = child.entityType === EntityType.DEVICE
+        ? alarmDeviceIds.has(child.id)
+        : hasAlarmDescendant(child);
+      if (childContainsAlarm) {
+        containsAlarm = true;
+      }
+    }
+    if (node.entityType === EntityType.ASSET && containsAlarm) {
+      alarmAssetIds.add(node.id);
+    }
+    visiting.delete(node.id);
+    return containsAlarm;
+  };
+  tree.roots.forEach((root) => hasAlarmDescendant(root));
+  return alarmAssetIds;
+};
+
+/** 默认只展开前两层资产，设备和更深层级保持收起。 */
+export const getSmartLightningDefaultExpandedAssetIds = (
+  tree: SmartLightningMonitoringAssetTree,
+  visibleLevels = 2
+): Set<string> => {
+  const expandedIds = new Set<string>();
+  const visit = (node: SmartLightningMonitoringAssetNode, level: number): void => {
+    if (node.entityType !== EntityType.ASSET) {
+      return;
+    }
+    if (level < visibleLevels && node.childIds.some((childId) => tree.nodes.get(childId)?.entityType === EntityType.ASSET)) {
+      expandedIds.add(node.id);
+    }
+    node.childIds.forEach((childId) => {
+      const child = tree.nodes.get(childId);
+      if (child) {
+        visit(child, level + 1);
+      }
+    });
+  };
+  tree.roots.forEach((root) => visit(root, 1));
+  return expandedIds;
+};
+
 /** 与后端 /api/smart-lightning/monitoring/tree 对应的轻量树节点。 */
 export interface SmartLightningMonitoringTreeResponseNode {
   id: string;
@@ -189,7 +257,7 @@ export interface SmartLightningMonitoringTreeResponseNode {
   children: SmartLightningMonitoringTreeResponseNode[];
 }
 
-/** Builds a cycle-safe hierarchy with asset branches and their device leaves. */
+/** 以防环方式构建资产分支及其设备叶子节点的层级树。 */
 export const buildSmartLightningMonitoringAssetTree = (
   assets: AssetInfo[],
   devices: DeviceInfo[],
@@ -298,7 +366,7 @@ export const getSmartLightningMonitoringAssetPaths = (
   return paths;
 };
 
-/** Returns the selected asset plus every known descendant, once each. */
+/** 返回选中节点及其全部已知后代节点，每个节点只出现一次。 */
 export const getSmartLightningMonitoringSelectedAssetIds = (
   nodes: Map<string, SmartLightningMonitoringAssetNode>,
   selectedId: string

@@ -1,3 +1,5 @@
+/** 文件职责：告警分析模块的 smart-lightning-alarm-analysis.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 告警分析纯函数单测：条形数据构建与排名色调（node assert 轻量运行）。 */
 import {
   ALERT_ANALYSIS_PERIODS,
   buildAlarmAnalysisBars,

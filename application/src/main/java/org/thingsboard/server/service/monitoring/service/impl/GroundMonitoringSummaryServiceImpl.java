@@ -39,6 +39,8 @@ import org.thingsboard.server.service.monitoring.service.GroundMonitoringSummary
 import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
 import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
+import org.thingsboard.server.service.monitoring.util.MonitoringPeriodWindow;
+import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
@@ -64,16 +66,22 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
     private static final int QUERY_PAGE_SIZE = 10_000;
     private static final String GROUND_RESISTANCE_FUNCTION_CATEGORY = "ground_resistance";
     private static final String GROUND_RESISTANCE_TELEMETRY_KEY = "groundResistance";
-    private static final long DAY_MILLIS = 24L * 60 * 60 * 1000;
-    private static final long WEEK_MILLIS = 7L * DAY_MILLIS;
-    private static final long MONTH_MILLIS = 30L * DAY_MILLIS;
 
     private final SmartLightningDeviceService smartLightningDeviceService;
     private final MonitoringAlarmQueryService alarmQueryService;
     private final TimeseriesService timeseriesService;
 
+    /**
+     * 查询当前用户可见地网设备（functionCategory=ground_resistance）的完整摘要。
+     *
+     * @param user 当前登录用户，用于执行权限过滤
+     * @param period 告警统计窗口，仅接受 day、week、month
+     * @return 设备总数、在线/离线数量、周期内告警数、最新阻值的最大和最小值
+     * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
+     */
     @Override
     public GroundMonitoringSummary getSummary(SecurityUser user, String period) throws ThingsboardException {
+        MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
         List<SmartLightningDeviceContextDTO> groundDevices = findVisibleGroundDevices(user);
         List<EntityId> groundDeviceIds = new ArrayList<>();
         int online = 0;
@@ -84,7 +92,7 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
             }
         }
 
-        int alarmCount = countGroundAlarmsSince(user, groundDeviceIds, getPeriodStartTimestamp(period));
+        int alarmCount = countGroundAlarmsSince(user, groundDeviceIds, window);
         List<Double> resistanceValues = findLatestGroundResistanceValues(user, groundDeviceIds);
         Double maxResistance = null;
         Double minResistance = null;
@@ -108,7 +116,8 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
                 user, new PageLink(QUERY_PAGE_SIZE, 0));
         List<SmartLightningDeviceContextDTO> groundDevices = new ArrayList<>();
         for (SmartLightningDeviceContextDTO device : pageData.getData()) {
-            if (GROUND_RESISTANCE_FUNCTION_CATEGORY.equalsIgnoreCase(trimToEmpty(device.getFunctionCategory()))) {
+            if (GROUND_RESISTANCE_FUNCTION_CATEGORY.equalsIgnoreCase(
+                    MonitoringValueParser.trimToEmpty(device.getFunctionCategory()))) {
                 groundDevices.add(device);
             }
         }
@@ -116,7 +125,8 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
     }
 
     /** 告警按 createdTime（触发时间）筛选，包含在窗口中已清除的历史告警。 */
-    private int countGroundAlarmsSince(SecurityUser user, List<EntityId> groundDeviceIds, long startTimestamp)
+    private int countGroundAlarmsSince(
+            SecurityUser user, List<EntityId> groundDeviceIds, MonitoringPeriodWindow window)
             throws ThingsboardException {
         if (groundDeviceIds.isEmpty()) {
             return 0;
@@ -127,7 +137,8 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
         }
 
         TimePageLink pageLink = new TimePageLink(
-                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC, startTimestamp, System.currentTimeMillis());
+                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC,
+                window.getStartTs(), window.getEndTs());
         AlarmQueryV2 query = new AlarmQueryV2(
                 null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ANY), Collections.emptyList(), null);
         int count = 0;
@@ -168,7 +179,7 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
             if (latestEntry.isEmpty()) {
                 continue;
             }
-            Double resistanceValue = parseFiniteDouble(latestEntry.get().getValueAsString());
+            Double resistanceValue = MonitoringValueParser.parseFiniteDouble(latestEntry.get().getValueAsString());
             if (resistanceValue != null) {
                 resistanceValues.add(resistanceValue);
             }
@@ -176,34 +187,4 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
         return resistanceValues;
     }
 
-    /** 日、周、月以当前时刻向前回溯 24 小时、7 天、30 天。 */
-    private long getPeriodStartTimestamp(String period) throws ThingsboardException {
-        long now = System.currentTimeMillis();
-        if ("day".equals(period)) {
-            return now - DAY_MILLIS;
-        }
-        if ("week".equals(period)) {
-            return now - WEEK_MILLIS;
-        }
-        if ("month".equals(period)) {
-            return now - MONTH_MILLIS;
-        }
-        throw new ThingsboardException("Unsupported ground alarm period: " + period, ThingsboardErrorCode.BAD_REQUEST_PARAMS);
-    }
-
-    private String trimToEmpty(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private Double parseFiniteDouble(String value) {
-        if (value == null || value.trim().isEmpty()) {
-            return null;
-        }
-        try {
-            double parsed = Double.parseDouble(value.trim());
-            return Double.isFinite(parsed) ? parsed : null;
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 }

@@ -8,7 +8,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SmartLightningAlarmPeriodSummaryDTO {
 
+    /** 当前周期（今日/本月/今年）的告警次数。 */
     private final long currentCount;
+    /** 上一对比周期（昨日/上月/去年）的告警次数。 */
     private final long previousCount;
+    /** 环比变化百分比，保留两位小数。 */
     private final double changePercent;
 }

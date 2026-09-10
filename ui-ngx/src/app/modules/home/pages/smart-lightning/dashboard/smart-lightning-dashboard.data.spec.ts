@@ -1,3 +1,5 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 看板数据层单测：周期切换、告警行格式化、设备汇总与演示数据构造（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
 import { AlarmInfo, AlarmSeverity, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';

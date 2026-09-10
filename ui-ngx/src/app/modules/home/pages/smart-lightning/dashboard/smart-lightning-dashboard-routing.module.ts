@@ -1,3 +1,4 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard-routing.module，声明智能防雷看板的页面路由与子路由。 */
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { Authority } from '@shared/models/authority.enum';
@@ -13,17 +14,36 @@ const routes: Routes = [
     data: {
       auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       title: '智能防雷看板',
-      breadcrumb: {skip: true}
+      // 使用 TB 原生面包屑，颜色跟随当前主题。
+      breadcrumb: {label: '智能防雷看板', icon: 'dashboard'}
     }
   },
   {
     path: 'smart-lightning/monitoring',
-    component: SmartLightningMonitoringComponent,
     data: {
       auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-      title: '智能防雷数据监测',
-      breadcrumb: {skip: true}
-    }
+      breadcrumb: {label: '数据监测', icon: 'monitor_heart'}
+    },
+    children: [
+      {
+        path: '',
+        component: SmartLightningMonitoringComponent,
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '智能防雷数据监测'
+        }
+      },
+      {
+        // 数据监测是真实页面，进入设备详情后显示“数据监测 > 设备详情”。
+        path: 'device/:deviceId',
+        component: SmartLightningDeviceDetailComponent,
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '设备详情',
+          breadcrumb: {label: '设备详情', icon: 'devices'}
+        }
+      }
+    ]
   },
   {
     path: 'smart-lightning/device/:deviceId',
@@ -31,37 +51,35 @@ const routes: Routes = [
     data: {
       auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       title: '设备详情',
-      breadcrumb: {skip: true}
-    }
-  },
-  {
-    // 详情路由保留来源页前缀，使左侧 routerLinkActive 能继续高亮对应菜单。
-    path: 'smart-lightning/monitoring/device/:deviceId',
-    component: SmartLightningDeviceDetailComponent,
-    data: {
-      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-      title: '设备详情',
-      breadcrumb: {skip: true}
-    }
-  },
-  {
-    // 数据查询详情同样使用 query 前缀，避免进入详情后丢失“数据查询”菜单选中状态。
-    path: 'smart-lightning/query/device/:deviceId',
-    component: SmartLightningDeviceDetailComponent,
-    data: {
-      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-      title: '设备详情',
-      breadcrumb: {skip: true}
+      breadcrumb: {label: '设备详情', icon: 'devices'}
     }
   },
   {
     path: 'smart-lightning/query',
-    component: SmartLightningDataQueryComponent,
     data: {
       auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
-      title: '智能防雷数据查询',
-      breadcrumb: {skip: true}
-    }
+      breadcrumb: {label: '数据查询', icon: 'search'}
+    },
+    children: [
+      {
+        path: '',
+        component: SmartLightningDataQueryComponent,
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '智能防雷数据查询'
+        }
+      },
+      {
+        // 数据查询是真实页面，详情页保留来源导航和左侧菜单选中状态。
+        path: 'device/:deviceId',
+        component: SmartLightningDeviceDetailComponent,
+        data: {
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+          title: '设备详情',
+          breadcrumb: {label: '设备详情', icon: 'devices'}
+        }
+      }
+    ]
   }
 ];
 

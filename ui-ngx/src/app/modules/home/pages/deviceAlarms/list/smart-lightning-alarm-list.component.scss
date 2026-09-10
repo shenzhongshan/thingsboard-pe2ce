@@ -1,3 +1,4 @@
+/* 文件职责：告警列表模块的 smart-lightning-alarm-list.component，负责页面局部布局、响应式与视觉样式。 */
 :host { display: block; min-height: 100%; }
 
 .alarm-list-page { --navy: #083b78; --blue: #195ce8; --green: #16df65; --border: #d2dce6; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; min-height: 100%; margin-left: 8px; padding: 14px 14px 14px 0; color: #34485b; background: #edf1f4; font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif; }
@@ -116,6 +117,17 @@
   padding-left: 8px !important;
   padding-right: 8px !important;
 }
+.operation-cell.processing-mode {
+  grid-template-columns: 42px;
+}
+.alarm-list-page.processing-mode .operation-column,
+.alarm-list-page.processing-mode .operation-cell {
+  width: 72px !important;
+  min-width: 72px;
+  max-width: 72px;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
 .operation-cell button { width: 42px; flex: 0 0 auto; }
 .operation-cell button.action-hidden { visibility: hidden; pointer-events: none; }
 
@@ -137,3 +149,18 @@
 .table-wrap th:nth-child(8) { width: 104px; }
 .table-wrap th:nth-child(9) { width: 108px; }
 .table-wrap th:nth-child(10) { width: 260px; }
+
+/* 页面外边界、左右栏和主要面板统一使用同一间距。 */
+.alarm-list-page {
+  gap: var(--tb-smart-page-spacing);
+  margin: 0;
+  padding: var(--tb-smart-page-spacing);
+}
+
+.alarm-list-page > .asset-panel {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.result-panel {
+  margin-top: var(--tb-smart-page-spacing);
+}

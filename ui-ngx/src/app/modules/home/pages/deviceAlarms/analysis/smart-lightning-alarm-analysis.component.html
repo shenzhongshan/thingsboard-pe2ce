@@ -1,15 +1,10 @@
+<!-- 文件职责：告警分析模块的 smart-lightning-alarm-analysis.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  告警分析页模板：顶部日/月/年周期统计卡（真实接口）+
+  左侧站点/类型告警排名条形图 + 右侧趋势柱状图（演示数据）。
+-->
 <main class="alarm-analysis-page" aria-label="告警分析">
   <section class="analysis-content">
-    <header class="page-heading">
-      <div>
-        <h1>告警分析</h1>
-        <p class="heading-note">当前用户全部可见设备 · 告警趋势与处置效率</p>
-      </div>
-      <span class="scope-chip" title="当前统计范围">
-        @if (summaryLoading) {统计读取中} @else if (summaryError) {统计读取失败} @else {当前用户可见设备}
-      </span>
-    </header>
-
     <section class="summary-grid" aria-label="告警周期统计">
       @for (card of periods; track card.key) {
         <article class="summary-card" [class]="'summary-card ' + card.tone">

@@ -1,3 +1,4 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard.data，定义数据模型、接口结果映射与纯函数。 */
 import { AlarmInfo, AlarmSearchStatus, AlarmSeverity, AlarmStatus, AlarmQueryV2 } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
@@ -16,8 +17,10 @@ export type SmartLightningChartId = 'ground' | 'spd' | 'alarm' | 'orders' | 'lig
 
 export type SmartLightningChartPeriods = Record<SmartLightningChartId, SmartLightningPeriod>;
 
+/** 看板告警记录表面板最多显示的告警条数。 */
 export const SMART_LIGHTNING_ALARM_DISPLAY_LIMIT = 10;
 
+/** 各图表周期状态的初始值（全部为“日”）。 */
 export const defaultSmartLightningChartPeriods: SmartLightningChartPeriods = {
   ground: SmartLightningPeriod.day,
   spd: SmartLightningPeriod.day,
@@ -26,13 +29,14 @@ export const defaultSmartLightningChartPeriods: SmartLightningChartPeriods = {
   lightning: SmartLightningPeriod.day
 };
 
-/** Returns a new state so selecting one chart's period never alters any other chart. */
+/** 返回新状态对象，确保某张图切换周期时不会影响其他图表。 */
 export const setSmartLightningChartPeriod = (
   periods: SmartLightningChartPeriods,
   chart: SmartLightningChartId,
   period: SmartLightningPeriod
 ): SmartLightningChartPeriods => ({...periods, [chart]: period});
 
+/** 看板告警记录表的行结构（由 AlarmInfo 映射而来）。 */
 export interface SmartLightningAlarmRow {
   source: string;
   secondaryLocation: string;
@@ -46,6 +50,7 @@ export interface SmartLightningAlarmRow {
   startTs: number;
 }
 
+/** 设备汇总统计：总数与在线/离线/未连接数量。 */
 export interface SmartLightningDeviceSummary {
   total: number;
   online: number;
@@ -53,6 +58,7 @@ export interface SmartLightningDeviceSummary {
   onlineRate: number;
 }
 
+/** 按服务器属性 active 值列表统计设备在线/离线/未连接数量。 */
 export const calculateSmartLightningDeviceSummary = (activeValues: unknown[]): SmartLightningDeviceSummary => {
   const total = activeValues.length;
   const online = activeValues.filter((value) => value === true || value === 'true').length;
@@ -64,7 +70,7 @@ export const calculateSmartLightningDeviceSummary = (activeValues: unknown[]): S
   };
 };
 
-/** Formats the latest ground-resistance aggregate without turning missing data into a false zero. */
+/** 格式化最新地网阻值聚合数据，缺失数据时显示占位符而不是误显示为 0。 */
 export const formatSmartLightningResistance = (value: number | null | undefined): string => {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '--';
@@ -73,6 +79,7 @@ export const formatSmartLightningResistance = (value: number | null | undefined)
   return `${roundedValue} Ω`;
 };
 
+/** 从服务器属性列表中取 active 属性原始值，供在线判断使用。 */
 export const getSmartLightningActiveValue = (attributes: AttributeData[]): unknown =>
   attributes.find((attribute) => attribute.key === 'active')?.value;
 
@@ -80,7 +87,7 @@ const latestActiveAlarmFilter: AlarmFilter = {
   statusList: [AlarmSearchStatus.ACTIVE]
 };
 
-/** Builds the existing ThingsBoard v2 alarm query used by the dashboard record panel. */
+/** 构建看板告警面板使用的 ThingsBoard v2 原生告警查询。 */
 export const createSmartLightningAlarmQuery = (): AlarmQueryV2 => new AlarmQueryV2(
   null,
   new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),
@@ -88,15 +95,15 @@ export const createSmartLightningAlarmQuery = (): AlarmQueryV2 => new AlarmQuery
 );
 
 /**
- * The realtime alarm-count subscription emits an initial snapshot. That snapshot
- * must not trigger a second REST request; only a later count change should
- * refresh the dashboard list and its derived statistics.
+ * 实时告警计数订阅会先推送一份初始快照。该快照不应触发第二次 REST 请求；
+ * 只有计数真正发生变化时才刷新看板告警列表及其派生统计。
  */
 export const shouldReloadSmartLightningAlarms = (
   previousCount: number | null,
   nextCount: number
 ): boolean => previousCount !== null && previousCount !== nextCount;
 
+/** 按告警类型聚合的数量项。 */
 export interface SmartLightningAlarmTypeTotal {
   type: string;
   count: number;
@@ -104,7 +111,7 @@ export interface SmartLightningAlarmTypeTotal {
 
 export type SmartLightningAlarmChartState = 'loading' | 'error' | 'empty' | 'ready';
 
-/** Keeps an unavailable response distinct from a verified empty alarm set. */
+/** 区分“接口不可用”与“确认没有告警”两种空状态。 */
 export const getSmartLightningAlarmChartState = (
   loading: boolean,
   loadError: boolean,
@@ -119,7 +126,7 @@ export const getSmartLightningAlarmChartState = (
   return alarmTypeTotals.length ? 'ready' : 'empty';
 };
 
-/** Loading is intentionally silent so the chart panel does not show a transient empty-state message. */
+/** 加载失败时保持静默，避免图表面板闪现短暂的空状态提示。 */
 export const getSmartLightningAlarmChartMessage = (
   loading: boolean,
   loadError: boolean,
@@ -135,7 +142,7 @@ export const getSmartLightningAlarmChartMessage = (
   }
 };
 
-/** Counts only currently un-cleared alarms, grouped by their ThingsBoard alarm type. */
+/** 只统计当前未清除的告警，并按 ThingsBoard 告警类型分组。 */
 export const aggregateSmartLightningActiveAlarms = (alarms: AlarmInfo[]): SmartLightningAlarmTypeTotal[] => {
   const counts = new Map<string, number>();
   alarms
@@ -184,13 +191,14 @@ const alarmStatusLabels: Record<AlarmStatus, string> = {
   [AlarmStatus.CLEARED_ACK]: '已清除'
 };
 
-/** Maps only fields guaranteed by AlarmInfo; no device metadata is fabricated when the API omits it. */
+/** 只映射 AlarmInfo 保证存在的字段；接口缺失设备信息时不伪造元数据。 */
 export interface SmartLightningAlarmContext {
   parentDirectory?: string;
   deviceProfileName?: string;
   productName?: string;
 }
 
+/** 把 AlarmInfo 格式化为告警记录表行：中文化等级/状态并补充上下文字段。 */
 export const formatSmartLightningAlarm = (
   alarm: AlarmInfo,
   context: SmartLightningAlarmContext = {}
@@ -215,49 +223,40 @@ const severityRank: Record<SmartLightningAlarmRow['severityTone'], number> = {
   indeterminate: 4
 };
 
+/** 告警行比较器：严重程度高的在前，同等级按时间从新到旧。 */
 export const compareSmartLightningAlarms = (left: SmartLightningAlarmRow, right: SmartLightningAlarmRow): number =>
   severityRank[left.severityTone] - severityRank[right.severityTone] || right.startTs - left.startTs;
 
-/** Keeps the monitoring wall focused on the highest-severity active alarms. */
+/** 让监控墙聚焦于严重程度最高的活动告警。 */
 export const sortSmartLightningAlarms = (alarms: SmartLightningAlarmRow[]): SmartLightningAlarmRow[] =>
   [...alarms].sort(compareSmartLightningAlarms);
 
-/** Chooses the standard parent directory relation: assets take precedence over entity groups. */
+/** 选取标准父级目录关系：资产关系优先于实体分组关系。 */
 export const getSmartLightningParentDirectory = (relations: EntityRelationInfo[]): string => {
   const contains = relations.filter(relation => relation.type === 'Contains');
   return contains.find(relation => relation.from.entityType === EntityType.ASSET)?.fromName ||
     contains.find(relation => relation.from.entityType === EntityType.ENTITY_GROUP)?.fromName || '--';
 };
 
+/** 从服务器属性列表中取产品名称，缺失时显示占位符。 */
 export const getSmartLightningProductName = (attributes: AttributeData[]): string =>
   attributes.find((attribute) => attribute.key === 'productName')?.value || '--';
 
+/** 演示曲线系列数据（按周期组织）。 */
 export interface SmartLightningSeries {
   name: string;
   color: string;
   data: number[];
 }
 
-export interface SmartLightningAlarm {
-  area: string;
-  location: string;
-  model: string;
-  device: string;
-  deviceCode: string;
-  status: '一般' | '紧急' | '正常';
-  event: string;
-  occurredAt: string;
-}
-
+/** 看板各图表演示数据的聚合容器。 */
 export interface SmartLightningMock {
   periodLabel: string;
   axisLabels: string[];
   groundSeries: SmartLightningSeries[];
   spdSeries: SmartLightningSeries[];
-  alarmBars: number[];
   workOrderSeries: SmartLightningSeries[];
   lightningMetrics: Array<{name: string; value: number}>;
-  alarms: SmartLightningAlarm[];
 }
 
 const periodLabels: Record<SmartLightningPeriod, string> = {
@@ -280,9 +279,9 @@ const offsetAxisDate = (referenceTime: Date, days: number = 0, hours: number = 0
 };
 
 /**
- * Builds each chart x-axis relative to the instant it is rendered:
- * day = eight three-hour buckets in the latest 24 hours; week = latest seven days;
- * month = twelve evenly distributed readings across the latest 30 days.
+ * 按图表渲染时刻生成横轴时间标签：
+ * 日 = 最近 24 小时按 3 小时分 8 段；周 = 最近 7 天；
+ * 月 = 最近 30 天均匀取 12 个读数点。
  */
 export const buildSmartLightningAxisLabels = (
   period: SmartLightningPeriod,
@@ -301,8 +300,10 @@ export const buildSmartLightningAxisLabels = (
   }
 };
 
+/** 按周期从记录对象中取对应值的小工具函数。 */
 const byPeriod = <T>(values: Record<SmartLightningPeriod, T>, period: SmartLightningPeriod): T => values[period];
 
+/** 构建看板图表演示数据：曲线点数随周期变化，供遥测接入前的页面展示。 */
 export const buildSmartLightningMock = (period: SmartLightningPeriod, referenceTime: Date = new Date()): SmartLightningMock => ({
   periodLabel: periodLabels[period],
   axisLabels: buildSmartLightningAxisLabels(period, referenceTime),
@@ -359,11 +360,6 @@ export const buildSmartLightningMock = (period: SmartLightningPeriod, referenceT
       }, period)
     }
   ],
-  alarmBars: byPeriod({
-    day: [9, 7, 10, 6, 8],
-    week: [36, 28, 41, 25, 33],
-    month: [114, 90, 127, 82, 108]
-  }, period),
   workOrderSeries: [
     {
       name: '未处理', color: '#f4b722', data: byPeriod({
@@ -400,11 +396,5 @@ export const buildSmartLightningMock = (period: SmartLightningPeriod, referenceT
       {name: '峰值电流', value: 72}, {name: '电流波形', value: 94},
       {name: '放电能量', value: 76}, {name: '电荷转移量', value: 67}
     ]
-  }, period),
-  alarms: [
-    {area: '防雷监测器', location: '4AL 配电箱', model: 'HST/ZJC-R', device: '全要素', deviceCode: '3车道', status: '一般', event: '接地异常', occurredAt: '2025/12/12 17:23'},
-    {area: '防雷监测器', location: '4AL 配电箱', model: 'HST/ZJC-R', device: '九要素', deviceCode: '1车道', status: '紧急', event: 'SPD 脱扣', occurredAt: '2025/12/12 17:23'},
-    {area: '防雷监测器', location: '4AL 配电箱', model: 'HST/ZJC-R', device: '防雷终端 2', deviceCode: 'A 区', status: '正常', event: '状态恢复', occurredAt: '2025/12/12 16:58'},
-    {area: '防雷监测器', location: '东区配电房', model: 'HST/ZJC-R', device: '防雷终端 3', deviceCode: 'B 区', status: '一般', event: '寿命预警', occurredAt: '2025/12/12 16:40'}
-  ]
+  }, period)
 });

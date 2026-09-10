@@ -1,6 +1,8 @@
+/** 文件职责：看板模块的 smart-lightning-period-switcher.component，负责页面状态管理、接口调用与用户交互。 */
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { SmartLightningPeriod } from './smart-lightning-dashboard.data';
 
+/** 日/周/月三段周期切换按钮组件；每个实例独立维护选中状态，互不同步。 */
 @Component({
   selector: 'tb-smart-lightning-period-switcher',
   templateUrl: './smart-lightning-period-switcher.component.html',

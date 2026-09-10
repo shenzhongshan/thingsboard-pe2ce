@@ -1,3 +1,5 @@
+/* 文件职责：共享资产树模块的 smart-lightning-asset-tree.component，负责页面局部布局、响应式与视觉样式。 */
+/* 共享资产树样式：与数据监测页树交互保持同一套视觉规范（左侧状态条 + 选中/锁定/告警状态）。 */
 :host {
   display: block;
 }
@@ -7,7 +9,7 @@
   align-items: center;
   gap: 6px;
   height: 34px;
-  margin: 14px 0 10px;
+  margin: 0 0 var(--tb-smart-page-spacing);
   padding: 0 8px;
   border: 1px solid #ccd7e0;
   border-radius: 4px;
@@ -85,7 +87,8 @@
   border-left-color: #16df65;
 }
 
-.asset-node.device-node.device-alarm.selected {
+.asset-node.asset-alarm,
+.asset-node.asset-alarm.selected {
   border-left-color: #e53935;
 }
 

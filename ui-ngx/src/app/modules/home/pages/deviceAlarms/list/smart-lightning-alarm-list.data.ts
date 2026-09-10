@@ -1,4 +1,12 @@
-export type SmartLightningAlarmListSeverityTone = 'critical' | 'major' | 'minor' | 'warning' | 'indeterminate';
+/** 文件职责：告警列表模块的 smart-lightning-alarm-list.data，定义数据模型、接口结果映射与纯函数。 */
+import {
+  getSmartLightningAlarmSeverityLabel,
+  getSmartLightningAlarmSeverityTone,
+  getSmartLightningAlarmStatusLabel
+} from '../shared/smart-lightning-alarm-display';
+import type {SmartLightningAlarmSeverityTone} from '../shared/smart-lightning-alarm-display';
+
+export type SmartLightningAlarmListSeverityTone = SmartLightningAlarmSeverityTone;
 export type SmartLightningAlarmListWorkOrderStatus = '未派发' | '已派发';
 export type SmartLightningAlarmListAlarmStatus = '未确认未清除' | '已确认未清除' | '未确认已清除' | '已确认已清除';
 export type SmartLightningAlarmListSeverityTab = '全部' | '严重' | '重要' | '次要' | '警告' | '不确定';
@@ -55,14 +63,6 @@ export interface SmartLightningAlarmLike {
   details?: unknown;
 }
 
-const severityLabels: Record<SmartLightningAlarmListSeverityTone, string> = {
-  critical: '严重',
-  major: '重要',
-  minor: '次要',
-  warning: '警告',
-  indeterminate: '不确定'
-};
-
 const severityRank: Record<SmartLightningAlarmListSeverityTone, number> = {
   critical: 0,
   major: 1,
@@ -83,16 +83,6 @@ const alarmStatusRank: Record<SmartLightningAlarmListAlarmStatus, number> = {
   '已确认未清除': 1,
   '未确认已清除': 2,
   '已确认已清除': 3
-};
-
-const alarmSeverityTone = (severity: string): SmartLightningAlarmListSeverityTone => {
-  switch (severity) {
-    case 'CRITICAL': return 'critical';
-    case 'MAJOR': return 'major';
-    case 'MINOR': return 'minor';
-    case 'WARNING': return 'warning';
-    default: return 'indeterminate';
-  }
 };
 
 const valueAsText = (value: unknown, fallback = '--'): string => {
@@ -141,33 +131,22 @@ const detailText = (details: unknown): string => {
 const workOrderStatus = (alarm: Pick<SmartLightningAlarmLike, 'assignTs'>): SmartLightningAlarmListWorkOrderStatus =>
   alarm.assignTs > 0 ? '已派发' : '未派发';
 
-const alarmStatus = (alarm: Pick<SmartLightningAlarmLike, 'status'>): SmartLightningAlarmListAlarmStatus => {
-  switch (alarm.status) {
-    case 'ACTIVE_ACK': return '已确认未清除';
-    case 'CLEARED_UNACK': return '未确认已清除';
-    case 'CLEARED_ACK': return '已确认已清除';
-    case 'ACTIVE_UNACK':
-    default:
-      return '未确认未清除';
-  }
-};
-
 /** 将原生 AlarmInfo 和设备上下文转换为原型表格使用的行结构。 */
 export const mapSmartLightningAlarmListRow = (
   alarm: SmartLightningAlarmLike,
   context: SmartLightningAlarmListContext = {},
   assetPath = ''
 ): SmartLightningAlarmListRow => {
-  const tone = alarmSeverityTone(alarm.severity);
+  const tone = getSmartLightningAlarmSeverityTone(alarm.severity);
   return {
     id: alarm.id?.id || `${alarm.originator?.id || 'unknown'}-${alarm.startTs}-${alarm.type || 'alarm'}`,
     originatorId: alarm.originator?.id || '',
     projectDeviceName: valueAsText(alarm.originatorDisplayName || alarm.originatorName, '未命名来源'),
     alarmTime: Number(alarm.startTs) || Number(alarm.createdTime) || 0,
-    alarmStatus: alarmStatus(alarm),
+    alarmStatus: getSmartLightningAlarmStatusLabel(alarm.status) as SmartLightningAlarmListAlarmStatus,
     workOrderStatus: workOrderStatus(alarm),
     alarmType: valueAsText(alarm.type, '未分类'),
-    severity: severityLabels[tone],
+    severity: getSmartLightningAlarmSeverityLabel(tone),
     severityTone: tone,
     deviceType: valueAsText(context.deviceType),
     // 仪表地址列展示设备的资产树绝对地址；设备不在树内时回退服务器属性或告警详情。

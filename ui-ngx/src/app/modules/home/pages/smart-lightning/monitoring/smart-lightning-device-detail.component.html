@@ -1,6 +1,10 @@
+<!-- 文件职责：数据监测模块的 smart-lightning-device-detail.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  设备详情模板：左共享资产树（定位锁定模式），右设备摘要卡 + 四张趋势图（2×2）+ 实时数据 + 告警表。
+  返回链接按 returnUrl 区分来源页（数据监测/数据查询）。
+-->
 <main class="device-detail-page" aria-label="设备详情">
   <aside class="asset-panel">
-    <div class="asset-panel-title"><h2>资产树</h2><span>当前用户可见</span></div>
     <tb-smart-lightning-asset-tree
       [tree]="assetTree"
       [selectedIds]="selectedAssetIds"
@@ -9,6 +13,8 @@
       [loading]="assetsLoading"
       [loadError]="assetsLoadError"
       [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="true"
+      [showUnselectedAlarmMarkers]="true"
       [selectableIds]="selectableAssetIds"
       searchPlaceholder="搜索资产名称"
       treeAriaLabel="资产层级"

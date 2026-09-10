@@ -1,3 +1,4 @@
+/** 文件职责：告警列表模块的 smart-lightning-alarm-list.component，负责页面状态管理、接口调用与用户交互。 */
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -12,6 +13,7 @@ import { catchError, forkJoin, map, of, Subject, takeUntil } from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningActiveAlarmDeviceIds,
+  getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringRootAssetIds,
   getSmartLightningMonitoringVisibleRoots,
@@ -64,7 +66,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   assetsLoadError = false;
   alarmsLoading = true;
   alarmsLoadError = false;
-  /** 资产树设备节点的状态标记：存在未清除告警时显示红色竖条。 */
+  /** 未清除告警设备 ID；共享资产树据此标记设备所在资产并向全部上级传播。 */
   activeAlarmDeviceIds = new Set<string>();
   readonly pageSize = 20;
   page = 1;
@@ -186,12 +188,14 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   /** 根资产筛选与告警列表共享同一棵树，切换后只保留对应子树的告警。 */
-  selectRootAsset(rootAssetId: string): void {
+  selectRootAsset(rootAssetId: string, expandDescendants = true): void {
     this.selectedRootAssetId = rootAssetId;
     const roots = getSmartLightningMonitoringVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningMonitoringRootAssetIds(this.assetTree, rootAssetId));
     this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
-    roots.forEach((root) => this.openDescendants(root.id));
+    if (expandDescendants) {
+      roots.forEach((root) => this.openDescendants(root.id));
+    }
     this.selectedRows.clear();
     this.selectedRows = new Set(this.selectedRows);
     this.page = 1;
@@ -245,13 +249,23 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 详情为只读弹窗；派发、确认、清除、备注从各自独立入口处理。 */
+  /**
+   * 打开告警详情。
+   *
+   * <p>告警处理页在本模块的自定义弹窗内整合派发、活动、确认和清除；
+   * 普通列表打开同一个弹窗的只读模式。</p>
+   */
   openAlarmDetails(row: SmartLightningAlarmListRow): void {
-    const data: SmartLightningAlarmDetailsDialogData = {alarmId: row.id};
-    this.dialog.open<SmartLightningAlarmDetailsDialogComponent, SmartLightningAlarmDetailsDialogData>(SmartLightningAlarmDetailsDialogComponent, {
+    const data: SmartLightningAlarmDetailsDialogData = {
+      alarmId: row.id,
+      actionMode: this.processingMode
+    };
+    this.dialog.open<SmartLightningAlarmDetailsDialogComponent, SmartLightningAlarmDetailsDialogData, boolean>(SmartLightningAlarmDetailsDialogComponent, {
       disableClose: true,
-      panelClass: ['tb-dialog'],
+      panelClass: ['tb-dialog', 'smart-lightning-alarm-detail-panel'],
       data
+    }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
+      if (updated) this.loadAlarms();
     });
   }
 
@@ -329,9 +343,8 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
         this.deviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
-        this.assetTree.roots.forEach((root) => this.expandedAssetIds.add(root.id));
-        this.expandedAssetIds = new Set(this.expandedAssetIds);
-        this.selectRootAsset('');
+        this.expandedAssetIds = getSmartLightningDefaultExpandedAssetIds(this.assetTree);
+        this.selectRootAsset('', false);
         this.assetsLoading = false;
         this.loadDevicesAndAlarms();
         this.cd.markForCheck();

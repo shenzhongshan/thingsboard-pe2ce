@@ -1,3 +1,4 @@
+/** 文件职责：数据监测模块的 smart-lightning-device-detail.component，负责页面状态管理、接口调用与用户交互。 */
 import {AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, QueryList, ViewChildren} from '@angular/core';
 import {ActivatedRoute, Router} from '@angular/router';
 import {AttributeService} from '@core/http/attribute.service';
@@ -11,9 +12,10 @@ import {AttributeScope} from '@shared/models/telemetry/telemetry.models';
 import {AlarmInfo, AlarmQuery, AlarmSearchStatus, AlarmSeverity} from '@shared/models/alarm.models';
 import {TimePageLink} from '@shared/models/page/page-link';
 import {Direction} from '@shared/models/page/sort-order';
-import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
+import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningDefaultExpandedAssetIds, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
 import {SmartLightningMonitoringApiService} from './smart-lightning-monitoring-api.service';
 import {buildSmartLightningChartTimes, buildSmartLightningDeviceDetailMock, buildSmartLightningRealtimeMetrics, fitSmartLightningMockSeries, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailMock} from './smart-lightning-device-detail.data';
+import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
 
 /** 资产树复用真实接口；下方监测、控制和告警区域在遥测接入前均为明确标记的模拟数据。 */
 @Component({selector: 'tb-smart-lightning-device-detail', templateUrl: './smart-lightning-device-detail.component.html', styleUrls: ['./smart-lightning-device-detail.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: false})
@@ -28,11 +30,12 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   instrumentAddress = '--';
   alarmsLoading = false;
   alarmsLoadError = false;
-  /** 资产树设备节点的状态标记：当前设备存在未处理告警时显示红色竖条。 */
+  /** 资产树告警状态：共享树同时标记当前告警设备及其直属上级资产。 */
   get activeAlarmDeviceIds(): Set<string> {
     const hasUnhandledAlarm = this.detail.alarms.some((alarm) => alarm.status === '未处理');
     return hasUnhandledAlarm && this.requestedDeviceId ? new Set([this.requestedDeviceId]) : new Set<string>();
   }
+  /** 详情定位模式下的可选中节点白名单：仅当前设备；非定位模式返回 null 表示全部可选。 */
   get selectableAssetIds(): ReadonlySet<string> | null {
     return this.requestedDeviceId ? new Set([this.requestedDeviceId]) : null;
   }
@@ -73,9 +76,11 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     event.preventDefault();
     this.router.navigateByUrl(this.returnUrl);
   }
+  /** 校验 returnUrl 是否为受支持的来源页，防止跳转到任意地址。 */
   private resolveReturnUrl(value: string | null): string {
     return value === '/smart-lightning/query' ? value : '/smart-lightning/monitoring';
   }
+  /** 展开/折叠资产节点，同步为不可变集合触发变更检测。 */
   toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
       this.expandedAssetIds.delete(node.id);
@@ -86,12 +91,16 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   }
   /** 详情页由设备卡带入 deviceId 后，资产树只作为定位视图，不能再切换到其他节点。 */
   isNodeSelectable(node: SmartLightningMonitoringAssetNode): boolean { return !this.requestedDeviceId || node.id === this.requestedDeviceId; }
-  selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
+  /** 选中节点：详情模式只选中单个节点并同步设备名称与仪表地址。 */
+  selectAssetNode(node: SmartLightningMonitoringAssetNode, expandDescendants = true): void {
     if (!this.isNodeSelectable(node)) { return; }
     this.selectedAssetIds = this.requestedDeviceId ? new Set([node.id]) : new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
-    this.selectedAssetName = node.name; this.deviceName = node.name; this.instrumentAddress = this.getAssetPath(node.id).join('/') || '--'; this.openDescendants(node.id); this.cd.markForCheck();
+    this.selectedAssetName = node.name; this.deviceName = node.name; this.instrumentAddress = this.getAssetPath(node.id).join('/') || '--';
+    if (expandDescendants) { this.openDescendants(node.id); }
+    this.cd.markForCheck();
   }
-  private loadAssetTree(): void { this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({next: ({roots}) => { this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots); const initial = this.requestedDeviceId ? this.assetTree.nodes.get(this.requestedDeviceId) : this.assetTree.roots[0]; if (initial) { this.openPathTo(initial.id); this.selectAssetNode(initial); } this.assetsLoading = false; this.cd.markForCheck(); }, error: () => { this.assetsLoadError = true; this.assetsLoading = false; this.cd.markForCheck(); }}); }
+  /** 加载资产树后定位到当前设备并展开其上级路径，失败时标记错误状态。 */
+  private loadAssetTree(): void { this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({next: ({roots}) => { this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots); const initial = this.requestedDeviceId ? this.assetTree.nodes.get(this.requestedDeviceId) : this.assetTree.roots[0]; if (initial) { this.expandedAssetIds = this.requestedDeviceId ? new Set<string>() : getSmartLightningDefaultExpandedAssetIds(this.assetTree); if (this.requestedDeviceId) { this.openPathTo(initial.id); } this.selectAssetNode(initial, !!this.requestedDeviceId); } this.assetsLoading = false; this.cd.markForCheck(); }, error: () => { this.assetsLoadError = true; this.assetsLoading = false; this.cd.markForCheck(); }}); }
   /** 从根节点递归回溯到目标设备，只展开该路径上的资产，避免用户进入详情时看到整棵树展开。 */
   private openPathTo(targetId: string): void {
     const visit = (node: SmartLightningMonitoringAssetNode): boolean => {
@@ -106,6 +115,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
   /** 返回从根资产到当前设备的名称路径，用于“仪表地址”的层级展示。 */
+  /** 返回目标节点从根到自身的层级名称路径，用于仪表地址展示。 */
   private getAssetPath(targetId: string): string[] {
     const visit = (node: SmartLightningMonitoringAssetNode, ancestors: string[]): string[] | undefined => {
       const path = [...ancestors, node.name];
@@ -127,6 +137,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
    * 先读取设备所属配置，再按该配置定义的 key 批量读取最新遥测。
    * 任意一项缺失时由 buildSmartLightningRealtimeMetrics 保留对应模拟值，而不是清空整组卡片。
    */
+  /** 按设备档案读取实时遥测指标；读到的真实值替换演示默认值。 */
   private loadRealtimeMetrics(deviceId?: string): void {
     if (!deviceId) { return; }
     this.deviceService.getDeviceInfo(deviceId).pipe(
@@ -172,6 +183,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       error: () => { this.alarmsLoading = false; this.alarmsLoadError = true; this.cd.markForCheck(); }
     });
   }
+  /** 把告警实体转为页面报警表的行结构（中文等级与处理状态）。 */
   private toDeviceAlarmRow(alarm: AlarmInfo): {item: string; severity: string; status: string; time: string} {
     const severityLabels: Record<AlarmSeverity, string> = {
       [AlarmSeverity.CRITICAL]: '严重', [AlarmSeverity.MAJOR]: '重要', [AlarmSeverity.MINOR]: '次要',
@@ -197,19 +209,28 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       return (severityRank[right.severity] || 0) - (severityRank[left.severity] || 0) || right.startTs - left.startTs;
     });
   }
+  /** 递归展开选中节点的全部后代资产，保证新选中子树完整可见。 */
   private openDescendants(id: string): void { const node = this.assetTree.nodes.get(id); if (!node) { return; } node.childIds.forEach((childId) => { this.expandedAssetIds.add(childId); this.openDescendants(childId); }); this.expandedAssetIds = new Set(this.expandedAssetIds); }
+  /** 切换指定趋势图的统计周期，只影响该图表自身。 */
   setChartPeriod(id: string, period: SmartLightningChartPeriod): void {
     this.selectedChartPeriods = {...this.selectedChartPeriods, [id]: period};
     const chart = this.charts.get(id);
     if (chart) { chart.setOption(this.createChartOption(id), true); }
   }
+  /** 初始化四张趋势图 ECharts 实例并套用各自配置。 */
   private renderCharts(): void { this.chartHosts.forEach((host) => { const id = host.nativeElement.dataset.chart; if (!id) { return; } const chart = echarts.init(host.nativeElement, undefined, {renderer: 'svg'}); this.charts.set(id, chart); chart.setOption(this.createChartOption(id)); }); }
+  /** 按图表 ID 返回对应的 ECharts 配置（相电流/相电压/剩余电流/温度）。 */
   private createChartOption(id: string): EChartsOption {
     const period = this.selectedChartPeriods[id] || 'day';
     const times = buildSmartLightningChartTimes(period);
     const one = (name: string, data: number[], color: string) => ({name, type: 'line' as const, smooth: true, data, symbol: 'none', lineStyle: {width: 2.5, color}, areaStyle: {color: 'rgba(25,92,232,.05)'}});
     const temperature = [one('温度1', [40, 47, 38, 43, 37, 48], '#ff4d55'), one('温度2', [20, 25, 18, 32, 42, 18], '#814ce3'), one('温度3', [26, 33, 17, 23, 15, 35], '#11a94d')];
-    const settings: Record<string, {unit: string; series: any[]}> = {phaseCurrent: {unit: 'mA', series: [one('剩余电流', [39, 32, 40, 36, 42, 29], '#ff5656')]}, residualCurrent: {unit: 'mA', series: [one('剩余电流', [40, 31, 40, 35, 42, 29], '#ff5656')]}, phaseVoltage: {unit: '℃', series: temperature}, temperature: {unit: '℃', series: temperature}};
+    const settings: Record<string, {unit: string; series: any[]}> = {
+      phaseCurrent: {unit: SMART_LIGHTNING_UNITS.leakageCurrent, series: [one('剩余电流', [39, 32, 40, 36, 42, 29], '#ff5656')]},
+      residualCurrent: {unit: SMART_LIGHTNING_UNITS.leakageCurrent, series: [one('剩余电流', [40, 31, 40, 35, 42, 29], '#ff5656')]},
+      phaseVoltage: {unit: SMART_LIGHTNING_UNITS.temperature, series: temperature},
+      temperature: {unit: SMART_LIGHTNING_UNITS.temperature, series: temperature}
+    };
     const setting = settings[id];
     const series = setting.series.map((item) => ({...item, data: fitSmartLightningMockSeries(item.data as number[], times.length)}));
     return {animation: false, tooltip: {trigger: 'axis'}, legend: {top: 4, right: 8, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 10, color: '#61778b'}}, grid: {top: 42, left: 40, right: 16, bottom: 38}, xAxis: {type: 'category', boundaryGap: false, data: times, axisTick: {show: false}, axisLine: {lineStyle: {color: '#cfdae3'}}, axisLabel: {fontSize: 9, color: '#71859a', hideOverlap: true}}, yAxis: {type: 'value', name: setting.unit, nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}}, series};

@@ -1,3 +1,8 @@
+<!-- 文件职责：数据监测模块的 smart-lightning-monitoring.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  智能防雷数据监测模板：左共享资产树，右能力分析卡 + 选中节点统计区 + 设备总览卡片网格。
+  设备卡片提供详情/复位/漏电自检/分闸等入口，详情路由带 returnUrl 返回来源页。
+-->
 <main class="monitoring-page" aria-label="智能防雷数据监测">
   <aside class="asset-panel">
     <tb-smart-lightning-root-asset-filter
@@ -5,7 +10,6 @@
       [selectedRootAssetId]="selectedRootAssetId"
       (rootAssetChange)="selectRootAsset($event)">
     </tb-smart-lightning-root-asset-filter>
-    <div class="asset-panel-title"><h2>资产树</h2><span>当前用户可见</span></div>
     <tb-smart-lightning-asset-tree
       [tree]="assetTree"
       [selectedIds]="selectedAssetIds"
@@ -15,6 +19,7 @@
       [loading]="assetsLoading"
       [loadError]="assetsLoadError"
       [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
       searchPlaceholder="搜索资产名称"
       treeAriaLabel="资产层级"
       (searchChange)="assetSearch = $event"
@@ -24,8 +29,6 @@
   </aside>
 
   <section class="monitoring-content">
-    <header class="monitoring-heading"><h1>数据监测</h1><p>资产层级联动监测与设备状态概览</p></header>
-
     <section class="analysis-grid" aria-label="监测分析">
       @for (card of analysisCards; track card.id) {
         <article class="analysis-card" [class]="'analysis-card ' + card.visual">

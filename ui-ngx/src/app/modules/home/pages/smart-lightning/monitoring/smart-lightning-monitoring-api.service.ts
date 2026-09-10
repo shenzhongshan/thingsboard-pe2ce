@@ -1,3 +1,4 @@
+/** 文件职责：数据监测模块的 smart-lightning-monitoring-api.service，封装后端 HTTP 接口与请求参数。 */
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -6,7 +7,9 @@ import { PageData } from '@shared/models/page/page-data';
 import { SmartLightningMonitoringTreeResponseNode } from './smart-lightning-monitoring.data';
 import { SmartLightningPeriod } from '../dashboard/smart-lightning-dashboard.data';
 
+/** 资产树接口响应结构。 */
 export interface SmartLightningMonitoringTreeResponse {
+  /** 根节点列表（资产），设备只作为叶子返回。 */
   roots: SmartLightningMonitoringTreeResponseNode[];
 }
 
@@ -26,6 +29,10 @@ export interface SmartLightningDeviceContext {
   meterAddress?: string;
   circuitName?: string;
   timeSetting?: string;
+  /** 地图纬度，来自设备 SERVER_SCOPE 的 latitude 服务器属性。 */
+  latitude?: number | null;
+  /** 地图经度，来自设备 SERVER_SCOPE 的 longitude 服务器属性。 */
+  longitude?: number | null;
 }
 
 /** 全局顶部栏使用的设备状态汇总，不限定产品分类。 */
@@ -44,28 +51,62 @@ export interface SmartLightningGroundMonitoringSummary {
   minResistance: number | null;
 }
 
+/** SPD 监测模块的聚合快照；漏电流没有有效遥测时为 null。 */
+export interface SmartLightningSpdMonitoringSummary {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmCount: number;
+  maxLeakage: number | null;
+  maxLeakageDeviceName?: string | null;
+  maxLeakagePhase?: string | null;
+  maxLeakageTime?: number | null;
+  leakageReportingDeviceCount: number;
+}
+
+/** 雷电流监测模块的聚合快照；峰值没有有效遥测时为 null。 */
+export interface SmartLightningCurrentMonitoringSummary {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmCount: number;
+  eventCount: number;
+  maxPeakCurrent: number | null;
+  /** 后端返回的雷击脉冲峰值电流单位；产品说明书规定为 kA。 */
+  peakCurrentUnit?: string | null;
+  maxPeakDeviceName?: string | null;
+  maxPeakTime?: number | null;
+  maxPeakPolarity?: string | null;
+  reportingDeviceCount: number;
+}
+
+/** 按告警类型聚合的数量项。 */
 export interface SmartLightningAlarmTypeTotal {
   type: string;
   count: number;
 }
 
+/** 看板当前未清除告警统计。 */
 export interface SmartLightningAlarmSummary {
   activeCount: number;
   typeTotals: SmartLightningAlarmTypeTotal[];
 }
 
+/** 单个统计周期的告警次数与环比。 */
 export interface SmartLightningAlarmPeriodSummary {
   currentCount: number;
   previousCount: number;
   changePercent: number;
 }
 
+/** 告警分析的日/月/年周期统计。 */
 export interface SmartLightningAlarmAnalysisSummary {
   day: SmartLightningAlarmPeriodSummary;
   month: SmartLightningAlarmPeriodSummary;
   year: SmartLightningAlarmPeriodSummary;
 }
 
+/** 末级资产的告警数量与处理率统计。 */
 export interface SmartLightningLeafAssetAlarmCount {
   assetId: string;
   assetName: string;
@@ -103,6 +144,20 @@ export class SmartLightningMonitoringApiService {
     const params = new HttpParams().set('period', period);
     return this.http.get<SmartLightningGroundMonitoringSummary>(
       '/api/smart-lightning/monitoring/ground-summary', {params}
+    );
+  }
+
+  getSpdMonitoringSummary(period: SmartLightningPeriod): Observable<SmartLightningSpdMonitoringSummary> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningSpdMonitoringSummary>(
+      '/api/smart-lightning/monitoring/spd-summary', {params}
+    );
+  }
+
+  getLightningCurrentMonitoringSummary(period: SmartLightningPeriod): Observable<SmartLightningCurrentMonitoringSummary> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningCurrentMonitoringSummary>(
+      '/api/smart-lightning/monitoring/lightning-current-summary', {params}
     );
   }
 

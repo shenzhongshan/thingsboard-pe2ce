@@ -33,13 +33,21 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlarmSummaryService {
 
+    /** 单次设备或告警查询使用的最大记录数。 */
     private static final int QUERY_PAGE_SIZE = 10_000;
 
     private final SmartLightningDeviceService deviceService;
     private final MonitoringAlarmQueryService alarmQueryService;
 
+    /**
+     * 统计当前用户可见防雷设备的未清除（ACTIVE）告警总数和按类型聚合数量。
+     *
+     * @param user 当前登录用户，用于执行权限过滤
+     * @return 未清除告警总数及各告警类型的数量列表（数量降序、类型名次序）
+     */
     @Override
     public SmartLightningAlarmSummaryDTO getSummary(SecurityUser user) throws ThingsboardException {
+        // 只统计防雷设备（productCategory=lightning）的告警。
         Set<UUID> lightningDeviceIds = deviceService.getLightningDeviceIds(user);
         if (lightningDeviceIds.isEmpty()) {
             return new SmartLightningAlarmSummaryDTO(0, Collections.emptyList());
@@ -47,6 +55,7 @@ public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlar
 
         Map<String, Integer> countsByType = new HashMap<>();
         int activeCount = countActiveAlarms(user, lightningDeviceIds, countsByType);
+        // 聚合结果转为 DTO 列表：数量多的类型排前面，数量相同时按类型名排序。
         List<SmartLightningAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : countsByType.entrySet()) {
             typeTotals.add(new SmartLightningAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
@@ -61,7 +70,11 @@ public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlar
         return new SmartLightningAlarmSummaryDTO(activeCount, typeTotals);
     }
 
-    /** 只查询 ACTIVE 告警；每条告警消息计数一次，并按 alarm.type 聚合。 */
+    /**
+     * 只查询 ACTIVE 告警；每条告警消息计数一次，并按 alarm.type 聚合。
+     *
+     * <p>类型为空的告警归入“未分类”，避免前端收到空类型无法展示。</p>
+     */
     private int countActiveAlarms(SecurityUser user, Set<UUID> deviceIds,
                                   Map<String, Integer> countsByType) throws ThingsboardException {
         TimePageLink pageLink = new TimePageLink(
@@ -71,11 +84,13 @@ public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlar
                 Collections.emptyList(), null);
         int count = 0;
         for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
+            // 跳过非设备来源和非防雷设备的告警。
             EntityId originator = alarm.getOriginator();
             if (originator == null || originator.getEntityType() != EntityType.DEVICE
                     || !deviceIds.contains(originator.getId())) {
                 continue;
             }
+            // 空类型统一记为“未分类”，保证聚合键始终有展示文本。
             String type = alarm.getType() == null || alarm.getType().isBlank()
                     ? "未分类" : alarm.getType().trim();
             countsByType.put(type, countsByType.getOrDefault(type, 0) + 1);

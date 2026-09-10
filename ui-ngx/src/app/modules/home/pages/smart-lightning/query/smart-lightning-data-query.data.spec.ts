@@ -1,3 +1,5 @@
+/** 文件职责：数据查询模块的 smart-lightning-data-query.data.spec，验证数据模型、映射与纯函数行为。 */
+/** 数据查询数据层单测：行构造、三态状态与筛选逻辑（node assert 轻量运行）。 */
 import assert from 'node:assert/strict';
 import {
   buildSmartLightningQueryRows,

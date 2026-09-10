@@ -1,7 +1,8 @@
+<!-- 文件职责：智能防雷页面公共层模块的 smart-lightning-root-asset-filter.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!-- 根资产下拉筛选：值为空表示显示全部根资产。 -->
 <label class="root-asset-filter">
-  <span>根资产</span>
   <select [value]="selectedRootAssetId" (change)="onSelectionChange($event)" aria-label="按根资产筛选">
-    <option value="">全部根资产</option>
+    <option value="">全部资产</option>
     @for (root of roots; track root.id) {
       <option [value]="root.id">{{root.name}}</option>
     }

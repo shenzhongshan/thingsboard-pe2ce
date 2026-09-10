@@ -1,3 +1,4 @@
+/** 文件职责：数据监测模块的 smart-lightning-monitoring.component，负责页面状态管理、接口调用与用户交互。 */
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -18,6 +19,7 @@ import {
   buildSmartLightningMonitoringDeviceCards,
   calculateSmartLightningMonitoringAlarmSummary,
   getSmartLightningActiveAlarmDeviceIds,
+  getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringRootAssetIds,
@@ -38,6 +40,13 @@ interface MonitoringDeviceContext {
   attributesByDeviceId: Map<string, SmartLightningMonitoringDeviceAttributes>;
 }
 
+/**
+ * 智能防雷数据监测页面组件。
+ *
+ * <p>左侧共享资产树按资产层级联动，右侧展示能力分析卡、选中节点
+ * 统计区（8 项指标）与设备总览卡片网格；设备状态按“活动告警优先、
+ * 其次在线、最后离线”判定。</p>
+ */
 @Component({
   selector: 'tb-smart-lightning-monitoring',
   templateUrl: './smart-lightning-monitoring.component.html',
@@ -130,6 +139,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     );
   }
 
+  /** 展开/折叠资产节点，同步为不可变集合触发变更检测。 */
   toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
       this.expandedAssetIds.delete(node.id);
@@ -139,6 +149,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
 
+  /** 选中资产节点：选中集合包含其全部后代，用于设备总览与统计范围。 */
   selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
     this.selectedAssetIds = new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
     this.selectedAssetName = node.name;
@@ -148,25 +159,30 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   }
 
   /** 根资产筛选与设备总览、告警统计使用同一组选中节点。 */
-  selectRootAsset(rootAssetId: string): void {
+  selectRootAsset(rootAssetId: string, expandDescendants = true): void {
     this.selectedRootAssetId = rootAssetId;
     const roots = getSmartLightningMonitoringVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningMonitoringRootAssetIds(this.assetTree, rootAssetId));
     this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
-    roots.forEach((root) => this.openDescendants(root.id));
+    if (expandDescendants) {
+      roots.forEach((root) => this.openDescendants(root.id));
+    }
     this.devicePage = 1;
     this.cd.markForCheck();
   }
 
+  /** 切换设备总览的功能分类页签并回到第一页。 */
   setCategory(category: string): void {
     this.activeCategory = category;
     this.devicePage = 1;
   }
 
+  /** 设备搜索词变化时重置分页。 */
   resetDevicePage(): void {
     this.devicePage = 1;
   }
 
+  /** 设备卡片分页翻页，页码由分页工具函数钳制。 */
   setDevicePage(page: number): void {
     this.devicePage = getSmartLightningMonitoringPage(
       this.visibleMonitoringCards,
@@ -175,6 +191,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     ).currentPage;
   }
 
+  /** 加载共享资产树并初始化展开状态与根资产选择，失败时标记错误状态。 */
   private loadAssetTree(): void {
     this.assetsLoading = true;
     this.assetsLoadError = false;
@@ -184,9 +201,8 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
         this.nodeDeviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
-        this.assetTree.roots.forEach((node) => this.expandedAssetIds.add(node.id));
-        this.expandedAssetIds = new Set(this.expandedAssetIds);
-        this.selectRootAsset('');
+        this.expandedAssetIds = getSmartLightningDefaultExpandedAssetIds(this.assetTree);
+        this.selectRootAsset('', false);
         this.loadNodeDeviceCards();
         this.loadNodeAlarms();
         this.assetsLoading = false;
@@ -315,6 +331,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     return [...unique.values()];
   }
 
+  /** 返回今天 0 点的毫秒时间戳，用于“当日报警”统计窗口。 */
   private startOfToday(): number {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -336,6 +353,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     );
   }
 
+  /** 递归展开选中节点的全部后代资产，保证新选中子树完整可见。 */
   private openDescendants(id: string): void {
     const node = this.assetTree.nodes.get(id);
     if (!node) {

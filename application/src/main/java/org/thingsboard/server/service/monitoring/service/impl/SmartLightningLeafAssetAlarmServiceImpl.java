@@ -32,17 +32,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** 末级资产告警统计实现；按用户可见树和告警触发时间计算。 */
+/**
+ * 末级资产告警统计实现；按用户可见树和告警触发时间计算。
+ *
+ * <p>“末级资产”指资产树中不再包含子资产分支的资产节点（直接挂设备的层级），
+ * 统计每个末级资产下属设备在周期内的告警数量和已清除（已处理）比例。</p>
+ */
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
 public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLeafAssetAlarmService {
 
+    /** 单次告警查询使用的最大记录数。 */
     private static final int QUERY_PAGE_SIZE = 10_000;
 
     private final SmartLightningMonitoringTreeService treeService;
     private final MonitoringAlarmQueryService alarmQueryService;
 
+    /**
+     * 统计每个末级资产下属设备在指定周期内的告警数量和处理率。
+     *
+     * @param user 当前登录用户，资产树和告警都按其权限过滤
+     * @param period 统计周期，支持 day、month、year（自然日/月/年起点）
+     * @return 末级资产统计列表，按告警数量降序、资产名升序排列
+     * @throws ThingsboardException 资产树或告警查询失败时抛出
+     */
     @Override
     public List<SmartLightningLeafAssetAlarmCountDTO> getCounts(SecurityUser user, String period)
             throws ThingsboardException {
@@ -97,6 +111,17 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         return result;
     }
 
+    /**
+     * 递归遍历资产树，登记末级资产并建立设备到末级资产的归属映射。
+     *
+     * <p>判定规则：没有资产子节点的资产即末级资产；
+     * 设备归属到它所在路径上最近的末级资产，未挂在任何末级资产下的设备不参与统计。</p>
+     *
+     * @param node 当前遍历的树节点
+     * @param currentLeafAssetId 祖先链上最近的末级资产 ID，根节点调用时为 null
+     * @param counters 末级资产计数器集合（保持树的遍历顺序）
+     * @param deviceToLeafAsset 设备 ID 到末级资产 ID 的归属映射
+     */
     private void collectLeafAssets(
             SmartLightningMonitoringTreeResponse.TreeNode node,
             UUID currentLeafAssetId,
@@ -125,10 +150,13 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         }
     }
 
+    /** 单个末级资产的告警计数器。 */
     private static final class LeafAssetCounter {
         private final UUID assetId;
         private final String assetName;
+        /** 周期内该资产下属设备的告警总数。 */
         private long alarmCount;
+        /** 其中已清除（已处理）的告警数量。 */
         private long handledCount;
 
         private LeafAssetCounter(UUID assetId, String assetName) {
@@ -136,6 +164,7 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
             this.assetName = assetName;
         }
 
+        /** 处理率百分比（已清除数 / 总数 × 100），保留两位小数；无告警时为 0。 */
         private double handledRate() {
             if (alarmCount == 0) {
                 return 0D;
@@ -145,6 +174,7 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         }
     }
 
+    /** 统计周期的时间窗口：[周期起点, 当前时刻]。 */
     private static final class PeriodWindow {
         private final long start;
         private final long end;
@@ -154,6 +184,12 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
             this.end = end;
         }
 
+        /**
+         * 按周期参数计算自然周期窗口。
+         *
+         * <p>month 取本月 1 日 0 点，year 取今年 1 月 1 日 0 点，
+         * 其他值一律按当日 0 点处理（默认日周期）。</p>
+         */
         private static PeriodWindow current(String period, ZoneId zoneId) {
             ZonedDateTime now = ZonedDateTime.now(zoneId);
             ZonedDateTime start;

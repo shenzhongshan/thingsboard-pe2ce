@@ -1,3 +1,8 @@
+<!-- 文件职责：共享资产树模块的 smart-lightning-asset-tree.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  共享资产树模板：搜索框 + 加载/错误/空状态 + 树节点列表。
+  节点状态类：selected 选中、locked 锁定置灰、device-node 设备行、asset-alarm 告警标记。
+-->
 <label class="asset-search">
   <tb-icon>search</tb-icon>
   <input [value]="search" (input)="onSearchInput($event)" [placeholder]="searchPlaceholder" [attr.aria-label]="searchPlaceholder">
@@ -16,15 +21,15 @@
               [class.selected]="selectedIds.has(item.node.id)"
               [class.locked]="!isSelectable(item.node)"
               [class.device-node]="item.node.entityType === 'DEVICE'"
-              [class.device-alarm]="item.node.entityType === 'DEVICE' && alarmDeviceIds.has(item.node.id)"
+              [class.asset-alarm]="shouldShowAlarmMarker(item.node)"
               [style.--depth]="item.depth"
               (click)="onSelectNode(item.node)"
               role="treeitem"
               [attr.aria-selected]="selectedIds.has(item.node.id)"
               [attr.aria-disabled]="!isSelectable(item.node)"
-              [attr.aria-expanded]="item.node.childIds.length ? expandedIds.has(item.node.id) : null"
-              [attr.title]="item.node.entityType === 'DEVICE' ? (alarmDeviceIds.has(item.node.id) ? '存在未清除告警' : item.node.name) : item.node.name">
-        @if (item.node.childIds.length) {
+              [attr.aria-expanded]="hasVisibleChildren(item.node) ? expandedIds.has(item.node.id) : null"
+              [attr.title]="shouldShowAlarmMarker(item.node) ? (item.node.entityType === 'DEVICE' ? '存在未清除告警' : '直属设备存在未清除告警') : item.node.name">
+        @if (hasVisibleChildren(item.node)) {
           <span class="tree-toggle" tabindex="0"
                 (click)="onToggleNode($event, item.node)"
                 (keydown.enter)="onToggleNode($event, item.node)"
