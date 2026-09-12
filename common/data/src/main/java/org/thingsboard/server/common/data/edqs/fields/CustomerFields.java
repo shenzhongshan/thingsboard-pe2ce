@@ -39,9 +39,14 @@ public class CustomerFields extends AbstractEntityFields {
     private String phone;
     private String email;
 
-    public CustomerFields(UUID id, long createdTime, UUID tenantId, String name, Long version, JsonNode additionalInfo,
-                          String country, String state, String city, String address, String address2, String zip, String phone, String email) {
-        super(id, createdTime, tenantId, name, version);
+    /**
+     * A customer's "customer id" is its PARENT customer - the same slot PE uses to model sub-customers
+     * in EDQS, and what {@code TenantRepo}'s customersHierarchy index is built from. Null at top level.
+     */
+    public CustomerFields(UUID id, long createdTime, UUID tenantId, UUID parentCustomerId, String name, Long version,
+                          JsonNode additionalInfo, String country, String state, String city, String address,
+                          String address2, String zip, String phone, String email) {
+        super(id, createdTime, tenantId, parentCustomerId, name, version);
         this.additionalInfo = getText(additionalInfo);
         this.country = country;
         this.state = state;

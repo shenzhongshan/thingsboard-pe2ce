@@ -53,6 +53,12 @@ public enum ObjectType {
     ALARM_COMMENT,
     API_USAGE_STATE,
     QUEUE_STATS,
+    SCHEDULER_EVENT,
+    ENTITY_GROUP,
+    CONVERTER,
+    INTEGRATION,
+    ROLE,
+    REPORT_TEMPLATE,
 
     AUDIT_LOG,
     RELATION,
@@ -61,7 +67,16 @@ public enum ObjectType {
 
     public static final Set<ObjectType> edqsTenantTypes = EnumSet.of(
             TENANT, CUSTOMER, DEVICE_PROFILE, DEVICE, ASSET_PROFILE, ASSET, EDGE, ENTITY_VIEW, USER, DASHBOARD,
-            RULE_CHAIN, WIDGET_TYPE, WIDGETS_BUNDLE, API_USAGE_STATE, QUEUE_STATS
+            RULE_CHAIN, WIDGET_TYPE, WIDGETS_BUNDLE, API_USAGE_STATE, QUEUE_STATS, SCHEDULER_EVENT,
+            // PE keeps ENTITY_GROUP out of edqsTenantTypes and syncs it through a bespoke branch,
+            // because its entity_group table has no tenant_id and the tenant has to be recovered from
+            // the owner. CE's table has tenant_id, so the generic per-tenant sync works.
+            ENTITY_GROUP,
+            // PE also holds BLOB_ENTITY and REPORT. CE deliberately does not: BaseBlobEntityService and
+            // BaseReportService publish no SaveEntityEvent/DeleteEntityEvent, so a resident copy would
+            // be loaded once at sync and then drift forever. BaseEntityService#validForEdqs routes
+            // queries over non-resident types to SQL instead, which stays correct.
+            CONVERTER, INTEGRATION, ROLE, REPORT_TEMPLATE
     );
     public static final Set<ObjectType> edqsTypes =  EnumSet.copyOf(edqsTenantTypes);
     public static final Set<ObjectType> edqsSystemTypes = EnumSet.of(TENANT, USER, DASHBOARD,

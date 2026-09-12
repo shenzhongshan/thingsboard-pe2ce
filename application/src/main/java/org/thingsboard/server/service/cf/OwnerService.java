@@ -23,6 +23,9 @@ import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.DeviceInfoFilter;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ShortCustomerInfo;
+import org.thingsboard.server.common.data.id.RoleId;
+import org.thingsboard.server.common.data.role.Role;
+import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.id.AssetId;
@@ -59,16 +62,18 @@ public class OwnerService {
     private final EntityViewService entityViewService;
     private final DashboardService dashboardService;
     private final UserService userService;
+    private final RoleService roleService;
 
     public EntityId getOwner(TenantId tenantId, EntityId entityId) {
         return switch (entityId.getEntityType()) {
             case DEVICE -> deviceService.findDeviceById(tenantId, (DeviceId) entityId).getOwnerId();
             case ASSET -> assetService.findAssetById(tenantId, (AssetId) entityId).getOwnerId();
             case ENTITY_VIEW -> ownerOf(entityViewService.findEntityViewById(tenantId, (EntityViewId) entityId).getCustomerId(), tenantId);
-            // Dashboards may be assigned to several customers; the first assignment is treated
-            // as the owner, falling back to the tenant when unassigned (assignedCustomers is null then).
-            case DASHBOARD -> Optional.ofNullable(dashboardService.findDashboardById(tenantId, (DashboardId) entityId).getAssignedCustomers())
-                    .orElseGet(Set::of).stream().findFirst().<EntityId>map(ShortCustomerInfo::getCustomerId).orElse(tenantId);
+            // dashboard.customer_id is the owner. Deliberately NOT assignedCustomers: that is the
+            // share list, a dashboard can be shared with several customers, and picking "the first"
+            // of an unordered set gave a different answer than the SQL query engine's resolveOwnerId.
+            case DASHBOARD -> ownerOf(dashboardService.findDashboardById(tenantId, (DashboardId) entityId).getCustomerId(), tenantId);
+            case ROLE -> ownerOf(roleService.findRoleById(tenantId, (RoleId) entityId).getCustomerId(), tenantId);
             case USER -> ownerOf(userService.findUserById(tenantId, (UserId) entityId).getCustomerId(), tenantId);
             case CUSTOMER -> ownerOf(customerService.findCustomerById(tenantId, (CustomerId) entityId).getParentCustomerId(), tenantId);
             default -> throw new UnsupportedOperationException("Unsupported entity type for owner lookup: " + entityId.getEntityType());
@@ -158,19 +163,23 @@ public class OwnerService {
                 }
             }
             case DASHBOARD -> {
-                // Dashboards can be assigned to several customers at once, so a "change owner"
-                // means: detach from the current owner (if any), then attach to the new one.
+                // Ownership now lives in dashboard.customer_id, like every other entity. The
+                // assignedCustomers set is deliberately left alone: it is the SHARE list, and a
+                // dashboard may stay shared with customers other than its owner (PE keeps the same
+                // split). Assigning to the new owner as well keeps it visible to them, since the
+                // customer-user permission clause is still assignment-based.
                 Dashboard dashboard = dashboardService.findDashboardById(tenantId, (DashboardId) entityId);
-                if (dashboard.getAssignedCustomers() != null) {
-                    dashboard.getAssignedCustomers().stream()
-                            .map(ShortCustomerInfo::getCustomerId)
-                            .filter(existing -> !existing.equals(newOwnerId))
-                            .toList()
-                            .forEach(existing -> dashboardService.unassignDashboardFromCustomer(tenantId, (DashboardId) entityId, existing));
-                }
-                if (toCustomer) {
+                dashboard.setCustomerId(toCustomer ? (CustomerId) newOwnerId : null);
+                dashboardService.saveDashboard(dashboard);
+                if (toCustomer && !dashboard.isAssignedToCustomer((CustomerId) newOwnerId)) {
                     dashboardService.assignDashboardToCustomer(tenantId, (DashboardId) entityId, (CustomerId) newOwnerId);
                 }
+            }
+            case ROLE -> {
+                Role role = roleService.findRoleById(tenantId, (RoleId) entityId);
+                // NULL_UUID rather than null: tenant-level is a sentinel here, see Role#customerId.
+                role.setCustomerId(toCustomer ? (CustomerId) newOwnerId : new CustomerId(CustomerId.NULL_UUID));
+                roleService.saveRole(tenantId, role);
             }
             case USER -> {
                 User user = userService.findUserById(tenantId, (UserId) entityId);

@@ -27,6 +27,8 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.common.util.KvUtil;
 import org.thingsboard.server.common.data.AttributeScope;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.EntityId;
@@ -64,12 +66,17 @@ import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.executors.DbCallbackExecutorService;
 import org.thingsboard.server.service.security.model.SecurityUser;
+import org.thingsboard.server.service.security.permission.MergedUserPermissions;
+import org.thingsboard.server.service.security.permission.Resource;
+import org.thingsboard.server.service.security.permission.Operation;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -104,7 +111,7 @@ public class DefaultEntityQueryService implements EntityQueryService {
 
     @Override
     public long countEntitiesByQuery(SecurityUser securityUser, EntityCountQuery query) {
-        return entityService.countEntitiesByQuery(securityUser.getTenantId(), securityUser.getCustomerId(), query);
+        return entityService.countEntitiesByQuery(securityUser.getTenantId(), securityUser.getCustomerId(), query, queryPermissionsOf(securityUser));
     }
 
     @Override
@@ -117,7 +124,7 @@ public class DefaultEntityQueryService implements EntityQueryService {
                     securityUser
             );
         }
-        return entityService.findEntityDataByQuery(securityUser.getTenantId(), securityUser.getCustomerId(), query);
+        return entityService.findEntityDataByQuery(securityUser.getTenantId(), securityUser.getCustomerId(), query, queryPermissionsOf(securityUser));
     }
 
     private void resolveDynamicValuesInPredicates(List<KeyFilterPredicate> predicates, SecurityUser user) {
@@ -180,7 +187,7 @@ public class DefaultEntityQueryService implements EntityQueryService {
     public PageData<AlarmData> findAlarmDataByQuery(SecurityUser securityUser, AlarmDataQuery query) {
         EntityDataQuery entityDataQuery = this.buildEntityDataQuery(query);
         PageData<EntityData> entities = entityService.findEntityDataByQuery(securityUser.getTenantId(),
-                securityUser.getCustomerId(), entityDataQuery);
+                securityUser.getCustomerId(), entityDataQuery, queryPermissionsOf(securityUser));
         if (entities.getTotalElements() > 0) {
             LinkedHashMap<EntityId, EntityData> entitiesMap = new LinkedHashMap<>();
             for (EntityData entityData : entities.getData()) {
@@ -207,7 +214,7 @@ public class DefaultEntityQueryService implements EntityQueryService {
         if (query.getEntityFilter() != null) {
             EntityDataQuery entityDataQuery = this.buildEntityDataQuery(query);
             PageData<EntityData> entities = entityService.findEntityDataByQuery(securityUser.getTenantId(),
-                    securityUser.getCustomerId(), entityDataQuery);
+                    securityUser.getCustomerId(), entityDataQuery, queryPermissionsOf(securityUser));
             if (entities.getTotalElements() > 0) {
                 List<EntityId> entityIds = entities.getData().stream().map(EntityData::getEntityId).toList();
                 return alarmService.countAlarmsByQuery(securityUser.getTenantId(), securityUser.getCustomerId(), query, entityIds);
@@ -317,7 +324,7 @@ public class DefaultEntityQueryService implements EntityQueryService {
     }
 
     private ListenableFuture<List<EntityId>> findEntityIdsByQueryAsync(SecurityUser securityUser, EntityDataQuery query) {
-        return Futures.transform(entityService.findEntityDataByQueryAsync(securityUser.getTenantId(), securityUser.getCustomerId(), query),
+        return Futures.transform(entityService.findEntityDataByQueryAsync(securityUser.getTenantId(), securityUser.getCustomerId(), query, queryPermissionsOf(securityUser)),
                 page -> page.getData().stream()
                         .map(EntityData::getEntityId)
                         .toList(),
@@ -413,6 +420,43 @@ public class DefaultEntityQueryService implements EntityQueryService {
                 ? JacksonUtil.toJsonNode(entry.getJsonValue().get())
                 : JacksonUtil.valueToTree(entry.getValue());
         return new KeySample(ts, value);
+    }
+
+    /**
+     * Reduces the user's merged permissions to what the query engines need: the entity types their
+     * own owner scope may yield, plus the entity groups a GROUP role grants them. A SYS_ADMIN (or any
+     * user resolved to MergedUserPermissions.ALL) gets UNRESTRICTED.
+     */
+    private static QueryPermissions queryPermissionsOf(SecurityUser securityUser) {
+        MergedUserPermissions permissions = securityUser.getUserPermissions();
+        if (permissions == null) {
+            return QueryPermissions.of(Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
+        }
+        if (securityUser.getAuthority() == Authority.SYS_ADMIN) {
+            return QueryPermissions.UNRESTRICTED;
+        }
+        Set<EntityType> genericReadTypes = EnumSet.noneOf(EntityType.class);
+        Set<EntityType> attrReadTypes = EnumSet.noneOf(EntityType.class);
+        Set<EntityType> tsReadTypes = EnumSet.noneOf(EntityType.class);
+        for (EntityType entityType : EntityType.values()) {
+            // Not every EntityType maps to a Resource (RULE_NODE, JOB, ...); those can never be
+            // granted, so they simply stay out of the sets.
+            Resource resource = Resource.ofOrNull(entityType);
+            if (resource == null) {
+                continue;
+            }
+            if (permissions.hasGenericPermission(resource, Operation.READ)) {
+                genericReadTypes.add(entityType);
+            }
+            if (permissions.hasGenericPermission(resource, Operation.READ_ATTRIBUTES)) {
+                attrReadTypes.add(entityType);
+            }
+            if (permissions.hasGenericPermission(resource, Operation.READ_TELEMETRY)) {
+                tsReadTypes.add(entityType);
+            }
+        }
+        return QueryPermissions.of(genericReadTypes, permissions.getReadableEntityGroupIds(),
+                attrReadTypes, tsReadTypes);
     }
 
 }

@@ -16,9 +16,11 @@
 package org.thingsboard.server.dao.sql.integration;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.edqs.fields.IntegrationFields;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.page.PageData;
@@ -30,6 +32,7 @@ import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -74,6 +77,12 @@ public class JpaIntegrationDao extends JpaAbstractDao<IntegrationEntity, Integra
     @Override
     public EntityType getEntityType() {
         return EntityType.INTEGRATION;
+    }
+
+    /** Feeds {@code EdqsSyncService#syncTenantEntity} - see ObjectType#edqsTenantTypes. */
+    @Override
+    public List<IntegrationFields> findNextBatch(UUID id, int batchSize) {
+        return integrationRepository.findNextBatch(id, Limit.of(batchSize));
     }
 
 }

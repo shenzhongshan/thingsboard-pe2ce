@@ -21,10 +21,14 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseDataWithAdditionalInfo;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ExportableEntity;
+import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.HasVersion;
+import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.RoleId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
@@ -39,13 +43,23 @@ import org.thingsboard.server.common.data.validation.NoXss;
 @Schema
 @EqualsAndHashCode(callSuper = true)
 public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName, HasTenantId,
-        HasVersion, ExportableEntity<RoleId> {
+        HasCustomerId, HasVersion, ExportableEntity<RoleId> {
 
     private static final long serialVersionUID = 5582010124562018986L;
 
     @Getter @Setter
     @Schema(description = "JSON object with Tenant Id", accessMode = Schema.AccessMode.READ_ONLY)
     private TenantId tenantId;
+
+    /**
+      * Owner of the role. A customer-scoped role may only be granted within that customer's subtree;
+      * a tenant-level role is usable anywhere in the tenant. Following PE, "tenant-level" is stored
+      * as the NULL_UUID sentinel rather than SQL NULL so equality lookups by (tenant, customer, name)
+      * work - but every read path here also tolerates a plain NULL for rows predating the column.
+      */
+    @Getter @Setter
+    @Schema(description = "JSON object with Customer Id. Null (or the null-UUID) means tenant-level.")
+    private CustomerId customerId;
 
     @Getter @Setter
     @NoXss
@@ -75,9 +89,25 @@ public class Role extends BaseDataWithAdditionalInfo<RoleId> implements HasName,
         super(id);
     }
 
+    /** The entity that owns this role: the customer when customer-scoped, otherwise the tenant. */
+    @Schema(description = "JSON object with Customer or Tenant Id", accessMode = Schema.AccessMode.READ_ONLY)
+    public EntityId getOwnerId() {
+        return customerId != null && !customerId.isNullUid() ? customerId : tenantId;
+    }
+
+    public void setOwnerId(EntityId entityId) {
+        this.customerId = EntityType.CUSTOMER.equals(entityId.getEntityType())
+                ? new CustomerId(entityId.getId()) : new CustomerId(CustomerId.NULL_UUID);
+    }
+
+    public boolean isTenantLevel() {
+        return customerId == null || customerId.isNullUid();
+    }
+
     public Role(Role role) {
         super(role);
         this.tenantId = role.getTenantId();
+        this.customerId = role.getCustomerId();
         this.name = role.getName();
         this.type = role.getType();
         this.permissions = role.getPermissions();

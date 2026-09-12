@@ -35,8 +35,8 @@ public class DashboardFields extends AbstractEntityFields {
     private static ObjectMapper objectMapper = new ObjectMapper();
     private List<UUID> assignedCustomerIds;
 
-    public DashboardFields(UUID id, long createdTime, UUID tenantId, String assignedCustomers, String name, Long version) {
-        super(id, createdTime, tenantId, name, version);
+    public DashboardFields(UUID id, long createdTime, UUID tenantId, UUID customerId, String assignedCustomers, String name, Long version) {
+        super(id, createdTime, tenantId, customerId, name, version);
         this.assignedCustomerIds = getCustomerIds(assignedCustomers);
     }
 

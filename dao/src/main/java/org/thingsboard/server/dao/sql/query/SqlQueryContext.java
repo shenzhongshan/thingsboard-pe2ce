@@ -22,11 +22,13 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.permission.QueryContext;
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 
 import java.sql.Types;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -146,6 +148,11 @@ public class SqlQueryContext implements SqlParameterSource {
 
     public EntityType getEntityType() {
         return securityCtx.getEntityType();
+    }
+
+    /** What the querying user may see; UNRESTRICTED for internal callers. */
+    public QueryPermissions getQueryPermissions() {
+        return securityCtx.getQueryPermissions();
     }
 
     public boolean isIgnorePermissionCheck() {

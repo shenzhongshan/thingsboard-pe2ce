@@ -350,6 +350,7 @@ public class ModelConstants {
      */
     public static final String DASHBOARD_TABLE_NAME = "dashboard";
     public static final String DASHBOARD_TENANT_ID_PROPERTY = TENANT_ID_PROPERTY;
+    public static final String DASHBOARD_CUSTOMER_ID_PROPERTY = CUSTOMER_ID_PROPERTY;
     public static final String DASHBOARD_TITLE_PROPERTY = TITLE_PROPERTY;
     public static final String DASHBOARD_IMAGE_PROPERTY = "image";
     public static final String DASHBOARD_CONFIGURATION_PROPERTY = "configuration";

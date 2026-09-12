@@ -147,6 +147,9 @@ CREATE TABLE IF NOT EXISTS dashboard (
     id uuid NOT NULL CONSTRAINT dashboard_pkey PRIMARY KEY,
     created_time bigint NOT NULL,
     configuration varchar,
+    -- The OWNER (single), changed via OwnerController. Distinct from assigned_customers, which is
+    -- the SHARE list (many). PE keeps exactly this pair.
+    customer_id uuid,
     assigned_customers varchar(1000000),
     tenant_id uuid,
     title varchar(255),
@@ -157,6 +160,9 @@ CREATE TABLE IF NOT EXISTS dashboard (
     version BIGINT DEFAULT 1,
     CONSTRAINT dashboard_external_id_unq_key UNIQUE (tenant_id, external_id)
 );
+-- CREATE TABLE IF NOT EXISTS is a no-op on an existing database, so a new column needs its own
+-- ALTER to reach one. Without this line only a fresh install would get dashboard.customer_id.
+ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id uuid;
 
 CREATE TABLE IF NOT EXISTS rule_chain (
     id uuid NOT NULL CONSTRAINT rule_chain_pkey PRIMARY KEY,
@@ -1143,6 +1149,7 @@ CREATE TABLE IF NOT EXISTS role (
     id UUID NOT NULL CONSTRAINT role_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
     tenant_id UUID,
+    customer_id UUID,
     name VARCHAR(255),
     type VARCHAR(255),
     permissions VARCHAR(10000000),
@@ -1151,6 +1158,9 @@ CREATE TABLE IF NOT EXISTS role (
     version BIGINT NOT NULL DEFAULT 1
 );
 ALTER TABLE role ADD COLUMN IF NOT EXISTS external_id UUID;
+-- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather than SQL
+-- NULL, because the name-uniqueness lookup is an equality match and "= NULL" never matches.
+ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;
 ALTER TABLE role ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS group_permission (

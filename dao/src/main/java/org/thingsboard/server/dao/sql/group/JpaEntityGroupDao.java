@@ -16,9 +16,11 @@
 package org.thingsboard.server.dao.sql.group;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.edqs.fields.EntityGroupFields;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -29,6 +31,7 @@ import org.thingsboard.server.dao.model.sql.EntityGroupEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
 import org.thingsboard.server.dao.util.SqlDao;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -69,6 +72,15 @@ public class JpaEntityGroupDao extends JpaAbstractDao<EntityGroupEntity, EntityG
     @Override
     public EntityType getEntityType() {
         return EntityType.ENTITY_GROUP;
+    }
+
+    /**
+     * Feeds {@code EdqsSyncService#syncTenantEntity}. Without groups resident in EDQS the
+     * entityGroupName / entitiesByGroupName filters have nothing to match a group name against.
+     */
+    @Override
+    public List<EntityGroupFields> findNextBatch(UUID id, int batchSize) {
+        return entityGroupRepository.findNextBatch(id, Limit.of(batchSize));
     }
 
 }

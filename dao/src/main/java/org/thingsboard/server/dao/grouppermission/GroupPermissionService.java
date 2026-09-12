@@ -51,6 +51,13 @@ public interface GroupPermissionService {
      */
     void deleteGroupPermissionsByEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId);
 
+    /**
+     * Deletes every permission the tenant owns, in one sweep. Called from the tenant deletion path:
+     * the per-group methods above only fire when a group is deleted one at a time, which never
+     * happens for a tenant, so without this the rows outlive their tenant.
+     */
+    void deleteGroupPermissionsByTenantId(TenantId tenantId);
+
     List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId);

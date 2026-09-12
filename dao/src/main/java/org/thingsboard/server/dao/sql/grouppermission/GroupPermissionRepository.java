@@ -29,4 +29,6 @@ public interface GroupPermissionRepository extends JpaRepository<GroupPermission
 
     List<GroupPermissionEntity> findByTenantIdAndEntityGroupId(UUID tenantId, UUID entityGroupId);
 
+    List<GroupPermissionEntity> findByTenantId(UUID tenantId);
+
 }

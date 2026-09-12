@@ -62,6 +62,7 @@ import org.thingsboard.server.dao.audit.AuditLogLevelMask;
 import org.thingsboard.server.dao.audit.AuditLogLevelProperties;
 import org.thingsboard.server.dao.entity.EntityDaoService;
 import org.thingsboard.server.dao.entity.EntityServiceRegistry;
+import org.thingsboard.server.dao.secret.SecretConfigurationService;
 import org.thingsboard.server.dao.tenant.TenantService;
 
 import java.io.IOException;
@@ -147,6 +148,31 @@ public abstract class AbstractServiceTest {
         var props = new AuditLogLevelProperties();
         props.setMask(mask);
         return new AuditLogLevelFilter(props);
+    }
+
+    /**
+     * dao's HybridClientRegistrationRepository requires this to resolve ${secret:...} placeholders,
+     * but the only implementation lives in the application module, so the component scan below
+     * cannot find one and the whole context fails to start. Secrets are not exercised by dao tests -
+     * a pass-through stub is enough.
+     */
+    @Bean
+    public SecretConfigurationService secretConfigurationService() {
+        return new SecretConfigurationService() {
+            @Override
+            public void replaceSecretUsages(TenantId tenantId, JsonNode config) {
+            }
+
+            @Override
+            public <T> T replaceSecretUsages(TenantId tenantId, T entity, Class<T> clazz) {
+                return entity;
+            }
+
+            @Override
+            public String replaceSecretUsage(TenantId tenantId, String value) {
+                return value;
+            }
+        };
     }
 
     @Bean

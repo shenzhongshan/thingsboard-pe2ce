@@ -36,6 +36,7 @@ import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
 import org.thingsboard.server.service.security.permission.UserPermissionsService;
@@ -61,25 +62,33 @@ public class RoleController extends BaseController {
     private final UserPermissionsService userPermissionsService;
 
     @ApiOperation(value = "Get Role (getRoleById)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/role/{roleId}"})
     public Role getRoleById(
             @Parameter(description = "A string value representing the role id", required = true)
             @PathVariable(ROLE_ID) String strRoleId) throws ThingsboardException {
         checkParameter(ROLE_ID, strRoleId);
         accessControlService.checkPermission(getCurrentUser(), Resource.ROLE, Operation.READ);
-        return checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), new RoleId(toUUID(strRoleId)))));
+        return checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), new RoleId(toUUID(strRoleId)))), Operation.READ);
     }
 
-    @ApiOperation(value = "Save Role (saveRole)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @ApiOperation(value = "Save Role (saveRole)",
+            notes = "A customer user always creates roles owned by its own customer; a tenant admin " +
+                    "creates tenant-level roles unless it sets customerId explicitly.")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/role"})
     public Role saveRole(
             @Parameter(description = "A JSON value representing the role", required = true)
             @RequestBody Role role) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ROLE, Operation.WRITE);
+        SecurityUser user = getCurrentUser();
         if (role.getId() != null) {
-            checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), role.getId())));
+            checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), role.getId())), Operation.WRITE);
+        }
+        if (user.isCustomerUser()) {
+            // Never take the customerId off the wire for a customer user: it is the one field that
+            // would let them create a role owned by a sibling customer.
+            role.setCustomerId(user.getCustomerId());
         }
         Role saved = roleService.saveRole(getTenantId(), role);
         userPermissionsService.onRoleUpdated(saved);
@@ -87,8 +96,10 @@ public class RoleController extends BaseController {
     }
 
     @ApiOperation(value = "Get Roles (getRoles)",
-            notes = "Lists the tenant's roles. The three PE default roles are created automatically.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+            notes = "Lists the roles visible to the caller: all of the tenant's for a tenant admin, " +
+                    "own plus tenant-level for a customer user. The three PE default roles are " +
+                    "created automatically.")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/roles"}, params = {"pageSize", "page"})
     public PageData<Role> getRoles(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
@@ -101,12 +112,17 @@ public class RoleController extends BaseController {
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ROLE, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        SecurityUser user = getCurrentUser();
+        if (user.isCustomerUser()) {
+            // Own roles plus the tenant-level ones, which are usable anywhere in the tenant.
+            return roleService.findRolesByTenantIdAndCustomerId(getTenantId(), user.getCustomerId(), pageLink);
+        }
         return roleService.findRolesByTenantId(getTenantId(), pageLink);
     }
 
     @ApiOperation(value = "Delete Role (deleteRole)",
             notes = "Deletion fails if the role is referenced by group permissions.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @DeleteMapping(value = {"/role/{roleId}"})
     public void deleteRole(
             @Parameter(description = "A string value representing the role id", required = true)
@@ -114,14 +130,29 @@ public class RoleController extends BaseController {
         checkParameter(ROLE_ID, strRoleId);
         accessControlService.checkPermission(getCurrentUser(), Resource.ROLE, Operation.DELETE);
         RoleId roleId = new RoleId(toUUID(strRoleId));
-        checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), roleId)));
+        checkAccess(checkNotNull(roleService.findRoleById(getTenantId(), roleId)), Operation.DELETE);
         roleService.deleteRole(getTenantId(), roleId);
     }
 
-    private Role checkAccess(Role role) throws ThingsboardException {
-        if (!getCurrentUser().getTenantId().equals(role.getTenantId())) {
+    /**
+     * Tenant check plus owner check. A customer user may read a tenant-level role (those are usable
+     * anywhere in the tenant) but may only modify or delete one it owns, and may never touch a
+     * sibling customer's role. Without the owner half of this, the id in the path is enough to reach
+     * any role in the tenant.
+     */
+    private Role checkAccess(Role role, Operation operation) throws ThingsboardException {
+        SecurityUser user = getCurrentUser();
+        if (!user.getTenantId().equals(role.getTenantId())) {
             throw new ThingsboardException("You don't have permission to perform this operation!",
                     ThingsboardErrorCode.PERMISSION_DENIED);
+        }
+        if (user.isCustomerUser()) {
+            boolean owned = user.getCustomerId().equals(role.getCustomerId());
+            boolean readableTenantLevel = Operation.READ.equals(operation) && role.isTenantLevel();
+            if (!owned && !readableTenantLevel) {
+                throw new ThingsboardException("You don't have permission to perform this operation!",
+                        ThingsboardErrorCode.PERMISSION_DENIED);
+            }
         }
         return role;
     }

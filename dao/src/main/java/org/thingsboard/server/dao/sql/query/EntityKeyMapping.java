@@ -141,6 +141,17 @@ public class EntityKeyMapping {
         allowedEntityFieldMap.put(EntityType.ASSET_PROFILE, Set.of(CREATED_TIME, NAME));
         allowedEntityFieldMap.put(EntityType.QUEUE_STATS, new HashSet<>(Arrays.asList(CREATED_TIME, QUEUE_NAME, SERVICE_ID)));
 
+        // PE-derived types. Without an explicit entry these fall through to commonEntityFields,
+        // which includes additionalInfo - and report_template/report have no additional_info column,
+        // so selecting or sorting on it is a Postgres error (HTTP 500), not an empty result.
+        allowedEntityFieldMap.put(EntityType.CONVERTER, new HashSet<>(typedEntityFields));
+        allowedEntityFieldMap.put(EntityType.INTEGRATION, new HashSet<>(typedEntityFields));
+        allowedEntityFieldMap.put(EntityType.ROLE, new HashSet<>(typedEntityFields));
+        allowedEntityFieldMap.put(EntityType.SCHEDULER_EVENT, new HashSet<>(typedEntityFields));
+        allowedEntityFieldMap.put(EntityType.BLOB_ENTITY, new HashSet<>(typedEntityFields));
+        allowedEntityFieldMap.put(EntityType.REPORT_TEMPLATE, Set.of(CREATED_TIME, ENTITY_TYPE, NAME, TYPE));
+        allowedEntityFieldMap.put(EntityType.REPORT, Set.of(CREATED_TIME, ENTITY_TYPE, NAME));
+
         entityFieldColumnMap.put(CREATED_TIME, ModelConstants.CREATED_TIME_PROPERTY);
         entityFieldColumnMap.put(ENTITY_TYPE, ModelConstants.ENTITY_TYPE_PROPERTY);
         entityFieldColumnMap.put(REGION, ModelConstants.TENANT_REGION_PROPERTY);

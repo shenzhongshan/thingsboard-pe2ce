@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.sql.query;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -25,6 +26,9 @@ import org.thingsboard.server.common.data.query.EntityData;
 import org.thingsboard.server.common.data.query.EntityDataQuery;
 import org.thingsboard.server.dao.entity.EntityQueryDao;
 
+import java.util.Set;
+import java.util.UUID;
+
 @Component
 public class JpaEntityQueryDao implements EntityQueryDao {
 
@@ -32,12 +36,12 @@ public class JpaEntityQueryDao implements EntityQueryDao {
     private EntityQueryRepository entityQueryRepository;
 
     @Override
-    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query) {
-        return entityQueryRepository.countEntitiesByQuery(tenantId, customerId, query);
+    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, QueryPermissions queryPermissions) {
+        return entityQueryRepository.countEntitiesByQuery(tenantId, customerId, query, queryPermissions);
     }
 
     @Override
-    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
-        return entityQueryRepository.findEntityDataByQuery(tenantId, customerId, query);
+    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
+        return entityQueryRepository.findEntityDataByQuery(tenantId, customerId, query, queryPermissions);
     }
 }

@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.sql.query;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +75,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -83,6 +85,27 @@ import java.util.stream.Collectors;
 public class DefaultEntityQueryRepository implements EntityQueryRepository {
     private static final Map<EntityType, String> entityTableMap = new HashMap<>();
     private static final Map<EntityType, String> entityNameColumns = new HashMap<>();
+    private static final Map<EntityType, String> ownerTableMap = new HashMap<>();
+
+    /**
+     * The querying customer plus every customer beneath it, so a parent-customer user sees its
+     * sub-customers' entities. Ported from PE's constant of the same name; binds the same
+     * :permissions_tenant_id / :permissions_customer_id parameters defaultPermissionQuery already sets.
+     */
+    private static final String HIERARCHICAL_SUB_CUSTOMERS_QUERY =
+            "(WITH RECURSIVE customers_ids(id) AS (" +
+            "SELECT id id FROM customer WHERE tenant_id = :permissions_tenant_id and id = :permissions_customer_id " +
+            "UNION SELECT c.id id FROM customer c, customers_ids parent " +
+            "WHERE c.tenant_id = :permissions_tenant_id and c.parent_customer_id = parent.id" +
+            ") SELECT id FROM customers_ids)";
+
+    /**
+     * Queryable types whose table has no customer_id column, so they can only ever be tenant-owned.
+     * Note ENTITY_GROUP is not here: it carries owner_id/owner_type instead and is scoped by
+     * {@link #entityGroupMembershipQuery} rather than by the default permission clause.
+     */
+    private static final Set<EntityType> TENANT_ONLY_TYPES =
+            EnumSet.of(EntityType.CONVERTER, EntityType.INTEGRATION);
     private static final String SELECT_PHONE = " CASE WHEN entity.entity_type = 'TENANT' THEN (select phone from tenant where id = entity_id)" +
             " WHEN entity.entity_type = 'CUSTOMER' THEN (select phone from customer where id = entity_id)" +
             " WHEN entity.entity_type = 'USER' THEN (select phone from tb_user where id = entity_id) END as phone";
@@ -263,6 +286,30 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         entityTableMap.put(EntityType.QUEUE_STATS, "queue_stats");
         entityTableMap.put(EntityType.SCHEDULER_EVENT, "scheduler_event");
         entityTableMap.put(EntityType.ENTITY_GROUP, "entity_group");
+        // Absent from this map an entityType query builds "FROM null as e" and the request 500s with
+        // a Postgres syntax error rather than returning nothing - see TENANT_ONLY_TYPES below for the
+        // two of these whose table has no customer_id column.
+        entityTableMap.put(EntityType.CONVERTER, "converter");
+        entityTableMap.put(EntityType.INTEGRATION, "integration");
+        entityTableMap.put(EntityType.ROLE, "role");
+        entityTableMap.put(EntityType.BLOB_ENTITY, "blob_entity");
+        entityTableMap.put(EntityType.REPORT_TEMPLATE, "report_template");
+        entityTableMap.put(EntityType.REPORT, "report");
+
+        // Tables carrying a customer_id column, for resolveOwnerId. Separate from entityTableMap
+        // because that one is keyed by "is this type queryable" and covers types with no owner column
+        // (dashboard, rule_chain, ...) while missing PE-derived ones that do have one.
+        ownerTableMap.put(EntityType.ASSET, "asset");
+        ownerTableMap.put(EntityType.DEVICE, "device");
+        ownerTableMap.put(EntityType.ENTITY_VIEW, "entity_view");
+        ownerTableMap.put(EntityType.EDGE, "edge");
+        ownerTableMap.put(EntityType.USER, "tb_user");
+        ownerTableMap.put(EntityType.SCHEDULER_EVENT, "scheduler_event");
+        ownerTableMap.put(EntityType.BLOB_ENTITY, "blob_entity");
+        ownerTableMap.put(EntityType.REPORT_TEMPLATE, "report_template");
+        ownerTableMap.put(EntityType.REPORT, "report");
+        ownerTableMap.put(EntityType.DASHBOARD, "dashboard");
+        ownerTableMap.put(EntityType.ROLE, "role");
 
         entityNameColumns.put(EntityType.DEVICE, "name");
         entityNameColumns.put(EntityType.CUSTOMER, "title");
@@ -283,6 +330,13 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         entityNameColumns.put(EntityType.QUEUE, "name");
         entityNameColumns.put(EntityType.QUEUE_STATS, "queue_name");
         entityNameColumns.put(EntityType.SCHEDULER_EVENT, "name");
+        entityNameColumns.put(EntityType.CONVERTER, "name");
+        entityNameColumns.put(EntityType.INTEGRATION, "name");
+        entityNameColumns.put(EntityType.ROLE, "name");
+        entityNameColumns.put(EntityType.BLOB_ENTITY, "name");
+        entityNameColumns.put(EntityType.REPORT_TEMPLATE, "name");
+        entityNameColumns.put(EntityType.REPORT, "name");
+        entityNameColumns.put(EntityType.ENTITY_GROUP, "name");
         entityNameColumns.put(EntityType.ENTITY_GROUP, "name");
     }
 
@@ -370,9 +424,12 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     @Override
-    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query) {
+    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, QueryPermissions queryPermissions) {
         EntityType entityType = resolveEntityTypeForContext(tenantId, query.getEntityFilter());
-        SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, TenantId.SYS_TENANT_ID.equals(tenantId)));
+        if (isNotQueryable(entityType)) {
+            return 0;
+        }
+        SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, TenantId.SYS_TENANT_ID.equals(tenantId), null, queryPermissions));
         if (query.getKeyFilters() == null || query.getKeyFilters().isEmpty()) {
             ctx.append("select count(e.id) from ");
             ctx.append(addEntityTableQuery(ctx, query.getEntityFilter()));
@@ -480,14 +537,21 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     @Override
-    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
-        return findEntityDataByQuery(tenantId, customerId, query, false);
+    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
+        return findEntityDataByQuery(tenantId, customerId, query, false, queryPermissions);
     }
 
     public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, boolean ignorePermissionCheck) {
+        return findEntityDataByQuery(tenantId, customerId, query, ignorePermissionCheck, QueryPermissions.UNRESTRICTED);
+    }
+
+    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, boolean ignorePermissionCheck, QueryPermissions queryPermissions) {
+        if (isNotQueryable(resolveEntityTypeForContext(tenantId, query.getEntityFilter()))) {
+            return PageData.emptyPageData();
+        }
         return transactionTemplate.execute(status -> {
             EntityType entityType = resolveEntityTypeForContext(tenantId, query.getEntityFilter());
-            SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, ignorePermissionCheck));
+            SqlQueryContext ctx = new SqlQueryContext(new QueryContext(tenantId, customerId, entityType, ignorePermissionCheck, null, queryPermissions));
             EntityDataPageLink pageLink = query.getPageLink();
             ComplexOperation operation = query.getKeyFiltersOperationOrDefault();
             boolean isOr = operation == ComplexOperation.OR;
@@ -695,17 +759,50 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     private String defaultPermissionQuery(SqlQueryContext ctx) {
+        String ownerClause = ownerPermissionQuery(ctx);
+        // A GROUP role grant reaches across owners - that is what sharing an entity group means -
+        // so it is a union with the owner scope, never a filter on it. Mirrors the REST path's
+        // CustomerUserPermissions#hasGroupOrGenericPermission, which allows either.
+        Set<UUID> grantedGroups = ctx.getQueryPermissions().readableEntityGroupIds();
+        if (grantedGroups.isEmpty()) {
+            return ownerClause;
+        }
+        ctx.addUuidListParameter("permissions_granted_group_ids", List.copyOf(grantedGroups));
+        String grantClause = "e.id in (select gr.to_id from relation gr"
+                + " where gr.from_id in (:permissions_granted_group_ids)"
+                + " and gr.relation_type_group='FROM_ENTITY_GROUP' and gr.relation_type='Contains')";
+        return "(" + ownerClause + ") or (e.tenant_id=:permissions_tenant_id and " + grantClause + ")";
+    }
+
+    private String ownerPermissionQuery(SqlQueryContext ctx) {
         ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
         if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
+            // Deny-by-default applies to customer users only: their owner scope yields results just
+            // for entity types their role grants READ on, leaving only explicit group grants
+            // otherwise. Tenant-level callers keep the plain tenant clause - CE has no notion of
+            // restricting a tenant admin, and EDQS's tenant path (processAll) is unchecked too, so
+            // gating here as well would make the two engines disagree.
+            if (!ctx.getQueryPermissions().hasGenericRead(ctx.getEntityType())) {
+                return "1=0";
+            }
             ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
             if (ctx.getEntityType() == EntityType.CUSTOMER) {
-                return "e.tenant_id=:permissions_tenant_id and e.id=:permissions_customer_id";
+                return "e.tenant_id=:permissions_tenant_id and e.id in " + HIERARCHICAL_SUB_CUSTOMERS_QUERY;
             } else if (ctx.getEntityType() == EntityType.API_USAGE_STATE) {
-                return "e.tenant_id=:permissions_tenant_id and e.entity_id=:permissions_customer_id";
+                return "e.tenant_id=:permissions_tenant_id and e.entity_id in " + HIERARCHICAL_SUB_CUSTOMERS_QUERY;
             } else if (ctx.getEntityType() == EntityType.DASHBOARD) {
-                return "e.tenant_id=:permissions_tenant_id and e.assigned_customers like concat('%', :permissions_customer_id, '%')";
+                // assigned_customers is a JSON blob, not a column that can be IN-ed; test each
+                // customer in scope against it instead.
+                return "e.tenant_id=:permissions_tenant_id and exists (select 1 from "
+                        + HIERARCHICAL_SUB_CUSTOMERS_QUERY
+                        + " as scoped_customer(id) where e.assigned_customers like concat('%', scoped_customer.id, '%'))";
+            } else if (TENANT_ONLY_TYPES.contains(ctx.getEntityType())) {
+                // These tables have no customer_id column at all, so the clause below would be a
+                // Postgres error rather than a filter. They are tenant-level entities: a customer
+                // user owns none of them and must see none.
+                return "1=0";
             } else {
-                return "e.tenant_id=:permissions_tenant_id and e.customer_id=:permissions_customer_id";
+                return "e.tenant_id=:permissions_tenant_id and e.customer_id in " + HIERARCHICAL_SUB_CUSTOMERS_QUERY;
             }
         } else {
             return "e.tenant_id=:permissions_tenant_id";
@@ -781,6 +878,17 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     /**
+     * The caller's own owner: their customer, or the tenant for a tenant user. PE's
+     * {@code getCtxOwnerId}/{@code ctx.getOwnerId()}. Used as the default owner scope for filters
+     * that address an entity group by name - defaulting to the tenant instead would make a customer
+     * user resolve a same-named group belonging to the tenant rather than their own.
+     */
+    private static EntityId callerOwnerId(SqlQueryContext ctx) {
+        CustomerId customerId = ctx.getCustomerId();
+        return customerId != null && !customerId.isNullUid() ? customerId : ctx.getTenantId();
+    }
+
+    /**
      * Membership in one specific group, addressed by id - including the auto-created "All" group,
      * whose membership is backed by real relation rows too (see
      * BaseEntityGroupService#ensureAllGroupMembership), so no separate owner-scope branch is needed
@@ -852,7 +960,7 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
      * tenant-wide everywhere else in this class.
      */
     private String entitiesByGroupNameQuery(SqlQueryContext ctx, EntitiesByGroupNameFilter filter) {
-        EntityId ownerId = filter.getOwnerId() != null ? filter.getOwnerId() : ctx.getTenantId();
+        EntityId ownerId = filter.getOwnerId() != null ? filter.getOwnerId() : callerOwnerId(ctx);
         ctx.addUuidParameter("entity_filter_gbn_owner_id", ownerId.getId());
         ctx.addStringParameter("entity_filter_gbn_group_type", filter.getGroupType().name());
         ctx.addStringParameter("entity_filter_gbn_member_type", ctx.getEntityType().name());
@@ -1263,20 +1371,35 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
      * Mirrors {@code application/.../service/cf/OwnerService.getOwner} - that class cannot be reused
      * here because {@code dao} cannot depend on {@code application} - but works from raw SQL against
      * a single column per type rather than loaded domain objects, since this repository has no
-     * per-entity-type DAOs of its own. DASHBOARD is deliberately not covered: it has no customer_id
-     * column at all (ownership is derived from assigned_customers, a JSON list of assignments, and
-     * duplicating that resolution here would be exactly the kind of second implementation that goes
-     * quietly out of sync with OwnerService's).
+     * per-entity-type DAOs of its own.
+     * <p>
+     * Type coverage follows PE's {@code DefaultEntityQueryRepository#getOwnerId}, including its
+     * fall-through to the tenant for any type that has no owner column of its own, and its indirection
+     * for alarms (which carry a customer_id, but the authoritative owner is the originator's). Two
+     * entries differ from PE because the CE schema differs: DASHBOARD and ROLE have no customer_id
+     * column here, so they are tenant-owned rather than resolvable.
      */
+    /**
+     * A type with no {@link #entityTableMap} entry has no table to select from: the generated SQL
+     * becomes "FROM null as e" and the request fails with a Postgres syntax error surfaced as a 500.
+     * An empty result is the honest answer, and it is what lets BaseEntityService#validForEdqs route
+     * non-EDQS-resident types here unconditionally.
+     */
+    private static boolean isNotQueryable(EntityType entityType) {
+        return entityType != null && !entityTableMap.containsKey(entityType);
+    }
+
     private EntityId resolveOwnerId(TenantId tenantId, EntityId entityId) {
+        return resolveOwnerId(tenantId, entityId, 0);
+    }
+
+    private EntityId resolveOwnerId(TenantId tenantId, EntityId entityId, int depth) {
         EntityType type = entityId.getEntityType();
         UUID id = entityId.getId();
         switch (type) {
-            case TENANT:
-                return tenantId;
             case CUSTOMER: {
                 UUID parentId = queryForNullableUuid("select parent_customer_id from customer where id = :id", id);
-                return parentId != null ? new CustomerId(parentId) : tenantId;
+                return parentId != null && !EntityId.NULL_UUID.equals(parentId) ? new CustomerId(parentId) : tenantId;
             }
             case ENTITY_GROUP: {
                 Map<String, Object> row;
@@ -1288,19 +1411,48 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
                 }
                 return EntityIdFactory.getByTypeAndUuid((String) row.get("owner_type"), (UUID) row.get("owner_id"));
             }
+            case ALARM: {
+                // An alarm belongs wherever its originator belongs. depth guards against a malformed
+                // originator chain; in practice an alarm's originator is never itself an alarm.
+                if (depth > 0) {
+                    return tenantId;
+                }
+                Map<String, Object> row;
+                try {
+                    row = jdbcTemplate.queryForMap("select originator_id, originator_type from alarm where id = :id",
+                            Collections.singletonMap("id", id));
+                } catch (EmptyResultDataAccessException e) {
+                    return tenantId;
+                }
+                UUID originatorId = (UUID) row.get("originator_id");
+                Object originatorType = row.get("originator_type");
+                if (originatorId == null || originatorType == null) {
+                    return tenantId;
+                }
+                // alarm.originator_type is an integer column - AbstractAlarmEntity maps EntityType there
+                // with JPA's default ORDINAL strategy, so index into EntityType.values() the same way.
+                return resolveOwnerId(tenantId, EntityIdFactory.getByTypeAndUuid(((Number) originatorType).intValue(), originatorId), depth + 1);
+            }
             case DEVICE:
             case ASSET:
             case ENTITY_VIEW:
             case EDGE:
             case USER:
-            case SCHEDULER_EVENT: {
-                String table = entityTableMap.getOrDefault(type, type == EntityType.SCHEDULER_EVENT ? "scheduler_event" : null);
-                UUID customerId = queryForNullableUuid("select customer_id from " + table + " where id = :id", id);
+            // dashboard.customer_id is the owner (set by OwnerService#changeOwner), so a dashboard
+            // now resolves exactly like every other owned entity - no group derivation, and no
+            // tie-break when it is shared with several customers.
+            case DASHBOARD:
+            case ROLE:
+            case SCHEDULER_EVENT:
+            case BLOB_ENTITY:
+            case REPORT_TEMPLATE:
+            case REPORT: {
+                UUID customerId = queryForNullableUuid("select customer_id from " + ownerTableMap.get(type) + " where id = :id", id);
                 return customerId != null && !EntityId.NULL_UUID.equals(customerId) ? new CustomerId(customerId) : tenantId;
             }
             default:
-                throw new IllegalArgumentException("Owner lookup is not supported for entity type " + type
-                        + " (STATE_ENTITY_OWNER filter)");
+                // TENANT, RULE_CHAIN, CONVERTER, INTEGRATION, WIDGET_TYPE, ... - no owner column.
+                return tenantId;
         }
     }
 

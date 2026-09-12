@@ -44,6 +44,7 @@ import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
+import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.dao.tenant.TbTenantProfileCache;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
@@ -88,13 +89,16 @@ public class DefaultCalculatedFieldCacheTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private RoleService roleService;
+
     private DefaultCalculatedFieldCache cache;
 
     @BeforeEach
     public void setUp() {
         // ActorSystemContext is only used in getCalculatedFieldCtx (not tested here), so null is safe
         OwnerService ownerService = new OwnerService(deviceService, assetService, customerService,
-                entityViewService, dashboardService, userService);
+                entityViewService, dashboardService, userService, roleService);
         cache = new DefaultCalculatedFieldCache(calculatedFieldService, assetProfileCache,
                 deviceProfileCache, tenantProfileCache, null, ownerService);
 

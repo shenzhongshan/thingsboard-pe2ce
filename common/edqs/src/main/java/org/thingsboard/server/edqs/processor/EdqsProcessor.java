@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.edqs.processor;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -222,15 +223,19 @@ public class EdqsProcessor implements TbQueueHandler<TbProtoQueueMsg<ToEdqsMsg>,
                 .build(), request.getHeaders());
     }
 
+    private static QueryPermissions permissionsOf(EdqsRequest request) {
+        return request.getQueryPermissions() != null ? request.getQueryPermissions() : QueryPermissions.UNRESTRICTED;
+    }
+
     private EdqsResponse processRequest(TenantId tenantId, CustomerId customerId, EdqsRequest request) {
         EdqsResponse response = new EdqsResponse();
         try {
             if (request.getEntityDataQuery() != null) {
                 PageData<QueryResult> result = repository.findEntityDataByQuery(tenantId, customerId,
-                        request.getEntityDataQuery(), false);
+                        request.getEntityDataQuery(), false, permissionsOf(request));
                 response.setEntityDataQueryResult(result.mapData(QueryResult::toOldEntityData));
             } else if (request.getEntityCountQuery() != null) {
-                long result = repository.countEntitiesByQuery(tenantId, customerId, request.getEntityCountQuery(), tenantId.isSysTenantId());
+                long result = repository.countEntitiesByQuery(tenantId, customerId, request.getEntityCountQuery(), tenantId.isSysTenantId(), permissionsOf(request));
                 response.setEntityCountQueryResult(result);
             }
             log.trace("[{}] Request: {}, response: {}", tenantId, request, response);

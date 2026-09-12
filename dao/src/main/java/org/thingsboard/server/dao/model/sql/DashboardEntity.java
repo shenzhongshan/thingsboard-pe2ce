@@ -28,6 +28,7 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Dashboard;
 import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.dao.model.BaseVersionedEntity;
@@ -49,6 +50,10 @@ public final class DashboardEntity extends BaseVersionedEntity<Dashboard> {
 
     @Column(name = ModelConstants.DASHBOARD_TENANT_ID_PROPERTY)
     private UUID tenantId;
+
+    /** Owner; see DashboardInfo#customerId for why this is not assignedCustomers. */
+    @Column(name = ModelConstants.DASHBOARD_CUSTOMER_ID_PROPERTY)
+    private UUID customerId;
 
     @Column(name = ModelConstants.DASHBOARD_TITLE_PROPERTY)
     private String title;
@@ -80,6 +85,9 @@ public final class DashboardEntity extends BaseVersionedEntity<Dashboard> {
         super(dashboard);
         if (dashboard.getTenantId() != null) {
             this.tenantId = dashboard.getTenantId().getId();
+        if (dashboard.getCustomerId() != null && !dashboard.getCustomerId().isNullUid()) {
+            this.customerId = dashboard.getCustomerId().getId();
+        }
         }
         this.title = dashboard.getTitle();
         this.image = dashboard.getImage();
@@ -105,6 +113,9 @@ public final class DashboardEntity extends BaseVersionedEntity<Dashboard> {
         dashboard.setVersion(version);
         if (tenantId != null) {
             dashboard.setTenantId(TenantId.fromUUID(tenantId));
+        if (customerId != null) {
+            dashboard.setCustomerId(new CustomerId(customerId));
+        }
         }
         dashboard.setTitle(title);
         dashboard.setImage(image);

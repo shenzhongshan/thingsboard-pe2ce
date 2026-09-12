@@ -222,6 +222,15 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
                 if (newCustomerId != null) {
                     entityGroupService.ensureAllGroupMembership(savedUser.getTenantId(), newCustomerId, EntityType.USER, savedUser.getId());
                 }
+                // Default role grant, so this user is never left with zero permissions. Skipped for
+                // SYS_ADMIN: its tenantId is the NULL_UUID sentinel, so bootstrapping would create a
+                // role and user groups under a tenant that does not exist - and a sysadmin never
+                // consults roles anyway (DefaultUserPermissionsService returns MergedUserPermissions
+                // .ALL before any lookup).
+                if (savedUser.getAuthority() != Authority.SYS_ADMIN) {
+                    entityGroupService.ensureDefaultUserRoleMembership(savedUser.getTenantId(), newCustomerId,
+                            savedUser.getId(), newCustomerId == null);
+                }
             } else if (!Objects.equals(oldCustomerId, newCustomerId)) {
                 entityGroupService.moveAllGroupMembership(savedUser.getTenantId(), oldCustomerId, newCustomerId, EntityType.USER, savedUser.getId());
             }

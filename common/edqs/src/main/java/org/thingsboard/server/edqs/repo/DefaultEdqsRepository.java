@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.edqs.repo;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -62,8 +63,12 @@ public class DefaultEdqsRepository implements EdqsRepository {
 
     @Override
     public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, boolean ignorePermissionCheck) {
+        return countEntitiesByQuery(tenantId, customerId, query, ignorePermissionCheck, QueryPermissions.UNRESTRICTED);
+    }
+
+    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, boolean ignorePermissionCheck, QueryPermissions queryPermissions) {
         long startNs = System.nanoTime();
-        long result = get(tenantId).countEntitiesByQuery(customerId, query, ignorePermissionCheck);
+        long result = get(tenantId).countEntitiesByQuery(customerId, query, ignorePermissionCheck, queryPermissions);
         statsService.reportEdqsCountQuery(tenantId, query, System.nanoTime() - startNs);
         return result;
     }
@@ -71,8 +76,14 @@ public class DefaultEdqsRepository implements EdqsRepository {
     @Override
     public PageData<QueryResult> findEntityDataByQuery(TenantId tenantId, CustomerId customerId,
                                                        EntityDataQuery query, boolean ignorePermissionCheck) {
+        return findEntityDataByQuery(tenantId, customerId, query, ignorePermissionCheck, QueryPermissions.UNRESTRICTED);
+    }
+
+    public PageData<QueryResult> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query,
+                                                       boolean ignorePermissionCheck,
+                                                       QueryPermissions queryPermissions) {
         long startNs = System.nanoTime();
-        var result = get(tenantId).findEntityDataByQuery(customerId, query, ignorePermissionCheck);
+        var result = get(tenantId).findEntityDataByQuery(customerId, query, ignorePermissionCheck, queryPermissions);
         statsService.reportEdqsDataQuery(tenantId, query, System.nanoTime() - startNs);
         return result;
     }

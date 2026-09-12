@@ -29,11 +29,19 @@ import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.asset.AssetProfile;
+import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.integration.Integration;
+import org.thingsboard.server.common.data.report.ReportTemplate;
+import org.thingsboard.server.common.data.role.Role;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.queue.QueueStats;
 import org.thingsboard.server.common.data.rule.RuleChain;
 import org.thingsboard.server.common.data.rule.RuleNode;
+import org.thingsboard.server.common.data.scheduler.SchedulerEvent;
+import org.thingsboard.server.common.data.scheduler.SchedulerEventInfo;
 import org.thingsboard.server.common.data.widget.WidgetType;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
 
@@ -76,6 +84,20 @@ public class FieldsUtil {
             return toFields(queueStats);
         } else if (entity instanceof ApiUsageState apiUsageState) {
             return toFields(apiUsageState);
+        } else if (entity instanceof EntityGroup entityGroup) {
+            return toFields(entityGroup);
+        } else if (entity instanceof Converter converter) {
+            return toFields(converter);
+        } else if (entity instanceof Integration integration) {
+            return toFields(integration);
+        } else if (entity instanceof Role role) {
+            return toFields(role);
+        } else if (entity instanceof ReportTemplate reportTemplate) {
+            return toFields(reportTemplate);
+        } else if (entity instanceof SchedulerEventInfo schedulerEvent) {
+            // SchedulerEvent extends SchedulerEventInfo, so this branch covers both; the configuration
+            // payload only exists on the former.
+            return toFields(schedulerEvent);
         } else {
             throw new IllegalArgumentException("Unsupported entity type: " + entity.getClass().getName());
         }
@@ -85,6 +107,9 @@ public class FieldsUtil {
         return CustomerFields.builder()
                 .id(entity.getUuidId())
                 .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                // the parent customer, feeding TenantRepo's customersHierarchy index
+                .customerId(getCustomerId(entity.getParentCustomerId()))
                 .name(entity.getTitle())
                 .additionalInfo(getText(entity.getAdditionalInfo()))
                 .email(entity.getEmail())
@@ -198,6 +223,7 @@ public class FieldsUtil {
         return DashboardFields.builder()
                 .id(entity.getUuidId())
                 .createdTime(entity.getCreatedTime())
+                .customerId(getCustomerId(entity.getCustomerId()))
                 .name(entity.getTitle())
                 .version(entity.getVersion())
                 .build();
@@ -284,6 +310,89 @@ public class FieldsUtil {
                 .emailExecState(entity.getEmailExecState())
                 .smsExecState(entity.getSmsExecState())
                 .alarmExecState(entity.getAlarmExecState())
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static ConverterFields toFields(Converter entity) {
+        return ConverterFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                .name(entity.getName())
+                .type(entity.getType() != null ? entity.getType().name() : null)
+                .additionalInfo(getText(entity.getAdditionalInfo()))
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static IntegrationFields toFields(Integration entity) {
+        return IntegrationFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                .name(entity.getName())
+                .type(entity.getType() != null ? entity.getType().name() : null)
+                .additionalInfo(getText(entity.getAdditionalInfo()))
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static RoleFields toFields(Role entity) {
+        return RoleFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                .customerId(getCustomerId(entity.getCustomerId()))
+                .name(entity.getName())
+                .type(entity.getType() != null ? entity.getType().name() : null)
+                .additionalInfo(getText(entity.getAdditionalInfo()))
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static ReportTemplateFields toFields(ReportTemplate entity) {
+        return ReportTemplateFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                .customerId(getCustomerId(entity.getCustomerId()))
+                .name(entity.getName())
+                .type(entity.getType() != null ? entity.getType().name() : null)
+                .format(entity.getFormat() != null ? entity.getFormat().name() : null)
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static EntityGroupFields toFields(EntityGroup entity) {
+        EntityId ownerId = entity.getOwnerId();
+        return EntityGroupFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                // only a customer owner is a "customer scope"; a tenant-owned group has none
+                .customerId(ownerId != null && ownerId.getEntityType() == EntityType.CUSTOMER ? ownerId.getId() : null)
+                .name(entity.getName())
+                .type(entity.getType() != null ? entity.getType().name() : null)
+                .additionalInfo(getText(entity.getAdditionalInfo()))
+                .ownerId(ownerId != null ? ownerId.getId() : null)
+                .ownerType(ownerId != null ? ownerId.getEntityType() : null)
+                .version(entity.getVersion())
+                .build();
+    }
+
+    private static SchedulerEventFields toFields(SchedulerEventInfo entity) {
+        return SchedulerEventFields.builder()
+                .id(entity.getUuidId())
+                .createdTime(entity.getCreatedTime())
+                .tenantId(entity.getTenantId() != null ? entity.getTenantId().getId() : null)
+                .customerId(getCustomerId(entity.getCustomerId()))
+                .name(entity.getName())
+                .type(entity.getType())
+                .schedule(getText(entity.getSchedule()))
+                .configuration(entity instanceof SchedulerEvent schedulerEvent ? getText(schedulerEvent.getConfiguration()) : "")
+                .additionalInfo(getText(entity.getAdditionalInfo()))
+                .originatorId(entity.getOriginatorId())
                 .version(entity.getVersion())
                 .build();
     }

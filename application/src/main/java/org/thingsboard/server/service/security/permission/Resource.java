@@ -203,6 +203,19 @@ public enum Resource {
         return entityTypes;
     }
 
+    /**
+     * Like {@link #of(EntityType)} but null instead of throwing, for callers that sweep every
+     * EntityType. Several types (RULE_NODE, JOB, ...) deliberately have no Resource.
+     */
+    public static Resource ofOrNull(EntityType entityType) {
+        for (Resource resource : Resource.values()) {
+            if (resource.getEntityTypes().contains(entityType)) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
     public static Resource of(EntityType entityType) {
         for (Resource resource : Resource.values()) {
             if (resource.getEntityTypes().contains(entityType)) {

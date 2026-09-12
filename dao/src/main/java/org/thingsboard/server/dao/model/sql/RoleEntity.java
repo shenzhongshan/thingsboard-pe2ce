@@ -24,6 +24,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.RoleId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.role.Role;
@@ -42,6 +44,9 @@ public class RoleEntity extends BaseVersionedEntity<Role> implements BaseEntity<
 
     @Column(name = "tenant_id")
     private UUID tenantId;
+
+    @Column(name = "customer_id")
+    private UUID customerId;
 
     @Column(name = "name")
     private String name;
@@ -70,6 +75,9 @@ public class RoleEntity extends BaseVersionedEntity<Role> implements BaseEntity<
         if (role.getTenantId() != null) {
             this.tenantId = role.getTenantId().getId();
         }
+        // Normalise to PE's sentinel so the (tenant, customer, name) equality lookup can match
+        // tenant-level roles - SQL NULL would never compare equal.
+        this.customerId = role.getCustomerId() != null ? role.getCustomerId().getId() : EntityId.NULL_UUID;
         this.name = role.getName();
         this.type = role.getType();
         this.permissions = role.getPermissions();
@@ -87,6 +95,7 @@ public class RoleEntity extends BaseVersionedEntity<Role> implements BaseEntity<
         if (tenantId != null) {
             role.setTenantId(TenantId.fromUUID(tenantId));
         }
+        role.setCustomerId(new CustomerId(customerId != null ? customerId : EntityId.NULL_UUID));
         role.setName(name);
         role.setType(type);
         role.setPermissions(permissions);

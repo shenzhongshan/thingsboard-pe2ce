@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.entity;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.EntityInfo;
@@ -31,6 +32,7 @@ import org.thingsboard.server.common.data.query.EntityDataQuery;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public interface EntityService {
 
@@ -50,8 +52,19 @@ public interface EntityService {
 
     long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query);
 
+    /**
+     * @param queryPermissions entity groups the querying user may READ via a GROUP role; these
+     *                               are unioned with the user's owner scope. Pass an empty set for
+     *                               internal callers, which already run at tenant scope.
+     */
+    long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, QueryPermissions queryPermissions);
+
     PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query);
 
+    PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions);
+
     ListenableFuture<PageData<EntityData>> findEntityDataByQueryAsync(TenantId tenantId, CustomerId customerId, EntityDataQuery query);
+
+    ListenableFuture<PageData<EntityData>> findEntityDataByQueryAsync(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions);
 
 }

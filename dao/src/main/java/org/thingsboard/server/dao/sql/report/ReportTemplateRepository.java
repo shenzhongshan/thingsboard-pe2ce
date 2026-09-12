@@ -15,11 +15,13 @@
  */
 package org.thingsboard.server.dao.sql.report;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.thingsboard.server.common.data.edqs.fields.ReportTemplateFields;
 import org.thingsboard.server.dao.ExportableEntityRepository;
 import org.thingsboard.server.dao.model.sql.ReportTemplateEntity;
 
@@ -49,5 +51,8 @@ public interface ReportTemplateRepository extends JpaRepository<ReportTemplateEn
 
     @Query("SELECT externalId FROM ReportTemplateEntity WHERE id = :id")
     UUID getExternalIdById(@Param("id") UUID id);
+
+    @Query("SELECT new org.thingsboard.server.common.data.edqs.fields.ReportTemplateFields(t.id, t.createdTime, t.tenantId, t.customerId, t.name, t.version, t.type, t.format) FROM ReportTemplateEntity t WHERE t.id > :id ORDER BY t.id")
+    List<ReportTemplateFields> findNextBatch(@Param("id") UUID id, Limit limit);
 
 }

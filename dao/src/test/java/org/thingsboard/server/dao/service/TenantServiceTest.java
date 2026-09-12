@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cache.TbTransactionalCache;
 import org.thingsboard.server.common.data.Customer;
@@ -124,6 +125,8 @@ public class TenantServiceTest extends AbstractServiceTest {
     UserService userService;
     @Autowired
     WidgetsBundleService widgetsBundleService;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     private final IdComparator<Tenant> idComparator = new IdComparator<>();
 
@@ -495,6 +498,74 @@ public class TenantServiceTest extends AbstractServiceTest {
         tenantProfileService.deleteTenantProfile(TenantId.SYS_TENANT_ID, profile.getId());
     }
 
+    /**
+     * Roles, entity groups and group permissions are not housekeeper-deletable entity types, so they
+     * are swept synchronously by deleteTenant. Before that sweep existed they simply outlived their
+     * tenant - and since every tenant and customer now gets a default role plus default user groups,
+     * the leak grew with every tenant ever created.
+     */
+    @Test
+    public void testDeleteTenantLeavesNoOrphanRolesGroupsOrPermissions() {
+        TenantProfile profile = createAndSaveTenantProfile();
+        Tenant tenant = createAndSaveTenant(profile);
+        Customer customer = createAndSaveCustomerFor(tenant);
+        createAndSaveUserFor(tenant);
+        createAndSaveCustomerUserFor(tenant, customer);
+        DeviceProfile deviceProfile = createAndSaveDeviceProfileWithProfileDataFor(tenant);
+        createAndSaveDeviceFor(tenant, customer, deviceProfile);
+
+        // Positive control: without rows to begin with, every assertion below would hold vacuously.
+        assertThat(countForTenant("role", tenant)).as("roles before delete").isPositive();
+        assertThat(countForTenant("entity_group", tenant)).as("entity groups before delete").isPositive();
+        assertThat(countForTenant("group_permission", tenant)).as("group permissions before delete").isPositive();
+        assertThat(countGroupMembershipRelationsFor(tenant)).as("group relations before delete").isPositive();
+
+        // Baselines rather than absolute zeros: the orphan queries are database-wide, and another
+        // test leaving a row behind must not be reported as this tenant's leak.
+        int orphanRoles = countOrphans("role");
+        int orphanGroups = countOrphans("entity_group");
+        int orphanPermissions = countOrphans("group_permission");
+        int orphanRelations = countOrphanGroupMembershipRelations();
+
+        tenantService.deleteTenant(tenant.getId());
+
+        assertThat(countForTenant("role", tenant)).as("roles left behind").isZero();
+        assertThat(countForTenant("entity_group", tenant)).as("entity groups left behind").isZero();
+        assertThat(countForTenant("group_permission", tenant)).as("group permissions left behind").isZero();
+        // Not just "none for this tenant" - no row anywhere may now point at a tenant that is gone,
+        // which is the shape the leak actually took on a live database.
+        assertThat(countOrphans("role")).as("orphan roles").isEqualTo(orphanRoles);
+        assertThat(countOrphans("entity_group")).as("orphan entity groups").isEqualTo(orphanGroups);
+        assertThat(countOrphans("group_permission")).as("orphan group permissions").isEqualTo(orphanPermissions);
+        assertThat(countOrphanGroupMembershipRelations())
+                .as("orphan group membership relations").isEqualTo(orphanRelations);
+
+        tenantProfileService.deleteTenantProfile(TenantId.SYS_TENANT_ID, profile.getId());
+    }
+
+    private int countForTenant(String table, Tenant tenant) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM " + table + " WHERE tenant_id = ?",
+                Integer.class, tenant.getUuidId());
+    }
+
+    private int countOrphans(String table) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM " + table + " e " +
+                "WHERE NOT EXISTS (SELECT 1 FROM tenant t WHERE t.id = e.tenant_id)", Integer.class);
+    }
+
+    private int countGroupMembershipRelationsFor(Tenant tenant) {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM relation r " +
+                "WHERE r.relation_type_group = 'FROM_ENTITY_GROUP' " +
+                "AND EXISTS (SELECT 1 FROM entity_group g WHERE g.id = r.from_id AND g.tenant_id = ?)",
+                Integer.class, tenant.getUuidId());
+    }
+
+    private int countOrphanGroupMembershipRelations() {
+        return jdbcTemplate.queryForObject("SELECT count(*) FROM relation r " +
+                "WHERE r.relation_type_group = 'FROM_ENTITY_GROUP' " +
+                "AND NOT EXISTS (SELECT 1 FROM entity_group g WHERE g.id = r.from_id)", Integer.class);
+    }
+
     private void assertOtaPackageIsDeleted(Tenant tenant, OtaPackage otaPackage) {
         assertThat(otaPackageService.findOtaPackageById(tenant.getId(), otaPackage.getId()))
                 .as("otaPackage").isNull();
@@ -708,6 +779,17 @@ public class TenantServiceTest extends AbstractServiceTest {
         customer.setTenantId(tenant.getId());
         customer.setEmail("testCustomer@test.com");
         return customerService.saveCustomer(customer);
+    }
+
+    private User createAndSaveCustomerUserFor(Tenant tenant, Customer customer) {
+        User user = new User();
+        user.setAuthority(Authority.CUSTOMER_USER);
+        user.setEmail("customerUser@test.com");
+        user.setFirstName("customerUser");
+        user.setLastName("customerUser");
+        user.setTenantId(tenant.getId());
+        user.setCustomerId(customer.getId());
+        return userService.saveUser(TenantId.SYS_TENANT_ID, user);
     }
 
     private User createAndSaveUserFor(Tenant tenant) {
