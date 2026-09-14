@@ -28,6 +28,7 @@ import { SmartLightningAlarmDispatchDialogComponent } from '@home/pages/deviceAl
 import { SmartLightningAlarmAnalysisComponent } from '@home/pages/deviceAlarms/analysis/smart-lightning-alarm-analysis.component';
 import { SmartLightningRootAssetFilterComponent } from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
 import { SmartLightningAssetTreeModule } from '@home/pages/smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
+import { SmartLightningPeriodSwitcherModule } from '@home/pages/smart-lightning/dashboard/smart-lightning-period-switcher.module';
 
 @NgModule({
   declarations: [
@@ -40,6 +41,7 @@ import { SmartLightningAssetTreeModule } from '@home/pages/smart-lightning/share
   imports: [
     CommonModule,
     SharedModule,
+    SmartLightningPeriodSwitcherModule,
     SmartLightningRootAssetFilterComponent,
     SmartLightningAssetTreeModule,
     HomeComponentsModule,

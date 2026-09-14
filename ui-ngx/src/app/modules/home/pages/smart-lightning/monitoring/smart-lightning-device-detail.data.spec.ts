@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { buildSmartLightningDeviceDetailMock, buildSmartLightningChartTimes, fitSmartLightningMockSeries } from './smart-lightning-device-detail.data.ts';
 import { buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions } from './smart-lightning-device-detail.data.ts';
+import { getSmartLightningProductSpecification } from './smart-lightning-product-specifications.ts';
 
 const detail = buildSmartLightningDeviceDetailMock('1234567890');
 assert.equal(detail.title, '设备监测 · 12345678');
@@ -69,6 +70,11 @@ const m1aiMetrics = buildSmartLightningRealtimeMetrics(
 assert.equal(m1aiMetrics.find((metric) => metric.label === '雷电流峰值')?.value, '125.4kA');
 assert.equal(m1aiMetrics.find((metric) => metric.label === '电涌次数')?.value, '5次');
 assert.equal(m1aiMetrics.find((metric) => metric.label === '极性')?.value, '正极');
+
+// 设备详情左上摘要卡片按设备配置显示说明书中的静态产品参数。
+assert.equal(getSmartLightningProductSpecification('DESA')?.model, 'FS-33211');
+assert.match(getSmartLightningProductSpecification('G1A3')?.items.find((item) => item.label === '阻值范围')?.value || '', /200/);
+assert.equal(getSmartLightningProductSpecification('FAP1'), undefined);
 
 for (const profile of ['DESA', 'DES4', 'DES9', 'DEM2', 'DEM4', 'DEA2', 'DEA4', 'ESM0', 'ESM3', 'G1A3', 'M1AI', 'L2AI', 'LDH1', 'FAP1']) {
   assert.ok(getSmartLightningRealtimeMetricDefinitions(profile).length > 0, `${profile} must have metric mappings`);

@@ -23,6 +23,7 @@
       treeAriaLabel="资产层级"
       (searchChange)="assetSearch = $event"
       (selectNode)="selectAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()"
       (toggleNode)="toggleAssetNode($event)">
     </tb-smart-lightning-asset-tree>
   </aside>

@@ -24,13 +24,20 @@ export interface AlarmAnalysisPeriodCard {
   tone: 'blue' | 'orange' | 'teal';
 }
 
-/** 末级资产告警排名行（演示数据）。 */
+/** 设备直属父资产告警排名行。 */
 export interface AlarmAnalysisSiteRow {
   /** 资产名称。 */
   name: string;
   /** 周期内告警数量。 */
   count: number;
   /** 已处理率百分比。 */
+  handledRate: number;
+}
+
+/** 后端设备直属父资产告警统计的最小结构，避免数据转换器依赖 HTTP 模型。 */
+export interface AlarmAnalysisLeafAssetCount {
+  assetName: string;
+  alarmCount: number;
   handledRate: number;
 }
 
@@ -55,17 +62,16 @@ export const ALERT_ANALYSIS_PERIODS: readonly AlarmAnalysisPeriodCard[] = [
   {key: 'year', label: '年', currentLabel: '今年告警数', previousLabel: '去年告警数', changeLabel: '年同比', total: 0, previous: 0, change: '--', tone: 'teal'}
 ];
 
-/** 末级资产告警排名演示数据（按告警数量降序）。 */
-export const ALARM_ANALYSIS_SITE_ROWS: readonly AlarmAnalysisSiteRow[] = [
-  {name: '研究院储能', count: 23, handledRate: 100},
-  {name: '防雷测试项目-001', count: 16, handledRate: 67},
-  {name: '研发楼配电房', count: 12, handledRate: 50},
-  {name: '生产车间-东区', count: 8, handledRate: 38},
-  {name: '门卫照明配电箱', count: 5, handledRate: 0},
-  {name: '消防主电源', count: 3, handledRate: 0},
-  {name: '研发楼配电房-二层', count: 2, handledRate: 0},
-  {name: '实验楼总配电柜', count: 1, handledRate: 0}
-];
+/** 把后端设备直属父资产统计映射为站点排名行，并保持告警数量降序。 */
+export function mapAlarmAnalysisSiteRows(items: readonly AlarmAnalysisLeafAssetCount[]): AlarmAnalysisSiteRow[] {
+  return [...items]
+    .map((item) => ({
+      name: item.assetName || '未命名设备父资产',
+      count: Number.isFinite(item.alarmCount) ? item.alarmCount : 0,
+      handledRate: Number.isFinite(item.handledRate) ? item.handledRate : 0
+    }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'zh-CN'));
+}
 
 /** 按告警类型聚合的排名演示数据。 */
 export const ALARM_ANALYSIS_TYPE_ROWS: readonly AlarmAnalysisBarInput[] = [

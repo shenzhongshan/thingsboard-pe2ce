@@ -17,7 +17,7 @@ public interface SpdMonitoringSummaryService {
      *
      * @param user 当前登录用户，用于执行权限过滤
      * @param period 统计周期，支持 day、week、month
-     * @return 设备数量、在线/离线数量、告警数、周期内最大漏电流及其设备/相位/时间
+     * @return 设备状态、周期告警、雷击次数、温度/漏流/电压最值及实时参数状态
      * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
      */
     SpdMonitoringSummary getSummary(SecurityUser user, String period) throws ThingsboardException;

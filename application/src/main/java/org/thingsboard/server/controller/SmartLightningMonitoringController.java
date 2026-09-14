@@ -35,6 +35,7 @@ import org.thingsboard.server.service.monitoring.dto.SmartLightningLeafAssetAlar
 import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
 import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
 import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeAnalysisDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmSummaryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmAnalysisService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningLeafAssetAlarmService;
@@ -44,8 +45,10 @@ import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceSer
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
 import org.thingsboard.server.service.monitoring.service.SpdMonitoringSummaryService;
 import org.thingsboard.server.service.monitoring.service.LightningCurrentMonitoringSummaryService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningRealtimeAnalysisService;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 智能防雷数据监测页专用接口。
@@ -68,11 +71,23 @@ public class SmartLightningMonitoringController extends BaseController {
     private final SmartLightningLeafAssetAlarmService smartLightningLeafAssetAlarmService;
     private final SpdMonitoringSummaryService spdMonitoringSummaryService;
     private final LightningCurrentMonitoringSummaryService lightningCurrentMonitoringSummaryService;
+    private final SmartLightningRealtimeAnalysisService smartLightningRealtimeAnalysisService;
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     public SmartLightningMonitoringTreeResponse getMonitoringTree() throws ThingsboardException {
         return monitoringTreeService.getTree(getCurrentUser());
+    }
+
+    /**
+     * 返回数据监测页的实时聚合结果。
+     * assetId 为空时统计全部可见防雷设备，传入时统计该资产及其全部后代设备。
+     */
+    @GetMapping("/realtime-analysis")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public SmartLightningRealtimeAnalysisDTO getRealtimeAnalysis(
+            @RequestParam(required = false) UUID assetId) throws ThingsboardException {
+        return smartLightningRealtimeAnalysisService.getAnalysis(getCurrentUser(), assetId);
     }
 
     /**
@@ -97,7 +112,7 @@ public class SmartLightningMonitoringController extends BaseController {
         return groundMonitoringSummaryService.getSummary(getCurrentUser(), period);
     }
 
-    /** SPD 监测摘要：设备状态为当前快照，告警和最大漏流按周期统计。 */
+    /** SPD 监测摘要：设备状态为当前快照，告警和周期数据盒子按所选周期统计。 */
     @GetMapping("/spd-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     public SpdMonitoringSummary getSpdMonitoringSummary(
@@ -162,7 +177,7 @@ public class SmartLightningMonitoringController extends BaseController {
         return smartLightningAlarmAnalysisService.getSummary(getCurrentUser());
     }
 
-    /** 返回每个末级资产下属设备在指定周期内的告警数量、已处理数量和处理率。 */
+    /** 返回每个末级设备父资产直接挂载设备在指定周期内的告警数量、已处理数量和处理率。 */
     @GetMapping("/alarm-analysis/leaf-assets")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     public List<SmartLightningLeafAssetAlarmCountDTO> getLeafAssetAlarmCounts(

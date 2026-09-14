@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { SharedModule } from '@app/shared/shared.module';
 import { SmartLightningDashboardComponent } from './smart-lightning-dashboard.component';
 import { SmartLightningDashboardRoutingModule } from './smart-lightning-dashboard-routing.module';
-import { SmartLightningPeriodSwitcherComponent } from './smart-lightning-period-switcher.component';
+import { SmartLightningPeriodSwitcherModule } from './smart-lightning-period-switcher.module';
 import { SmartLightningMonitoringComponent } from '../monitoring/smart-lightning-monitoring.component';
 import { SmartLightningDeviceDetailComponent } from '../monitoring/smart-lightning-device-detail.component';
 import { SmartLightningDataQueryComponent } from '../query/smart-lightning-data-query.component';
@@ -14,7 +14,7 @@ import { SmartLightningRootAssetFilterComponent } from '../smart-lightning-root-
 import { SmartLightningAssetTreeModule } from '../shared/asset-tree/smart-lightning-asset-tree.module';
 
 @NgModule({
-  declarations: [SmartLightningDashboardComponent, SmartLightningPeriodSwitcherComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent, SmartLightningHistoryReviewDialogComponent],
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
+  declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent, SmartLightningHistoryReviewDialogComponent],
+  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
 })
 export class SmartLightningDashboardModule {}

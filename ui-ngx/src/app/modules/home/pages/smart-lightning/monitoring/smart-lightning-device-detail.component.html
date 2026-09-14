@@ -1,6 +1,6 @@
 <!-- 文件职责：数据监测模块的 smart-lightning-device-detail.component，负责页面结构、状态与交互控件的模板渲染。 -->
 <!--
-  设备详情模板：左共享资产树（定位锁定模式），右设备摘要卡 + 四张趋势图（2×2）+ 实时数据 + 告警表。
+  设备详情模板：左共享资产树（定位锁定模式），右上设备摘要与实时数据并列，下方四张横向趋势图，底部告警表。
   返回链接按 returnUrl 区分来源页（数据监测/数据查询）。
 -->
 <main class="device-detail-page" aria-label="设备详情">
@@ -28,58 +28,80 @@
     <section class="detail-grid">
       <article class="surface device-summary">
         <div class="summary-top"><div class="device-mark"><tb-icon>electric_meter</tb-icon><strong class="product-name">{{productName}}</strong></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
-        <dl class="device-fields"><div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div><div><dt>温度1故障状态</dt><dd class="ok">正常</dd></div><div><dt>仪表地址</dt><dd [title]="instrumentAddress">{{instrumentAddress}}</dd></div><div><dt>温度2故障状态</dt><dd class="ok">正常</dd></div><div><dt>状态</dt><dd>离线</dd></div><div><dt>温度3故障状态</dt><dd class="ok">正常</dd></div><div><dt>回路名称</dt><dd>4p_5</dd></div><div><dt>断路器故障状态</dt><dd class="ok">正常</dd></div><div><dt>额定电压</dt><dd>—</dd></div><div><dt>检修状态</dt><dd>关</dd></div><div><dt>额定电流</dt><dd>—</dd></div><div><dt>本地锁定状态</dt><dd>未锁定</dd></div></dl>
+        @if (productSpecification; as specification) {
+          <section class="product-specification" aria-label="产品参数">
+            <header>
+              <h2>产品参数</h2>
+              <span [title]="specification.model">{{specification.model}}</span>
+            </header>
+            <dl>
+              @for (item of specification.items; track item.label) {
+                <div>
+                  <dt>{{item.label}}</dt>
+                  <dd [title]="item.value">{{item.value}}</dd>
+                </div>
+              }
+            </dl>
+          </section>
+        }
+        <!-- 原有摘要字段只保留设备名称和仪表地址；其余状态/控制字段由实时指标区承载。 -->
+        <dl class="device-fields"><div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div><div><dt>仪表地址</dt><dd [title]="instrumentAddress">{{instrumentAddress}}</dd></div></dl>
       </article>
-      <section class="chart-grid" aria-label="设备趋势图">
-        <article class="surface chart-card">
-          <header>
-            <h2>相电流</h2>
-            <div class="chart-period-tabs" role="group" aria-label="相电流时间范围">
-              <button *ngFor="let period of chartPeriodOptions" type="button"
-                      [class.active]="selectedChartPeriods.phaseCurrent === period.value"
-                      [attr.aria-pressed]="selectedChartPeriods.phaseCurrent === period.value"
-                      (click)="setChartPeriod('phaseCurrent', period.value)">{{period.label}}</button>
+      @if (!showAllChartsDialog) {
+        <section class="chart-grid" aria-label="设备趋势图">
+          @if (!chartsLoading && allChartDefinitions.length > 4) {
+            <div class="chart-grid-toolbar">
+              <button type="button" class="chart-more-button" (click)="openAllChartsDialog()">更多参数</button>
             </div>
-          </header>
-          <div #chartHost data-chart="phaseCurrent" class="chart-host"></div>
-        </article>
-        <article class="surface chart-card">
-          <header>
-            <h2>相电压</h2>
-            <div class="chart-period-tabs" role="group" aria-label="相电压时间范围">
-              <button *ngFor="let period of chartPeriodOptions" type="button"
-                      [class.active]="selectedChartPeriods.phaseVoltage === period.value"
-                      [attr.aria-pressed]="selectedChartPeriods.phaseVoltage === period.value"
-                      (click)="setChartPeriod('phaseVoltage', period.value)">{{period.label}}</button>
+          }
+          @if (chartsLoading && !chartDefinitions.length) {
+            <div class="chart-state">正在读取设备遥测参数…</div>
+          } @else if (!chartDefinitions.length) {
+            <div class="chart-state">当前设备暂无可绘制的数值遥测</div>
+          } @else {
+            @for (chart of chartDefinitions; track chart.id) {
+              <article class="surface chart-card">
+                <header>
+                  <h2>{{chart.title}}</h2>
+                  <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                    <button *ngFor="let period of chartPeriodOptions" type="button"
+                            [class.active]="selectedChartPeriods[chart.id] === period.value"
+                            [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                            (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                  </div>
+                </header>
+                <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+              </article>
+            }
+          }
+        </section>
+      }
+      @if (showAllChartsDialog) {
+        <div class="chart-dialog-backdrop" role="presentation" (click)="closeAllChartsDialog()">
+          <section class="chart-dialog" role="dialog" aria-modal="true" aria-labelledby="all-charts-title" (click)="$event.stopPropagation()">
+            <header class="chart-dialog-header">
+              <h2 id="all-charts-title">全部参数趋势</h2>
+              <button type="button" class="chart-dialog-close" aria-label="关闭更多参数" (click)="closeAllChartsDialog()">×</button>
+            </header>
+            <div class="chart-dialog-grid">
+              @for (chart of allChartDefinitions; track chart.id) {
+                <article class="surface chart-card">
+                  <header>
+                    <h2>{{chart.title}}</h2>
+                    <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                      <button *ngFor="let period of chartPeriodOptions" type="button"
+                              [class.active]="selectedChartPeriods[chart.id] === period.value"
+                              [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                              (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                    </div>
+                  </header>
+                  <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                </article>
+              }
             </div>
-          </header>
-          <div #chartHost data-chart="phaseVoltage" class="chart-host"></div>
-        </article>
-        <article class="surface chart-card">
-          <header>
-            <h2>剩余电流</h2>
-            <div class="chart-period-tabs" role="group" aria-label="剩余电流时间范围">
-              <button *ngFor="let period of chartPeriodOptions" type="button"
-                      [class.active]="selectedChartPeriods.residualCurrent === period.value"
-                      [attr.aria-pressed]="selectedChartPeriods.residualCurrent === period.value"
-                      (click)="setChartPeriod('residualCurrent', period.value)">{{period.label}}</button>
-            </div>
-          </header>
-          <div #chartHost data-chart="residualCurrent" class="chart-host"></div>
-        </article>
-        <article class="surface chart-card">
-          <header>
-            <h2>温度</h2>
-            <div class="chart-period-tabs" role="group" aria-label="温度时间范围">
-              <button *ngFor="let period of chartPeriodOptions" type="button"
-                      [class.active]="selectedChartPeriods.temperature === period.value"
-                      [attr.aria-pressed]="selectedChartPeriods.temperature === period.value"
-                      (click)="setChartPeriod('temperature', period.value)">{{period.label}}</button>
-            </div>
-          </header>
-          <div #chartHost data-chart="temperature" class="chart-host"></div>
-        </article>
-      </section>
+          </section>
+        </div>
+      }
       <article class="surface realtime-panel">
         <header><h2>实时数据</h2><time>2026-09-02 10:30:00</time></header>
         <div class="metric-grid">
@@ -90,7 +112,7 @@
       </article>
     </section>
     <section class="surface alarms-panel">
-      <header><div><h2>报警信息</h2></div><button type="button" title="模拟按钮">更多参数</button></header>
+      <header><div><h2>报警信息</h2></div><button type="button" title="模拟按钮">更多告警</button></header>
       <div class="alarm-table-wrap">
         <table>
           <thead><tr><th>序号</th><th>报警项目名称</th><th>报警类型</th><th>处理标志</th><th>报警时间</th></tr></thead>

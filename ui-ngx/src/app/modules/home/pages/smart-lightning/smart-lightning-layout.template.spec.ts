@@ -13,6 +13,14 @@ const dataQueryTemplate = readFileSync(
   join(smartLightningDirectory, 'query', 'smart-lightning-data-query.component.html'),
   'utf8'
 );
+const monitoringTemplate = readFileSync(
+  join(smartLightningDirectory, 'monitoring', 'smart-lightning-monitoring.component.html'),
+  'utf8'
+);
+const monitoringStyles = readFileSync(
+  join(smartLightningDirectory, 'monitoring', 'smart-lightning-monitoring.component.scss'),
+  'utf8'
+);
 const assetPanelTemplates = [
   join(smartLightningDirectory, 'monitoring', 'smart-lightning-monitoring.component.html'),
   join(smartLightningDirectory, 'monitoring', 'smart-lightning-device-detail.component.html'),
@@ -49,3 +57,7 @@ for (const stylePath of pageStyles) {
   const stylesheet = readFileSync(stylePath, 'utf8');
   assert.ok(stylesheet.includes('padding: var(--tb-smart-page-spacing)'), stylePath);
 }
+
+// 有未处理告警的设备卡片，左侧悬浮状态条必须切换为红色提示。
+assert.ok(monitoringTemplate.includes('[class.alarm-card]="card.status === \'报警\'"'));
+assert.ok(monitoringStyles.includes('.device-card.alarm-card::before'));

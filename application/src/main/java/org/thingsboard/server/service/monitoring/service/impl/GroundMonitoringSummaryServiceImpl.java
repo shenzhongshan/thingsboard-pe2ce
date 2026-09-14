@@ -27,6 +27,8 @@ import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.kv.Aggregation;
+import org.thingsboard.server.common.data.kv.BaseReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
@@ -34,6 +36,8 @@ import org.thingsboard.server.common.data.page.SortOrder;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.monitoring.dto.GroundAlarmTypeTotalDTO;
+import org.thingsboard.server.service.monitoring.dto.GroundResistanceExtrema;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
 import org.thingsboard.server.service.monitoring.service.GroundMonitoringSummaryService;
 import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
@@ -45,9 +49,11 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -76,7 +82,7 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
      *
      * @param user 当前登录用户，用于执行权限过滤
      * @param period 告警统计窗口，仅接受 day、week、month
-     * @return 设备总数、在线/离线数量、周期内告警数、最新阻值的最大和最小值
+     * @return 设备总数、在线/离线数量、周期内告警数、告警类型统计、报警率和阻值范围
      * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
      */
     @Override
@@ -92,21 +98,14 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
             }
         }
 
-        int alarmCount = countGroundAlarmsSince(user, groundDeviceIds, window);
-        List<Double> resistanceValues = findLatestGroundResistanceValues(user, groundDeviceIds);
-        Double maxResistance = null;
-        Double minResistance = null;
-        for (Double resistanceValue : resistanceValues) {
-            if (maxResistance == null || resistanceValue > maxResistance) {
-                maxResistance = resistanceValue;
-            }
-            if (minResistance == null || resistanceValue < minResistance) {
-                minResistance = resistanceValue;
-            }
-        }
+        GroundAlarmAggregate alarms = countGroundAlarmsSince(user, groundDeviceIds, window);
+        GroundResistanceExtrema resistanceExtrema = findGroundResistanceRange(user, groundDevices, window);
 
         int total = groundDevices.size();
-        return new GroundMonitoringSummary(total, online, total - online, alarmCount, maxResistance, minResistance);
+        double alarmRate = total == 0 ? 0D : alarms.alarmDeviceIds.size() * 100D / total;
+        return new GroundMonitoringSummary(
+                total, online, total - online, alarms.count, alarms.typeTotals, alarmRate,
+                resistanceExtrema.getMaximum(), resistanceExtrema.getMinimum(), resistanceExtrema);
     }
 
     /** 复用智能防雷设备服务的权限、批量属性和 productCategory 过滤。 */
@@ -125,11 +124,11 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
     }
 
     /** 告警按 createdTime（触发时间）筛选，包含在窗口中已清除的历史告警。 */
-    private int countGroundAlarmsSince(
+    private GroundAlarmAggregate countGroundAlarmsSince(
             SecurityUser user, List<EntityId> groundDeviceIds, MonitoringPeriodWindow window)
             throws ThingsboardException {
         if (groundDeviceIds.isEmpty()) {
-            return 0;
+            return GroundAlarmAggregate.empty();
         }
         Set<UUID> groundDeviceIdValues = new HashSet<>();
         for (EntityId groundDeviceId : groundDeviceIds) {
@@ -141,50 +140,122 @@ public class GroundMonitoringSummaryServiceImpl implements GroundMonitoringSumma
                 window.getStartTs(), window.getEndTs());
         AlarmQueryV2 query = new AlarmQueryV2(
                 null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ANY), Collections.emptyList(), null);
-        int count = 0;
+        GroundAlarmAggregate result = GroundAlarmAggregate.empty();
         for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
             EntityId originator = alarm.getOriginator();
             if (originator != null && originator.getEntityType() == EntityType.DEVICE
                     && groundDeviceIdValues.contains(originator.getId())) {
-                count++;
+                result.count++;
+                result.alarmDeviceIds.add(originator.getId());
+                String type = alarm.getType() == null || alarm.getType().isBlank()
+                        ? "未分类" : alarm.getType().trim();
+                result.countsByType.put(type, result.countsByType.getOrDefault(type, 0) + 1);
             }
         }
-        return count;
+        for (Map.Entry<String, Integer> entry : result.countsByType.entrySet()) {
+            result.typeTotals.add(new GroundAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
+        }
+        result.typeTotals.sort(new Comparator<GroundAlarmTypeTotalDTO>() {
+            @Override
+            public int compare(GroundAlarmTypeTotalDTO left, GroundAlarmTypeTotalDTO right) {
+                int countOrder = Integer.compare(right.getCount(), left.getCount());
+                return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
+            }
+        });
+        return result;
     }
 
     /**
-     * 同时读取每台地网设备的最新阻值。TimeseriesService 没有按实体保留结果的单次批量 API，
-     * 故由服务层并行发起查询并统一等待，前端始终只请求一个汇总接口。
+     * 同时读取每台地网设备在当前周期的阻值。TimeseriesService 没有按实体保留结果的
+     * 单次批量 API，故由服务层并行发起查询并统一等待，前端始终只请求一个汇总接口。
      */
-    private List<Double> findLatestGroundResistanceValues(SecurityUser user, List<EntityId> groundDeviceIds)
+    private GroundResistanceExtrema findGroundResistanceRange(
+            SecurityUser user, List<SmartLightningDeviceContextDTO> groundDevices,
+            MonitoringPeriodWindow window)
             throws ThingsboardException {
-        List<ListenableFuture<Optional<TsKvEntry>>> futures = new ArrayList<>();
+        List<EntityId> groundDeviceIds = new ArrayList<>();
+        for (SmartLightningDeviceContextDTO device : groundDevices) {
+            groundDeviceIds.add(new DeviceId(device.getDeviceId()));
+        }
+        if (groundDeviceIds.isEmpty()) {
+            return new GroundResistanceExtrema(null, null, null, null, null, null, null, null);
+        }
+        List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
         for (EntityId groundDeviceId : groundDeviceIds) {
-            futures.add(timeseriesService.findLatest(
-                    user.getTenantId(), new DeviceId(groundDeviceId.getId()), GROUND_RESISTANCE_TELEMETRY_KEY));
+            futures.add(timeseriesService.findAll(
+                    user.getTenantId(), new DeviceId(groundDeviceId.getId()), List.of(new BaseReadTsKvQuery(
+                            GROUND_RESISTANCE_TELEMETRY_KEY,
+                            window.getStartTs(),
+                            window.getEndTs(),
+                            0,
+                            QUERY_PAGE_SIZE,
+                            Aggregation.NONE,
+                            "ASC"))));
         }
 
-        List<Optional<TsKvEntry>> latestEntries;
+        List<List<TsKvEntry>> entriesByDevice;
         try {
-            latestEntries = Futures.allAsList(futures).get();
+            entriesByDevice = Futures.allAsList(futures).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ThingsboardException("Failed to read latest ground resistance", e, ThingsboardErrorCode.DATABASE);
+            throw new ThingsboardException("Failed to read ground resistance telemetry", e, ThingsboardErrorCode.DATABASE);
         } catch (ExecutionException e) {
-            throw new ThingsboardException("Failed to read latest ground resistance", e, ThingsboardErrorCode.DATABASE);
+            throw new ThingsboardException("Failed to read ground resistance telemetry", e, ThingsboardErrorCode.DATABASE);
         }
 
-        List<Double> resistanceValues = new ArrayList<>();
-        for (Optional<TsKvEntry> latestEntry : latestEntries) {
-            if (latestEntry.isEmpty()) {
-                continue;
-            }
-            Double resistanceValue = MonitoringValueParser.parseFiniteDouble(latestEntry.get().getValueAsString());
-            if (resistanceValue != null) {
-                resistanceValues.add(resistanceValue);
+        ResistanceExtremaAggregate result = new ResistanceExtremaAggregate();
+        for (int index = 0; index < entriesByDevice.size(); index++) {
+            SmartLightningDeviceContextDTO device = groundDevices.get(index);
+            for (TsKvEntry entry : entriesByDevice.get(index)) {
+                Double resistanceValue = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
+                if (resistanceValue == null) {
+                    continue;
+                }
+                if (result.maximum == null || resistanceValue > result.maximum) {
+                    result.maximum = resistanceValue;
+                    result.maximumDeviceName = device.getDeviceName();
+                    result.maximumParameter = entry.getKey();
+                    result.maximumTime = entry.getTs();
+                }
+                if (result.minimum == null || resistanceValue < result.minimum) {
+                    result.minimum = resistanceValue;
+                    result.minimumDeviceName = device.getDeviceName();
+                    result.minimumParameter = entry.getKey();
+                    result.minimumTime = entry.getTs();
+                }
             }
         }
-        return resistanceValues;
+        return result.toDto();
+    }
+
+    /** 同一轮告警查询同时保留条数和按设备去重后的集合，避免统计口径分叉。 */
+    private static final class GroundAlarmAggregate {
+        private int count;
+        private final Set<UUID> alarmDeviceIds = new HashSet<>();
+        private final Map<String, Integer> countsByType = new HashMap<>();
+        private final List<GroundAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
+
+        private static GroundAlarmAggregate empty() {
+            return new GroundAlarmAggregate();
+        }
+    }
+
+    /** 保存地网阻值最值及其来源信息，最终转换为接口 DTO。 */
+    private static final class ResistanceExtremaAggregate {
+        private Double maximum;
+        private String maximumDeviceName;
+        private String maximumParameter;
+        private Long maximumTime;
+        private Double minimum;
+        private String minimumDeviceName;
+        private String minimumParameter;
+        private Long minimumTime;
+
+        private GroundResistanceExtrema toDto() {
+            return new GroundResistanceExtrema(
+                    maximum, maximumDeviceName, maximumParameter, maximumTime,
+                    minimum, minimumDeviceName, minimumParameter, minimumTime);
+        }
     }
 
 }

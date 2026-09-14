@@ -28,14 +28,14 @@ h2, p { margin: 0; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(260px, .92fr) minmax(430px, 1.8fr) minmax(270px, .92fr); grid-template-areas: "device map ground" "alarm map spd" "orders records lightning"; gap: 14px; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid #d5dee6; background: var(--panel); box-shadow: 0 7px 18px rgba(29, 60, 87, .07); }
 .panel-title { display: flex; align-items: center; justify-content: space-between; min-height: 47px; padding: 0 16px; border-bottom: 1px solid #e7edf2; }
-.panel-title h2 { color: #263c50; font-size: 16px; font-weight: 700; }
-.period-readout { min-width: 31px; padding: 4px 7px; border: 1px solid #c9d8e4; border-radius: 4px; color: var(--blue); font-size: 11px; font-weight: 700; text-align: center; }
+.panel-title h2 { color: #263c50; font-size: 14px; font-weight: 650; }
+.period-readout { min-width: 31px; padding: 4px 7px; border: 1px solid #c9d8e4; border-radius: 4px; color: var(--blue); font-size: 10px; font-weight: 650; text-align: center; }
 .device-summary { grid-area: device; min-height: 270px; }.map-panel { grid-area: map; min-height: 460px; }.ground-panel { grid-area: ground; min-height: 270px; }.alarm-panel { grid-area: alarm; min-height: 270px; }.spd-panel { grid-area: spd; min-height: 270px; }.orders-panel { grid-area: orders; min-height: 300px; }.records-panel { grid-area: records; min-height: 300px; }.lightning-panel { grid-area: lightning; min-height: 300px; }
 
 .summary-content { display: flex; align-items: center; gap: 22px; padding: 20px 20px 10px; }.availability-ring { display: grid; place-items: center; width: 117px; height: 117px; flex: 0 0 auto; border-radius: 50%; background: conic-gradient(var(--green) 0 var(--online-rate), #8850e5 var(--online-rate) 100%); }.availability-ring::before { content: ''; position: absolute; width: 91px; height: 91px; border-radius: 50%; background: #fff; }.availability-ring > div { position: relative; z-index: 1; text-align: center; }.availability-ring span { display: block; color: #11b85a; font-size: 12px; }.availability-ring strong { color: #2d3f50; font-size: 26px; font-weight: 500; }.period-readout.error { border-color: #f2a6a6; color: #c22534; }
-.summary-metrics { display: grid; grid-template-columns: repeat(2, minmax(68px, 1fr)); flex: 1; gap: 24px 14px; }.summary-metrics div { min-width: 0; }.summary-metrics dt { color: #607487; font-size: 12px; white-space: nowrap; }.summary-metrics dd { margin: 6px 0 0; font-size: 27px; line-height: 1; font-weight: 500; }.blue { color: #1d5be6; }.green { color: #09a44b; }.amber { color: #f1a800; }.red { color: #ff4652; }.ring-legend { display: flex; gap: 20px; padding: 0 30px; color: #718397; font-size: 11px; }.ring-legend span { display: inline-flex; align-items: center; gap: 5px; }.ring-legend i { width: 10px; height: 10px; border-radius: 50%; }.online { background: var(--green); }.offline { background: #8850e5; }
+.summary-metrics { display: grid; grid-template-columns: repeat(2, minmax(68px, 1fr)); flex: 1; gap: 24px 14px; }.summary-metrics div { min-width: 0; }.summary-metrics dt { color: #607487; font-size: 11px; white-space: nowrap; }.summary-metrics dd { margin: 6px 0 0; font-size: 24px; line-height: 1; font-weight: 500; }.blue { color: #1d5be6; }.green { color: #09a44b; }.amber { color: #f1a800; }.red { color: #ff4652; }.ring-legend { display: flex; gap: 20px; padding: 0 30px; color: #718397; font-size: 10px; }.ring-legend span { display: inline-flex; align-items: center; gap: 5px; }.ring-legend i { width: 10px; height: 10px; border-radius: 50%; }.online { background: var(--green); }.offline { background: #8850e5; }
 
-.map-toolbar { display: flex; align-items: center; justify-content: space-between; height: 47px; padding: 0 16px; border-bottom: 1px solid #e7edf2; color: #263c50; font-size: 15px; font-weight: 700; }.map-toolbar span:first-child { display: inline-flex; align-items: center; gap: 6px; }.map-toolbar tb-icon { color: var(--blue); }.map-hint { color: #7b8e9f; font-size: 11px; font-weight: 400; }
+.map-toolbar { display: flex; align-items: center; justify-content: space-between; height: 47px; padding: 0 16px; border-bottom: 1px solid #e7edf2; color: #263c50; font-size: 14px; font-weight: 650; }.map-toolbar span:first-child { display: inline-flex; align-items: center; gap: 6px; }.map-toolbar tb-icon { color: var(--blue); }.map-hint { color: #7b8e9f; font-size: 10px; font-weight: 400; }
 .tianditu-map { min-height: 412px; height: calc(100% - 47px); background: #dfeef4; }.tianditu-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }.tianditu-map .leaflet-popup-content { margin: 10px 12px; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
 
 .chart { width: 100%; height: calc(100% - 47px); min-height: 205px; }.chart-panel { display: flex; flex-direction: column; }.chart-panel .chart { flex: 1; min-height: 190px; }
@@ -305,8 +305,8 @@ h2, p { margin: 0; }
 .ground-device-metrics dt,
 .ground-resistance-metrics dt,
 .ground-alarm-overview > span {
-  font-size: clamp(10px, .72vw, 12px);
-  font-weight: 500;
+  font-size: clamp(9px, .68vw, 11px);
+  font-weight: 400;
 }
 
 .ground-resistance-overview {
@@ -363,16 +363,16 @@ h2, p { margin: 0; }
 .monitoring-primary-metric span {
   display: block;
   color: #718397;
-  font-size: clamp(10px, .72vw, 12px);
-  font-weight: 500;
+  font-size: clamp(9px, .68vw, 11px);
+  font-weight: 400;
   letter-spacing: .01em;
 }
 
 .monitoring-device-metrics strong {
   display: block;
   margin-top: 4px;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 550;
   line-height: 1.1;
 }
 
@@ -396,9 +396,137 @@ h2, p { margin: 0; }
 
 .monitoring-alarm-metric strong {
   margin-top: 6px;
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 550;
   line-height: 1;
+}
+
+/* SPD 实时参数采用左侧告警 + 右侧关键指标布局，内部四项紧凑排列。 */
+.spd-realtime-metrics {
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+  text-align: center;
+}
+
+.spd-alarm-highlight {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #dfe8f0;
+}
+
+.spd-alarm-highlight strong {
+  margin-top: 0;
+  font-size: clamp(13px, 1vw, 16px);
+  font-weight: 400;
+  letter-spacing: -.03em;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.spd-realtime-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 8px;
+  align-content: center;
+}
+
+.spd-realtime-grid div {
+  min-width: 0;
+}
+
+.spd-realtime-grid span {
+  display: block;
+  overflow: hidden;
+  color: #718397;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-realtime-grid strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* SPD 周期统计保留在原指标区域内，不新增外层卡片。 */
+.spd-primary-metric {
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  /* 周期指标贴近卡片左边界，右侧保留少量呼吸空间。 */
+  padding: 5px 4px 5px 0;
+}
+
+.spd-periodic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.spd-periodic-item {
+  min-width: 0;
+  padding: 3px 4px;
+  text-align: center;
+}
+
+.spd-periodic-item > span {
+  display: block;
+  overflow: hidden;
+  color: #718397;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-periodic-count {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.spd-periodic-count strong {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.spd-periodic-values,
+.spd-periodic-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.spd-periodic-values {
+  margin-top: 2px;
+}
+
+.spd-periodic-values strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: clamp(8px, .7vw, 10px);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-periodic-labels small {
+  color: #8a9aaa;
+  font-size: 8px;
 }
 
 .monitoring-primary-metric {
@@ -415,19 +543,45 @@ h2, p { margin: 0; }
   display: block;
   overflow: hidden;
   margin-top: 4px;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 雷电最大峰值同时显示数值和 kA；窄卡片下缩小字号，避免单位被省略。 */
+/* SPD 指标字号保持紧凑，但数值后的 mA、℃、V、次必须完整显示。 */
+.spd-primary-metric strong {
+  min-width: 0;
+  font-size: clamp(8px, .7vw, 10px);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.spd-primary-metric .spd-periodic-count strong {
+  font-size: clamp(10px, .8vw, 12px);
+}
+
+.spd-primary-metric .spd-periodic-values strong {
+  font-size: clamp(7px, .62vw, 9px);
+}
+
+/* 雷电峰值同时显示数值和 kA；窄卡片下缩小字号，避免单位被省略。 */
 .lightning-primary-metric strong {
   min-width: 0;
-  font-size: clamp(11px, 1.05vw, 16px);
-  letter-spacing: -.04em;
+  overflow: visible;
+  font-size: clamp(10px, .82vw, 13px);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
   text-overflow: clip;
+  white-space: normal;
 }
 
 .monitoring-primary-metric small {
@@ -440,9 +594,11 @@ h2, p { margin: 0; }
 
 .lightning-primary-metric {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: center;
-  column-gap: 12px;
+  gap: 4px;
+  padding: 8px 6px;
+  text-align: center;
 }
 
 .monitoring-summary-state {
@@ -497,4 +653,138 @@ h2, p { margin: 0; }
   .map-toolbar-actions { gap: 5px; }
   .map-hint { display: none; }
   .map-add-point { padding: 3px 7px; font-size: 10px; }
+}
+
+/*
+ * 笔记本可读性覆盖层：保持面板与三段式布局不变，只重新分配内部留白和文字空间。
+ * 标签允许自然换行，数值允许在自身网格内折行，避免窄屏时溢出到相邻指标。
+ */
+@media (max-width: 1366px) and (min-width: 861px) {
+  .panel-title,
+  .map-toolbar { min-height: 42px; padding-right: 11px; padding-left: 11px; }
+  .panel-title h2 { font-size: 13px; }
+  .map-toolbar { font-size: 13px; }
+  .summary-content { gap: 13px; padding: 14px 13px 8px; }
+  .availability-ring { width: 94px; height: 94px; }
+  .availability-ring::before { width: 70px; height: 70px; }
+  .availability-ring span,
+  .summary-metrics dt,
+  .ring-legend { font-size: 10px; }
+  .availability-ring strong { font-size: 21px; }
+  .summary-metrics { gap: 13px 8px; }
+  .summary-metrics dd { margin-top: 4px; font-size: 22px; }
+  .ground-overview,
+  .monitoring-summary-overview { gap: 8px; padding: 9px 10px; }
+  .monitoring-summary-overview { grid-template-rows: minmax(58px, auto) minmax(0, 1fr); }
+  .ground-section,
+  .monitoring-device-metrics,
+  .monitoring-alarm-metric,
+  .monitoring-primary-metric { padding-right: 8px; padding-left: 8px; }
+  .ground-device-metrics,
+  .monitoring-device-metrics { gap: 6px; }
+  .monitoring-device-metrics > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+  .monitoring-device-metrics > div + div { border-left: 1px solid #e5edf3; }
+  .ground-device-metrics dt,
+  .ground-resistance-metrics dt,
+  .ground-alarm-overview > span,
+  .monitoring-device-metrics span,
+  .monitoring-alarm-metric span,
+  .monitoring-primary-metric span {
+    overflow: visible;
+    font-size: 10px;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .ground-device-metrics dd { font-size: 17px; }
+  .ground-number { font-size: 21px; }
+  .ground-resistance-metrics { gap: 5px; }
+  .ground-resistance-metrics div { gap: 5px; }
+  .ground-resistance-metrics dd { font-size: 11px; line-height: 1.25; }
+  .monitoring-device-metrics strong {
+    margin-top: 0;
+    font-size: 17px;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .monitoring-alarm-metric strong {
+    margin-top: 4px;
+    font-size: 20px;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .monitoring-primary-metric { gap: 6px; }
+  .spd-realtime-metrics { gap: 8px; }
+  .spd-alarm-highlight { min-height: 36px; gap: 6px; padding-bottom: 6px; }
+  .spd-alarm-highlight strong { margin-top: 0; font-size: 13px; }
+  .spd-realtime-grid { gap: 7px 6px; }
+  .spd-realtime-grid div { padding: 2px 1px; }
+  .spd-realtime-grid span,
+  .spd-periodic-item > span { font-size: 10px; line-height: 1.3; white-space: normal; }
+  .spd-realtime-grid strong {
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .spd-periodic-grid { gap: 6px; margin-top: 0; align-content: center; }
+  .spd-periodic-item { padding: 4px 2px; }
+  .spd-periodic-values,
+  .spd-periodic-labels { gap: 3px; }
+  .spd-periodic-values { margin-top: 3px; }
+  .spd-periodic-labels small,
+  .monitoring-primary-metric small { font-size: 9px; line-height: 1.25; }
+  .spd-primary-metric .spd-periodic-count strong,
+  .spd-primary-metric .spd-periodic-values strong {
+    font-size: 10px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .lightning-primary-metric { gap: 6px; padding-right: 5px; padding-left: 5px; }
+  .lightning-primary-metric > div { min-width: 0; padding: 2px 1px; }
+  .lightning-primary-metric strong {
+    font-size: 11px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .records-panel thead th,
+  .records-panel tbody td { padding-right: 2px; padding-left: 2px; font-size: 9px; }
+}
+
+/* 监测卡片内部使用容器查询，卡片变窄时只压缩文字，不触发布局重排。 */
+.ground-panel,
+.spd-panel,
+.lightning-panel { container-type: inline-size; }
+
+@container (max-width: 300px) {
+  .ground-device-metrics dt,
+  .ground-resistance-metrics dt,
+  .ground-alarm-overview > span,
+  .monitoring-device-metrics span,
+  .monitoring-alarm-metric span,
+  .monitoring-primary-metric span { font-size: 9px; line-height: 1.3; }
+  .ground-device-metrics dd,
+  .monitoring-device-metrics strong { font-size: 17px; }
+  .ground-number,
+  .monitoring-alarm-metric strong { font-size: 21px; }
+  .spd-realtime-grid strong,
+  .spd-primary-metric .spd-periodic-count strong,
+  .spd-primary-metric .spd-periodic-values strong,
+  .lightning-primary-metric strong {
+    font-size: 10px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }

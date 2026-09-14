@@ -22,6 +22,7 @@ import {Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningHistoryPoints,
   filterSmartLightningTelemetryParameters,
+  getSmartLightningHistoryYAxisRange,
   getSmartLightningTelemetryParameterLabel,
   getSmartLightningTelemetryParameterUnit,
   SmartLightningHistoryPoint
@@ -224,6 +225,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       return;
     }
     const unit = getSmartLightningTelemetryParameterUnit(this.data.deviceProfileName, this.selectedParameter);
+    const yAxisRange = getSmartLightningHistoryYAxisRange(this.points);
     const option: EChartsOption = {
       animationDuration: 250,
       color: ['#7147ff'],
@@ -243,6 +245,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       },
       yAxis: {
         type: 'value',
+        min: yAxisRange.min,
+        max: yAxisRange.max,
+        scale: true,
         name: unit,
         nameTextStyle: {color: '#657b8e'},
         axisLabel: {color: '#657b8e', fontSize: 11},

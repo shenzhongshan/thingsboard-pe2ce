@@ -110,15 +110,51 @@
                     <mat-label translate>report.component-title</mat-label>
                     <input matInput formControlName="title">
                   </mat-form-field>
-                  <tb-entity-select
-                    formControlName="entityId"
-                    [allowedEntityTypes]="[EntityType.DEVICE, EntityType.ASSET, EntityType.ENTITY_VIEW, EntityType.CUSTOMER]">
-                  </tb-entity-select>
-                  <tb-string-items-list
-                    formControlName="keys"
-                    [allowUserValue]="true"
-                    label="{{ 'report.keys' | translate }}">
-                  </tb-string-items-list>
+                  <mat-form-field>
+                    <mat-label translate>report.data-scope</mat-label>
+                    <mat-select formControlName="scope">
+                      <mat-option value="entity">{{ 'report.data-scope-entity' | translate }}</mat-option>
+                      @if (groupCapable(row.get('type').value)) {
+                        <mat-option value="group">{{ 'report.data-scope-group' | translate }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  @if (row.get('scope').value === 'group') {
+                    <mat-form-field>
+                      <mat-label translate>report.device-group</mat-label>
+                      <mat-select formControlName="entityGroupId">
+                        @for (g of deviceGroups; track g.id) {
+                          <mat-option [value]="g.id">{{ g.name }}</mat-option>
+                        }
+                      </mat-select>
+                      <mat-hint translate>report.device-group-hint</mat-hint>
+                    </mat-form-field>
+                  } @else {
+                    <tb-entity-select
+                      formControlName="entityId"
+                      [allowedEntityTypes]="[EntityType.DEVICE, EntityType.ASSET, EntityType.ENTITY_VIEW, EntityType.CUSTOMER]">
+                    </tb-entity-select>
+                  }
+                  @if (row.get('type').value === ReportComponentType.ENTITY_TABLE) {
+                    <tb-string-items-list
+                      formControlName="keys"
+                      [allowUserValue]="true"
+                      label="{{ 'report.entity-keys' | translate }}">
+                    </tb-string-items-list>
+                    <div class="tb-rte-hint" translate>report.entity-keys-hint</div>
+                    <tb-string-items-list
+                      formControlName="tsKeys"
+                      [allowUserValue]="true"
+                      label="{{ 'report.latest-keys' | translate }}">
+                    </tb-string-items-list>
+                    <div class="tb-rte-hint" translate>report.latest-keys-hint</div>
+                  } @else {
+                    <tb-string-items-list
+                      formControlName="keys"
+                      [allowUserValue]="true"
+                      label="{{ 'report.keys' | translate }}">
+                    </tb-string-items-list>
+                  }
                   <mat-form-field>
                     <mat-label translate>report.last-ms</mat-label>
                     <input matInput type="number" formControlName="lastMs">

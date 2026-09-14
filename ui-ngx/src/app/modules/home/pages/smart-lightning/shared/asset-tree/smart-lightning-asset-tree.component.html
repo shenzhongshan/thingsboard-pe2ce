@@ -3,10 +3,18 @@
   共享资产树模板：搜索框 + 加载/错误/空状态 + 树节点列表。
   节点状态类：selected 选中、locked 锁定置灰、device-node 设备行、asset-alarm 告警标记。
 -->
-<label class="asset-search">
-  <tb-icon>search</tb-icon>
-  <input [value]="search" (input)="onSearchInput($event)" [placeholder]="searchPlaceholder" [attr.aria-label]="searchPlaceholder">
-</label>
+<div class="asset-toolbar">
+  <label class="asset-search">
+    <tb-icon>search</tb-icon>
+    <input [value]="search" (input)="onSearchInput($event)" [placeholder]="searchPlaceholder" [attr.aria-label]="searchPlaceholder">
+  </label>
+  @if (!selectableIds) {
+    <button type="button" class="select-all-button" [disabled]="!canSelectAll()"
+            (click)="onSelectAllNodes()" aria-label="全选当前资产范围" title="选中当前资产范围及其全部下属节点">
+      全选
+    </button>
+  }
+</div>
 
 @if (loading) {
   <div class="asset-state">正在读取资产…</div>

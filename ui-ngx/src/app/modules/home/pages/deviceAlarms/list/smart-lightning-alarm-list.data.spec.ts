@@ -19,6 +19,7 @@ const row = (overrides: Partial<SmartLightningAlarmListRow>): SmartLightningAlar
   severity: '重要',
   severityTone: 'major',
   deviceType: 'DESA',
+  productName: 'FS防雷器监测模块（多要素）',
   meterAddress: '--',
   timeSetting: '全时段',
   detailDescription: '--',
@@ -44,8 +45,19 @@ const filtered = filterSmartLightningAlarmListRows([
   row({id: 'critical', severity: '严重', severityTone: 'critical'}),
   row({id: 'normal', severity: '警告', severityTone: 'warning'}),
   row({id: 'other', alarmType: '漏电'})
-], {severityTab: '严重', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''});
+], {
+  severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: 'FS防雷器监测模块（多要素）',
+  keyword: '', startTime: '', endTime: ''
+});
 assert.deepEqual(filtered.map((item) => item.id), ['critical']);
+
+assert.deepEqual(
+  filterSmartLightningAlarmListRows(
+    [row({id: 'desa'}), row({id: 'dea4', productName: 'FSS智能型电涌保护器（三相全电流，4P）'})],
+    {severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: 'FS防雷器监测模块（多要素）', keyword: '', startTime: '', endTime: ''}
+  ).map((item) => item.id),
+  ['desa']
+);
 
 // 仪表地址列优先显示资产树绝对地址，无路径时回退服务器属性与告警详情。
 const baseAlarm = {

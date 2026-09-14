@@ -1,5 +1,5 @@
 /* 文件职责：数据监测模块的 smart-lightning-device-detail.component，负责页面局部布局、响应式与视觉样式。 */
-/* 设备详情页样式：双栏布局，趋势图 2×2 网格与设备摘要卡等高对齐。 */
+/* 设备详情页样式：左侧资产树，右侧摘要与实时信息并列，趋势图在下方横向排列。 */
 :host { display: block; min-height: 100%; }
 .device-detail-page { --ink:#0a356a; --blue:#195ce8; --green:#16df65; display:grid; grid-template-columns:260px minmax(0,1fr); gap:16px; min-height:100%; margin-left:8px; padding:14px 14px 14px 0; color:#263c50; background:#edf1f4; font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif; }.surface,.asset-panel { border:1px solid #d5dee6; background:#fff; box-shadow:0 7px 18px rgba(29,60,87,.07); }.asset-panel { min-height:calc(100vh - 120px); padding:16px 14px; }.asset-panel-title { display:flex; justify-content:space-between; align-items:baseline; }.asset-panel h2,.detail-heading h1,.detail-heading p,.chart-card h2,.realtime-panel h2,.alarms-panel h2,.alarms-panel p { margin:0; }.asset-panel-title h2 { font-size:16px; }.asset-panel-title span { color:#718397; font-size:11px; }.asset-search { display:flex; align-items:center; gap:6px; height:34px; margin:14px 0 10px; padding:0 8px; border:1px solid #ccd7e0; border-radius:5px; color:#6a8093; }.asset-search input { width:100%; min-width:0; border:0; outline:0; font:inherit; font-size:12px; }.asset-search tb-icon { font-size:18px; }.asset-state { display:grid; min-height:100px; place-items:center; color:#73879a; font-size:12px; }.asset-state.error { color:#c72f3d; }.asset-tree { display:grid; gap:2px; }.asset-node { --depth:0; display:flex; align-items:center; width:100%; min-height:32px; padding:0 4px 0 calc(4px + var(--depth) * 19px); border:0; border-left:4px solid transparent; color:#476075; background:transparent; cursor:pointer; font:inherit; font-size:13px; text-align:left; }.asset-node:hover { color:#063b79; background:#cfe5ff; }.asset-node.selected { border-left-color:#16df65; color:#fff; background:#1267db; box-shadow:0 2px 7px rgba(18,103,219,.3); font-weight:700; }.asset-node.selected .asset-icon,.asset-node.selected .tree-toggle { color:#fff; }.tree-toggle { display:inline-grid; width:20px; height:24px; place-items:center; border-radius:3px; color:#6d8192; }.tree-toggle:hover { background:#d8e8f8; }.tree-toggle tb-icon { font-size:18px; }.tree-toggle.spacer { pointer-events:none; }.asset-icon { margin-right:6px; color:#4e88cf; font-size:16px; }
 .detail-content { min-width:0; }.back-link { display:inline-flex; align-items:center; gap:4px; margin-bottom:12px; color:#32649b; font-size:12px; text-decoration:none; }.back-link:hover { color:#195ce8; text-decoration:underline; }.back-link tb-icon { font-size:16px; }.detail-grid { display:grid; grid-template-columns:minmax(330px,.83fr) minmax(580px,1.17fr); grid-template-rows:344px 344px; gap:14px; }.device-summary { grid-column:1; grid-row:1; min-height:0; }.realtime-panel { grid-column:1; grid-row:2; }.chart-grid { grid-column:2; grid-row:1 / span 2; }.summary-top { display:flex; gap:12px; padding:14px; border-bottom:1px solid #e7edf2; }.device-mark { display:grid; flex:0 0 100px; min-height:104px; place-items:center; border-radius:7px; color:#527087; background:#eef2f4; text-align:center; }.device-mark tb-icon { color:#205eab; font-size:42px; }.product-name { width:100%; padding:0 6px; color:#36546c; font-size:13px; font-weight:600; line-height:1.38; overflow-wrap:anywhere; word-break:break-word; }.mock-actions { display:flex; flex-wrap:wrap; align-content:start; gap:7px; }.mock-actions button,.alarms-panel header button { min-height:28px; padding:0 9px; border:0; border-radius:3px; color:#fff; background:#078b3f; cursor:pointer; font:inherit; font-size:11px; }.mock-actions button:hover,.alarms-panel header button:hover { background:#067234; }.device-fields { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin:0; padding:3px 16px 10px 126px; }.device-fields div { display:grid; grid-template-columns:104px minmax(0,1fr); gap:5px; min-height:27px; align-items:center; border-bottom:1px dashed #edf1f4; }.device-fields dt,.device-fields dd { margin:0; font-size:11px; }.device-fields dt { color:#75899a; }.device-fields dd { overflow:hidden; color:#42596b; text-overflow:ellipsis; white-space:nowrap; }.device-fields dd.ok { color:#079545; font-weight:700; }
@@ -67,6 +67,82 @@
   white-space: nowrap;
 }
 
+/* 产品参数直接放在左上设备摘要卡片内，使用紧凑两列避免占用右侧图表空间。 */
+.product-specification {
+  margin: 8px 14px 2px;
+  padding: 8px 10px;
+  border: 1px solid #e3ebf1;
+  border-radius: 5px;
+  background: #f7fafc;
+  /* 参数较多时在摘要卡片内部滚动，避免把右侧图表和页面整体撑出边界。 */
+  max-height: 250px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.product-specification header {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 0 5px;
+  border-bottom: 1px solid #e8eef3;
+}
+
+.product-specification h2 {
+  margin: 0;
+  color: #38556c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.product-specification header span {
+  max-width: 58%;
+  margin-left: auto;
+  overflow: hidden;
+  color: #718699;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-specification dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  margin: 0;
+  padding-top: 3px;
+}
+
+.product-specification dl > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 4px;
+  min-width: 0;
+  min-height: 23px;
+  align-items: center;
+  border-bottom: 1px dashed #e5edf2;
+}
+
+.product-specification dt,
+.product-specification dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.product-specification dt {
+  color: #71879a;
+}
+
+.product-specification dd {
+  overflow: hidden;
+  color: #435d70;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 资产树统一交互：未选中不显示标记，选中只保留加宽的左侧竖条。 */
 .asset-node {
   border-left-width: 12px !important;
@@ -117,4 +193,224 @@
 
 .alarms-panel {
   margin-top: var(--tb-smart-page-spacing);
+}
+
+/*
+ * 详情页布局：设备摘要与实时信息保持在同一行，实时信息固定在右上角；
+ * 四张趋势图移到下一行并采用桌面端四列布局，避免图表与实时指标互相挤压。
+ */
+.detail-grid {
+  /* 顶部设备摘要与实时信息使用等宽列，形成稳定的左右对称布局。 */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(320px, auto) auto;
+  align-items: stretch;
+}
+
+.device-summary {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.realtime-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.chart-grid {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.chart-card {
+  min-width: 0;
+}
+
+.chart-host {
+  height: 240px;
+}
+
+/* 设备型号没有可绘制数值测点时，空状态仍占满图表区域，避免页面布局跳动。 */
+.chart-state {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  color: #71859a;
+  font-size: 12px;
+}
+
+/* 第五张及以上趋势图通过弹窗查看，主页面保持原有紧凑布局。 */
+.chart-grid-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 28px;
+}
+
+.chart-more-button,
+.chart-dialog-close {
+  border: 1px solid #195ce8;
+  border-radius: 4px;
+  color: #195ce8;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.chart-more-button {
+  min-height: 26px;
+  padding: 0 12px;
+}
+
+.chart-more-button:hover,
+.chart-dialog-close:hover {
+  color: #fff;
+  background: #195ce8;
+}
+
+.chart-dialog-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(10, 35, 60, .48);
+}
+
+.chart-dialog {
+  display: flex;
+  width: min(1180px, 96vw);
+  max-height: min(860px, 92vh);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d5dee6;
+  border-radius: 6px;
+  background: #edf1f4;
+  box-shadow: 0 18px 50px rgba(10, 35, 60, .28);
+}
+
+.chart-dialog-header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #d5dee6;
+  background: #fff;
+}
+
+.chart-dialog-header h2 {
+  margin: 0;
+  color: #2d4051;
+  font-size: 15px;
+}
+
+.chart-dialog-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 22px;
+}
+
+.chart-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.chart-dialog-grid .chart-host {
+  height: 220px;
+}
+
+/* 中等宽度保持下方图表紧凑，两列比四列更易读，避免笔记本端内容裁切。 */
+@media (max-width: 1100px) {
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chart-host {
+    height: 220px;
+  }
+}
+
+/* 窄屏改为单列，仍保持摘要、实时信息、趋势图的阅读顺序。 */
+@media (max-width: 980px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .device-summary,
+  .realtime-panel,
+  .chart-grid {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-host {
+    height: 184px;
+  }
+
+  .chart-dialog-backdrop {
+    padding: 8px;
+  }
+
+  .chart-dialog-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .product-specification {
+    margin-right: 8px;
+    margin-left: 8px;
+  }
+
+  .product-specification dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 笔记本密度适配：详情页仅收紧摘要、指标和图表标题的内部内容，不改变摘要/实时/图表的排布。 */
+@media (max-width: 1366px) and (min-width: 981px) {
+  .summary-top { gap: 8px; padding: 10px; }
+  .device-mark { flex-basis: 82px; min-height: 88px; }
+  .device-mark tb-icon { font-size: 34px; }
+  .product-name { padding-right: 3px; padding-left: 3px; font-size: 11px; }
+  .mock-actions { gap: 5px; }
+  .mock-actions button { min-height: 25px; padding-right: 7px; padding-left: 7px; font-size: 10px; }
+  .device-fields { gap: 0 10px; padding-right: 10px; padding-left: 10px; }
+  .device-fields div { grid-template-columns: 70px minmax(0, 1fr); min-height: 23px; gap: 4px; }
+  .device-fields dt,
+  .device-fields dd { font-size: 10px; }
+  .chart-card header,
+  .realtime-panel header { min-height: 38px; padding-right: 9px; padding-left: 9px; }
+  .chart-card h2,
+  .realtime-panel h2 { font-size: 13px; }
+  .chart-period-tabs button { min-width: 20px; height: 18px; font-size: 9px; line-height: 18px; }
+  .metric-grid { gap: 5px; padding: 9px; }
+  .metric { padding: 4px; }
+  .metric span { font-size: 9px; }
+  .metric strong { font-size: 13px; }
+  .product-specification { margin: 6px 9px 2px; padding: 6px 8px; }
+  .product-specification h2,
+  .product-specification dt,
+  .product-specification dd { font-size: 9px; }
 }

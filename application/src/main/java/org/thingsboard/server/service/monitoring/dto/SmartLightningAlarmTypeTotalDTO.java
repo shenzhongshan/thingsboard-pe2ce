@@ -10,6 +10,6 @@ public class SmartLightningAlarmTypeTotalDTO {
 
     /** 告警类型（alarm.type），空类型统一显示为“未分类”。 */
     private final String type;
-    /** 该类型的未清除告警数量。 */
+    /** 该类型在调用方统计范围内的告警数量。 */
     private final int count;
 }

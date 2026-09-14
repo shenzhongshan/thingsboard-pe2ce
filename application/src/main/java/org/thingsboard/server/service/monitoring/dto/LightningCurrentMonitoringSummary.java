@@ -8,6 +8,8 @@ package org.thingsboard.server.service.monitoring.dto;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+
 /** 雷电流监测卡片的聚合结果。 */
 @Getter
 @RequiredArgsConstructor
@@ -21,6 +23,8 @@ public class LightningCurrentMonitoringSummary {
     private final int offlineDevices;
     /** 统计周期内雷电流设备的告警数。 */
     private final int alarmCount;
+    /** 统计周期内按告警类型汇总的数量，按数量降序排列。 */
+    private final List<SmartLightningAlarmTypeTotalDTO> alarmTypeTotals;
     /** 各雷电流设备在所选周期内的 surgeCount 增量之和；单条记录直接采用该值。 */
     private final long eventCount;
     /** 周期内最大峰值电流；没有任何设备上报时为 null。 */
@@ -33,6 +37,14 @@ public class LightningCurrentMonitoringSummary {
     private final Long maxPeakTime;
     /** 峰值时刻最近的极性（正极性/负极性），无对应记录时为 null。 */
     private final String maxPeakPolarity;
+    /** 周期内最小峰值电流；没有任何设备上报时为 null。 */
+    private final Double minPeakCurrent;
+    /** 出现最小峰值的设备名称。 */
+    private final String minPeakDeviceName;
+    /** 最小峰值发生时间（毫秒时间戳）。 */
+    private final Long minPeakTime;
+    /** 最小峰值时刻最近的极性（正极性/负极性），无对应记录时为 null。 */
+    private final String minPeakPolarity;
     /** 周期内上报过峰值遥测的设备数量。 */
     private final int reportingDeviceCount;
 }

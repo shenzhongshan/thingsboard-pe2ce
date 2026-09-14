@@ -3,7 +3,6 @@ import { AssetInfo } from '@shared/models/asset.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityRelation } from '@shared/models/relation.models';
-import {formatSmartLightningMeasurement, SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
 
 export interface SmartLightningMonitoringAssetNode {
   id: string;
@@ -17,68 +16,14 @@ export interface SmartLightningMonitoringAssetTree {
   nodes: Map<string, SmartLightningMonitoringAssetNode>;
 }
 
-export interface SmartLightningAnalysisMetric {
-  label: string;
-  value: string;
-}
-
-export interface SmartLightningAnalysisCard {
-  id: 'spd' | 'ground' | 'current' | 'voltage';
-  title: string;
-  visual: SmartLightningAnalysisCard['id'];
-  icon: string;
-  primaryMetric: string;
-  primaryMetricLabel: string;
-  caption: string;
-  metrics?: readonly SmartLightningAnalysisMetric[];
-}
-
-/** 顶部能力卡使用的演示数据；接入接口后只替换这组配置，不影响设备和告警统计。 */
-export const SMART_LIGHTNING_ANALYSIS_CARDS: readonly SmartLightningAnalysisCard[] = [
-  {
-    id: 'spd',
-    title: '浪涌防护系统能力评估',
-    visual: 'spd',
-    icon: 'bolt',
-    primaryMetric: '8',
-    primaryMetricLabel: '监测数量',
-    caption: '当前选中资产 · SPD 防护能力',
-    metrics: [
-      {label: '监测数量', value: '8'},
-      {label: '动作次数', value: '—'},
-      {label: '劣化值', value: '—'},
-      {label: '动作次数', value: '1'}
-    ]
-  },
-  {
-    id: 'ground',
-    title: '接地电阻雷电流AI分析',
-    visual: 'ground',
-    icon: 'device_hub',
-    primaryMetric: formatSmartLightningMeasurement('0.35', SMART_LIGHTNING_UNITS.resistance),
-    primaryMetricLabel: '当前接地电阻',
-    caption: '地网采样稳定 · 接地状态正常'
-  },
-  {
-    id: 'current',
-    title: '雷电防护电流分析',
-    visual: 'current',
-    icon: 'electric_meter',
-    // 雷电流模块的监测峰值是雷击脉冲峰值电流，产品单位为 kA。
-    primaryMetric: formatSmartLightningMeasurement('32.8', SMART_LIGHTNING_UNITS.lightningCurrent),
-    primaryMetricLabel: '监测峰值',
-    caption: `近 7 日峰值趋势 · 雷击计数 6 ${SMART_LIGHTNING_UNITS.count}`
-  },
-  {
-    id: 'voltage',
-    title: '雷电/过电压能力监测评估',
-    visual: 'voltage',
-    icon: 'show_chart',
-    primaryMetric: formatSmartLightningMeasurement('2.5', SMART_LIGHTNING_UNITS.highVoltage),
-    primaryMetricLabel: '峰值电压',
-    caption: `A/B/C 相电压在线 · 越限 0 ${SMART_LIGHTNING_UNITS.count}`
-  }
-];
+/**
+ * 格式化实时分析数值。null/undefined 表示没有遥测，零必须作为真实值显示。
+ */
+export const formatSmartLightningRealtimeValue = (
+  value: number | null | undefined,
+  unit = '',
+  precision = 2
+): string => value == null || !Number.isFinite(value) ? '--' : `${value.toFixed(precision)}${unit}`;
 
 /** 设备总览卡片仅使用当前用户可见设备与服务器属性 active，不伪造告警状态。 */
 export interface SmartLightningMonitoringDeviceCard {

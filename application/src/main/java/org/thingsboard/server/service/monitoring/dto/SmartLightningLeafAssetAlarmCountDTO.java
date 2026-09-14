@@ -10,14 +10,14 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
 
-/** 一个末级资产及其下属设备在统计周期内的告警数量和处理率。 */
+/** 一个设备直属父资产及其直接挂载设备在统计周期内的告警数量和处理率。 */
 @Getter
 @RequiredArgsConstructor
 public class SmartLightningLeafAssetAlarmCountDTO {
 
-    /** 末级资产实体 ID。 */
+    /** 设备直属父资产实体 ID。 */
     private final UUID assetId;
-    /** 末级资产名称。 */
+    /** 设备直属父资产名称。 */
     private final String assetName;
     /** 周期内该资产下属设备的告警总数（按触发时间 startTs 统计）。 */
     private final long alarmCount;

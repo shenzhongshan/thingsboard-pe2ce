@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,6 +35,15 @@ public interface SmartLightningDeviceService {
     /** 批量返回当前用户可见防雷设备及其服务器属性，并在 productCategory 过滤后分页。 */
     PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException;
+
+    /**
+     * 返回当前用户可见的全部防雷设备上下文，不做接口分页。
+     *
+     * <p>供后端聚合服务复用同一套权限、产品分类和服务器属性读取逻辑，
+     * 避免各聚合实现自行循环请求分页接口。</p>
+     */
+    List<SmartLightningDeviceContextDTO> getAllLightningDeviceContexts(SecurityUser user)
+            throws ThingsboardException;
 
     /** 返回当前用户可见且 productCategory=lightning 的全部设备 ID。 */
     Set<UUID> getLightningDeviceIds(SecurityUser user) throws ThingsboardException;

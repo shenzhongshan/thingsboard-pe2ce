@@ -4,7 +4,8 @@ import {
   ALERT_ANALYSIS_PERIODS,
   buildAlarmAnalysisBars,
   getAlarmAnalysisPeriodLabel,
-  getAlarmAnalysisRankTone
+  getAlarmAnalysisRankTone,
+  mapAlarmAnalysisSiteRows
 } from './smart-lightning-alarm-analysis.data';
 
 describe('smart lightning alarm analysis data', () => {
@@ -26,5 +27,15 @@ describe('smart lightning alarm analysis data', () => {
     expect(bars[0].rank).toBe(1);
     expect(getAlarmAnalysisRankTone(1)).toBe('critical');
     expect(getAlarmAnalysisRankTone(4)).toBe('neutral');
+  });
+
+  it('maps every设备直属父资产返回值 without dropping zero-alarm sites', () => {
+    const rows = mapAlarmAnalysisSiteRows([
+      {assetName: '有告警站点', alarmCount: 3, handledRate: 50},
+      {assetName: '无告警站点', alarmCount: 0, handledRate: 0}
+    ]);
+
+    expect(rows.map((row) => row.name)).toEqual(['有告警站点', '无告警站点']);
+    expect(rows[1].count).toBe(0);
   });
 });

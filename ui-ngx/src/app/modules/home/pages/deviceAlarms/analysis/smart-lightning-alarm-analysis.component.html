@@ -23,25 +23,28 @@
         <header class="panel-heading">
           <div>
             <h2>站点告警排名</h2>
-            <p>按告警总量排序，展示重点处置对象</p>
+            <p>按末级设备父资产统计周期告警总量</p>
           </div>
-          <button type="button" class="period-button" title="当前统计周期">日</button>
+          <tb-smart-lightning-period-switcher
+            [activePeriod]="sitePeriod"
+            (periodChange)="setSitePeriod($event)">
+          </tb-smart-lightning-period-switcher>
         </header>
-        <div class="date-filter" aria-label="站点告警日期范围">
-          <span>日期</span>
-          <span class="date-placeholder">开始日期</span>
-          <b>至</b>
-          <span class="date-placeholder">结束日期</span>
-          <tb-icon aria-hidden="true">calendar_today</tb-icon>
-        </div>
         <div class="site-table-wrap">
           <table class="site-table">
             <caption class="visually-hidden">站点告警排名</caption>
             <thead>
-            <tr><th scope="col">序号</th><th scope="col">站点名称</th><th scope="col">告警处理率</th><th scope="col">告警数目</th><th scope="col">操作</th></tr>
+            <tr><th scope="col">序号</th><th scope="col">站点名称</th><th scope="col">告警处理率</th><th scope="col">告警数目</th></tr>
             </thead>
             <tbody>
-            @for (row of siteRows; track row.name; let index = $index) {
+            @if (siteLoading) {
+              <tr><td colspan="4">正在加载站点告警数据…</td></tr>
+            } @else if (siteError) {
+              <tr><td colspan="4">站点告警数据加载失败</td></tr>
+            } @else if (!siteRows.length) {
+              <tr><td colspan="4">暂无末级设备父资产数据</td></tr>
+            } @else {
+              @for (row of siteRows; track row.name; let index = $index) {
               <tr>
                 <td>{{index + 1}}</td>
                 <td class="site-name" [title]="row.name">{{row.name}}</td>
@@ -52,13 +55,13 @@
                   </div>
                 </td>
                 <td>{{row.count}}</td>
-                <td><button type="button" class="action-button">一键确认</button></td>
               </tr>
+              }
             }
             </tbody>
           </table>
         </div>
-        <footer class="table-footer"><span>共 {{siteRows.length}} 个站点</span><span>1 / 1</span></footer>
+        <footer class="table-footer"><span>共 {{siteRows.length}} 个末级设备父资产</span></footer>
       </article>
 
       <article class="surface ranking-panel">

@@ -55,6 +55,8 @@ export class SmartLightningAssetTreeComponent {
   @Output() readonly selectNode = new EventEmitter<SmartLightningMonitoringAssetNode>();
   /** 展开/折叠事件，宿主负责维护 expandedIds。 */
   @Output() readonly toggleNode = new EventEmitter<SmartLightningMonitoringAssetNode>();
+  /** 一键选择当前资产树范围及其全部下属节点，宿主负责更新选中集合。 */
+  @Output() readonly selectAllNodes = new EventEmitter<void>();
 
   /** 资产告警标记集合缓存，避免每次变更检测都重算。 */
   private alarmAssetIdsCache = new Set<string>();
@@ -148,6 +150,21 @@ export class SmartLightningAssetTreeComponent {
   /** 搜索框输入回调，把输入值派发给宿主。 */
   onSearchInput(event: Event): void {
     this.searchChange.emit((event.target as HTMLInputElement).value);
+  }
+
+  /**
+   * 判断“全选”按钮是否可用。
+   * 详情页通过 selectableIds 锁定了设备定位范围，不允许在该模式下覆盖当前选择。
+   */
+  canSelectAll(): boolean {
+    return !this.selectableIds && !this.loading && !this.loadError && this.tree.roots.length > 0;
+  }
+
+  /** 派发全选事件，由宿主按当前根资产筛选范围完成实际选择和数据刷新。 */
+  onSelectAllNodes(): void {
+    if (this.canSelectAll()) {
+      this.selectAllNodes.emit();
+    }
   }
 
   /** 节点点击回调；锁定节点不派发事件。 */

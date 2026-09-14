@@ -41,14 +41,126 @@ export interface SmartLightningDeviceStatusSummary {
   abnormal: number;
 }
 
-/** 地网监测模块的当前快照；阻值没有有效遥测时为 null。 */
+/** 数据监测页所选资产范围内的整体实时状态。 */
+export interface SmartLightningRealtimeOverall {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmDeviceCount: number;
+  status: string;
+}
+
+/** SPD 设备最新状态参数与关键漏流指标。 */
+export interface SmartLightningRealtimeSpd {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmDeviceCount: number;
+  spdStatusNormalCount: number;
+  spdStatusDeviceCount: number;
+  groundStatusNormalCount: number;
+  groundStatusDeviceCount: number;
+  temperatureNormalCount: number;
+  temperatureDeviceCount: number;
+  lifeNormalCount: number;
+  lifeDeviceCount: number;
+  maximumLeakage: number | null;
+  maximumLeakageDeviceName?: string | null;
+  maximumLeakageParameter?: string | null;
+  maximumLeakageTime?: number | null;
+  status: string;
+}
+
+/** 接地电阻设备最新阻值范围。 */
+export interface SmartLightningRealtimeGround {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmDeviceCount: number;
+  reportingDeviceCount: number;
+  maximumResistance: number | null;
+  maximumResistanceDeviceName?: string | null;
+  maximumResistanceTime?: number | null;
+  minimumResistance: number | null;
+  minimumResistanceDeviceName?: string | null;
+  minimumResistanceTime?: number | null;
+  status: string;
+}
+
+/** 雷电流设备最新累计次数与最近峰值。 */
+export interface SmartLightningRealtimeCurrent {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmDeviceCount: number;
+  totalSurgeCount: number;
+  latestPeakCurrent: number | null;
+  latestPeakDeviceName?: string | null;
+  latestPeakPolarity?: string | null;
+  latestPeakTime?: number | null;
+  peakCurrentUnit?: string | null;
+  status: string;
+}
+
+/** 故障电弧设备最新状态与累计次数。 */
+export interface SmartLightningRealtimeArcFault {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  alarmDeviceCount: number;
+  normalStatusCount: number;
+  statusDeviceCount: number;
+  totalArcFaultCount: number;
+  latestReportTime?: number | null;
+  status: string;
+}
+
+/** 数据监测页五个实时板块的统一响应。 */
+export interface SmartLightningRealtimeAnalysis {
+  overall: SmartLightningRealtimeOverall;
+  spd: SmartLightningRealtimeSpd;
+  ground: SmartLightningRealtimeGround;
+  lightningCurrent: SmartLightningRealtimeCurrent;
+  arcFault: SmartLightningRealtimeArcFault;
+}
+
+/** 地网监测模块的当前快照及所选周期内的阻值范围。 */
 export interface SmartLightningGroundMonitoringSummary {
   total: number;
   online: number;
   offline: number;
   alarmCount: number;
+  /** 所选周期内按告警类型统计的数量，接口已按数量降序返回。 */
+  alarmTypeTotals: SmartLightningAlarmTypeTotal[];
+  alarmRate: number;
   maxResistance: number | null;
   minResistance: number | null;
+  /** 阻值最值及其设备、参数和时间来源。 */
+  resistanceExtrema: SmartLightningGroundResistanceExtrema;
+}
+
+/** 地网阻值最值及其来源信息。 */
+export interface SmartLightningGroundResistanceExtrema {
+  maximum: number | null;
+  maximumDeviceName?: string | null;
+  maximumParameter?: string | null;
+  maximumTime?: number | null;
+  minimum: number | null;
+  minimumDeviceName?: string | null;
+  minimumParameter?: string | null;
+  minimumTime?: number | null;
+}
+
+/** SPD 周期最值及其来源信息；无有效遥测时数值和来源字段为空。 */
+export interface SmartLightningSpdMetricExtrema {
+  maximum: number | null;
+  maximumDeviceName?: string | null;
+  maximumParameter?: string | null;
+  maximumTime?: number | null;
+  minimum: number | null;
+  minimumDeviceName?: string | null;
+  minimumParameter?: string | null;
+  minimumTime?: number | null;
 }
 
 /** SPD 监测模块的聚合快照；漏电流没有有效遥测时为 null。 */
@@ -57,11 +169,35 @@ export interface SmartLightningSpdMonitoringSummary {
   onlineDevices: number;
   offlineDevices: number;
   alarmCount: number;
+  /** 所选周期内按告警类型统计的数量，接口已按数量降序返回。 */
+  alarmTypeTotals: SmartLightningAlarmTypeTotal[];
   maxLeakage: number | null;
   maxLeakageDeviceName?: string | null;
   maxLeakagePhase?: string | null;
+  /** 周期最大漏流对应的规范遥测键，例如 leakageB。 */
+  maxLeakageKey?: string | null;
   maxLeakageTime?: number | null;
   leakageReportingDeviceCount: number;
+  /** 接地状态正常数量 / 有接地状态参数的设备总数。 */
+  groundStatusNormalCount: number;
+  groundStatusDeviceCount: number;
+  /** SPD 状态正常数量 / 有 SPD 状态参数的设备总数。 */
+  spdStatusNormalCount: number;
+  spdStatusDeviceCount: number;
+  /** 温度正常数量 / 有温度参数的设备总数。 */
+  temperatureNormalCount: number;
+  temperatureDeviceCount: number;
+  /** 寿命正常数量 / 有寿命参数的设备总数。 */
+  degradationNormalCount: number;
+  degradationDeviceCount: number;
+  /** 所选周期内 lightningCount 的累计增量。 */
+  lightningCount: number;
+  /** 所选周期内温度的最大值和最小值。 */
+  temperatureExtrema: SmartLightningSpdMetricExtrema;
+  /** 所选周期内漏电流的最大值和最小值。 */
+  leakageExtrema: SmartLightningSpdMetricExtrema;
+  /** 所选周期内电压的最大值和最小值。 */
+  voltageExtrema: SmartLightningSpdMetricExtrema;
 }
 
 /** 雷电流监测模块的聚合快照；峰值没有有效遥测时为 null。 */
@@ -70,6 +206,8 @@ export interface SmartLightningCurrentMonitoringSummary {
   onlineDevices: number;
   offlineDevices: number;
   alarmCount: number;
+  /** 所选周期内按告警类型统计的数量，接口已按数量降序返回。 */
+  alarmTypeTotals: SmartLightningAlarmTypeTotal[];
   eventCount: number;
   maxPeakCurrent: number | null;
   /** 后端返回的雷击脉冲峰值电流单位；产品说明书规定为 kA。 */
@@ -77,6 +215,10 @@ export interface SmartLightningCurrentMonitoringSummary {
   maxPeakDeviceName?: string | null;
   maxPeakTime?: number | null;
   maxPeakPolarity?: string | null;
+  minPeakCurrent: number | null;
+  minPeakDeviceName?: string | null;
+  minPeakTime?: number | null;
+  minPeakPolarity?: string | null;
   reportingDeviceCount: number;
 }
 
@@ -106,7 +248,7 @@ export interface SmartLightningAlarmAnalysisSummary {
   year: SmartLightningAlarmPeriodSummary;
 }
 
-/** 末级资产的告警数量与处理率统计。 */
+/** 设备直属父资产的告警数量与处理率统计。 */
 export interface SmartLightningLeafAssetAlarmCount {
   assetId: string;
   assetName: string;
@@ -129,6 +271,20 @@ export class SmartLightningMonitoringApiService {
   }
 
   /**
+   * 查询当前资产及全部后代设备的最新分析数据。
+   * 不传 assetId 时由后端统计当前用户全部可见防雷设备。
+   */
+  getRealtimeAnalysis(assetId?: string): Observable<SmartLightningRealtimeAnalysis> {
+    let params = new HttpParams();
+    if (assetId) {
+      params = params.set('assetId', assetId);
+    }
+    return this.http.get<SmartLightningRealtimeAnalysis>(
+      '/api/smart-lightning/monitoring/realtime-analysis', {params}
+    );
+  }
+
+  /**
    * 查询当前用户全部可见设备的状态汇总。
    * active 的解释由后端统一读取 SERVER_SCOPE 属性，避免误用 DeviceInfo.active。
    */
@@ -137,8 +293,8 @@ export class SmartLightningMonitoringApiService {
   }
 
   /**
-   * 地网模块只发起一次聚合请求。period 仅筛选按触发时间统计的告警数，
-   * 设备状态和阻值范围始终是最新快照。
+   * 地网模块只发起一次聚合请求。period 同时限定按触发时间统计的告警和阻值范围窗口，
+   * 设备状态仍为当前快照。
    */
   getGroundMonitoringSummary(period: SmartLightningPeriod): Observable<SmartLightningGroundMonitoringSummary> {
     const params = new HttpParams().set('period', period);
@@ -173,8 +329,8 @@ export class SmartLightningMonitoringApiService {
     );
   }
 
-  /** 查询每个末级资产下属设备在指定周期内的告警触发次数。 */
-  getLeafAssetAlarmCounts(period: 'day' | 'month' | 'year'): Observable<SmartLightningLeafAssetAlarmCount[]> {
+  /** 查询每个末级设备父资产直接挂载设备在指定周期内的告警触发次数。 */
+  getLeafAssetAlarmCounts(period: SmartLightningPeriod): Observable<SmartLightningLeafAssetAlarmCount[]> {
     const params = new HttpParams().set('period', period);
     return this.http.get<SmartLightningLeafAssetAlarmCount[]>(
       '/api/smart-lightning/monitoring/alarm-analysis/leaf-assets', {params}

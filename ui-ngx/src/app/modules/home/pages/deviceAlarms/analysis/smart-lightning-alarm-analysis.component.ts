@@ -7,22 +7,23 @@ import {
   SmartLightningAlarmAnalysisSummary,
   SmartLightningMonitoringApiService
 } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import {SmartLightningPeriod} from '../../smart-lightning/dashboard/smart-lightning-dashboard.data';
 import {
-  ALARM_ANALYSIS_SITE_ROWS,
   ALARM_ANALYSIS_TREND,
   ALARM_ANALYSIS_TYPE_ROWS,
   ALERT_ANALYSIS_PERIODS,
   AlarmAnalysisPeriod,
   AlarmAnalysisPeriodCard,
+  AlarmAnalysisSiteRow,
   buildAlarmAnalysisBars,
-  getAlarmAnalysisRankTone
+  getAlarmAnalysisRankTone,
+  mapAlarmAnalysisSiteRows
 } from './smart-lightning-alarm-analysis.data';
 
 /**
  * 告警分析页面组件。
  *
- * <p>顶部三张周期统计卡（今日/本月/今年，含环比）接入真实接口；
- * 排名榜与趋势图仍使用未接入接口的演示数据，走势按周期倍率缩放展示。</p>
+ * <p>顶部周期统计卡和设备直属父资产站点排名接入真实接口；类型排名与趋势图暂保留演示数据。</p>
  */
 @Component({
   selector: 'tb-smart-lightning-alarm-analysis',
@@ -39,8 +40,8 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
 
   /** 周期统计卡配置；接口返回后填充真实统计值，接口完成前显示 0/-- 占位。 */
   periods: AlarmAnalysisPeriodCard[] = ALERT_ANALYSIS_PERIODS.map((period) => ({...period}));
-  /** 末级资产告警排名行（演示数据）。 */
-  readonly siteRows = ALARM_ANALYSIS_SITE_ROWS;
+  /** 当前日/周/月周期下全部设备直属父资产的告警排名行。 */
+  siteRows: AlarmAnalysisSiteRow[] = [];
   /** 告警趋势演示数据。 */
   readonly trend = ALARM_ANALYSIS_TREND;
   /** 按告警类型聚合的条形数据（演示数据）。 */
@@ -48,12 +49,18 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
 
   /** 趋势图当前统计周期（日/月/年）。 */
   activePeriod: AlarmAnalysisPeriod = 'day';
+  /** 站点排名独立的日/周/月周期，不与趋势图周期联动。 */
+  sitePeriod: SmartLightningPeriod = SmartLightningPeriod.day;
   /** 排名榜当前页签：site=资产排名，type=类型排名。 */
   selectedRankingTab: 'site' | 'type' = 'site';
   /** 顶部统计加载中标记。 */
   summaryLoading = true;
   /** 顶部统计加载失败标记。 */
   summaryError = false;
+  /** 站点排名加载状态。 */
+  siteLoading = true;
+  /** 站点排名加载失败状态。 */
+  siteError = false;
 
   private rankingChart?: ECharts;
   private trendChart?: ECharts;
@@ -68,6 +75,7 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
 
   ngOnInit(): void {
     this.loadAlarmAnalysisSummary();
+    this.loadSiteAlarmRanking();
   }
 
   ngAfterViewInit(): void {
@@ -89,6 +97,15 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
   setPeriod(period: AlarmAnalysisPeriod): void {
     this.activePeriod = period;
     this.renderTrendChart();
+  }
+
+  /** 切换站点排名周期，仅刷新站点表格和站点排行榜柱状图。 */
+  setSitePeriod(period: SmartLightningPeriod): void {
+    if (period === this.sitePeriod) {
+      return;
+    }
+    this.sitePeriod = period;
+    this.loadSiteAlarmRanking();
   }
 
   /** 切换排名榜数据源（资产/类型）并重绘条形图。 */
@@ -113,6 +130,27 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
         this.summaryLoading = false;
         this.summaryError = true;
         this.periods = this.periods.map((period) => ({...period, total: 0, previous: 0, change: '--'}));
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 查询当前用户可见树中所有设备直属父资产的告警统计。 */
+  private loadSiteAlarmRanking(): void {
+    this.siteLoading = true;
+    this.siteError = false;
+    this.monitoringApi.getLeafAssetAlarmCounts(this.sitePeriod).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (items) => {
+        this.siteRows = mapAlarmAnalysisSiteRows(items);
+        this.siteLoading = false;
+        this.renderRankingChart();
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.siteRows = [];
+        this.siteLoading = false;
+        this.siteError = true;
+        this.renderRankingChart();
         this.cd.markForCheck();
       }
     });

@@ -19,10 +19,9 @@ import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTre
 import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningLeafAssetAlarmService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
+import org.thingsboard.server.service.monitoring.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,15 +32,15 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 末级资产告警统计实现；按用户可见树和告警触发时间计算。
+ * 末级设备父资产告警统计实现；按用户可见树和告警触发时间计算。
  *
- * <p>“末级资产”指资产树中不再包含子资产分支的资产节点（直接挂设备的层级），
- * 统计每个末级资产下属设备在周期内的告警数量和已清除（已处理）比例。</p>
+ * <p>统计节点必须同时满足两个条件：没有资产子节点，并且直接挂载至少一台设备。
+ * 这样只有资产树的末级设备父节点会作为站点统计，祖先资产不会被重复计入。</p>
  */
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
-public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLeafAssetAlarmService {
+public class  SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLeafAssetAlarmService {
 
     /** 单次告警查询使用的最大记录数。 */
     private static final int QUERY_PAGE_SIZE = 10_000;
@@ -50,30 +49,33 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
     private final MonitoringAlarmQueryService alarmQueryService;
 
     /**
-     * 统计每个末级资产下属设备在指定周期内的告警数量和处理率。
+     * 统计每个末级设备父资产直接挂载设备在指定周期内的告警数量和处理率。
      *
      * @param user 当前登录用户，资产树和告警都按其权限过滤
-     * @param period 统计周期，支持 day、month、year（自然日/月/年起点）
-     * @return 末级资产统计列表，按告警数量降序、资产名升序排列
+     * @param period 统计周期，支持 day、week、month（按当前时刻向前回溯）
+     * @return 末级设备父资产统计列表，按告警数量降序、资产名升序排列
      * @throws ThingsboardException 资产树或告警查询失败时抛出
      */
     @Override
     public List<SmartLightningLeafAssetAlarmCountDTO> getCounts(SecurityUser user, String period)
             throws ThingsboardException {
-        PeriodWindow window = PeriodWindow.current(period, ZoneId.systemDefault());
+        MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
         SmartLightningMonitoringTreeResponse tree = treeService.getTree(user);
-        Map<UUID, LeafAssetCounter> counters = new LinkedHashMap<>();
-        Map<UUID, UUID> deviceToLeafAsset = new HashMap<>();
+        Map<UUID, ParentAssetCounter> counters = new LinkedHashMap<>();
+        Map<UUID, UUID> deviceToParentAsset = new HashMap<>();
         for (SmartLightningMonitoringTreeResponse.TreeNode root : tree.roots()) {
-            collectLeafAssets(root, null, counters, deviceToLeafAsset);
+            collectDeviceParentAssets(root, counters, deviceToParentAsset);
         }
         if (counters.isEmpty()) {
             return Collections.emptyList();
         }
 
+        // AlarmQueryV2 的 TimePageLink 按告警创建时间分页，不等同于告警触发时间 startTs。
+        // 本统计要求按 startTs 计算，因此不能把周期边界放进分页条件，否则创建时间
+        // 与触发时间跨界的告警会被接口提前过滤掉，后面的 startTs 判断也就无法补回。
+        // 这里沿用告警分析公共查询的无时间分页方式，再在下方按 startTs 过滤。
         TimePageLink pageLink = new TimePageLink(
-                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC,
-                window.start, window.end);
+                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC);
         AlarmQueryV2 query = new AlarmQueryV2(
                 null, pageLink, Collections.emptyList(), Collections.emptyList(),
                 Collections.emptyList(), null);
@@ -82,12 +84,12 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
                 continue;
             }
             long triggerTime = alarm.getStartTs();
-            if (triggerTime < window.start || triggerTime >= window.end) {
+            if (triggerTime < window.getStartTs() || triggerTime >= window.getEndTs()) {
                 continue;
             }
-            UUID leafAssetId = deviceToLeafAsset.get(alarm.getOriginator().getId());
-            if (leafAssetId != null) {
-                LeafAssetCounter counter = counters.get(leafAssetId);
+            UUID parentAssetId = deviceToParentAsset.get(alarm.getOriginator().getId());
+            if (parentAssetId != null) {
+                ParentAssetCounter counter = counters.get(parentAssetId);
                 counter.alarmCount++;
                 if (alarm.isCleared()) {
                     counter.handledCount++;
@@ -96,7 +98,7 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         }
 
         List<SmartLightningLeafAssetAlarmCountDTO> result = new ArrayList<>();
-        for (LeafAssetCounter counter : counters.values()) {
+        for (ParentAssetCounter counter : counters.values()) {
             result.add(new SmartLightningLeafAssetAlarmCountDTO(
                     counter.assetId,
                     counter.assetName,
@@ -112,46 +114,46 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
     }
 
     /**
-     * 递归遍历资产树，登记末级资产并建立设备到末级资产的归属映射。
+     * 递归遍历资产树，登记末级设备父资产并建立设备到父资产的归属映射。
      *
-     * <p>判定规则：没有资产子节点的资产即末级资产；
-     * 设备归属到它所在路径上最近的末级资产，未挂在任何末级资产下的设备不参与统计。</p>
+     * <p>判定规则：当前资产必须存在子节点，且所有直接子节点都必须是设备。
+     * 只要子节点中出现资产，当前节点就不是末级父节点；设备只映射到当前节点，
+     * 不向祖先资产传递。</p>
      *
      * @param node 当前遍历的树节点
-     * @param currentLeafAssetId 祖先链上最近的末级资产 ID，根节点调用时为 null
-     * @param counters 末级资产计数器集合（保持树的遍历顺序）
-     * @param deviceToLeafAsset 设备 ID 到末级资产 ID 的归属映射
+     * @param counters 设备直属父资产计数器集合（保持树的遍历顺序）
+     * @param deviceToParentAsset 设备 ID 到直属父资产 ID 的归属映射
      */
-    private void collectLeafAssets(
+    private void collectDeviceParentAssets(
             SmartLightningMonitoringTreeResponse.TreeNode node,
-            UUID currentLeafAssetId,
-            Map<UUID, LeafAssetCounter> counters,
-            Map<UUID, UUID> deviceToLeafAsset) {
-        UUID nextLeafAssetId = currentLeafAssetId;
+            Map<UUID, ParentAssetCounter> counters,
+        Map<UUID, UUID> deviceToParentAsset) {
         if (node.entityType() == EntityType.ASSET) {
-            boolean hasAssetChild = false;
+            boolean hasChildren = !node.children().isEmpty();
+            boolean allChildrenAreDevices = hasChildren;
             for (SmartLightningMonitoringTreeResponse.TreeNode child : node.children()) {
-                if (child.entityType() == EntityType.ASSET) {
-                    hasAssetChild = true;
-                    break;
+                if (child.entityType() != EntityType.DEVICE) {
+                    allChildrenAreDevices = false;
                 }
             }
-            if (!hasAssetChild) {
-                nextLeafAssetId = node.id();
-                counters.put(node.id(), new LeafAssetCounter(node.id(), node.name()));
+            if (allChildrenAreDevices) {
+                counters.putIfAbsent(node.id(), new ParentAssetCounter(node.id(), node.name()));
+                for (SmartLightningMonitoringTreeResponse.TreeNode child : node.children()) {
+                    if (child.entityType() == EntityType.DEVICE) {
+                        deviceToParentAsset.put(child.id(), node.id());
+                    }
+                }
             }
         }
-
-        if (node.entityType() == EntityType.DEVICE && nextLeafAssetId != null) {
-            deviceToLeafAsset.put(node.id(), nextLeafAssetId);
-        }
         for (SmartLightningMonitoringTreeResponse.TreeNode child : node.children()) {
-            collectLeafAssets(child, nextLeafAssetId, counters, deviceToLeafAsset);
+            if (child.entityType() == EntityType.ASSET) {
+                collectDeviceParentAssets(child, counters, deviceToParentAsset);
+            }
         }
     }
 
-    /** 单个末级资产的告警计数器。 */
-    private static final class LeafAssetCounter {
+    /** 单个设备直属父资产的告警计数器。 */
+    private static final class ParentAssetCounter {
         private final UUID assetId;
         private final String assetName;
         /** 周期内该资产下属设备的告警总数。 */
@@ -159,7 +161,7 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         /** 其中已清除（已处理）的告警数量。 */
         private long handledCount;
 
-        private LeafAssetCounter(UUID assetId, String assetName) {
+        private ParentAssetCounter(UUID assetId, String assetName) {
             this.assetId = assetId;
             this.assetName = assetName;
         }
@@ -174,33 +176,4 @@ public class SmartLightningLeafAssetAlarmServiceImpl implements SmartLightningLe
         }
     }
 
-    /** 统计周期的时间窗口：[周期起点, 当前时刻]。 */
-    private static final class PeriodWindow {
-        private final long start;
-        private final long end;
-
-        private PeriodWindow(long start, long end) {
-            this.start = start;
-            this.end = end;
-        }
-
-        /**
-         * 按周期参数计算自然周期窗口。
-         *
-         * <p>month 取本月 1 日 0 点，year 取今年 1 月 1 日 0 点，
-         * 其他值一律按当日 0 点处理（默认日周期）。</p>
-         */
-        private static PeriodWindow current(String period, ZoneId zoneId) {
-            ZonedDateTime now = ZonedDateTime.now(zoneId);
-            ZonedDateTime start;
-            if ("month".equalsIgnoreCase(period)) {
-                start = now.withDayOfMonth(1).toLocalDate().atStartOfDay(zoneId);
-            } else if ("year".equalsIgnoreCase(period)) {
-                start = now.withDayOfYear(1).toLocalDate().atStartOfDay(zoneId);
-            } else {
-                start = now.toLocalDate().atStartOfDay(zoneId);
-            }
-            return new PeriodWindow(start.toInstant().toEpochMilli(), now.toInstant().toEpochMilli());
-        }
-    }
 }

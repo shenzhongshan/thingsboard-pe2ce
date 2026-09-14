@@ -22,6 +22,7 @@ export interface SmartLightningAlarmListRow {
   severity: string;
   severityTone: SmartLightningAlarmListSeverityTone;
   deviceType: string;
+  productName: string;
   meterAddress: string;
   timeSetting: string;
   detailDescription: string;
@@ -35,6 +36,7 @@ export interface SmartLightningAlarmListFilters {
   alarmType: string;
   severity: string;
   workOrderStatus: string;
+  productName: string;
   keyword: string;
   startTime: string;
   endTime: string;
@@ -149,6 +151,7 @@ export const mapSmartLightningAlarmListRow = (
     severity: getSmartLightningAlarmSeverityLabel(tone),
     severityTone: tone,
     deviceType: valueAsText(context.deviceType),
+    productName: valueAsText(context.productName),
     // 仪表地址列展示设备的资产树绝对地址；设备不在树内时回退服务器属性或告警详情。
     meterAddress: valueAsText(assetPath.trim() || context.meterAddress || detailValue(alarm.details, ['meterAddress', 'instrumentAddress', 'address'])),
     timeSetting: valueAsText(context.timeSetting || detailValue(alarm.details, ['timeSetting', 'period']), '全时段'),
@@ -197,6 +200,7 @@ export const filterSmartLightningAlarmListRows = (
     (!filters.alarmType || row.alarmType === filters.alarmType) &&
     (!filters.severity || row.severity === filters.severity) &&
     (!filters.workOrderStatus || row.workOrderStatus === filters.workOrderStatus) &&
+    (!filters.productName || row.productName === filters.productName) &&
     row.alarmTime >= startTime && row.alarmTime <= endTime &&
     (!keyword || `${row.projectDeviceName} ${row.alarmType} ${row.deviceType} ${row.meterAddress} ${row.detailDescription}`.toLowerCase().includes(keyword))
   );

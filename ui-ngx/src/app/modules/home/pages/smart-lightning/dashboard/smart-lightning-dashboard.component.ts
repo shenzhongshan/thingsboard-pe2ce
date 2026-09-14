@@ -65,6 +65,7 @@ import {
 } from '../monitoring/smart-lightning-monitoring.data';
 import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
 import {
+  buildSmartLightningExtremaTooltip,
   buildSmartLightningMaximumTooltip,
   formatSmartLightningMetric
 } from './smart-lightning-summary.data';
@@ -90,6 +91,9 @@ interface SmartLightningPendingMapPoint {
   standalone: false
 })
 export class SmartLightningDashboardComponent implements AfterViewInit, OnDestroy {
+
+  /** 将统一单位表暴露给模板，避免模板内重复维护温度、电压和漏流单位。 */
+  readonly SMART_LIGHTNING_UNITS = SMART_LIGHTNING_UNITS;
 
   @ViewChild('mapHost') mapHost!: ElementRef<HTMLDivElement>;
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
@@ -329,9 +333,70 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return formatSmartLightningResistance(value);
   }
 
-  /** SPD 最大漏电流展示格式化，空值显示占位符。 */
-  formatSpdLeakage(value: number | null | undefined): string {
-    return formatSmartLightningMetric(value, SMART_LIGHTNING_UNITS.leakageCurrent);
+  /** 地网报警率展示格式；接口按告警设备去重计算，空值显示占位符。 */
+  formatGroundAlarmRate(value: number | null | undefined): string {
+    return value === null || value === undefined || !Number.isFinite(value) ? '--' : `${value.toFixed(2)}%`;
+  }
+
+  /** 生成地网本周期告警数字的悬浮详情；告警类型按数量降序展示。 */
+  formatGroundAlarmTooltip(summary: SmartLightningGroundMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}次）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}次`);
+    return `告警类型统计（合计：${summary.alarmCount}次）\n${lines.join('\n')}`;
+  }
+
+  /** 生成地网阻值最值的悬浮详情，显示设备、参数和采集时间。 */
+  formatGroundExtremaTooltip(
+    label: string,
+    value: number | null | undefined,
+    deviceName: string | null | undefined,
+    parameter: string | null | undefined,
+    timestamp: number | null | undefined
+  ): string {
+    return buildSmartLightningExtremaTooltip(
+      label,
+      value,
+      SMART_LIGHTNING_UNITS.resistance,
+      deviceName,
+      parameter,
+      timestamp
+    );
+  }
+
+  /** 生成 SPD 本周期告警数字的悬浮详情；后端已按告警类型数量降序返回。 */
+  formatSpdAlarmTypeTooltip(summary: SmartLightningSpdMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}`);
+    return `告警类型统计（合计：${summary.alarmCount}）\n${lines.join('\n')}`;
+  }
+
+  /** SPD 卡片 DIV 中的周期数值只显示一位小数；悬浮详情仍保留原有两位精度。 */
+  formatSpdPeriodicValue(value: number | null | undefined, unit: string): string {
+    return formatSmartLightningMetric(value, unit, 1);
+  }
+
+  /** 生成 SPD 周期最值的原生悬浮提示文本。 */
+  formatSpdExtremaTooltip(
+    label: string,
+    value: number | null | undefined,
+    unit: string,
+    deviceName: string | null | undefined,
+    parameter: string | null | undefined,
+    timestamp: number | null | undefined
+  ): string {
+    return buildSmartLightningExtremaTooltip(label, value, unit, deviceName, parameter, timestamp);
   }
 
   /** 雷电最大峰值展示格式化，空值显示占位符。 */
@@ -339,17 +404,17 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return formatSmartLightningMetric(value, SMART_LIGHTNING_UNITS.lightningCurrent);
   }
 
-  /** 生成 SPD 最大漏流的原生悬浮提示文本。 */
-  formatSpdMaximumTooltip(summary: SmartLightningSpdMonitoringSummary): string {
-    return buildSmartLightningMaximumTooltip(
-      '最大漏流',
-      summary.maxLeakage,
-      SMART_LIGHTNING_UNITS.leakageCurrent,
-      summary.maxLeakageDeviceName,
-      '相位',
-      summary.maxLeakagePhase,
-      summary.maxLeakageTime
-    );
+  /** 生成雷电流本周期告警数字的悬浮详情；后端已按告警类型数量降序返回。 */
+  formatLightningAlarmTooltip(summary: SmartLightningCurrentMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}次）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}次`);
+    return `告警类型统计（合计：${summary.alarmCount}次）\n${lines.join('\n')}`;
   }
 
   /** 生成雷电最大峰值的原生悬浮提示文本。 */
@@ -362,6 +427,19 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       '极性',
       summary.maxPeakPolarity,
       summary.maxPeakTime
+    );
+  }
+
+  /** 生成雷电最小峰值的原生悬浮提示文本。 */
+  formatLightningMinimumTooltip(summary: SmartLightningCurrentMonitoringSummary): string {
+    return buildSmartLightningMaximumTooltip(
+      '最小峰值',
+      summary.minPeakCurrent,
+      SMART_LIGHTNING_UNITS.lightningCurrent,
+      summary.minPeakDeviceName,
+      '极性',
+      summary.minPeakPolarity,
+      summary.minPeakTime
     );
   }
 

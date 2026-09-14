@@ -11,6 +11,7 @@ import {
 assert.equal(formatSmartLightningMetric(null, 'mA'), '--');
 assert.equal(formatSmartLightningMetric(18.4, 'mA'), '18.40 mA');
 assert.equal(formatSmartLightningMetric(0, 'mA'), '0.00 mA');
+assert.equal(formatSmartLightningMetric(18.46, 'mA', 1), '18.5 mA');
 assert.equal(getMaximumFiniteValue([null, 3.5, Number.NaN, 8.2, undefined]), 8.2);
 assert.equal(getMaximumFiniteValue([null, Number.NaN]), null);
 

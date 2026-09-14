@@ -213,3 +213,19 @@
 .result-panel {
   margin-top: var(--tb-smart-page-spacing);
 }
+
+/* 笔记本密度适配：压缩筛选、状态栏和表格文字，保留原有双栏与表格结构。 */
+@media (max-width: 1366px) and (min-width: 901px) {
+  .filter-panel { gap: 8px 9px; padding: 12px; }
+  .filter-panel label,
+  .filter-panel select,
+  .filter-panel input,
+  .filter-actions button { font-size: 11px; }
+  .filter-panel label { height: 30px; padding-right: 7px; padding-left: 7px; }
+  .result-toolbar { min-height: 58px; gap: 8px; padding-right: 12px; padding-left: 12px; }
+  .status-tabs button { min-width: 48px; padding: 6px 7px; font-size: 10px; }
+  .table-wrap table { font-size: 10px; }
+  .table-wrap th,
+  .table-wrap td { padding: 7px 4px; }
+  .pagination { gap: 4px; padding: 10px 12px; font-size: 10px; }
+}

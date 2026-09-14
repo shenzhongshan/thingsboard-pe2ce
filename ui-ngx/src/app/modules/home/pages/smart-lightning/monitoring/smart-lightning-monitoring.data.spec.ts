@@ -17,28 +17,13 @@ import {
   getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringPage,
   getSmartLightningMonitoringSelectedAssetIds,
-  SMART_LIGHTNING_ANALYSIS_CARDS
+  formatSmartLightningRealtimeValue
 } from './smart-lightning-monitoring.data';
 
-assert.deepEqual(SMART_LIGHTNING_ANALYSIS_CARDS.map((card) => card.title), [
-  '浪涌防护系统能力评估',
-  '接地电阻雷电流AI分析',
-  '雷电防护电流分析',
-  '雷电/过电压能力监测评估'
-]);
 assert.equal(getSmartLightningFunctionCategoryLabel('arc_fault'), '故障电弧监测');
-assert.deepEqual(SMART_LIGHTNING_ANALYSIS_CARDS.map((card) => card.id), [
-  'spd', 'ground', 'current', 'voltage'
-]);
-assert.deepEqual(SMART_LIGHTNING_ANALYSIS_CARDS[0].metrics, [
-  {label: '监测数量', value: '8'},
-  {label: '动作次数', value: '—'},
-  {label: '劣化值', value: '—'},
-  {label: '动作次数', value: '1'}
-]);
-assert.equal(SMART_LIGHTNING_ANALYSIS_CARDS[1].primaryMetric, '0.35Ω');
-assert.equal(SMART_LIGHTNING_ANALYSIS_CARDS[2].primaryMetric, '32.8kA');
-assert.equal(SMART_LIGHTNING_ANALYSIS_CARDS[3].primaryMetric, '2.5kV');
+assert.equal(formatSmartLightningRealtimeValue(null, 'mA'), '--');
+assert.equal(formatSmartLightningRealtimeValue(0, 'mA'), '0.00mA');
+assert.equal(formatSmartLightningRealtimeValue(18.4, 'mA'), '18.40mA');
 
 const assets = [
   {id: {id: 'project', entityType: EntityType.ASSET}, name: '智慧园区', type: '项目'},

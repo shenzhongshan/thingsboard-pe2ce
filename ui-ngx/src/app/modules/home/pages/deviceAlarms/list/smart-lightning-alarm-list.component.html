@@ -52,6 +52,15 @@
         <input [(ngModel)]="filters.keyword" name="keyword" placeholder="项目名称 / 设备名称 / 描述">
         <tb-icon>search</tb-icon>
       </label>
+      @if (processingMode) {
+        <label class="product-filter">
+          <span>产品名称</span>
+          <select [(ngModel)]="filters.productName" name="productName">
+            <option value="">全部</option>
+            @for (productName of productNames; track productName) {<option [value]="productName">{{productName}}</option>}
+          </select>
+        </label>
+      }
       <label class="time-range">
         <span>时间</span>
         <input type="datetime-local" [(ngModel)]="filters.startTime" name="startTime" aria-label="开始时间">
@@ -89,7 +98,6 @@
             <th class="check-column"><input type="checkbox" aria-label="选择本页全部告警" [checked]="allPageRowsSelected"
                        (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
             <th>设备名</th>
-            <th>报警时间</th>
             <th>告警状态</th>
             <th>工单状态</th>
             <th>报警类型</th>
@@ -112,7 +120,6 @@
                 <td class="check-column"><input type="checkbox" [checked]="selectedRows.has(row.id)"
                     (change)="toggleRow(row.id)" [attr.aria-label]="'选择告警' + row.alarmType"></td>
                 <td class="name-cell" [title]="row.projectDeviceName">{{row.projectDeviceName}}</td>
-                <td>{{formatTime(row.alarmTime)}}</td>
                 <td><span [class]="'alarm-status-tag ' + alarmStatusTone(row.alarmStatus)">{{row.alarmStatus}}</span></td>
                 <td><span [class]="'work-order-tag ' + workOrderTone(row.workOrderStatus)">{{row.workOrderStatus}}</span></td>
                 <td>{{row.alarmType}}</td>
@@ -120,25 +127,28 @@
                 <td [title]="row.deviceType">{{row.deviceType}}</td>
                 <td [title]="row.meterAddress">{{row.meterAddress}}</td>
                 <td class="operation-cell" [class.processing-mode]="processingMode">
-                  <button type="button" class="detail-button" (click)="openAlarmDetails(row)">详情</button>
-                  @if (!processingMode) {
-                    <button type="button" class="dispatch-button"
-                            [class.action-hidden]="!dispatchMode || !canDispatch(row)"
-                            [attr.aria-hidden]="!dispatchMode || !canDispatch(row)"
-                            (click)="openAlarmDispatch(row)">派发</button>
-                    <button type="button" class="ack-button"
-                            [class.action-hidden]="!processingMode || !canAcknowledge(row)"
-                            [attr.aria-hidden]="!processingMode || !canAcknowledge(row)"
-                            (click)="acknowledgeAlarm(row)">确认</button>
-                    <button type="button" class="clear-button"
-                            [class.action-hidden]="!processingMode || !canClear(row)"
-                            [attr.aria-hidden]="!processingMode || !canClear(row)"
-                            (click)="clearAlarm(row)">清除</button>
-                    <button type="button" class="comment-button"
-                            [class.action-hidden]="!processingMode"
-                            [attr.aria-hidden]="!processingMode"
-                            (click)="openAlarmComment(row)">备注</button>
-                  }
+                  <!-- 保持 td 的表格单元格布局，只在内部容器排列按钮，确保表头与内容列边界一致。 -->
+                  <div class="operation-actions" [class.processing-mode]="processingMode">
+                    <button type="button" class="detail-button" (click)="openAlarmDetails(row)">详情</button>
+                    @if (!processingMode) {
+                      <button type="button" class="dispatch-button"
+                              [class.action-hidden]="!dispatchMode || !canDispatch(row)"
+                              [attr.aria-hidden]="!dispatchMode || !canDispatch(row)"
+                              (click)="openAlarmDispatch(row)">派发</button>
+                      <button type="button" class="ack-button"
+                              [class.action-hidden]="!processingMode || !canAcknowledge(row)"
+                              [attr.aria-hidden]="!processingMode || !canAcknowledge(row)"
+                              (click)="acknowledgeAlarm(row)">确认</button>
+                      <button type="button" class="clear-button"
+                              [class.action-hidden]="!processingMode || !canClear(row)"
+                              [attr.aria-hidden]="!processingMode || !canClear(row)"
+                              (click)="clearAlarm(row)">清除</button>
+                      <button type="button" class="comment-button"
+                              [class.action-hidden]="!processingMode"
+                              [attr.aria-hidden]="!processingMode"
+                              (click)="openAlarmComment(row)">备注</button>
+                    }
+                  </div>
                 </td>
               </tr>
             }

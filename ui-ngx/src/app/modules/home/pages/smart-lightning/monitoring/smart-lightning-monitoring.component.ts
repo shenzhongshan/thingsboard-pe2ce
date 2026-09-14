@@ -3,21 +3,25 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  NgZone,
   OnDestroy,
   OnInit
 } from '@angular/core';
 import { AlarmService } from '@core/http/alarm.service';
-import { forkJoin, map, Subject, takeUntil } from 'rxjs';
+import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
+import { auditTime, map, Subject, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmQueryV2, AlarmSearchStatus } from '@shared/models/alarm.models';
+import { AliasFilterType } from '@shared/models/alias.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
+import { EntityKeyType } from '@shared/models/query/query.models';
 import { DeviceId } from '@shared/models/id/device-id';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
+import { AlarmCountCmd, EntityDataCmd, TelemetrySubscriber } from '@shared/models/telemetry/telemetry.models';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   buildSmartLightningMonitoringDeviceCards,
-  calculateSmartLightningMonitoringAlarmSummary,
   getSmartLightningActiveAlarmDeviceIds,
   getSmartLightningDefaultExpandedAssetIds,
   getSmartLightningMonitoringAssetPaths,
@@ -30,10 +34,14 @@ import {
   SmartLightningMonitoringDeviceAttributes,
   SmartLightningMonitoringDeviceCard,
   SmartLightningMonitoringAlarmRecord,
-  SmartLightningMonitoringAlarmSummary,
-  SMART_LIGHTNING_ANALYSIS_CARDS
+  formatSmartLightningRealtimeValue
 } from './smart-lightning-monitoring.data';
-import { SmartLightningDeviceContext, SmartLightningMonitoringApiService } from './smart-lightning-monitoring-api.service';
+import {
+  SmartLightningDeviceContext,
+  SmartLightningMonitoringApiService,
+  SmartLightningRealtimeAnalysis
+} from './smart-lightning-monitoring-api.service';
+import { SMART_LIGHTNING_UNITS } from '../shared/telemetry/smart-lightning-measurements';
 
 interface MonitoringDeviceContext {
   devices: DeviceInfo[];
@@ -43,9 +51,8 @@ interface MonitoringDeviceContext {
 /**
  * 智能防雷数据监测页面组件。
  *
- * <p>左侧共享资产树按资产层级联动，右侧展示能力分析卡、选中节点
- * 统计区（8 项指标）与设备总览卡片网格；设备状态按“活动告警优先、
- * 其次在线、最后离线”判定。</p>
+ * <p>左侧共享资产树按资产层级联动，右侧展示同一资产范围的实时分析
+ * 与设备总览卡片网格；设备状态按“活动告警优先、其次在线、最后离线”判定。</p>
  */
 @Component({
   selector: 'tb-smart-lightning-monitoring',
@@ -56,6 +63,8 @@ interface MonitoringDeviceContext {
 })
 export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
 
+  /** 页面单位统一引用智能防雷共享定义，避免模板分散硬编码。 */
+  readonly units = SMART_LIGHTNING_UNITS;
   assetTree: SmartLightningMonitoringAssetTree = {roots: [], nodes: new Map()};
   expandedAssetIds = new Set<string>();
   selectedAssetIds = new Set<string>();
@@ -76,27 +85,49 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   activeAlarmDeviceIds = new Set<string>();
   alarmsLoading = true;
   alarmsLoadError = false;
-  readonly analysisCards = SMART_LIGHTNING_ANALYSIS_CARDS;
+  realtimeAnalysis: SmartLightningRealtimeAnalysis | null = null;
+  realtimeAnalysisLoading = true;
+  realtimeAnalysisLoadError = false;
 
   private nodeDevices: DeviceInfo[] = [];
   private nodeDeviceAttributes = new Map<string, SmartLightningMonitoringDeviceAttributes>();
   private nodeDeviceAssetPaths = new Map<string, string>();
+  /** 防止快速切换资产时，较早返回的请求覆盖当前选中范围。 */
+  private realtimeAnalysisRequestId = 0;
+  private selectedRealtimeAssetId?: string;
+  private realtimeEntitySubscriber?: TelemetrySubscriber;
+  private realtimeAlarmSubscriber?: TelemetrySubscriber;
+  /** 多个设备同时上报时合并为一次刷新，避免瞬时重复请求聚合接口。 */
+  private readonly realtimeRefresh$ = new Subject<void>();
 
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly alarmService: AlarmService,
+    private readonly telemetryWebsocketService: TelemetryWebsocketService,
+    private readonly ngZone: NgZone,
     private readonly cd: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    this.realtimeRefresh$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadRealtimeAnalysis(this.selectedRealtimeAssetId, true);
+      }
+    });
+    this.subscribeToRealtimeChanges();
     this.loadAssetTree();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.realtimeEntitySubscriber?.unsubscribe();
+    this.realtimeAlarmSubscriber?.unsubscribe();
   }
 
   get categories(): string[] {
@@ -123,22 +154,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     return this.devicePagination.items;
   }
 
-  get selectedOnlineDeviceCount(): number {
-    return this.selectedNodeDeviceCards.filter((card) => card.status === '正常').length;
-  }
-
-  get selectedOfflineDeviceCount(): number {
-    return this.selectedNodeDeviceCards.filter((card) => card.status === '离线').length;
-  }
-
-  get selectedAlarmSummary(): SmartLightningMonitoringAlarmSummary {
-    return calculateSmartLightningMonitoringAlarmSummary(
-      this.nodeAlarms,
-      new Set(this.selectedNodeDeviceCards.map((card) => card.id)),
-      this.startOfToday()
-    );
-  }
-
   /** 展开/折叠资产节点，同步为不可变集合触发变更检测。 */
   toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
@@ -155,6 +170,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     this.selectedAssetName = node.name;
     this.devicePage = 1;
     this.openDescendants(node.id);
+    this.loadRealtimeAnalysis(node.id);
     this.cd.markForCheck();
   }
 
@@ -163,12 +179,45 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     this.selectedRootAssetId = rootAssetId;
     const roots = getSmartLightningMonitoringVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningMonitoringRootAssetIds(this.assetTree, rootAssetId));
-    this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
+    this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部资产';
     if (expandDescendants) {
       roots.forEach((root) => this.openDescendants(root.id));
     }
     this.devicePage = 1;
+    this.loadRealtimeAnalysis(rootAssetId || undefined);
     this.cd.markForCheck();
+  }
+
+  /** 资产树一键全选：保留当前根资产筛选范围并选中其全部下属节点。 */
+  selectAllAssets(): void {
+    this.selectRootAsset(this.selectedRootAssetId);
+  }
+
+  /** 实时数值统一显示两位小数；无遥测显示 --，零保留为 0.00。 */
+  formatRealtimeValue(value: number | null | undefined, unit = ''): string {
+    return formatSmartLightningRealtimeValue(value, unit);
+  }
+
+  /** 累计次数为整数，无数据由后端返回零。 */
+  formatRealtimeCount(value: number | null | undefined): string {
+    return value == null || !Number.isFinite(value) ? '--' : `${Math.round(value)}${this.units.count}`;
+  }
+
+  /** 格式化接口毫秒时间戳，供悬浮详情展示来源时间。 */
+  formatRealtimeTime(value: number | null | undefined): string {
+    if (value == null || !Number.isFinite(value)) {
+      return '--';
+    }
+    const date = new Date(value);
+    const pad = (part: number) => part.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+      `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  /** 将 leakageA/B/C 等规范键的后缀转换为悬浮详情中的中文相位。 */
+  realtimeParameterLabel(parameter: string | null | undefined): string {
+    const suffix = parameter?.trim().slice(-1).toUpperCase();
+    return suffix && ['A', 'B', 'C'].includes(suffix) ? `${suffix}相` : (parameter || '--');
   }
 
   /** 切换设备总览的功能分类页签并回到第一页。 */
@@ -247,6 +296,89 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * 根据当前资产重新请求实时分析；后端负责同一范围内的权限、告警和遥测聚合。
+   * 请求序号用于丢弃快速切换资产后返回的旧响应。
+   */
+  private loadRealtimeAnalysis(assetId?: string, preserveCurrentData = false): void {
+    this.selectedRealtimeAssetId = assetId;
+    const requestId = ++this.realtimeAnalysisRequestId;
+    if (!preserveCurrentData) {
+      this.realtimeAnalysis = null;
+    }
+    this.realtimeAnalysisLoading = this.realtimeAnalysis == null;
+    this.realtimeAnalysisLoadError = false;
+    this.monitoringApi.getRealtimeAnalysis(assetId).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (analysis) => {
+        if (requestId !== this.realtimeAnalysisRequestId) {
+          return;
+        }
+        this.realtimeAnalysis = analysis;
+        this.realtimeAnalysisLoading = false;
+        this.cd.markForCheck();
+      },
+      error: () => {
+        if (requestId !== this.realtimeAnalysisRequestId) {
+          return;
+        }
+        if (!preserveCurrentData) {
+          this.realtimeAnalysis = null;
+          this.realtimeAnalysisLoadError = true;
+        }
+        this.realtimeAnalysisLoading = false;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /**
+   * 订阅设备在线属性、规范遥测和活动告警数量变化。
+   * WebSocket 只负责通知数据失效，最终展示值仍统一由后端聚合接口计算。
+   */
+  private subscribeToRealtimeChanges(): void {
+    const latestValues = [
+      {key: 'active', type: EntityKeyType.SERVER_ATTRIBUTE},
+      ...[
+        'spdStatus', 'groundStatus',
+        'temperatureA', 'temperatureB', 'temperatureC', 'temperatureD',
+        'lifePercent', 'leakageA', 'leakageB', 'leakageC',
+        'groundResistance', 'surgeCount', 'surgePeak', 'surgePolarity',
+        'deviceStatus', 'arcFaultCount'
+      ].map((key) => ({key, type: EntityKeyType.TIME_SERIES}))
+    ];
+    const entityCommand = new EntityDataCmd();
+    entityCommand.query = {
+      entityFilter: {type: AliasFilterType.entityType, entityType: EntityType.DEVICE},
+      // WebSocket 实体订阅使用明确上限，避免把前端通用“安全最大值”传给订阅分页。
+      pageLink: {pageSize: 10_000, page: 0},
+      latestValues
+    };
+    entityCommand.latestCmd = {keys: latestValues};
+    this.realtimeEntitySubscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
+    this.realtimeEntitySubscriber.subscriptionCommands.push(entityCommand);
+    this.realtimeEntitySubscriber.entityData$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.realtimeRefresh$.next();
+    });
+    this.realtimeEntitySubscriber.subscribe();
+
+    const alarmCommand = new AlarmCountCmd();
+    alarmCommand.query = {
+      entityFilter: {type: AliasFilterType.entityType, entityType: EntityType.DEVICE},
+      statusList: [AlarmSearchStatus.ACTIVE]
+    };
+    this.realtimeAlarmSubscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
+    this.realtimeAlarmSubscriber.subscriptionCommands.push(alarmCommand);
+    this.realtimeAlarmSubscriber.alarmCount$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.realtimeRefresh$.next();
+      if (!this.assetsLoading) {
+        this.loadNodeAlarms();
+      }
+    });
+    this.realtimeAlarmSubscriber.subscribe();
+  }
+
   private toMonitoringDeviceContext(contexts: SmartLightningDeviceContext[]): MonitoringDeviceContext {
     const treeDeviceIds = new Set([...this.assetTree.nodes.values()]
       .filter((node) => node.entityType === EntityType.DEVICE)
@@ -280,30 +412,18 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     return {devices, attributesByDeviceId};
   }
 
-  /**
-   * 复用 ThingsBoard 原生告警接口：一条查询当前活动告警，一条查询今日告警。
-   * 两条结果合并后，在 selectedAlarmSummary 中按当前选中资产子树过滤。
-   */
+  /** 复用 ThingsBoard 原生告警接口读取活动告警，仅用于设备卡片和资产树告警标记。 */
   private loadNodeAlarms(): void {
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
-    const startOfToday = this.startOfToday();
     const sortOrder = {property: 'createdTime', direction: Direction.DESC};
     const activeQuery = new AlarmQueryV2(
       null,
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, sortOrder),
       {statusList: [AlarmSearchStatus.ACTIVE]}
     );
-    const todayQuery = new AlarmQueryV2(
-      null,
-      new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, sortOrder, startOfToday, Date.now()),
-      {}
-    );
-    forkJoin({
-      active: this.alarmService.getAllAlarmsV2(activeQuery),
-      today: this.alarmService.getAllAlarmsV2(todayQuery)
-    }).pipe(
-      map(({active, today}) => this.uniqueAlarms([...active.data, ...today.data])),
+    this.alarmService.getAllAlarmsV2(activeQuery).pipe(
+      map((page) => this.uniqueAlarms(page.data)),
       takeUntil(this.destroy$)
     ).subscribe({
       next: (alarms) => {
@@ -329,13 +449,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
       unique.set(alarm.id?.id || fallbackKey, alarm);
     });
     return [...unique.values()];
-  }
-
-  /** 返回今天 0 点的毫秒时间戳，用于“当日报警”统计窗口。 */
-  private startOfToday(): number {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today.getTime();
   }
 
   /** 活动告警优先于在线状态展示，避免有告警的在线设备仍被误标为“正常”。 */

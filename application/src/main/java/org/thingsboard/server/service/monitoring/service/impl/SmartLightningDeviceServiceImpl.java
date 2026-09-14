@@ -29,6 +29,8 @@ import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.common.data.DeviceInfoFilter;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
@@ -105,6 +107,23 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     public PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException {
         List<DeviceInfo> visibleDevices = findVisibleDevices(user, pageLink.getTextSearch());
+        List<SmartLightningDeviceContextDTO> contexts = buildLightningDeviceContexts(user, visibleDevices);
+        return createContextPageData(contexts, pageLink);
+    }
+
+    /**
+     * 一次返回当前用户可见的全部防雷设备上下文，供后端汇总接口使用。
+     * 权限过滤、productCategory 判断和服务器属性批量读取均复用本服务既有实现。
+     */
+    @Override
+    public List<SmartLightningDeviceContextDTO> getAllLightningDeviceContexts(SecurityUser user)
+            throws ThingsboardException {
+        return buildLightningDeviceContexts(user, findVisibleDevices(user, null));
+    }
+
+    /** 将已完成权限过滤的设备批量转换为防雷设备上下文。 */
+    private List<SmartLightningDeviceContextDTO> buildLightningDeviceContexts(
+            SecurityUser user, List<DeviceInfo> visibleDevices) {
         Map<UUID, Map<String, String>> attributesByDevice = findDeviceAttributes(
                 user, visibleDevices, DEVICE_CONTEXT_ATTRIBUTES);
         Map<UUID, Device> devicesById = findDevicesWithConfiguration(visibleDevices);
@@ -116,7 +135,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             }
             contexts.add(toDeviceContext(device, devicesById.get(device.getId().getId()), attributes));
         }
-        return createContextPageData(contexts, pageLink);
+        return contexts;
     }
 
     /** 跨页收集当前用户可见且 productCategory=lightning 的全部设备 ID，供告警统计等场景使用。 */
@@ -150,13 +169,37 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
 
     /** 平台授权服务同时覆盖租户、客户和通过实体组分享得到的设备权限。 */
     private List<DeviceInfo> findVisibleDevices(SecurityUser user, String textSearch) throws ThingsboardException {
-        PageData<? extends HasName> pageData = userEntitiesService.findUserEntities(
-                user, EntityType.DEVICE, Operation.READ, new PageLink(QUERY_PAGE_SIZE, 0, textSearch));
         List<DeviceInfo> devices = new ArrayList<>();
-        for (HasName entity : pageData.getData()) {
-            if (entity instanceof DeviceInfo deviceInfo) {
-                devices.add(deviceInfo);
+        PageLink pageLink = new PageLink(QUERY_PAGE_SIZE, 0, textSearch);
+        // 租户管理员的设备范围就是当前租户本身。
+        // 直接使用设备服务的租户查询，避免通用实体组权限查询受分页或权限合并影响而只返回部分设备。
+        if (Authority.TENANT_ADMIN.equals(user.getAuthority())) {
+            while (pageLink != null) {
+                PageData<DeviceInfo> pageData = deviceService.findDeviceInfosByFilter(
+                        DeviceInfoFilter.builder().tenantId(user.getTenantId()).build(), pageLink);
+                for (DeviceInfo deviceInfo : pageData.getData()) {
+                    if (textSearch == null || deviceInfo.getName().toLowerCase().contains(textSearch.toLowerCase())) {
+                        devices.add(deviceInfo);
+                    }
+                }
+                pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
             }
+            return devices;
+        }
+
+        // 不能假设授权服务一定会按请求的 10000 条返回数据。
+        // 平台可能受全局分页上限、数据库方言或权限查询实现影响，实际只返回较小的一页。
+        // 如果只读取第一页，就会出现数据库有 14 台而接口只返回 10 台的情况。
+        while (pageLink != null) {
+            PageData<? extends HasName> pageData = userEntitiesService.findUserEntities(
+                    user, EntityType.DEVICE, Operation.READ, pageLink);
+            for (HasName entity : pageData.getData()) {
+                if (entity instanceof DeviceInfo deviceInfo) {
+                    devices.add(deviceInfo);
+                }
+            }
+            // PageData 只提供是否有下一页，下一页链接由当前 PageLink 生成。
+            pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
         }
         return devices;
     }

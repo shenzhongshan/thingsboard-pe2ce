@@ -21,7 +21,6 @@ public final class MonitoringPeriodWindow {
 
     private final long startTs;
     private final long endTs;
-
     /**
      * 根据周期参数创建时间窗口。
      *

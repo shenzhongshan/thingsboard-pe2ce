@@ -6,7 +6,7 @@ import {DeviceService} from '@core/http/device.service';
 import {AlarmService} from '@core/http/alarm.service';
 import * as echarts from 'echarts';
 import {ECharts, EChartsOption} from 'echarts';
-import {catchError, of, Subject, switchMap, takeUntil} from 'rxjs';
+import {catchError, of, Subject, startWith, switchMap, takeUntil} from 'rxjs';
 import {DeviceId} from '@shared/models/id/device-id';
 import {AttributeScope} from '@shared/models/telemetry/telemetry.models';
 import {AlarmInfo, AlarmQuery, AlarmSearchStatus, AlarmSeverity} from '@shared/models/alarm.models';
@@ -14,10 +14,12 @@ import {TimePageLink} from '@shared/models/page/page-link';
 import {Direction} from '@shared/models/page/sort-order';
 import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningDefaultExpandedAssetIds, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
 import {SmartLightningMonitoringApiService} from './smart-lightning-monitoring-api.service';
-import {buildSmartLightningChartTimes, buildSmartLightningDeviceDetailMock, buildSmartLightningRealtimeMetrics, fitSmartLightningMockSeries, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailMock} from './smart-lightning-device-detail.data';
-import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
+import {buildSmartLightningDeviceDetailMock, buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailMock} from './smart-lightning-device-detail.data';
+import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
+import {SmartLightningDeviceDetailApiService} from './smart-lightning-device-detail-api.service';
+import {getSmartLightningProductSpecification, SmartLightningProductSpecification} from './smart-lightning-product-specifications';
 
-/** 资产树复用真实接口；下方监测、控制和告警区域在遥测接入前均为明确标记的模拟数据。 */
+/** 资产树和遥测均使用真实接口；图表只展示型号定义且设备实际存在的数值测点。 */
 @Component({selector: 'tb-smart-lightning-device-detail', templateUrl: './smart-lightning-device-detail.component.html', styleUrls: ['./smart-lightning-device-detail.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: false})
 export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDestroy {
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
@@ -26,6 +28,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   assetSearch = ''; assetsLoading = true; assetsLoadError = false;
   detail: SmartLightningDeviceDetailMock = buildSmartLightningDeviceDetailMock();
   productName = '未配置产品名称';
+  /** 当前设备配置对应的静态产品参数；没有资料的型号保持为空。 */
+  productSpecification?: SmartLightningProductSpecification;
   deviceName = '--';
   instrumentAddress = '--';
   alarmsLoading = false;
@@ -44,11 +48,15 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   readonly chartPeriodOptions: ReadonlyArray<{value: SmartLightningChartPeriod; label: string}> = [
     {value: 'day', label: '日'}, {value: 'week', label: '周'}, {value: 'month', label: '月'}
   ];
-  selectedChartPeriods: Record<string, SmartLightningChartPeriod> = {
-    phaseCurrent: 'day', phaseVoltage: 'day', residualCurrent: 'day', temperature: 'day'
-  };
+  chartDefinitions: SmartLightningChartDefinition[] = [];
+  /** 当前型号完整职责图卡；主页面只展示有数据的前四张，更多参数弹窗展示全部定义。 */
+  allChartDefinitions: SmartLightningChartDefinition[] = [];
+  chartSeriesData: Record<string, SmartLightningChartSeriesData[]> = {};
+  chartsLoading = false;
+  showAllChartsDialog = false;
+  selectedChartPeriods: Record<string, SmartLightningChartPeriod> = {};
   private requestedDeviceId?: string; private readonly charts = new Map<string, ECharts>(); private readonly destroy$ = new Subject<void>(); private resizeObserver?: ResizeObserver;
-  constructor(private readonly monitoringApi: SmartLightningMonitoringApiService, private readonly attributeService: AttributeService, private readonly deviceService: DeviceService, private readonly alarmService: AlarmService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly cd: ChangeDetectorRef) {}
+  constructor(private readonly monitoringApi: SmartLightningMonitoringApiService, private readonly detailApi: SmartLightningDeviceDetailApiService, private readonly attributeService: AttributeService, private readonly deviceService: DeviceService, private readonly alarmService: AlarmService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly cd: ChangeDetectorRef) {}
   ngAfterViewInit(): void {
     this.returnUrl = this.resolveReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
     this.route.paramMap.pipe(
@@ -56,6 +64,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
         this.requestedDeviceId = params.get('deviceId') || undefined;
         this.detail = buildSmartLightningDeviceDetailMock(this.requestedDeviceId);
         this.productName = '未配置产品名称';
+        this.productSpecification = undefined;
+        this.resetCharts();
         this.loadRealtimeMetrics(this.requestedDeviceId);
         this.loadDeviceAlarms(this.requestedDeviceId);
         return this.requestedDeviceId ? this.attributeService.getEntityAttributes(
@@ -68,7 +78,12 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       this.productName = typeof value === 'string' && value.trim() ? value.trim() : '未配置产品名称';
       this.cd.markForCheck();
     });
-    this.renderCharts(); this.loadAssetTree(); this.resizeObserver = new ResizeObserver(() => this.charts.forEach((chart) => chart.resize())); this.chartHosts.forEach((host) => this.resizeObserver?.observe(host.nativeElement));
+    this.loadAssetTree();
+    this.resizeObserver = new ResizeObserver(() => this.charts.forEach((chart) => chart.resize()));
+    this.chartHosts.changes.pipe(startWith(this.chartHosts), takeUntil(this.destroy$)).subscribe((hosts: QueryList<ElementRef<HTMLDivElement>>) => {
+      hosts.forEach((host) => this.resizeObserver?.observe(host.nativeElement));
+      setTimeout(() => this.renderCharts());
+    });
   }
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.resizeObserver?.disconnect(); this.charts.forEach((chart) => chart.dispose()); }
   /** 根据来源页返回；未携带来源参数时默认回到数据监测。 */
@@ -154,12 +169,14 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       catchError(() => of({deviceProfileName: undefined, latest: {}})),
       takeUntil(this.destroy$)
     ).subscribe(({deviceProfileName, latest}) => {
+      this.configureCharts(this.requestedDeviceId, deviceProfileName);
       const latestValues = new Map<string, unknown>();
       Object.entries(latest).forEach(([key, values]) => {
         const firstValue = Array.isArray(values) ? values[0]?.value : undefined;
         if (firstValue !== undefined) { latestValues.set(key, firstValue); }
       });
       this.detail = {...this.detail, metrics: buildSmartLightningRealtimeMetrics(deviceProfileName, latestValues, this.detail.metrics)};
+      this.productSpecification = getSmartLightningProductSpecification(deviceProfileName);
       this.cd.markForCheck();
     });
   }
@@ -211,28 +228,143 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   }
   /** 递归展开选中节点的全部后代资产，保证新选中子树完整可见。 */
   private openDescendants(id: string): void { const node = this.assetTree.nodes.get(id); if (!node) { return; } node.childIds.forEach((childId) => { this.expandedAssetIds.add(childId); this.openDescendants(childId); }); this.expandedAssetIds = new Set(this.expandedAssetIds); }
+  /** 清理上一个设备的图表实例和请求状态，避免切换设备后沿用旧型号曲线。 */
+  private resetCharts(): void {
+    this.chartDefinitions = [];
+    this.allChartDefinitions = [];
+    this.chartSeriesData = {};
+    this.selectedChartPeriods = {};
+    this.chartsLoading = false;
+    this.showAllChartsDialog = false;
+    this.disposeCharts();
+  }
+
+  /** 销毁当前视图中的 ECharts，切换主视图/弹窗时避免复用已移除的 DOM。 */
+  private disposeCharts(): void {
+    this.charts.forEach((chart) => chart.dispose());
+    this.charts.clear();
+  }
+
+  /** 读取型号职责映射，再按设备实际存在的遥测键决定最终显示哪些图表。 */
+  private configureCharts(deviceId: string | undefined, deviceProfileName: string | undefined): void {
+    this.resetCharts();
+    const definitions = getSmartLightningChartDefinitions(deviceProfileName);
+    if (!deviceId || !definitions.length) {
+      this.cd.markForCheck();
+      return;
+    }
+    this.chartsLoading = true;
+    this.detailApi.getTimeseriesKeys(deviceId).pipe(
+      catchError(() => of([])),
+      takeUntil(this.destroy$)
+    ).subscribe((availableKeys) => {
+      const availableDefinitions = filterSmartLightningChartDefinitions(definitions, availableKeys, definitions.length);
+      // 弹窗保留型号的完整职责定义，即使其中某个参数暂时没有历史值，也要给出明确的空状态。
+      this.allChartDefinitions = definitions.map((definition) => ({...definition, series: [...definition.series]}));
+      this.chartDefinitions = availableDefinitions.slice(0, 4);
+      this.allChartDefinitions.forEach((definition) => {
+        this.selectedChartPeriods[definition.id] = 'day';
+      });
+      this.chartsLoading = false;
+      this.cd.markForCheck();
+      this.allChartDefinitions.forEach((definition) => this.loadChartData(deviceId, definition, 'day'));
+    });
+  }
+
+  /** 打开全部参数趋势弹窗；只有存在第五张及以上图卡时才允许打开。 */
+  openAllChartsDialog(): void {
+    if (this.allChartDefinitions.length <= this.chartDefinitions.length) {
+      return;
+    }
+    this.disposeCharts();
+    this.showAllChartsDialog = true;
+    this.cd.markForCheck();
+    setTimeout(() => this.renderCharts());
+  }
+
+  /** 关闭全部参数趋势弹窗并恢复主页面的四张优先图卡。 */
+  closeAllChartsDialog(): void {
+    this.disposeCharts();
+    this.showAllChartsDialog = false;
+    this.cd.markForCheck();
+    setTimeout(() => this.renderCharts());
+  }
+
+  /** 按单个图卡的周期读取历史数据；日/周/月互不影响。 */
+  private loadChartData(deviceId: string, definition: SmartLightningChartDefinition, period: SmartLightningChartPeriod): void {
+    const keys = buildSmartLightningChartReadKeys([definition]);
+    if (!keys.length) {
+      return;
+    }
+    const window = getSmartLightningChartWindow(period);
+    this.detailApi.getHistory(deviceId, keys, window.startTs, window.endTs).pipe(
+      catchError(() => of({})),
+      takeUntil(this.destroy$)
+    ).subscribe((timeseries) => {
+      this.chartSeriesData = {...this.chartSeriesData, [definition.id]: buildSmartLightningChartSeriesData(definition, timeseries)};
+      this.cd.markForCheck();
+      setTimeout(() => this.renderCharts());
+    });
+  }
+
   /** 切换指定趋势图的统计周期，只影响该图表自身。 */
   setChartPeriod(id: string, period: SmartLightningChartPeriod): void {
     this.selectedChartPeriods = {...this.selectedChartPeriods, [id]: period};
+    if (this.requestedDeviceId) {
+      const definition = this.allChartDefinitions.find((item) => item.id === id);
+      if (definition) {
+        this.loadChartData(this.requestedDeviceId, definition, period);
+      }
+    }
     const chart = this.charts.get(id);
     if (chart) { chart.setOption(this.createChartOption(id), true); }
   }
-  /** 初始化四张趋势图 ECharts 实例并套用各自配置。 */
-  private renderCharts(): void { this.chartHosts.forEach((host) => { const id = host.nativeElement.dataset.chart; if (!id) { return; } const chart = echarts.init(host.nativeElement, undefined, {renderer: 'svg'}); this.charts.set(id, chart); chart.setOption(this.createChartOption(id)); }); }
-  /** 按图表 ID 返回对应的 ECharts 配置（相电流/相电压/剩余电流/温度）。 */
+  /** 根据当前动态图卡集合创建或更新 ECharts 实例。 */
+  private renderCharts(): void {
+    const visibleDefinitions = this.showAllChartsDialog ? this.allChartDefinitions : this.chartDefinitions;
+    const visibleIds = new Set(visibleDefinitions.map((definition) => definition.id));
+    this.charts.forEach((chart, id) => {
+      if (!visibleIds.has(id)) {
+        chart.dispose();
+        this.charts.delete(id);
+      }
+    });
+    this.chartHosts.forEach((host) => {
+      const id = host.nativeElement.dataset.chart;
+      if (!id || !visibleIds.has(id)) {
+        return;
+      }
+      let chart = this.charts.get(id);
+      if (!chart) {
+        chart = echarts.init(host.nativeElement, undefined, {renderer: 'svg'});
+        this.charts.set(id, chart);
+      }
+      chart.setOption(this.createChartOption(id), true);
+    });
+  }
+  /** 按真实历史遥测点生成 ECharts 配置；没有点时只显示空状态提示。 */
   private createChartOption(id: string): EChartsOption {
-    const period = this.selectedChartPeriods[id] || 'day';
-    const times = buildSmartLightningChartTimes(period);
-    const one = (name: string, data: number[], color: string) => ({name, type: 'line' as const, smooth: true, data, symbol: 'none', lineStyle: {width: 2.5, color}, areaStyle: {color: 'rgba(25,92,232,.05)'}});
-    const temperature = [one('温度1', [40, 47, 38, 43, 37, 48], '#ff4d55'), one('温度2', [20, 25, 18, 32, 42, 18], '#814ce3'), one('温度3', [26, 33, 17, 23, 15, 35], '#11a94d')];
-    const settings: Record<string, {unit: string; series: any[]}> = {
-      phaseCurrent: {unit: SMART_LIGHTNING_UNITS.leakageCurrent, series: [one('剩余电流', [39, 32, 40, 36, 42, 29], '#ff5656')]},
-      residualCurrent: {unit: SMART_LIGHTNING_UNITS.leakageCurrent, series: [one('剩余电流', [40, 31, 40, 35, 42, 29], '#ff5656')]},
-      phaseVoltage: {unit: SMART_LIGHTNING_UNITS.temperature, series: temperature},
-      temperature: {unit: SMART_LIGHTNING_UNITS.temperature, series: temperature}
+    const definition = this.chartDefinitions.find((item) => item.id === id);
+    const chartData = this.chartSeriesData[id] || [];
+    const colors = ['#ff5656', '#814ce3', '#11a94d', '#195ce8'];
+    const series = chartData.map((item, index) => ({
+      name: item.definition.label,
+      type: 'line' as const,
+      smooth: true,
+      data: item.points,
+      symbol: 'none',
+      lineStyle: {width: 2.2, color: colors[index % colors.length]},
+      areaStyle: {color: 'rgba(25,92,232,.04)'}
+    }));
+    return {
+      animation: false,
+      tooltip: {trigger: 'axis'},
+      legend: {top: 4, right: 8, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 10, color: '#61778b'}},
+      grid: {top: 42, left: 40, right: 16, bottom: 38},
+      xAxis: {type: 'time', axisTick: {show: false}, axisLine: {lineStyle: {color: '#cfdae3'}}, axisLabel: {fontSize: 9, color: '#71859a', hideOverlap: true}},
+      yAxis: {type: 'value', name: definition?.series[0]?.unit || '', nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}},
+      series,
+      ...(series.length ? {} : {graphic: {type: 'text', left: 'center', top: 'middle', style: {text: '暂无遥测数据', fill: '#8a9aaa', fontSize: 12}}})
     };
-    const setting = settings[id];
-    const series = setting.series.map((item) => ({...item, data: fitSmartLightningMockSeries(item.data as number[], times.length)}));
-    return {animation: false, tooltip: {trigger: 'axis'}, legend: {top: 4, right: 8, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 10, color: '#61778b'}}, grid: {top: 42, left: 40, right: 16, bottom: 38}, xAxis: {type: 'category', boundaryGap: false, data: times, axisTick: {show: false}, axisLine: {lineStyle: {color: '#cfdae3'}}, axisLabel: {fontSize: 9, color: '#71859a', hideOverlap: true}}, yAxis: {type: 'value', name: setting.unit, nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}}, series};
   }
 }

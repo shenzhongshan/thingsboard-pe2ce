@@ -62,29 +62,20 @@
 .panel-heading h2, .panel-heading p { margin: 0; }
 .panel-heading h2 { color: #29485f; font-size: 16px; font-weight: 700; }
 .panel-heading p { margin-top: 4px; color: #7c8d9c; font-size: 11px; }
-.period-button { min-width: 34px; min-height: 30px; border: 1px solid var(--analysis-blue); border-radius: 5px; color: #fff; background: var(--analysis-blue); cursor: pointer; font: inherit; font-size: 12px; }
-
-.date-filter { display: flex; align-items: center; gap: 12px; width: min(100% - 36px, 430px); height: 34px; margin: 14px 18px 10px; padding: 0 10px; border: 1px solid #c7d0d8; border-radius: 6px; color: #4f6476; font-size: 12px; }
-.date-placeholder { flex: 1; color: #a1adb7; }
-.date-filter b { color: #4f6476; font-weight: 500; }
-.date-filter tb-icon { color: var(--analysis-blue); font-size: 17px; }
 
 .site-table-wrap { overflow-x: auto; padding: 0 18px; }
-.site-table { width: 100%; min-width: 620px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.site-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .site-table th { height: 38px; color: #38536a; background: #dcecff; font-weight: 600; }
 .site-table td { height: 47px; border: 1px solid #e1e6eb; color: #536676; text-align: center; }
 .site-table th { border: 1px solid #cad9e8; }
 .site-table th:first-child, .site-table td:first-child { width: 54px; }
 .site-table th:nth-child(2), .site-table td:nth-child(2) { width: 28%; }
-.site-table th:nth-child(3), .site-table td:nth-child(3) { width: 31%; }
-.site-table th:nth-child(4), .site-table td:nth-child(4) { width: 74px; }
-.site-table th:last-child, .site-table td:last-child { width: 104px; }
+.site-table th:nth-child(3), .site-table td:nth-child(3) { width: 34%; }
+.site-table th:nth-child(4), .site-table td:nth-child(4) { width: 84px; }
 .site-name { overflow: hidden; padding: 0 8px; text-overflow: ellipsis; white-space: nowrap; }
 .rate-cell { display: flex; align-items: center; gap: 10px; padding: 0 12px; }
 .rate-track { height: 10px; flex: 1; overflow: hidden; border-radius: 9px; background: #bec1c2; }
 .rate-track span { display: block; height: 100%; border-radius: inherit; background: var(--analysis-blue); }
-.action-button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 7px; color: #fff; background: var(--analysis-blue); cursor: pointer; font: inherit; font-size: 12px; }
-.action-button:hover { background: #104bc6; }
 .table-footer { display: flex; justify-content: flex-end; gap: 16px; padding: 12px 18px; color: #7b8e9d; font-size: 11px; }
 
 .ranking-tabs, .period-tabs { display: flex; gap: 2px; padding: 4px; border-radius: 18px; background: #eef0f2; }
@@ -121,13 +112,12 @@ button:focus-visible { outline: 2px solid var(--analysis-blue); outline-offset: 
   .panel-heading { align-items: start; flex-direction: column; padding: 12px; }
   .panel-heading.compact { min-height: auto; }
   .ranking-tabs, .period-tabs { align-self: stretch; justify-content: center; }
-  .date-filter { width: calc(100% - 24px); margin: 12px; }
   .site-table-wrap { padding: 0 12px; }
   .table-footer { padding: 10px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .action-button, .ranking-tabs button, .period-tabs button { transition: none; }
+  .ranking-tabs button, .period-tabs button { transition: none; }
 }
 
 /* 页面外边界与主要模块之间统一使用同一间距。 */
@@ -143,4 +133,23 @@ button:focus-visible { outline: 2px solid var(--analysis-blue); outline-offset: 
 .analysis-grid,
 .trend-panel {
   margin-top: var(--tb-smart-page-spacing);
+}
+
+/* 笔记本密度适配：仅缩小排名卡片和表格内部内容，不改变左右区域及卡片位置。 */
+@media (max-width: 1366px) and (min-width: 981px) {
+  .summary-card { gap: 8px; padding: 9px; }
+  .summary-icon { width: 38px; height: 38px; flex-basis: 38px; }
+  .summary-values { gap: 5px; }
+  .summary-values strong { font-size: 16px; }
+  .panel-heading { min-height: 58px; padding-right: 12px; padding-left: 12px; }
+  .panel-heading h2 { font-size: 14px; }
+  .site-table-wrap { padding-right: 12px; padding-left: 12px; }
+  .site-table { font-size: 11px; }
+  .site-table th { height: 34px; }
+  .site-table td { height: 42px; }
+  .rate-cell { gap: 6px; padding-right: 7px; padding-left: 7px; }
+  .ranking-tabs button,
+  .period-tabs button { min-width: 42px; padding-right: 7px; padding-left: 7px; font-size: 10px; }
+  .ranking-chart { height: 330px; }
+  .trend-chart { height: 290px; }
 }

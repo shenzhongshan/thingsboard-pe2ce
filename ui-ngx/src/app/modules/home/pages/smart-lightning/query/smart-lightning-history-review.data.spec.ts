@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildSmartLightningHistoryPoints,
   filterSmartLightningTelemetryParameters,
-  getSmartLightningTelemetryParameterLabel
+  getSmartLightningTelemetryParameterLabel,
+  getSmartLightningHistoryYAxisRange
 } from './smart-lightning-history-review.data';
 
 const points = buildSmartLightningHistoryPoints({
@@ -25,3 +26,8 @@ assert.deepEqual(
   filterSmartLightningTelemetryParameters('DESA', ['breakerStatus', 'leakageA', 'groundStatus', 'temperatureA', 'spdStatus']),
   ['leakageA', 'temperatureA']
 );
+
+// 纵轴不固定从零开始，而是根据当前数据范围增加边距。
+assert.deepEqual(getSmartLightningHistoryYAxisRange([[1000, 20], [2000, 30]]), {min: 18.5, max: 31.5});
+assert.deepEqual(getSmartLightningHistoryYAxisRange([[1000, 220]]), {min: 198, max: 242});
+assert.deepEqual(getSmartLightningHistoryYAxisRange([]), {min: 0, max: 1});

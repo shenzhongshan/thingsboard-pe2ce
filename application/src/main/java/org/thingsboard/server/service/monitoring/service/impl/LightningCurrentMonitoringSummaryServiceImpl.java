@@ -28,19 +28,23 @@ import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmTypeTotalDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
 import org.thingsboard.server.service.monitoring.service.LightningCurrentMonitoringSummaryService;
 import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
+import org.thingsboard.server.service.monitoring.util.SpdMonitoringCalculator;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -62,6 +66,8 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
 
     /** 雷电流监测设备在服务器属性中的功能分类值。 */
     private static final String FUNCTION_CATEGORY = "lightning_current";
+    /** 防雷产品大类，避免把同名功能分类的其他产品纳入雷电统计。 */
+    private static final String PRODUCT_CATEGORY = "lightning";
     /** 规则链输出的雷电监测规范键，不直接查询设备原始测点键。 */
     private static final List<String> TELEMETRY_KEYS = List.of(
             "surgePeak", "surgeCount", "surgePolarity");
@@ -97,20 +103,25 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
             }
         }
 
-        int alarmCount = countAlarms(user, deviceIds, window);
+        AlarmAggregate alarmAggregate = countAlarms(user, deviceIds, window);
         LightningAggregate aggregate = findLightningAggregate(user, devices, window);
         int total = devices.size();
         return new LightningCurrentMonitoringSummary(
                 total,
                 online,
                 total - online,
-                alarmCount,
+                alarmAggregate.count,
+                alarmAggregate.typeTotals,
                 aggregate.eventCount,
                 aggregate.maxPeakCurrent,
                 "kA",
                 aggregate.maxPeakDeviceName,
                 aggregate.maxPeakTime,
                 aggregate.maxPeakPolarity,
+                aggregate.minPeakCurrent,
+                aggregate.minPeakDeviceName,
+                aggregate.minPeakTime,
+                aggregate.minPeakPolarity,
                 aggregate.reportingDeviceCount);
     }
 
@@ -131,14 +142,21 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
             PageData<SmartLightningDeviceContextDTO> page =
                     smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
             for (SmartLightningDeviceContextDTO device : page.getData()) {
-                if (FUNCTION_CATEGORY.equalsIgnoreCase(
-                        MonitoringValueParser.trimToEmpty(device.getFunctionCategory()))) {
+                if (isLightningCurrentDevice(device)) {
                     devices.add(device);
                 }
             }
             pageLink = page.hasNext() ? pageLink.nextPageLink() : null;
         }
         return devices;
+    }
+
+    /** 同时校验产品大类和功能分类，保证雷电流卡片只统计防雷雷电流设备。 */
+    private boolean isLightningCurrentDevice(SmartLightningDeviceContextDTO device) {
+        return PRODUCT_CATEGORY.equalsIgnoreCase(
+                        MonitoringValueParser.trimToEmpty(device.getProductCategory()))
+                && FUNCTION_CATEGORY.equalsIgnoreCase(
+                        MonitoringValueParser.trimToEmpty(device.getFunctionCategory()));
     }
 
     /**
@@ -150,12 +168,12 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
      * @param user 当前登录用户
      * @param deviceIds 雷电流设备实体 ID
      * @param window 当前统计周期的起止时间
-     * @return 周期内告警条数
+     * @return 周期内告警条数和按数量降序排列的告警类型统计
      */
-    private int countAlarms(SecurityUser user, List<EntityId> deviceIds, MonitoringPeriodWindow window)
+    private AlarmAggregate countAlarms(SecurityUser user, List<EntityId> deviceIds, MonitoringPeriodWindow window)
             throws ThingsboardException {
         if (deviceIds.isEmpty()) {
-            return 0;
+            return AlarmAggregate.empty();
         }
         Set<UUID> deviceIdSet = new HashSet<>();
         for (EntityId deviceId : deviceIds) {
@@ -175,20 +193,33 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
                 List.of(AlarmSearchStatus.ANY),
                 Collections.emptyList(),
                 null);
-        int count = 0;
+        AlarmAggregate result = AlarmAggregate.empty();
         for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
             EntityId originator = alarm.getOriginator();
             if (originator != null
                     && originator.getEntityType() == EntityType.DEVICE
                     && deviceIdSet.contains(originator.getId())) {
-                count++;
+                result.count++;
+                String type = alarm.getType() == null || alarm.getType().isBlank()
+                        ? "未分类" : alarm.getType().trim();
+                result.countsByType.put(type, result.countsByType.getOrDefault(type, 0) + 1);
             }
         }
-        return count;
+        for (Map.Entry<String, Integer> entry : result.countsByType.entrySet()) {
+            result.typeTotals.add(new SmartLightningAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
+        }
+        result.typeTotals.sort(new Comparator<SmartLightningAlarmTypeTotalDTO>() {
+            @Override
+            public int compare(SmartLightningAlarmTypeTotalDTO left, SmartLightningAlarmTypeTotalDTO right) {
+                int countOrder = Integer.compare(right.getCount(), left.getCount());
+                return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
+            }
+        });
+        return result;
     }
 
     /**
-     * 并行读取所有雷电流设备的规范遥测，并汇总事件数与最大峰值。
+     * 并行读取所有雷电流设备的规范遥测，并汇总事件数与峰值范围。
      *
      * <p>每台设备对应一个异步时序查询，使用 {@link Futures#allAsList(List)} 等待
      * 全部设备返回，再按设备原顺序合并结果。</p>
@@ -230,19 +261,26 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
         for (int index = 0; index < entriesByDevice.size(); index++) {
             SmartLightningDeviceContextDTO device = devices.get(index);
             List<TsKvEntry> entries = entriesByDevice.get(index);
-            PeakResult peak = findMaximumPeak(entries, device);
-            if (peak.value != null) {
+            PeakRangeResult peakRange = findPeakRange(entries);
+            if (peakRange.maximum != null) {
                 result.reportingDeviceCount++;
-                if (result.maxPeakCurrent == null || peak.value > result.maxPeakCurrent) {
-                    result.maxPeakCurrent = peak.value;
+                if (result.maxPeakCurrent == null || peakRange.maximum > result.maxPeakCurrent) {
+                    result.maxPeakCurrent = peakRange.maximum;
                     result.maxPeakDeviceName = device.getDeviceName();
-                    result.maxPeakTime = peak.timestamp;
-                    result.maxPeakPolarity = peak.polarity;
+                    result.maxPeakTime = peakRange.maximumTime;
+                    result.maxPeakPolarity = peakRange.maximumPolarity;
+                }
+                if (peakRange.minimum != null
+                        && (result.minPeakCurrent == null || peakRange.minimum < result.minPeakCurrent)) {
+                    result.minPeakCurrent = peakRange.minimum;
+                    result.minPeakDeviceName = device.getDeviceName();
+                    result.minPeakTime = peakRange.minimumTime;
+                    result.minPeakPolarity = peakRange.minimumPolarity;
                 }
             }
             // surgeCount 是设备累计计数器：只有一条时直接使用该值；
             // 有多条时保留相邻差值逻辑，避免把每次上报的累计值重复相加。
-            result.eventCount += calculateSurgeCountDelta(entries);
+            result.eventCount += calculateSurgeCountDelta(entries, window.getStartTs());
         }
         return result;
     }
@@ -251,7 +289,7 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
      * 为三个规范遥测键创建时序查询条件。
      *
      * @param window 查询的起止时间
-     * @return surgePeak、surgeCount、surgePolarity 的查询列表
+     * @return 周期内 surgePeak/surgeCount/surgePolarity 查询及周期开始前的 surgeCount 基线查询
      */
     private List<ReadTsKvQuery> telemetryQueries(MonitoringPeriodWindow window) {
         List<ReadTsKvQuery> queries = new ArrayList<>();
@@ -265,18 +303,24 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
                     Aggregation.NONE,
                     "ASC"));
         }
+        // 仅为累计计数器读取周期开始前最近一条记录，供周期增量计算使用。
+        queries.add(new BaseReadTsKvQuery(
+                "surgeCount",
+                0,
+                window.getStartTs(),
+                1,
+                "DESC"));
         return queries;
     }
 
     /**
-     * 从单台设备的遥测结果中找到最大 surgePeak，并关联最近的极性值。
+     * 从单台设备的遥测结果中找到 surgePeak 最大值和最小值，并关联最近的极性值。
      *
      * @param entries 当前设备在统计周期内的遥测记录
-     * @param device 当前设备上下文，用于后续标记所属设备
-     * @return 该设备的最大峰值及其时间、极性
+     * @return 该设备的峰值范围及最大、最小值对应的时间和极性
      */
-    private PeakResult findMaximumPeak(List<TsKvEntry> entries, SmartLightningDeviceContextDTO device) {
-        PeakResult result = PeakResult.empty();
+    private PeakRangeResult findPeakRange(List<TsKvEntry> entries) {
+        PeakRangeResult result = PeakRangeResult.empty();
         for (TsKvEntry entry : entries) {
             if (!isPeakKey(entry.getKey())) {
                 continue;
@@ -287,10 +331,15 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
             }
             double normalizedValue = normalizePeakValue(value);
             normalizedValue = Math.abs(normalizedValue);
-            if (result.value == null || normalizedValue > result.value) {
-                result.value = normalizedValue;
-                result.timestamp = entry.getTs();
-                result.polarity = findNearestPolarity(entries, entry.getTs());
+            if (result.maximum == null || normalizedValue > result.maximum) {
+                result.maximum = normalizedValue;
+                result.maximumTime = entry.getTs();
+                result.maximumPolarity = findNearestPolarity(entries, entry.getTs());
+            }
+            if (result.minimum == null || normalizedValue < result.minimum) {
+                result.minimum = normalizedValue;
+                result.minimumTime = entry.getTs();
+                result.minimumPolarity = findNearestPolarity(entries, entry.getTs());
             }
         }
         return result;
@@ -304,11 +353,14 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
      * 直接使用这条记录。若后续值小于前值，说明设备计数器发生归零或重启，
      * 当前值作为新一段计数加入结果。</p>
      *
-     * @param entries 当前设备的周期遥测
+     * @param entries 当前设备的周期遥测和周期开始前的基线记录
+     * @param windowStartTs 当前统计周期起始时间
      * @return 周期内雷击次数；没有有效 surgeCount 时返回 0
      */
-    private long calculateSurgeCountDelta(List<TsKvEntry> entries) {
+    private long calculateSurgeCountDelta(List<TsKvEntry> entries, long windowStartTs) {
         List<TsKvEntry> readings = new ArrayList<>();
+        Double baseline = null;
+        long baselineTs = Long.MIN_VALUE;
         for (TsKvEntry entry : entries) {
             if (!"surgeCount".equals(entry.getKey())) {
                 continue;
@@ -317,7 +369,14 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
             if (value == null || value < 0) {
                 continue;
             }
-            readings.add(entry);
+            if (entry.getTs() < windowStartTs) {
+                if (entry.getTs() > baselineTs) {
+                    baselineTs = entry.getTs();
+                    baseline = value;
+                }
+            } else {
+                readings.add(entry);
+            }
         }
         readings.sort(new Comparator<TsKvEntry>() {
             @Override
@@ -325,24 +384,11 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
                 return Long.compare(left.getTs(), right.getTs());
             }
         });
-        if (readings.isEmpty()) {
-            return 0;
+        List<Double> samples = new ArrayList<>();
+        for (TsKvEntry reading : readings) {
+            samples.add(MonitoringValueParser.parseFiniteDouble(reading.getValueAsString()));
         }
-
-        // 第一条是周期内唯一可用的起始计数；只有一条时也会直接返回它。
-        double previous = MonitoringValueParser.parseFiniteDouble(readings.get(0).getValueAsString());
-        long delta = Math.round(previous);
-        for (int index = 1; index < readings.size(); index++) {
-            double current = MonitoringValueParser.parseFiniteDouble(readings.get(index).getValueAsString());
-            if (current >= previous) {
-                delta += Math.round(current - previous);
-            } else {
-                // 计数器回退表示设备重新计数，当前值属于新的累计段。
-                delta += Math.round(current);
-            }
-            previous = current;
-        }
-        return delta;
+        return SpdMonitoringCalculator.counterDelta(baseline, samples);
     }
 
     /** 判断遥测键是否为规则链输出的雷电峰值键。 */
@@ -402,6 +448,10 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
         private String maxPeakDeviceName;
         private Long maxPeakTime;
         private String maxPeakPolarity;
+        private Double minPeakCurrent;
+        private String minPeakDeviceName;
+        private Long minPeakTime;
+        private String minPeakPolarity;
         private int reportingDeviceCount;
 
         /** 创建一个没有任何遥测结果的空聚合对象。 */
@@ -410,15 +460,30 @@ public class LightningCurrentMonitoringSummaryServiceImpl implements LightningCu
         }
     }
 
-    /** 保存单台设备的最大峰值及其关联信息。 */
-    private static final class PeakResult {
-        private Double value;
-        private Long timestamp;
-        private String polarity;
+    /** 保存单台设备的峰值范围及其关联信息。 */
+    private static final class PeakRangeResult {
+        private Double maximum;
+        private Long maximumTime;
+        private String maximumPolarity;
+        private Double minimum;
+        private Long minimumTime;
+        private String minimumPolarity;
 
         /** 创建一个没有峰值记录的空结果。 */
-        private static PeakResult empty() {
-            return new PeakResult();
+        private static PeakRangeResult empty() {
+            return new PeakRangeResult();
+        }
+    }
+
+    /** 保存一次告警查询得到的总数及类型分组，保证卡片数字和悬浮详情口径一致。 */
+    private static final class AlarmAggregate {
+        private int count;
+        private final Map<String, Integer> countsByType = new HashMap<>();
+        private final List<SmartLightningAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
+
+        /** 创建空告警统计，供无雷电流设备时直接返回。 */
+        private static AlarmAggregate empty() {
+            return new AlarmAggregate();
         }
     }
 }

@@ -178,6 +178,11 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     this.cd.markForCheck();
   }
 
+  /** 资产树一键全选：保留当前根资产筛选范围并选中其全部下属节点。 */
+  selectAllAssets(): void {
+    this.selectRootAsset(this.selectedRootAssetId);
+  }
+
   /** 切换状态页签（全部/在线/离线/未连接）并回到第一页。 */
   setStatus(status: '全部' | SmartLightningQueryStatus): void {
     this.activeStatus = status;

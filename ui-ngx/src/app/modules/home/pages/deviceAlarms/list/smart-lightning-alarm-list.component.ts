@@ -73,7 +73,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '严重', '重要', '次要', '警告', '不确定'];
   selectedRows = new Set<string>();
   filters: SmartLightningAlarmListFilters = {
-    severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''
+    severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: '', keyword: '', startTime: '', endTime: ''
   };
 
   private allRows: SmartLightningAlarmListRow[] = [];
@@ -132,6 +132,20 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
 
   get alarmTypes(): string[] {
     return this.uniqueValues(this.allRows.map((row) => row.alarmType));
+  }
+
+  /**
+   * 返回当前资产范围内的全部产品名称，供告警处理页下拉筛选。
+   *
+   * 产品选项不能只从未清除告警生成：设备可能暂时没有活动告警，
+   * 但仍然需要按该产品查询已确认或已清除的历史告警。因此这里以
+   * 全部设备上下文为主，并合并已经加载的告警行作为容错补充。
+   */
+  get productNames(): string[] {
+    const deviceProductNames = [...this.deviceContexts.values()]
+      .map((context) => context.productName || '');
+    const alarmProductNames = this.allRows.map((row) => row.productName);
+    return this.uniqueValues([...deviceProductNames, ...alarmProductNames]);
   }
 
   get assetCount(): number {
@@ -214,7 +228,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   reset(): void {
-    this.filters = {severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''};
+    this.filters = {severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: '', keyword: '', startTime: '', endTime: ''};
     this.query();
   }
 
@@ -393,6 +407,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   private loadAlarms(): void {
+    // 告警处理页需要同时查询未清除、已确认和已清除记录，空过滤对象表示不限制告警状态。
     const query = new AlarmQueryV2(
       null,
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),
