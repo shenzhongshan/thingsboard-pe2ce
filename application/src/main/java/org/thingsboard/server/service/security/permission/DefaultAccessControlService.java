@@ -27,6 +27,7 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.EnumSet;
 import java.util.Set;
 
 @Service
@@ -51,7 +52,16 @@ public class DefaultAccessControlService implements AccessControlService {
     public Set<Resource> getAllowedResources(Authority authority) {
         Permissions permissions = authorityPermissions.get(authority);
         if (permissions instanceof AbstractPermissions abstractPermissions) {
-            return Set.copyOf(abstractPermissions.keySet());
+            // The keySet is the map of permission *checkers*, which is not quite the same thing as
+            // the vocabulary of resources a role may be written against. Resource.ALL is the
+            // difference: it never needs a checker of its own (MergedUserPermissions#hasGenericPermission
+            // consults the ALL entry before the per-resource one), but it must be grantable - the
+            // stock "Tenant Administrator" and "Customer Administrator" roles are literally
+            // {"ALL":["ALL"]}, and without this the role editor cannot express them.
+            // PE keeps the two apart as Resource.resourcesByAuthority vs its permission checkers.
+            Set<Resource> resources = EnumSet.copyOf(abstractPermissions.keySet());
+            resources.add(Resource.ALL);
+            return Set.copyOf(resources);
         }
         return Set.of();
     }

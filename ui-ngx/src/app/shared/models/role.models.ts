@@ -37,30 +37,27 @@ export const roleTypeTranslations = new Map<RoleType, string>([
   [RoleType.GROUP, 'role.type-group']
 ]);
 
-// PE permission resource names (data-model options only — CE does not enforce them).
-export const roleResources: string[] = [
-  'ALL', 'PROFILE', 'ADMIN_SETTINGS', 'ALARM', 'DEVICE', 'ASSET', 'CUSTOMER', 'DASHBOARD',
-  'ENTITY_VIEW', 'TENANT', 'RULE_CHAIN', 'USER', 'WIDGETS_BUNDLE', 'WIDGET_TYPE', 'OAUTH2_CONFIGURATION_INFO',
-  'DEVICE_PROFILE', 'ASSET_PROFILE', 'API_USAGE_STATE', 'TB_RESOURCE', 'OTA_PACKAGE', 'EDGE', 'RPC',
-  'QUEUE', 'VERSION_CONTROL', 'NOTIFICATION', 'CONVERTER', 'INTEGRATION', 'SCHEDULER_EVENT',
-  'BLOB_ENTITY', 'CUSTOMER_GROUP', 'DEVICE_GROUP', 'ASSET_GROUP', 'USER_GROUP', 'ENTITY_VIEW_GROUP',
-  'EDGE_GROUP', 'DASHBOARD_GROUP', 'ROLE', 'GROUP_PERMISSION', 'WHITE_LABELING', 'AUDIT_LOG'
-];
+/**
+ * Shape of GET /api/permissions/allowedPermissions. The role editor is driven entirely by this:
+ * the backend's Resource.operationsByResource / Operation.allowedForGroupRoleOperations are the
+ * single source of truth, so the UI must never carry its own copy of these vocabularies.
+ */
+export interface AllowedPermissionsInfo {
+  /** resource name -> operations that resource accepts */
+  operationsByResource: {[resource: string]: string[]};
+  /** operations a GROUP role may grant (a strict subset — group roles act within one entity group) */
+  allowedForGroupRoleOperations: string[];
+  allowedForGroupOwnerOnlyOperations: string[];
+  allowedForGroupOwnerOnlyGroupOperations: string[];
+  /** resources this authority may be granted at all */
+  allowedResources: string[];
+  userPermissions?: any;
+  userOwnerId?: {entityType: string; id: string};
+}
 
-export const roleResourceTranslations = new Map<string, string>(
-  roleResources.map(res => [res, `role.resource-${res}`])
-);
+export const roleResourceTranslation = (resource: string): string => `role.resource-${resource}`;
 
-// PE permission operation names.
-export const roleOperations: string[] = [
-  'ALL', 'CREATE', 'READ', 'WRITE', 'DELETE', 'RPC_CALL', 'READ_CREDENTIALS', 'WRITE_CREDENTIALS',
-  'READ_ATTRIBUTES', 'WRITE_ATTRIBUTES', 'READ_TELEMETRY', 'WRITE_TELEMETRY', 'ADD_TO_GROUP',
-  'REMOVE_FROM_GROUP', 'CHANGE_OWNER', 'IMPERSONATE', 'CLAIM_DEVICES', 'SHARE_GROUP', 'ASSIGN_TO_TENANT'
-];
-
-export const roleOperationTranslations = new Map<string, string>(
-  roleOperations.map(op => [op, `role.operation-${op}`])
-);
+export const roleOperationTranslation = (operation: string): string => `role.operation-${operation}`;
 
 export interface Role extends BaseData<RoleId> {
   tenantId?: TenantId;
