@@ -228,6 +228,31 @@ export interface SmartLightningAlarmTypeTotal {
   count: number;
 }
 
+/** 告警分析页按 ThingsBoard 严重程度返回的统计项。 */
+export interface SmartLightningAlarmSeverityTotal {
+  severity: string;
+  count: number;
+}
+
+/** 告警分析页当前周期的四种确认/清除状态统计。 */
+export interface SmartLightningAlarmStatusTotal {
+  status: string;
+  count: number;
+}
+
+/** 告警设备覆盖率统计；设备数量均按设备 ID 去重。 */
+export interface SmartLightningAlarmDeviceCoverage {
+  totalDevices: number;
+  alarmedDevices: number;
+  activeAlarmDevices: number;
+}
+
+/** 告警分析页右侧状态分布与设备覆盖率聚合结果。 */
+export interface SmartLightningAlarmAnalysisOverview {
+  statusDistribution: SmartLightningAlarmStatusTotal[];
+  deviceCoverage: SmartLightningAlarmDeviceCoverage;
+}
+
 /** 看板当前未清除告警统计。 */
 export interface SmartLightningAlarmSummary {
   activeCount: number;
@@ -241,11 +266,29 @@ export interface SmartLightningAlarmPeriodSummary {
   changePercent: number;
 }
 
+/** 告警趋势时间桶，label 为小时、日期或月份标签。 */
+export interface SmartLightningAlarmTrendPoint {
+  label: string;
+  count: number;
+}
+
+/** 告警分析页重点设备：严重等级且仍未清除的设备。 */
+export interface SmartLightningFocusAlarmDevice {
+  deviceName: string;
+  parentNodeName: string;
+  alarmType: string;
+  durationMs: number;
+}
+
 /** 告警分析的日/月/年周期统计。 */
 export interface SmartLightningAlarmAnalysisSummary {
   day: SmartLightningAlarmPeriodSummary;
   month: SmartLightningAlarmPeriodSummary;
   year: SmartLightningAlarmPeriodSummary;
+  dayTrend: SmartLightningAlarmTrendPoint[];
+  monthTrend: SmartLightningAlarmTrendPoint[];
+  yearTrend: SmartLightningAlarmTrendPoint[];
+  focusDevices: SmartLightningFocusAlarmDevice[];
 }
 
 /** 设备直属父资产的告警数量与处理率统计。 */
@@ -334,6 +377,30 @@ export class SmartLightningMonitoringApiService {
     const params = new HttpParams().set('period', period);
     return this.http.get<SmartLightningLeafAssetAlarmCount[]>(
       '/api/smart-lightning/monitoring/alarm-analysis/leaf-assets', {params}
+    );
+  }
+
+  /** 查询当前周期内全部可见设备按告警类型聚合的记录数。 */
+  getAlarmTypeRanking(period: SmartLightningPeriod): Observable<SmartLightningAlarmTypeTotal[]> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningAlarmTypeTotal[]>(
+      '/api/smart-lightning/monitoring/alarm-analysis/types', {params}
+    );
+  }
+
+  /** 查询当前周期内全部可见设备按告警严重程度聚合的记录数。 */
+  getAlarmSeverityRanking(period: SmartLightningPeriod): Observable<SmartLightningAlarmSeverityTotal[]> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningAlarmSeverityTotal[]>(
+      '/api/smart-lightning/monitoring/alarm-analysis/severities', {params}
+    );
+  }
+
+  /** 查询当前周期的告警状态分布和设备告警覆盖率。 */
+  getAlarmAnalysisOverview(period: SmartLightningPeriod): Observable<SmartLightningAlarmAnalysisOverview> {
+    const params = new HttpParams().set('period', period);
+    return this.http.get<SmartLightningAlarmAnalysisOverview>(
+      '/api/smart-lightning/monitoring/alarm-analysis/overview', {params}
     );
   }
 

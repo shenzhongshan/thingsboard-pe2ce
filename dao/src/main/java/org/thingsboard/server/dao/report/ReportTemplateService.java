@@ -33,6 +33,10 @@ public interface ReportTemplateService {
 
     PageData<ReportTemplateInfo> findReportTemplateInfos(TenantId tenantId, CustomerId customerId, PageLink pageLink);
 
+    /** 查询客户自己的模板以及租户级公共模板，供客户用户生成报告。 */
+    PageData<ReportTemplateInfo> findReportTemplateInfosForCustomer(TenantId tenantId, CustomerId customerId,
+                                                                     PageLink pageLink);
+
     void deleteReportTemplate(TenantId tenantId, ReportTemplateId reportTemplateId);
 
     void deleteReportTemplatesByTenantId(TenantId tenantId);

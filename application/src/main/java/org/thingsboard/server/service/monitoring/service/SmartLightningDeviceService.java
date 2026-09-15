@@ -26,7 +26,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/** 智能防雷设备列表的业务接口。 */
+/**
+ * 智能防雷模块公共设备服务。
+ *
+ * <p>由看板、数据监测、数据查询以及告警分析复用。带 Lightning 的方法会追加
+ * productCategory=lightning 过滤；getVisibleDeviceIds 只执行当前用户权限过滤，
+ * 供面向全体设备的告警统计使用。</p>
+ */
 public interface SmartLightningDeviceService {
 
     /** 返回当前用户可见且 productCategory=lightning 的设备，并在过滤后分页。 */

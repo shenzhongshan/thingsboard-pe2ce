@@ -13,7 +13,7 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 import java.util.UUID;
 
 /** 数据监测页按资产范围查询最新设备状态与遥测指标的业务接口。 */
-public interface SmartLightningRealtimeAnalysisService {
+public interface SmartLightningMonitoringService {
 
     /**
      * 查询实时分析数据。
@@ -22,6 +22,6 @@ public interface SmartLightningRealtimeAnalysisService {
      * @param assetId 选中的资产 ID；为空时统计当前用户全部可见防雷设备
      * @return 同一设备范围下的整体、SPD、接地、雷电流和故障电弧快照
      */
-    SmartLightningRealtimeAnalysisDTO getAnalysis(SecurityUser user, UUID assetId)
+    SmartLightningRealtimeAnalysisDTO getRealtimeAnalysis(SecurityUser user, UUID assetId)
             throws ThingsboardException;
 }

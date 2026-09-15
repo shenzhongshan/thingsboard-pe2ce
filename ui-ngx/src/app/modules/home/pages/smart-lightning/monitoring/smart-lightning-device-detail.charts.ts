@@ -25,6 +25,34 @@ export interface SmartLightningChartSeriesData {
   points: Array<[number, number]>;
 }
 
+/**
+ * 根据当前曲线数据计算纵轴范围。
+ *
+ * <p>趋势图不再默认把纵轴下限固定为 0，而是围绕真实数据增加少量留白，
+ * 让温度、电压、漏流等变化较小的曲线也能清楚显示。没有有效数据时返回
+ * undefined，由 ECharts 使用默认范围。</p>
+ */
+export const buildSmartLightningYAxisBounds = (
+  seriesData: readonly SmartLightningChartSeriesData[]
+): {min: number; max: number} | undefined => {
+  const values = seriesData
+    .flatMap((item) => item.points.map((point) => point[1]))
+    .filter((value) => Number.isFinite(value));
+  if (!values.length) {
+    return undefined;
+  }
+
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const range = rawMax - rawMin;
+  const padding = range > 0 ? range * 0.1 : Math.max(Math.abs(rawMax) * 0.1, 1);
+
+  // 正值数据的下限保持为正数，避免重新退回到 0；包含 0 或负值时保留真实数据范围。
+  const min = rawMin > 0 ? Math.max(Number.EPSILON, rawMin - padding) : rawMin - padding;
+  const max = rawMax < 0 ? Math.min(-Number.EPSILON, rawMax + padding) : rawMax + padding;
+  return {min, max};
+};
+
 const series = (
   key: string,
   label: string,

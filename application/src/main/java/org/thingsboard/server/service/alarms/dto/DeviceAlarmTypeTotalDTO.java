@@ -1,4 +1,4 @@
-package org.thingsboard.server.service.monitoring.dto;
+package org.thingsboard.server.service.alarms.dto;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 /** 按 ThingsBoard 告警类型聚合后的数量。 */
 @Getter
 @RequiredArgsConstructor
-public class SmartLightningAlarmTypeTotalDTO {
+public class DeviceAlarmTypeTotalDTO {
 
     /** 告警类型（alarm.type），空类型统一显示为“未分类”。 */
     private final String type;

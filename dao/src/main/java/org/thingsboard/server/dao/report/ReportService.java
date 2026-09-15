@@ -17,6 +17,7 @@ package org.thingsboard.server.dao.report;
 
 import org.thingsboard.server.common.data.id.ReportId;
 import org.thingsboard.server.common.data.id.ReportTemplateId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -33,7 +34,9 @@ public interface ReportService {
 
     byte[] getReportData(TenantId tenantId, ReportId reportId);
 
-    PageData<ReportInfo> findReportInfos(TenantId tenantId, ReportTemplateId templateId, UserId userId, PageLink pageLink);
+    /** 按模板、生成用户及客户范围分页查询报告元数据。customerId 为空时不限制客户。 */
+    PageData<ReportInfo> findReportInfos(TenantId tenantId, ReportTemplateId templateId, UserId userId,
+                                         CustomerId customerId, PageLink pageLink);
 
     void deleteReport(TenantId tenantId, ReportId reportId);
 

@@ -3,11 +3,16 @@
 import assert from 'node:assert/strict';
 import { buildSmartLightningDeviceDetailMock, buildSmartLightningChartTimes, fitSmartLightningMockSeries } from './smart-lightning-device-detail.data.ts';
 import { buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions } from './smart-lightning-device-detail.data.ts';
+import { buildSmartLightningYAxisBounds } from './smart-lightning-device-detail.charts.ts';
 import { getSmartLightningProductSpecification } from './smart-lightning-product-specifications.ts';
 
 const detail = buildSmartLightningDeviceDetailMock('1234567890');
 assert.equal(detail.title, '设备监测 · 12345678');
 assert.equal(detail.metrics.length, 12);
+assert.deepEqual(buildSmartLightningYAxisBounds([{
+  definition: {key: 'temperatureA', label: 'A温度', unit: '℃'},
+  points: [[1, 24], [2, 28]]
+}]), {min: 23.6, max: 28.4});
 assert.deepEqual(getSmartLightningRealtimeMetricDefinitions('DESA').map((metric) => metric.key), [
   'breakerStatus', 'groundStatus', 'voltageA', 'voltageB', 'voltageC', 'leakageA', 'leakageB', 'leakageC', 'lifePercent',
   'lightningCount', 'spdStatus', 'temperatureA', 'temperatureB'

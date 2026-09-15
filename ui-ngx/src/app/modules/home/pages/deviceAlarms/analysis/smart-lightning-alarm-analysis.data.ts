@@ -28,6 +28,8 @@ export interface AlarmAnalysisPeriodCard {
 export interface AlarmAnalysisSiteRow {
   /** 资产名称。 */
   name: string;
+  /** 从根资产到设备直属父资产的完整路径。 */
+  path: string;
   /** 周期内告警数量。 */
   count: number;
   /** 已处理率百分比。 */
@@ -37,14 +39,48 @@ export interface AlarmAnalysisSiteRow {
 /** 后端设备直属父资产告警统计的最小结构，避免数据转换器依赖 HTTP 模型。 */
 export interface AlarmAnalysisLeafAssetCount {
   assetName: string;
+  /** 后端返回的资产绝对路径；旧接口未返回时回退为资产名称。 */
+  assetPath?: string;
   alarmCount: number;
   handledRate: number;
+}
+
+/** 后端按告警类型返回的周期统计项。 */
+export interface AlarmAnalysisTypeTotal {
+  type: string;
+  count: number;
+}
+
+/** 后端按 ThingsBoard 严重程度返回的周期统计项。 */
+export interface AlarmAnalysisSeverityTotal {
+  severity: string;
+  count: number;
+}
+
+/** 严重程度分布行，补充中文名称、占比和配色。 */
+export interface AlarmAnalysisSeverityRow {
+  code: string;
+  name: string;
+  count: number;
+  percentage: number;
+  tone: 'critical' | 'major' | 'minor' | 'warning' | 'indeterminate';
+}
+
+/** 告警确认/清除状态排行行。 */
+export interface AlarmAnalysisStatusRow {
+  code: string;
+  name: string;
+  count: number;
+  percentage: number;
+  tone: 'active' | 'cleared';
 }
 
 /** 条形图输入：名称 + 数量。 */
 export interface AlarmAnalysisBarInput {
   name: string;
   count: number;
+  /** 图表悬浮提示使用的完整路径，类型排行没有时回退为名称。 */
+  path?: string;
 }
 
 /** 条形图渲染数据：在输入基础上补充排名与占比。 */
@@ -62,36 +98,91 @@ export const ALERT_ANALYSIS_PERIODS: readonly AlarmAnalysisPeriodCard[] = [
   {key: 'year', label: '年', currentLabel: '今年告警数', previousLabel: '去年告警数', changeLabel: '年同比', total: 0, previous: 0, change: '--', tone: 'teal'}
 ];
 
-/** 把后端设备直属父资产统计映射为站点排名行，并保持告警数量降序。 */
+/** 把后端设备直属父资产统计映射为站点排名行，并按处理率降序排列。 */
 export function mapAlarmAnalysisSiteRows(items: readonly AlarmAnalysisLeafAssetCount[]): AlarmAnalysisSiteRow[] {
   return [...items]
     .map((item) => ({
       name: item.assetName || '未命名设备父资产',
+      path: item.assetPath || item.assetName || '未命名设备父资产',
       count: Number.isFinite(item.alarmCount) ? item.alarmCount : 0,
       handledRate: Number.isFinite(item.handledRate) ? item.handledRate : 0
     }))
-    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'zh-CN'));
+    .sort((left, right) => right.handledRate - left.handledRate
+      || right.count - left.count
+      || left.name.localeCompare(right.name, 'zh-CN'));
 }
-
-/** 按告警类型聚合的排名演示数据。 */
-export const ALARM_ANALYSIS_TYPE_ROWS: readonly AlarmAnalysisBarInput[] = [
-  {name: '现场报警', count: 23},
-  {name: '通讯状态', count: 13},
-  {name: '电流越限', count: 9},
-  {name: '电压异常', count: 6},
-  {name: '温度异常', count: 4}
-];
-
-/** 近 7 日告警趋势演示数据。 */
-export const ALARM_ANALYSIS_TREND = {
-  labels: ['01', '02', '03', '04', '05', '06', '07'],
-  values: [32, 24, 41, 27, 35, 18, 29]
-};
 
 /** 取周期对应的中文标签，未匹配时回退为“日”。 */
 export function getAlarmAnalysisPeriodLabel(period: AlarmAnalysisPeriod): string {
   const item = ALERT_ANALYSIS_PERIODS.find((candidate) => candidate.key === period);
   return item?.label || '日';
+}
+
+/** 把后端告警类型统计转换为排行榜输入；数量排序交给统一条形图构建函数。 */
+export function mapAlarmAnalysisTypeRows(items: readonly AlarmAnalysisTypeTotal[]): AlarmAnalysisBarInput[] {
+  return items.map((item) => ({
+    name: item.type?.trim() || '未分类',
+    count: Number.isFinite(item.count) ? item.count : 0
+  }));
+}
+
+/** 将 ThingsBoard 严重程度代码转换为页面展示名称，并按数量降序排列。 */
+export function mapAlarmAnalysisSeverityRows(items: readonly AlarmAnalysisSeverityTotal[]): AlarmAnalysisSeverityRow[] {
+  const labels: Record<string, {name: string; tone: AlarmAnalysisSeverityRow['tone']}> = {
+    CRITICAL: {name: '严重', tone: 'critical'},
+    MAJOR: {name: '重要', tone: 'major'},
+    MINOR: {name: '次要', tone: 'minor'},
+    WARNING: {name: '警告', tone: 'warning'},
+    INDETERMINATE: {name: '不确定', tone: 'indeterminate'}
+  };
+  const rows: AlarmAnalysisSeverityRow[] = [];
+  for (const item of items) {
+    const code = item.severity?.trim().toUpperCase() || 'INDETERMINATE';
+    const display = labels[code] || {name: '不确定', tone: 'indeterminate' as const};
+    rows.push({code, name: display.name, count: Number.isFinite(item.count) ? item.count : 0, percentage: 0, tone: display.tone});
+  }
+  rows.sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'zh-CN'));
+  const max = Math.max(1, rows[0]?.count || 0);
+  for (const row of rows) {
+    row.percentage = Math.round(row.count / max * 100);
+  }
+  return rows;
+}
+
+/** 将后端四种告警状态代码映射为中文名称，并按数量降序排列。 */
+export function mapAlarmAnalysisStatusRows(items: readonly {status: string; count: number}[]): AlarmAnalysisStatusRow[] {
+  const labels: Record<string, {name: string; tone: AlarmAnalysisStatusRow['tone']}> = {
+    ACTIVE_UNACK: {name: '未确认未清除', tone: 'active'},
+    ACTIVE_ACK: {name: '已确认未清除', tone: 'active'},
+    CLEARED_UNACK: {name: '未确认已清除', tone: 'cleared'},
+    CLEARED_ACK: {name: '已确认已清除', tone: 'cleared'}
+  };
+  const rows: AlarmAnalysisStatusRow[] = [];
+  for (const item of items) {
+    const code = item.status?.trim().toUpperCase() || 'ACTIVE_UNACK';
+    const display = labels[code] || {name: '其他状态', tone: 'cleared' as const};
+    rows.push({
+      code,
+      name: display.name,
+      count: Number.isFinite(item.count) ? item.count : 0,
+      percentage: 0,
+      tone: display.tone
+    });
+  }
+  rows.sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, 'zh-CN'));
+  const max = Math.max(1, rows[0]?.count || 0);
+  for (const row of rows) {
+    row.percentage = Math.round(row.count / max * 100);
+  }
+  return rows;
+}
+
+/** 计算告警设备覆盖率，设备总数为 0 时返回 0，避免出现 NaN。 */
+export function calculateAlarmCoveragePercent(alarmedDevices: number, totalDevices: number): number {
+  if (totalDevices <= 0 || alarmedDevices <= 0) {
+    return 0;
+  }
+  return Math.round(Math.min(alarmedDevices, totalDevices) / totalDevices * 10000) / 100;
 }
 
 /**

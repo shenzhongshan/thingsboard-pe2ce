@@ -7,6 +7,7 @@ package org.thingsboard.server.service.monitoring.dto;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.thingsboard.server.service.alarms.dto.DeviceAlarmTypeTotalDTO;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ public class LightningCurrentMonitoringSummary {
     /** 统计周期内雷电流设备的告警数。 */
     private final int alarmCount;
     /** 统计周期内按告警类型汇总的数量，按数量降序排列。 */
-    private final List<SmartLightningAlarmTypeTotalDTO> alarmTypeTotals;
+    private final List<DeviceAlarmTypeTotalDTO> alarmTypeTotals;
     /** 各雷电流设备在所选周期内的 surgeCount 增量之和；单条记录直接采用该值。 */
     private final long eventCount;
     /** 周期内最大峰值电流；没有任何设备上报时为 null。 */

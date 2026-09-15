@@ -13,4 +13,5 @@ assert.ok(!template.includes('class="date-filter"'));
 assert.ok(!template.includes('<th scope="col">操作</th>'));
 assert.ok(!template.includes('class="action-button"'));
 assert.ok(component.includes('getLeafAssetAlarmCounts'));
+assert.ok(component.includes('getAlarmTypeRanking'));
 assert.ok(component.includes('sitePeriod'));

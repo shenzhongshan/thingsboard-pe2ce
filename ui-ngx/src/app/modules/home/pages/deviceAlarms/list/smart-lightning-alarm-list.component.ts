@@ -9,7 +9,7 @@ import { AlarmInfo, AlarmQueryV2 } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
-import { catchError, forkJoin, map, of, Subject, takeUntil } from 'rxjs';
+import { auditTime, catchError, forkJoin, map, of, Subject, takeUntil } from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningActiveAlarmDeviceIds,
@@ -40,6 +40,7 @@ import {
   SmartLightningAlarmDispatchDialogComponent,
   SmartLightningAlarmDispatchDialogData
 } from './smart-lightning-alarm-dispatch-dialog.component';
+import { SmartLightningRealtimeService } from '../../smart-lightning/shared/realtime/smart-lightning-realtime.service';
 
 @Component({
   selector: 'tb-smart-lightning-alarm-list',
@@ -89,7 +90,8 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     private readonly dialog: MatDialog,
     private readonly dialogService: DialogService,
     private readonly cd: ChangeDetectorRef,
-    private readonly route: ActivatedRoute
+    private readonly route: ActivatedRoute,
+    private readonly realtimeService: SmartLightningRealtimeService
   ) {
   }
 
@@ -102,6 +104,24 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       this.pageTitle = data['title'] || '智能防雷报警信息';
       this.cd.markForCheck();
     });
+    // 三个告警路由共用同一组件，因此统一监听共享实时通知，避免分别维护连接。
+    this.realtimeService.deviceChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadDevicesAndAlarms();
+      }
+    });
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading && this.deviceIds.size) {
+        this.loadAlarms();
+      }
+    });
+    this.realtimeService.acquire();
     if (!this.routeDataLoaded) {
       this.routeDataLoaded = true;
       this.loadAssetTree();
@@ -111,6 +131,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.realtimeService.release();
   }
 
   get filteredRows(): SmartLightningAlarmListRow[] {

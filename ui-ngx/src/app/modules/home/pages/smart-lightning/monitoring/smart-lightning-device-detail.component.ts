@@ -6,7 +6,7 @@ import {DeviceService} from '@core/http/device.service';
 import {AlarmService} from '@core/http/alarm.service';
 import * as echarts from 'echarts';
 import {ECharts, EChartsOption} from 'echarts';
-import {catchError, of, Subject, startWith, switchMap, takeUntil} from 'rxjs';
+import {auditTime, catchError, of, Subject, startWith, switchMap, takeUntil} from 'rxjs';
 import {DeviceId} from '@shared/models/id/device-id';
 import {AttributeScope} from '@shared/models/telemetry/telemetry.models';
 import {AlarmInfo, AlarmQuery, AlarmSearchStatus, AlarmSeverity} from '@shared/models/alarm.models';
@@ -15,9 +15,10 @@ import {Direction} from '@shared/models/page/sort-order';
 import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningDefaultExpandedAssetIds, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
 import {SmartLightningMonitoringApiService} from './smart-lightning-monitoring-api.service';
 import {buildSmartLightningDeviceDetailMock, buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailMock} from './smart-lightning-device-detail.data';
-import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
+import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, buildSmartLightningYAxisBounds, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
 import {SmartLightningDeviceDetailApiService} from './smart-lightning-device-detail-api.service';
 import {getSmartLightningProductSpecification, SmartLightningProductSpecification} from './smart-lightning-product-specifications';
+import {SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
 
 /** 资产树和遥测均使用真实接口；图表只展示型号定义且设备实际存在的数值测点。 */
 @Component({selector: 'tb-smart-lightning-device-detail', templateUrl: './smart-lightning-device-detail.component.html', styleUrls: ['./smart-lightning-device-detail.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: false})
@@ -56,8 +57,26 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   showAllChartsDialog = false;
   selectedChartPeriods: Record<string, SmartLightningChartPeriod> = {};
   private requestedDeviceId?: string; private readonly charts = new Map<string, ECharts>(); private readonly destroy$ = new Subject<void>(); private resizeObserver?: ResizeObserver;
-  constructor(private readonly monitoringApi: SmartLightningMonitoringApiService, private readonly detailApi: SmartLightningDeviceDetailApiService, private readonly attributeService: AttributeService, private readonly deviceService: DeviceService, private readonly alarmService: AlarmService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly cd: ChangeDetectorRef) {}
+  constructor(private readonly monitoringApi: SmartLightningMonitoringApiService, private readonly detailApi: SmartLightningDeviceDetailApiService, private readonly attributeService: AttributeService, private readonly deviceService: DeviceService, private readonly alarmService: AlarmService, private readonly realtimeService: SmartLightningRealtimeService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly cd: ChangeDetectorRef) {}
   ngAfterViewInit(): void {
+    // 详情页只在当前设备变化时重读最新数据；历史曲线仍由用户选择周期后通过 HTTP 查询。
+    this.realtimeService.deviceChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe((deviceIds) => {
+      if (this.requestedDeviceId && (!deviceIds.size || deviceIds.has(this.requestedDeviceId))) {
+        this.loadRealtimeMetrics(this.requestedDeviceId, false);
+      }
+    });
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (this.requestedDeviceId) {
+        this.loadDeviceAlarms(this.requestedDeviceId);
+      }
+    });
+    this.realtimeService.acquire();
     this.returnUrl = this.resolveReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
     this.route.paramMap.pipe(
       switchMap((params) => {
@@ -85,7 +104,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       setTimeout(() => this.renderCharts());
     });
   }
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.resizeObserver?.disconnect(); this.charts.forEach((chart) => chart.dispose()); }
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.realtimeService.release(); this.resizeObserver?.disconnect(); this.charts.forEach((chart) => chart.dispose()); }
   /** 根据来源页返回；未携带来源参数时默认回到数据监测。 */
   goBack(event: MouseEvent): void {
     event.preventDefault();
@@ -153,7 +172,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
    * 任意一项缺失时由 buildSmartLightningRealtimeMetrics 保留对应模拟值，而不是清空整组卡片。
    */
   /** 按设备档案读取实时遥测指标；读到的真实值替换演示默认值。 */
-  private loadRealtimeMetrics(deviceId?: string): void {
+  private loadRealtimeMetrics(deviceId?: string, configureCharts = true): void {
     if (!deviceId) { return; }
     this.deviceService.getDeviceInfo(deviceId).pipe(
       switchMap((device) => {
@@ -169,7 +188,9 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       catchError(() => of({deviceProfileName: undefined, latest: {}})),
       takeUntil(this.destroy$)
     ).subscribe(({deviceProfileName, latest}) => {
-      this.configureCharts(this.requestedDeviceId, deviceProfileName);
+      if (configureCharts) {
+        this.configureCharts(this.requestedDeviceId, deviceProfileName);
+      }
       const latestValues = new Map<string, unknown>();
       Object.entries(latest).forEach(([key, values]) => {
         const firstValue = Array.isArray(values) ? values[0]?.value : undefined;
@@ -356,13 +377,14 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       lineStyle: {width: 2.2, color: colors[index % colors.length]},
       areaStyle: {color: 'rgba(25,92,232,.04)'}
     }));
+    const yAxisBounds = buildSmartLightningYAxisBounds(chartData);
     return {
       animation: false,
       tooltip: {trigger: 'axis'},
       legend: {top: 4, right: 8, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 10, color: '#61778b'}},
       grid: {top: 42, left: 40, right: 16, bottom: 38},
       xAxis: {type: 'time', axisTick: {show: false}, axisLine: {lineStyle: {color: '#cfdae3'}}, axisLabel: {fontSize: 9, color: '#71859a', hideOverlap: true}},
-      yAxis: {type: 'value', name: definition?.series[0]?.unit || '', nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}},
+      yAxis: {type: 'value', ...(yAxisBounds || {}), scale: true, name: definition?.series[0]?.unit || '', nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}},
       series,
       ...(series.length ? {} : {graphic: {type: 'text', left: 'center', top: 'middle', style: {text: '暂无遥测数据', fill: '#8a9aaa', fontSize: 12}}})
     };

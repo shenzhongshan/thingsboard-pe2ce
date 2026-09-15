@@ -1,4 +1,4 @@
-package org.thingsboard.server.service.monitoring.service.impl;
+package org.thingsboard.server.service.alarms.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,10 +11,10 @@ import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.page.SortOrder;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmSummaryDTO;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmTypeTotalDTO;
-import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmSummaryService;
-import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
+import org.thingsboard.server.service.alarms.dto.DeviceAlarmSummaryDTO;
+import org.thingsboard.server.service.alarms.dto.DeviceAlarmTypeTotalDTO;
+import org.thingsboard.server.service.alarms.service.DeviceAlarmSummaryService;
+import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
@@ -27,47 +27,47 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** 智能防雷看板告警统计实现。 */
+/** 当前用户全部可见设备的未清除告警摘要实现。 */
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
-public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlarmSummaryService {
+public class DeviceAlarmSummaryServiceImpl implements DeviceAlarmSummaryService {
 
     /** 单次设备或告警查询使用的最大记录数。 */
     private static final int QUERY_PAGE_SIZE = 10_000;
 
     private final SmartLightningDeviceService deviceService;
-    private final MonitoringAlarmQueryService alarmQueryService;
+    private final DeviceAlarmQueryService alarmQueryService;
 
     /**
-     * 统计当前用户可见防雷设备的未清除（ACTIVE）告警总数和按类型聚合数量。
+     * 统计当前用户可见全部设备的未清除（ACTIVE）告警总数和按类型聚合数量。
      *
      * @param user 当前登录用户，用于执行权限过滤
      * @return 未清除告警总数及各告警类型的数量列表（数量降序、类型名次序）
      */
     @Override
-    public SmartLightningAlarmSummaryDTO getSummary(SecurityUser user) throws ThingsboardException {
-        // 只统计防雷设备（productCategory=lightning）的告警。
-        Set<UUID> lightningDeviceIds = deviceService.getLightningDeviceIds(user);
-        if (lightningDeviceIds.isEmpty()) {
-            return new SmartLightningAlarmSummaryDTO(0, Collections.emptyList());
+    public DeviceAlarmSummaryDTO getSummary(SecurityUser user) throws ThingsboardException {
+        // 统计范围来自统一权限服务，不附加智能防雷产品分类条件。
+        Set<UUID> visibleDeviceIds = deviceService.getVisibleDeviceIds(user);
+        if (visibleDeviceIds.isEmpty()) {
+            return new DeviceAlarmSummaryDTO(0, Collections.emptyList());
         }
 
         Map<String, Integer> countsByType = new HashMap<>();
-        int activeCount = countActiveAlarms(user, lightningDeviceIds, countsByType);
+        int activeCount = countActiveAlarms(user, visibleDeviceIds, countsByType);
         // 聚合结果转为 DTO 列表：数量多的类型排前面，数量相同时按类型名排序。
-        List<SmartLightningAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
+        List<DeviceAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : countsByType.entrySet()) {
-            typeTotals.add(new SmartLightningAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
+            typeTotals.add(new DeviceAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
         }
-        typeTotals.sort(new Comparator<SmartLightningAlarmTypeTotalDTO>() {
+        typeTotals.sort(new Comparator<DeviceAlarmTypeTotalDTO>() {
             @Override
-            public int compare(SmartLightningAlarmTypeTotalDTO left, SmartLightningAlarmTypeTotalDTO right) {
+            public int compare(DeviceAlarmTypeTotalDTO left, DeviceAlarmTypeTotalDTO right) {
                 int countOrder = Integer.compare(right.getCount(), left.getCount());
                 return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
             }
         });
-        return new SmartLightningAlarmSummaryDTO(activeCount, typeTotals);
+        return new DeviceAlarmSummaryDTO(activeCount, typeTotals);
     }
 
     /**
@@ -84,7 +84,7 @@ public class SmartLightningAlarmSummaryServiceImpl implements SmartLightningAlar
                 Collections.emptyList(), null);
         int count = 0;
         for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
-            // 跳过非设备来源和非防雷设备的告警。
+            // 跳过非设备来源和当前用户不可见设备的告警。
             EntityId originator = alarm.getOriginator();
             if (originator == null || originator.getEntityType() != EntityType.DEVICE
                     || !deviceIds.contains(originator.getId())) {

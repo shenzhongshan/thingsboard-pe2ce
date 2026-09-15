@@ -29,25 +29,16 @@ import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
 import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmSummaryDTO;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningAlarmAnalysisSummaryDTO;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningLeafAssetAlarmCountDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
 import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
 import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeAnalysisDTO;
-import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmSummaryService;
-import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmAnalysisService;
-import org.thingsboard.server.service.monitoring.service.SmartLightningLeafAssetAlarmService;
 import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
-import org.thingsboard.server.service.monitoring.service.GroundMonitoringSummaryService;
-import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningDashboardService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningDataQueryService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
-import org.thingsboard.server.service.monitoring.service.SpdMonitoringSummaryService;
-import org.thingsboard.server.service.monitoring.service.LightningCurrentMonitoringSummaryService;
-import org.thingsboard.server.service.monitoring.service.SmartLightningRealtimeAnalysisService;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -64,14 +55,9 @@ public class SmartLightningMonitoringController extends BaseController {
 
     private final SmartLightningMonitoringTreeService monitoringTreeService;
     private final DeviceStatusSummaryService deviceStatusSummaryService;
-    private final GroundMonitoringSummaryService groundMonitoringSummaryService;
-    private final SmartLightningDeviceService smartLightningDeviceService;
-    private final SmartLightningAlarmSummaryService smartLightningAlarmSummaryService;
-    private final SmartLightningAlarmAnalysisService smartLightningAlarmAnalysisService;
-    private final SmartLightningLeafAssetAlarmService smartLightningLeafAssetAlarmService;
-    private final SpdMonitoringSummaryService spdMonitoringSummaryService;
-    private final LightningCurrentMonitoringSummaryService lightningCurrentMonitoringSummaryService;
-    private final SmartLightningRealtimeAnalysisService smartLightningRealtimeAnalysisService;
+    private final SmartLightningDashboardService dashboardService;
+    private final SmartLightningMonitoringService monitoringService;
+    private final SmartLightningDataQueryService dataQueryService;
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
@@ -87,7 +73,7 @@ public class SmartLightningMonitoringController extends BaseController {
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     public SmartLightningRealtimeAnalysisDTO getRealtimeAnalysis(
             @RequestParam(required = false) UUID assetId) throws ThingsboardException {
-        return smartLightningRealtimeAnalysisService.getAnalysis(getCurrentUser(), assetId);
+        return monitoringService.getRealtimeAnalysis(getCurrentUser(), assetId);
     }
 
     /**
@@ -109,7 +95,7 @@ public class SmartLightningMonitoringController extends BaseController {
     public GroundMonitoringSummary getGroundMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return groundMonitoringSummaryService.getSummary(getCurrentUser(), period);
+        return dashboardService.getGroundSummary(getCurrentUser(), period);
     }
 
     /** SPD 监测摘要：设备状态为当前快照，告警和周期数据盒子按所选周期统计。 */
@@ -118,7 +104,7 @@ public class SmartLightningMonitoringController extends BaseController {
     public SpdMonitoringSummary getSpdMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return spdMonitoringSummaryService.getSummary(getCurrentUser(), period);
+        return dashboardService.getSpdSummary(getCurrentUser(), period);
     }
 
     /** 雷电流监测摘要：单条 surgeCount 直接计数，多条记录按累计计数器差值汇总。 */
@@ -127,7 +113,7 @@ public class SmartLightningMonitoringController extends BaseController {
     public LightningCurrentMonitoringSummary getLightningCurrentMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return lightningCurrentMonitoringSummaryService.getSummary(getCurrentUser(), period);
+        return dashboardService.getLightningCurrentSummary(getCurrentUser(), period);
     }
 
     /**
@@ -145,7 +131,7 @@ public class SmartLightningMonitoringController extends BaseController {
             @RequestParam(required = false) String textSearch
     ) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
-        return smartLightningDeviceService.getLightningDevices(getCurrentUser(), pageLink);
+        return dataQueryService.getDevices(getCurrentUser(), pageLink);
     }
 
     /**
@@ -160,29 +146,7 @@ public class SmartLightningMonitoringController extends BaseController {
             @RequestParam(required = false) String textSearch
     ) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
-        return smartLightningDeviceService.getLightningDeviceContexts(getCurrentUser(), pageLink);
+        return dataQueryService.getDeviceContexts(getCurrentUser(), pageLink);
     }
 
-    /** 返回当前用户可见防雷设备的未清除告警总数及按类型统计。 */
-    @GetMapping("/alarm-summary")
-    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SmartLightningAlarmSummaryDTO getLightningAlarmSummary() throws ThingsboardException {
-        return smartLightningAlarmSummaryService.getSummary(getCurrentUser());
-    }
-
-    /** 返回告警分析页的日、月、年触发次数及其对比周期统计。 */
-    @GetMapping("/alarm-analysis-summary")
-    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SmartLightningAlarmAnalysisSummaryDTO getLightningAlarmAnalysisSummary() throws ThingsboardException {
-        return smartLightningAlarmAnalysisService.getSummary(getCurrentUser());
-    }
-
-    /** 返回每个末级设备父资产直接挂载设备在指定周期内的告警数量、已处理数量和处理率。 */
-    @GetMapping("/alarm-analysis/leaf-assets")
-    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public List<SmartLightningLeafAssetAlarmCountDTO> getLeafAssetAlarmCounts(
-            @RequestParam(defaultValue = "day") String period
-    ) throws ThingsboardException {
-        return smartLightningLeafAssetAlarmService.getCounts(getCurrentUser(), period);
-    }
 }

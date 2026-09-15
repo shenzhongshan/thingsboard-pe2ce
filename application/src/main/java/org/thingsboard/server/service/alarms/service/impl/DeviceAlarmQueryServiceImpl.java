@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
-package org.thingsboard.server.service.monitoring.service.impl;
+package org.thingsboard.server.service.alarms.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,18 +15,18 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.dao.alarm.AlarmService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
+import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** 监测模块共用的告警查询实现。 */
+/** 设备告警模块共用的告警查询实现。 */
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
-public class MonitoringAlarmQueryServiceImpl implements MonitoringAlarmQueryService {
+public class DeviceAlarmQueryServiceImpl implements DeviceAlarmQueryService {
 
     private final AlarmService alarmService;
 

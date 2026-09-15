@@ -7,7 +7,7 @@ import {DeviceInfo} from '@shared/models/device.models';
 import {EntityType} from '@shared/models/entity-type.models';
 import {DeviceId} from '@shared/models/id/device-id';
 import {MAX_SAFE_PAGE_SIZE} from '@shared/models/page/page-link';
-import {catchError, forkJoin, map, of, Subject, takeUntil} from 'rxjs';
+import {auditTime, catchError, forkJoin, map, of, Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningDefaultExpandedAssetIds,
@@ -27,6 +27,7 @@ import {
   SmartLightningQueryStatus
 } from './smart-lightning-data-query.data';
 import {SmartLightningHistoryReviewDialogComponent} from './smart-lightning-history-review-dialog.component';
+import {SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
 
 interface QueryDeviceContext {
   devices: DeviceInfo[];
@@ -79,17 +80,37 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly alarmService: AlarmService,
+    private readonly realtimeService: SmartLightningRealtimeService,
     private readonly dialog: MatDialog,
     private readonly cd: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
+    // 设备/告警变化只触发一次现有的设备与告警联合查询，保留资产树过滤逻辑。
+    this.realtimeService.deviceChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadDevices();
+      }
+    });
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadDevices();
+      }
+    });
+    this.realtimeService.acquire();
     this.loadAssetTree();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.realtimeService.release();
   }
 
   get rows(): SmartLightningQueryRow[] {

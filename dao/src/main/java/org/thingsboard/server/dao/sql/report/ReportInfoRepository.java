@@ -29,11 +29,14 @@ public interface ReportInfoRepository extends JpaRepository<ReportInfoEntity, UU
     @Query("SELECT r FROM ReportInfoEntity r WHERE r.tenantId = :tenantId " +
             "AND (:templateId IS NULL OR r.templateId = :templateId) " +
             "AND (:userId IS NULL OR r.userId = :userId) " +
+            // 客户用户可读取本客户报告及租户级公共报告；租户管理员传 NULL 不过滤客户。
+            "AND (:customerId IS NULL OR r.customerId = :customerId OR r.customerId IS NULL) " +
             "AND (:searchText IS NULL OR ilike(r.name, CONCAT('%', :searchText, '%')) = true) " +
             "ORDER BY r.createdTime DESC")
     Page<ReportInfoEntity> findByTenantId(@Param("tenantId") UUID tenantId,
                                           @Param("templateId") UUID templateId,
                                           @Param("userId") UUID userId,
+                                          @Param("customerId") UUID customerId,
                                           @Param("searchText") String searchText,
                                           Pageable pageable);
 

@@ -31,10 +31,10 @@ import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeCurre
 import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeGroundDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeOverallDTO;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeSpdDTO;
-import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
+import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
-import org.thingsboard.server.service.monitoring.service.SmartLightningRealtimeAnalysisService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringService;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
@@ -57,7 +57,7 @@ import java.util.concurrent.ExecutionException;
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
-public class SmartLightningRealtimeAnalysisServiceImpl implements SmartLightningRealtimeAnalysisService {
+public class SmartLightningMonitoringServiceImpl implements SmartLightningMonitoringService {
 
     private static final int QUERY_PAGE_SIZE = 10_000;
     private static final String SPD_CATEGORY = "spd_monitor";
@@ -76,7 +76,7 @@ public class SmartLightningRealtimeAnalysisServiceImpl implements SmartLightning
 
     private final SmartLightningDeviceService deviceService;
     private final SmartLightningMonitoringTreeService treeService;
-    private final MonitoringAlarmQueryService alarmQueryService;
+    private final DeviceAlarmQueryService alarmQueryService;
     private final TimeseriesService timeseriesService;
 
     /**
@@ -86,7 +86,7 @@ public class SmartLightningRealtimeAnalysisServiceImpl implements SmartLightning
      * 资产树找到该节点，再收集它的全部后代设备并与防雷设备集合取交集。</p>
      */
     @Override
-    public SmartLightningRealtimeAnalysisDTO getAnalysis(SecurityUser user, UUID assetId)
+    public SmartLightningRealtimeAnalysisDTO getRealtimeAnalysis(SecurityUser user, UUID assetId)
             throws ThingsboardException {
         List<SmartLightningDeviceContextDTO> allDevices = deviceService.getAllLightningDeviceContexts(user);
         List<SmartLightningDeviceContextDTO> scopedDevices = filterDevicesByAsset(user, allDevices, assetId);
@@ -200,7 +200,11 @@ public class SmartLightningRealtimeAnalysisServiceImpl implements SmartLightning
         for (int index = 0; index < devices.size(); index++) {
             Map<String, TsKvEntry> values = new HashMap<>();
             for (TsKvEntry entry : entriesByDevice.get(index)) {
-                values.put(entry.getKey(), entry);
+                // findLatest 会为未上报的键返回 value=null 的占位对象；这里只索引真实遥测，
+                // 避免 SPD、接地、温度和寿命的“有参数设备数”被错误统计为全部设备数。
+                if (MonitoringValueParser.hasStoredValue(entry)) {
+                    values.put(entry.getKey(), entry);
+                }
             }
             result.put(devices.get(index).getDeviceId(), values);
         }

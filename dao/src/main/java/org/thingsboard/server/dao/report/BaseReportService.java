@@ -23,6 +23,7 @@ import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.id.ReportId;
 import org.thingsboard.server.common.data.id.ReportTemplateId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -84,13 +85,16 @@ public class BaseReportService implements ReportService {
     }
 
     @Override
-    public PageData<ReportInfo> findReportInfos(TenantId tenantId, ReportTemplateId templateId, UserId userId, PageLink pageLink) {
+    // customerId 由控制层在客户用户场景传入，避免客户用户读取其他客户的报告。
+    public PageData<ReportInfo> findReportInfos(TenantId tenantId, ReportTemplateId templateId, UserId userId,
+                                                CustomerId customerId, PageLink pageLink) {
         // Backed by report_info_view, which joins template/user/customer names in one query.
         // Previously this enriched each row with three separate lookups (N+1 on large pages).
         return DaoUtil.toPageData(reportInfoRepository.findByTenantId(
                 tenantId.getId(),
                 templateId != null ? templateId.getId() : null,
                 userId != null ? userId.getId() : null,
+                customerId != null ? customerId.getId() : null,
                 pageLink.getTextSearch(),
                 DaoUtil.toPageable(pageLink)));
     }

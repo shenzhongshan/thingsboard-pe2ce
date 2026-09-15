@@ -44,4 +44,9 @@ public final class MonitoringPeriodWindow {
         }
         return new MonitoringPeriodWindow(endTs - duration, endTs);
     }
+
+    /** 判断时间戳是否落在当前窗口的左闭右开区间内。 */
+    public boolean contains(long timestamp) {
+        return timestamp >= startTs && timestamp < endTs;
+    }
 }

@@ -93,6 +93,11 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.ENTITY_GROUP, entityGroupPermissionChecker);
         Resource.groupResources().forEach(groupResource -> put(groupResource, entityGroupPermissionChecker));
         put(Resource.PROFILE, PermissionChecker.allowAllPermissionChecker);
+        // 报告由客户用户生成、查看和下载；删除是否允许由报告控制器继续校验“本人生成”。
+        put(Resource.REPORT, new PermissionChecker.GenericPermissionChecker(
+                Operation.READ, Operation.WRITE, Operation.DELETE));
+        // 模板只开放读取，创建、修改和删除仍然由租户管理员负责。
+        put(Resource.REPORT_TEMPLATE, new PermissionChecker.GenericPermissionChecker(Operation.READ));
     }
 
     /**

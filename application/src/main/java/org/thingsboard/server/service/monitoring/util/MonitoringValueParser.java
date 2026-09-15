@@ -5,6 +5,8 @@
  */
 package org.thingsboard.server.service.monitoring.util;
 
+import org.thingsboard.server.common.data.kv.TsKvEntry;
+
 /**
  * 监测模块共用的文本和数值解析工具。
  *
@@ -33,5 +35,16 @@ public final class MonitoringValueParser {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * 判断最新遥测结果是否包含真实存储值。
+     *
+     * <p>ThingsBoard 批量调用 findLatest 时，会为未上报的键返回 value=null 的占位
+     * TsKvEntry。占位对象本身不为 null，不能据此认定设备已经上报该参数；实际存储的
+     * 空字符串仍属于有效上报，因此这里只排除 entry 或其原始值为 null 的情况。</p>
+     */
+    public static boolean hasStoredValue(TsKvEntry entry) {
+        return entry != null && entry.getValueAsString() != null;
     }
 }

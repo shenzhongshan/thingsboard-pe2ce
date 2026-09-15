@@ -5,7 +5,6 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
-  NgZone,
   OnDestroy,
   QueryList,
   ViewChild,
@@ -18,11 +17,10 @@ import { EntityRelationService } from '@core/http/entity-relation.service';
 import * as echarts from 'echarts';
 import { ECharts, EChartsOption } from 'echarts';
 import L from 'leaflet';
-import { catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil } from 'rxjs';
-import { AlarmInfo, AlarmSearchStatus, AlarmStatus } from '@shared/models/alarm.models';
+import { auditTime, catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { AlarmInfo, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { AttributeScope, AlarmCountCmd, TelemetrySubscriber } from '@shared/models/telemetry/telemetry.models';
-import { AliasFilterType } from '@shared/models/alias.models';
+import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
 import {
   buildSmartLightningMock,
@@ -63,7 +61,7 @@ import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningMonitoringAssetPaths
 } from '../monitoring/smart-lightning-monitoring.data';
-import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
+import { SmartLightningRealtimeService } from '../shared/realtime/smart-lightning-realtime.service';
 import {
   buildSmartLightningExtremaTooltip,
   buildSmartLightningMaximumTooltip,
@@ -132,7 +130,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   /** 当前选点模式注册的地图点击监听器，退出模式时必须主动解除。 */
   private mapPointClickHandler?: (event: L.LeafletMouseEvent) => void;
   private resizeObserver?: ResizeObserver;
-  private alarmRealtimeSubscriber?: TelemetrySubscriber;
   private realtimeAlarmCount: number | null = null;
   private initialAlarmLoadFinished = false;
 
@@ -174,8 +171,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     private readonly deviceService: DeviceService,
     private readonly entityRelationService: EntityRelationService,
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly telemetryWebsocketService: TelemetryWebsocketService,
-    private readonly ngZone: NgZone
+    private readonly realtimeService: SmartLightningRealtimeService
   ) {}
 
   ngAfterViewInit(): void {
@@ -183,7 +179,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.renderCharts();
     this.loadLatestAlarms();
     this.loadAlarmSummary();
-    this.subscribeToAlarmCount();
+    this.subscribeToRealtimeChanges();
     this.loadDeviceSummary();
     this.loadGroundSummary();
     this.loadSpdSummary();
@@ -195,7 +191,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.alarmRealtimeSubscriber?.unsubscribe();
+    this.realtimeService.release();
     this.cancelMapPointMode();
     this.resizeObserver?.disconnect();
     this.charts.forEach(chart => chart.dispose());
@@ -511,31 +507,47 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   }
 
   /**
-   * 订阅服务端活动告警计数。计数更新仅作为轻量失效信号；
-   * 告警行和类型聚合仍以现有 REST 加载器为唯一数据来源。
+   * 监听共享实时服务的失效通知。
+   * WebSocket 只负责通知变化，页面仍复用原有 HTTP 聚合接口读取完整数据，
+   * 因此不会改变当前用户权限、资产过滤和统计口径。
    */
-  private subscribeToAlarmCount(): void {
-    const command = new AlarmCountCmd();
-    command.query = {
-      entityFilter: {
-        type: AliasFilterType.entityType,
-        entityType: EntityType.DEVICE
-      },
-      statusList: [AlarmSearchStatus.ACTIVE]
-    };
-
-    const subscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
-    subscriber.subscriptionCommands.push(command);
-    this.alarmRealtimeSubscriber = subscriber;
-    subscriber.alarmCount$.pipe(takeUntil(this.destroy$)).subscribe((update) => {
-      const previousCount = this.realtimeAlarmCount;
-      this.realtimeAlarmCount = update.count;
-      if (this.initialAlarmLoadFinished && shouldReloadSmartLightningAlarms(previousCount, update.count)) {
-        this.loadLatestAlarms();
-        this.loadAlarmSummary();
-      }
+  private subscribeToRealtimeChanges(): void {
+    this.realtimeService.deviceChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.loadDeviceSummary();
+      this.loadGroundSummary();
+      this.loadSpdSummary();
+      this.loadLightningSummary();
     });
-    subscriber.subscribe();
+
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe((change) => {
+      // 告警字段（确认、派发、清除、备注）变化时数量可能不变，也必须刷新列表和统计。
+      if (change.source === 'data') {
+        if (!this.initialAlarmLoadFinished) {
+          return;
+        }
+      } else {
+        const count = change.count ?? 0;
+        const previousCount = this.realtimeAlarmCount;
+        this.realtimeAlarmCount = count;
+        if (!this.initialAlarmLoadFinished || !shouldReloadSmartLightningAlarms(previousCount, count)) {
+          return;
+        }
+      }
+      this.loadLatestAlarms();
+      this.loadAlarmSummary();
+      // 地网、SPD、雷电卡片包含周期内告警/设备汇总，活动告警变化后同步刷新。
+      this.loadGroundSummary();
+      this.loadSpdSummary();
+      this.loadLightningSummary();
+    });
+
+    this.realtimeService.acquire();
   }
 
   /** 批量读取设备与 active 属性，计算顶部设备在线汇总并绘制地图点位。 */

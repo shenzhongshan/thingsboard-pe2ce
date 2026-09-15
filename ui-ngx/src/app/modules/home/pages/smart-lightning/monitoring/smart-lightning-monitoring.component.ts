@@ -3,22 +3,17 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  NgZone,
   OnDestroy,
   OnInit
 } from '@angular/core';
 import { AlarmService } from '@core/http/alarm.service';
-import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
 import { auditTime, map, Subject, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmQueryV2, AlarmSearchStatus } from '@shared/models/alarm.models';
-import { AliasFilterType } from '@shared/models/alias.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityKeyType } from '@shared/models/query/query.models';
 import { DeviceId } from '@shared/models/id/device-id';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
-import { AlarmCountCmd, EntityDataCmd, TelemetrySubscriber } from '@shared/models/telemetry/telemetry.models';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   buildSmartLightningMonitoringDeviceCards,
@@ -41,6 +36,7 @@ import {
   SmartLightningMonitoringApiService,
   SmartLightningRealtimeAnalysis
 } from './smart-lightning-monitoring-api.service';
+import { SmartLightningRealtimeService } from '../shared/realtime/smart-lightning-realtime.service';
 import { SMART_LIGHTNING_UNITS } from '../shared/telemetry/smart-lightning-measurements';
 
 interface MonitoringDeviceContext {
@@ -95,8 +91,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   /** 防止快速切换资产时，较早返回的请求覆盖当前选中范围。 */
   private realtimeAnalysisRequestId = 0;
   private selectedRealtimeAssetId?: string;
-  private realtimeEntitySubscriber?: TelemetrySubscriber;
-  private realtimeAlarmSubscriber?: TelemetrySubscriber;
   /** 多个设备同时上报时合并为一次刷新，避免瞬时重复请求聚合接口。 */
   private readonly realtimeRefresh$ = new Subject<void>();
 
@@ -105,8 +99,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly alarmService: AlarmService,
-    private readonly telemetryWebsocketService: TelemetryWebsocketService,
-    private readonly ngZone: NgZone,
+    private readonly realtimeService: SmartLightningRealtimeService,
     private readonly cd: ChangeDetectorRef
   ) {}
 
@@ -119,15 +112,28 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
         this.loadRealtimeAnalysis(this.selectedRealtimeAssetId, true);
       }
     });
-    this.subscribeToRealtimeChanges();
+    // 复用全局实时订阅；本页面只负责在通知到达后重新读取当前资产范围的数据。
+    this.realtimeService.deviceChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.realtimeRefresh$.next());
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.realtimeRefresh$.next();
+      if (!this.assetsLoading) {
+        this.loadNodeAlarms();
+      }
+    });
+    this.realtimeService.acquire();
     this.loadAssetTree();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.realtimeEntitySubscriber?.unsubscribe();
-    this.realtimeAlarmSubscriber?.unsubscribe();
+    this.realtimeService.release();
   }
 
   get categories(): string[] {
@@ -331,52 +337,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
         this.cd.markForCheck();
       }
     });
-  }
-
-  /**
-   * 订阅设备在线属性、规范遥测和活动告警数量变化。
-   * WebSocket 只负责通知数据失效，最终展示值仍统一由后端聚合接口计算。
-   */
-  private subscribeToRealtimeChanges(): void {
-    const latestValues = [
-      {key: 'active', type: EntityKeyType.SERVER_ATTRIBUTE},
-      ...[
-        'spdStatus', 'groundStatus',
-        'temperatureA', 'temperatureB', 'temperatureC', 'temperatureD',
-        'lifePercent', 'leakageA', 'leakageB', 'leakageC',
-        'groundResistance', 'surgeCount', 'surgePeak', 'surgePolarity',
-        'deviceStatus', 'arcFaultCount'
-      ].map((key) => ({key, type: EntityKeyType.TIME_SERIES}))
-    ];
-    const entityCommand = new EntityDataCmd();
-    entityCommand.query = {
-      entityFilter: {type: AliasFilterType.entityType, entityType: EntityType.DEVICE},
-      // WebSocket 实体订阅使用明确上限，避免把前端通用“安全最大值”传给订阅分页。
-      pageLink: {pageSize: 10_000, page: 0},
-      latestValues
-    };
-    entityCommand.latestCmd = {keys: latestValues};
-    this.realtimeEntitySubscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
-    this.realtimeEntitySubscriber.subscriptionCommands.push(entityCommand);
-    this.realtimeEntitySubscriber.entityData$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.realtimeRefresh$.next();
-    });
-    this.realtimeEntitySubscriber.subscribe();
-
-    const alarmCommand = new AlarmCountCmd();
-    alarmCommand.query = {
-      entityFilter: {type: AliasFilterType.entityType, entityType: EntityType.DEVICE},
-      statusList: [AlarmSearchStatus.ACTIVE]
-    };
-    this.realtimeAlarmSubscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
-    this.realtimeAlarmSubscriber.subscriptionCommands.push(alarmCommand);
-    this.realtimeAlarmSubscriber.alarmCount$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.realtimeRefresh$.next();
-      if (!this.assetsLoading) {
-        this.loadNodeAlarms();
-      }
-    });
-    this.realtimeAlarmSubscriber.subscribe();
   }
 
   private toMonitoringDeviceContext(contexts: SmartLightningDeviceContext[]): MonitoringDeviceContext {

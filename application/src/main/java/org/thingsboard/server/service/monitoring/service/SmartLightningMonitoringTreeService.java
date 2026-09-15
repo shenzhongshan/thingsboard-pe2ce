@@ -19,7 +19,12 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
-/** 智能防雷监测页资产树的业务接口。 */
+/**
+ * 自定义页面公共资产树服务。
+ *
+ * <p>由数据监测、数据查询、设备详情和告警处理等页面复用，统一维护资产、设备及
+ * Contains 关系的树结构，页面服务不得重复构造资产层级。</p>
+ */
 public interface SmartLightningMonitoringTreeService {
 
     /** 读取当前用户有 READ 权限的资产、设备及其 Contains 关系并返回树结构。 */

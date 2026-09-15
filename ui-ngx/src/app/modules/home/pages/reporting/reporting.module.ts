@@ -27,6 +27,8 @@ import { ReportTemplateEditorComponent } from '@home/pages/reporting/report-temp
 import { ReportsComponent } from '@home/pages/reporting/report/reports.component';
 import { GenerateReportDialogComponent } from '@home/pages/reporting/report/generate-report-dialog.component';
 import { ReportScheduleComponent } from '@home/pages/reporting/schedule/report-schedule.component';
+import { ReportCreateComponent } from '@home/pages/report/report-create.component';
+import { ReportGenerateDialogComponent } from '@home/pages/report/report-generate-dialog.component';
 
 @NgModule({
   declarations: [
@@ -35,7 +37,9 @@ import { ReportScheduleComponent } from '@home/pages/reporting/schedule/report-s
     ReportTemplateEditorComponent,
     ReportsComponent,
     GenerateReportDialogComponent,
-    ReportScheduleComponent
+    ReportScheduleComponent,
+    ReportCreateComponent,
+    ReportGenerateDialogComponent
   ],
   imports: [
     CommonModule,

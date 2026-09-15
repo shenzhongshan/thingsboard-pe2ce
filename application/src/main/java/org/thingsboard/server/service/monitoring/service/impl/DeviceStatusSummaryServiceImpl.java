@@ -37,7 +37,7 @@ import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
 import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
-import org.thingsboard.server.service.monitoring.service.MonitoringAlarmQueryService;
+import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.monitoring.util.DeviceStatusSummaryCalculator;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -60,7 +60,7 @@ public class DeviceStatusSummaryServiceImpl implements DeviceStatusSummaryServic
 
     private final UserEntitiesService userEntitiesService;
     private final AttributesService attributesService;
-    private final MonitoringAlarmQueryService alarmQueryService;
+    private final DeviceAlarmQueryService alarmQueryService;
 
     /**
      * 统计当前用户可见设备中“正常”与“异常”的数量。

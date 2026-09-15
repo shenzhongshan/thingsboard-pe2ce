@@ -99,6 +99,16 @@ public class BaseReportTemplateService implements ReportTemplateService {
         return new PageData<>(infos, templates.getTotalPages(), templates.getTotalElements(), templates.hasNext());
     }
 
+    @Override
+    public PageData<ReportTemplateInfo> findReportTemplateInfosForCustomer(TenantId tenantId, CustomerId customerId,
+                                                                            PageLink pageLink) {
+        Page<ReportTemplateEntity> page = reportTemplateRepository.findByTenantIdAndCustomerIdOrPublic(
+                tenantId.getId(), customerId.getId(), pageLink.getTextSearch(), DaoUtil.toPageable(pageLink));
+        PageData<ReportTemplate> templates = DaoUtil.toPageData(page);
+        java.util.List<ReportTemplateInfo> infos = templates.getData().stream().map(this::toInfo).toList();
+        return new PageData<>(infos, templates.getTotalPages(), templates.getTotalElements(), templates.hasNext());
+    }
+
     private ReportTemplateInfo toInfo(ReportTemplate template) {
         ReportTemplateInfo info = new ReportTemplateInfo(template.getId());
         info.setCreatedTime(template.getCreatedTime());
