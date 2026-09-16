@@ -50,12 +50,16 @@ public enum EdgeEventType {
     CALCULATED_FIELD(false, EntityType.CALCULATED_FIELD),
     AI_MODEL(true, EntityType.AI_MODEL),
     API_KEY(true, EntityType.API_KEY),
-    ENTITY_GROUP(true, EntityType.ENTITY_GROUP),
+    // allEdgesRelated=false：这几类是**按 edge 逐个分配**的，不是广播给租户下的所有 edge。
+    // 标成 true 会让 BaseEdgeProcessor.processEntityNotification 走 processEntityNotificationForAllEdges
+    // 分支，从而丢掉 edgeId 与 entityGroupId —— "分配给单台 edge" 会变成 "推给所有 edge"。
+    // 取值与 PE 4.3.1.1 的 EdgeEventType 一致。
+    ENTITY_GROUP(false, EntityType.ENTITY_GROUP),
     ROLE(true, EntityType.ROLE),
     GROUP_PERMISSION(true, EntityType.GROUP_PERMISSION),
-    CONVERTER(true, EntityType.CONVERTER),
-    INTEGRATION(true, EntityType.INTEGRATION),
-    SCHEDULER_EVENT(true, EntityType.SCHEDULER_EVENT),
+    CONVERTER(false, EntityType.CONVERTER),
+    INTEGRATION(false, EntityType.INTEGRATION),
+    SCHEDULER_EVENT(false, EntityType.SCHEDULER_EVENT),
     REPORT_TEMPLATE(true, EntityType.REPORT_TEMPLATE),
     SECRET(true, EntityType.SECRET);
 
