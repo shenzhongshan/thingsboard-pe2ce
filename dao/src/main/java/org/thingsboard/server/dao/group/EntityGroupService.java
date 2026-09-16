@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.group;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
+import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EdgeId;
@@ -164,5 +165,22 @@ public interface EntityGroupService {
     PageData<EntityGroup> findEdgeEntityGroupsByOwnerIdAndType(TenantId tenantId, EdgeId edgeId, EntityId ownerId, EntityType groupType, PageLink pageLink);
 
     ListenableFuture<Boolean> checkEntityGroupAssignedToEdgeAsync(TenantId tenantId, EdgeId edgeId, EntityGroupId entityGroupId, EntityType groupType);
+
+    /**
+     * 找到或创建这台 edge 的镜像分组 "[Edge] &lt;edgeName&gt; All"（客户所有时为
+     * "[Edge][&lt;customerName&gt;] &lt;edgeName&gt; All"），并保证它已分配给该 edge。
+     * 用于上行：edge 上新建的实体推到云端后需要一个归属分组。幂等。
+     */
+    EntityGroup findOrCreateEdgeAllGroup(TenantId tenantId, Edge edge, EntityType groupType);
+
+    /**
+     * edge 或其所属客户改名后，同步改掉镜像分组的名字。不做的话
+     * {@link #findOrCreateEdgeAllGroup} 会按新名字找不到旧组而再建一个，
+     * 同一台 edge 就出现两个镜像分组。
+     *
+     * <p>PE 把这个方法放在 EdgeService 上；这里放在分组服务，因为组名/组查询的逻辑都在这边，
+     * 且本服务已持有 edgeService，反过来给 EdgeServiceImpl 注入 entityGroupService 会多一条环。
+     */
+    void renameEdgeAllGroups(TenantId tenantId, Edge edge, String oldEdgeName, String oldCustomerName, String newCustomerName);
 
 }

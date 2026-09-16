@@ -451,8 +451,16 @@ public class EdgeMsgConstructorUtils {
                 .setType(edge.getType())
                 .setRoutingKey(edge.getRoutingKey())
                 .setSecret(edge.getSecret())
+                .setEdgeLicenseKey(edge.getEdgeLicenseKey() != null ? edge.getEdgeLicenseKey() : "")
+                .setCloudEndpoint(edge.getCloudEndpoint() != null ? edge.getCloudEndpoint() : "")
                 .setAdditionalInfo(JacksonUtil.toString(edge.getAdditionalInfo()))
-                .setCloudType("CE");
+                // 对接的是 ThingsBoard Edge PE：edge 按 cloudType 决定是否启用 PE 侧能力
+                // （实体分组、集成、调度等）。报 "CE" 会让 PE edge 关掉这些路径，
+                // 这个移植也就白做了。
+                .setCloudType("PE")
+                // PE 的 EdgeUtils.isAddonEdge(v) 就是 v == 2：只有为 2 时 edge 才会去做
+                // 按租户的 add-on 授权校验。CE 没有订阅服务，取 1 绕开该门控。
+                .setLicenseVersion(1);
         if (edge.getCustomerId() != null) {
             builder.setCustomerIdMSB(edge.getCustomerId().getId().getMostSignificantBits())
                     .setCustomerIdLSB(edge.getCustomerId().getId().getLeastSignificantBits());

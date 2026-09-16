@@ -146,6 +146,18 @@ public class EdgeEventSourcingListener {
             return;
         }
         try {
+            if (event.getEntityGroup() != null) {
+                // "All" 组代表"owner 下的全部实体"，不是一个可下发的选择；
+                // "[Edge] X All" 更是这台 edge 自身的镜像，推回去会形成循环。
+                if (event.getEntityGroup().isGroupAll()) {
+                    log.trace("[{}] skipping event in case of 'All' group: {}", event.getTenantId(), event);
+                    return;
+                }
+                if (ActionType.ASSIGNED_TO_EDGE.equals(event.getActionType()) && event.getEntityGroup().isEdgeGroupAll()) {
+                    log.trace("[{}] skipping event in case of 'Edge All' group: {}", event.getTenantId(), event);
+                    return;
+                }
+            }
             if (event.getEntityId().getEntityType().equals(EntityType.RULE_CHAIN) && event.getEdgeId() != null && event.getActionType().equals(ActionType.ASSIGNED_TO_EDGE)) {
                 try {
                     Edge edge = JacksonUtil.fromString(event.getBody(), Edge.class);

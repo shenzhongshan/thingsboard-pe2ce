@@ -22,6 +22,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasName;
@@ -34,10 +35,11 @@ import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
- * CE port of PE's entity group. Simplifications: owner is TENANT or CUSTOMER only (PE also
- * allows other owner types), group types limited to USER/CUSTOMER/DEVICE/ASSET/ENTITY_VIEW/
- * DASHBOARD, no edge sync. The "All" group is a real persisted group whose membership is
- * maintained via ordinary Contains/FROM_ENTITY_GROUP relations, matching PE.
+ * CE port of PE's entity group. Owner is TENANT or CUSTOMER only (PE also allows other owner
+ * types). Group types now match PE's seven, including EDGE. The "All" group is a real persisted
+ * group whose membership is maintained via ordinary Contains/FROM_ENTITY_GROUP relations,
+ * matching PE. Groups can be assigned to an edge (see EntityGroupService.assignEntityGroupToEdge);
+ * the edge-side mirror groups are named "[Edge] &lt;name&gt; All" — see isEdgeGroupAll().
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
@@ -54,6 +56,11 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
             EntityType.ENTITY_VIEW, EntityType.DASHBOARD, EntityType.EDGE
     };
     public static final String GROUP_ALL_NAME = "All";
+    // PE 为每台 edge 自动维护的镜像分组，名字形如 "[Edge] MyEdge All"。
+    public static final String GROUP_EDGE_ALL_STARTS_WITH = "[Edge]";
+    public static final String GROUP_EDGE_ALL_ENDS_WITH = "All";
+    public static final String GROUP_EDGE_ALL_NAME_PATTERN = "[Edge] %s All";
+    public static final String GROUP_EDGE_CUSTOMER_ALL_NAME_PATTERN = "[Edge][%s] %s All";
 
     @Getter @Setter
     @Schema(description = "Type of the entities in the group", accessMode = Schema.AccessMode.READ_ONLY)
@@ -111,6 +118,12 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
     @Override
     public String getName() {
         return name;
+    }
+
+    @Schema(description = "Indicates special edge group 'All' that mirrors the entities living on one edge.",
+            accessMode = Schema.AccessMode.READ_ONLY)
+    public boolean isEdgeGroupAll() {
+        return EdgeUtils.isEdgeGroupAll(name);
     }
 
     public boolean isGroupAll() {

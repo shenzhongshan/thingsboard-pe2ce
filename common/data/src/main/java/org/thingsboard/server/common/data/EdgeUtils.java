@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -96,6 +97,30 @@ public final class EdgeUtils {
         }
         edgeEvent.setBody(body);
         return edgeEvent;
+    }
+
+    /**
+     * PE 为每台 edge 在其 owner 下自动维护一组名为 "[Edge] &lt;edgeName&gt; All"（客户所有时为
+     * "[Edge][&lt;customerName&gt;] &lt;edgeName&gt; All"）的实体分组，代表"这台 edge 上有哪些实体"。
+     * 这些分组本身不能再下发给 edge（会循环），所以事件溯源链路要按名字把它们跳过。
+     */
+    public static boolean isEdgeGroupAll(String groupName) {
+        if (groupName == null) {
+            return false;
+        }
+        return groupName.startsWith(EntityGroup.GROUP_EDGE_ALL_STARTS_WITH)
+                && groupName.endsWith(EntityGroup.GROUP_EDGE_ALL_ENDS_WITH);
+    }
+
+    public static String getEdgeGroupAllName(String edgeName) {
+        return getEdgeGroupAllName(null, edgeName);
+    }
+
+    public static String getEdgeGroupAllName(String customerName, String edgeName) {
+        if (customerName != null) {
+            return String.format(EntityGroup.GROUP_EDGE_CUSTOMER_ALL_NAME_PATTERN, customerName, edgeName);
+        }
+        return String.format(EntityGroup.GROUP_EDGE_ALL_NAME_PATTERN, edgeName);
     }
 
     public static String createErrorMsgFromRootCauseAndStackTrace(Throwable t) {

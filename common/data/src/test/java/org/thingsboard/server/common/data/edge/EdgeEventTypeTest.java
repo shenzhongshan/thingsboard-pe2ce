@@ -36,7 +36,9 @@ class EdgeEventTypeTest {
     /** 这些类型在 PE 4.3.1.1 里都是 allEdgesRelated=false，对齐之。 */
     enum PerEdgeAssigned {
         ENTITY_GROUP, CONVERTER, INTEGRATION, SCHEDULER_EVENT,
-        DEVICE, ASSET, ENTITY_VIEW, DASHBOARD, RULE_CHAIN
+        DEVICE, ASSET, ENTITY_VIEW, DASHBOARD, RULE_CHAIN,
+        // USER：PE 里用户通过用户组分配到 edge，不广播。CE 上游曾标成 true。
+        USER
     }
 
     @ParameterizedTest

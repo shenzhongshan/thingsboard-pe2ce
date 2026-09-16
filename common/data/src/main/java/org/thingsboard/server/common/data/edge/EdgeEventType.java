@@ -31,7 +31,7 @@ public enum EdgeEventType {
     RULE_CHAIN(false, EntityType.RULE_CHAIN),
     RULE_CHAIN_METADATA(false, null),
     EDGE(false, EntityType.EDGE),
-    USER(true, EntityType.USER),
+    USER(false, EntityType.USER),
     CUSTOMER(true, EntityType.CUSTOMER),
     RELATION(true, null),
     TENANT(true, EntityType.TENANT),
@@ -50,6 +50,8 @@ public enum EdgeEventType {
     CALCULATED_FIELD(false, EntityType.CALCULATED_FIELD),
     AI_MODEL(true, EntityType.AI_MODEL),
     API_KEY(true, EntityType.API_KEY),
+    // USER 同理：PE 里用户是通过用户组分配到 edge 的，不广播。CE 上游把它标成了 true，
+    // 这里按 PE 语义改为 false —— 用户更新改走 processNotificationToRelatedEdges。
     // allEdgesRelated=false：这几类是**按 edge 逐个分配**的，不是广播给租户下的所有 edge。
     // 标成 true 会让 BaseEdgeProcessor.processEntityNotification 走 processEntityNotificationForAllEdges
     // 分支，从而丢掉 edgeId 与 entityGroupId —— "分配给单台 edge" 会变成 "推给所有 edge"。

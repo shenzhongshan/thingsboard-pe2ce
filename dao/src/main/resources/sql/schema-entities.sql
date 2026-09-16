@@ -803,6 +803,10 @@ CREATE TABLE IF NOT EXISTS edge (
     routing_key varchar(255),
     secret varchar(255),
     tenant_id uuid,
+    -- 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。edge 用它们完成自身的授权
+    -- 与回连配置；缺了这两列，PE edge 在握手后拿到的是空串。
+    edge_license_key varchar,
+    cloud_endpoint varchar(255),
     version BIGINT DEFAULT 1,
     CONSTRAINT edge_name_unq_key UNIQUE (tenant_id, name),
     CONSTRAINT edge_routing_key_unq_key UNIQUE (routing_key)

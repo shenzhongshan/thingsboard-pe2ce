@@ -96,3 +96,7 @@ ALTER TABLE resource ADD COLUMN IF NOT EXISTS customer_id uuid;
 -- DeviceUpdateMsg and friends carry entityGroupIdMSB/LSB and the value is threaded from here.
 -- NULL means the event is not group-scoped (rule chains, admin settings, ...).
 ALTER TABLE edge_event ADD COLUMN IF NOT EXISTS entity_group_id uuid;
+
+-- 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS edge_license_key varchar;
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS cloud_endpoint varchar(255);

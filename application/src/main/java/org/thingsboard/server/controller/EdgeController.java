@@ -122,7 +122,7 @@ public class EdgeController extends BaseController {
                             @PathVariable(EDGE_ID) String strEdgeId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
         EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
-        return checkEdgeId(edgeId, Operation.READ);
+        return hideLicenseKeyIfNeeded(checkEdgeId(edgeId, Operation.READ));
     }
 
     @ApiOperation(value = "Get Edge Info (getEdgeInfoById)",
@@ -133,7 +133,7 @@ public class EdgeController extends BaseController {
                                     @PathVariable(EDGE_ID) String strEdgeId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
         EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
-        return checkEdgeInfoId(edgeId, Operation.READ);
+        return hideLicenseKeyIfNeeded(checkEdgeInfoId(edgeId, Operation.READ));
     }
 
     @ApiOperation(value = "Create Or Update Edge (saveEdge)",
@@ -196,7 +196,7 @@ public class EdgeController extends BaseController {
                                    @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         TenantId tenantId = getCurrentUser().getTenantId();
-        return checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink));
+        return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink)));
     }
 
     @ApiOperation(value = "Assign edge to customer (assignEdgeToCustomer)",
@@ -268,9 +268,9 @@ public class EdgeController extends BaseController {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         if (type != null && !type.trim().isEmpty()) {
-            return checkNotNull(edgeService.findEdgesByTenantIdAndType(tenantId, type, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantIdAndType(tenantId, type, pageLink)));
         } else {
-            return checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink)));
         }
     }
 
@@ -295,7 +295,7 @@ public class EdgeController extends BaseController {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         if (type != null && !type.trim().isEmpty()) {
-            return checkNotNull(edgeService.findEdgeInfosByTenantIdAndType(tenantId, type, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgeInfosByTenantIdAndType(tenantId, type, pageLink)));
         } else {
             return checkNotNull(edgeService.findEdgeInfosByTenantId(tenantId, pageLink));
         }
@@ -306,7 +306,7 @@ public class EdgeController extends BaseController {
     @GetMapping(value = "/tenant/edges", params = {"edgeName"})
     public Edge getTenantEdge(@RequestParam String edgeName) throws ThingsboardException {
         TenantId tenantId = getCurrentUser().getTenantId();
-        return checkNotNull(edgeService.findEdgeByTenantIdAndName(tenantId, edgeName));
+        return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgeByTenantIdAndName(tenantId, edgeName)));
     }
 
     @ApiOperation(value = "Get Tenant Edge by name (getTenantEdgeByName)",
@@ -370,7 +370,7 @@ public class EdgeController extends BaseController {
         } else {
             result = edgeService.findEdgesByTenantIdAndCustomerId(tenantId, customerId, pageLink);
         }
-        return checkNotNull(result);
+        return hideLicenseKeyIfNeeded(checkNotNull(result));
     }
 
     @ApiOperation(value = "Get Customer Edge Infos (getCustomerEdgeInfos)",
@@ -405,7 +405,7 @@ public class EdgeController extends BaseController {
         } else {
             result = edgeService.findEdgeInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
         }
-        return checkNotNull(result);
+        return hideLicenseKeyIfNeeded(checkNotNull(result));
     }
 
     @Hidden
@@ -428,7 +428,7 @@ public class EdgeController extends BaseController {
             edgesFuture = edgeService.findEdgesByTenantIdCustomerIdAndIdsAsync(tenantId, customerId, edgeIds);
         }
         List<Edge> edges = edgesFuture.get();
-        return checkNotNull(edges);
+        return hideLicenseKeyIfNeeded(checkNotNull(edges));
     }
 
     @ApiOperation(value = "Get Edges By Ids (getEdgeList)",
@@ -463,7 +463,7 @@ public class EdgeController extends BaseController {
                 return false;
             }
         }).collect(Collectors.toList());
-        return edges;
+        return hideLicenseKeyIfNeeded(edges);
     }
 
     @ApiOperation(value = "Get Edge Types (getEdgeTypes)",
@@ -587,4 +587,34 @@ public class EdgeController extends BaseController {
         }
     }
 
+
+    /**
+     * edge_license_key 是凭据，只对能创建/修改 edge 的调用方可见。与 PE 的
+     * EdgeController.cleanUpLicenseKey 行为一致 —— 只读调用方拿到的是 null。
+     */
+    private <T extends Edge> T hideLicenseKeyIfNeeded(T edge) throws ThingsboardException {
+        if (edge != null && !hasPermissionEdgeCreateOrWrite(getCurrentUser())) {
+            edge.setEdgeLicenseKey(null);
+        }
+        return edge;
+    }
+
+    private <T extends Edge> List<T> hideLicenseKeyIfNeeded(List<T> edges) throws ThingsboardException {
+        if (edges != null && !hasPermissionEdgeCreateOrWrite(getCurrentUser())) {
+            edges.forEach(edge -> edge.setEdgeLicenseKey(null));
+        }
+        return hideLicenseKeyIfNeeded(edges);
+    }
+
+    private <T extends Edge> PageData<T> hideLicenseKeyIfNeeded(PageData<T> edges) throws ThingsboardException {
+        if (edges != null) {
+            hideLicenseKeyIfNeeded(edges.getData());
+        }
+        return hideLicenseKeyIfNeeded(edges);
+    }
+
+    private boolean hasPermissionEdgeCreateOrWrite(SecurityUser user) throws ThingsboardException {
+        return accessControlService.hasPermission(user, Resource.EDGE, Operation.CREATE)
+                || accessControlService.hasPermission(user, Resource.EDGE, Operation.WRITE);
+    }
 }

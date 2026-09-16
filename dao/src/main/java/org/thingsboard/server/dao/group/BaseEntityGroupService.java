@@ -64,6 +64,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.common.data.EdgeUtils;
+import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.exception.DataValidationException;
 
@@ -693,6 +695,77 @@ public class BaseEntityGroupService implements EntityGroupService {
     // 变成 edge_event.entity_group_id，最终成为实体消息上的 entityGroupIdMSB/LSB。
 
     public static final String EDGE_ENTITY_GROUP_RELATION_PREFIX = "EDGE_ENTITY_GROUP_";
+
+    @Override
+    public EntityGroup findOrCreateEdgeAllGroup(TenantId tenantId, Edge edge, EntityType groupType) {
+        // PE 在 edge 的 owner 下维护一组 "[Edge] <edgeName> All"（客户所有时带客户名），
+        // 代表"这台 edge 上有哪些该类型的实体"。上行实体到达云端时需要一个归属，就放这里。
+        CustomerId ownerId = edge.getCustomerId() != null && !edge.getCustomerId().isNullUid()
+                ? edge.getCustomerId() : null;
+        String customerName = null;
+        if (ownerId != null) {
+            Customer customer = customerService.findCustomerById(tenantId, ownerId);
+            customerName = customer != null ? customer.getName() : null;
+        }
+        String groupName = EdgeUtils.getEdgeGroupAllName(customerName, edge.getName());
+
+        EntityGroup group = findEntityGroupByTypeAndName(tenantId, ownerId, groupType, groupName);
+        if (group == null) {
+            group = new EntityGroup();
+            group.setName(groupName);
+            group.setType(groupType);
+            group.setOwnerId(ownerId != null ? ownerId : tenantId);
+            group = saveEntityGroup(tenantId, group);
+        }
+        // 幂等：组已存在但尚未挂到这台 edge 上时补一条关系。
+        if (!Boolean.TRUE.equals(getUninterruptibly(
+                checkEntityGroupAssignedToEdgeAsync(tenantId, edge.getId(), group.getId(), groupType)))) {
+            assignEntityGroupToEdge(tenantId, group.getId(), edge.getId(), groupType);
+        }
+        return group;
+    }
+
+
+    @Override
+    public void renameEdgeAllGroups(TenantId tenantId, Edge edge, String oldEdgeName, String oldCustomerName, String newCustomerName) {
+        // "[Edge] X All" 的组名里嵌了 edge 名（客户所有时还嵌了客户名），所以 edge 或客户
+        // 改名后必须跟着改，否则 findOrCreateEdgeAllGroup 按新名字找不到旧组，会再建一个，
+        // 同一台 edge 就出现两个镜像分组。
+        CustomerId ownerId = edge.getCustomerId() != null && !edge.getCustomerId().isNullUid()
+                ? edge.getCustomerId() : null;
+        List<String[]> renames = new ArrayList<>();
+        renames.add(new String[]{EdgeUtils.getEdgeGroupAllName(oldEdgeName),
+                EdgeUtils.getEdgeGroupAllName(edge.getName())});
+        if (ownerId != null && oldCustomerName != null && newCustomerName != null) {
+            renames.add(new String[]{EdgeUtils.getEdgeGroupAllName(oldCustomerName, oldEdgeName),
+                    EdgeUtils.getEdgeGroupAllName(newCustomerName, edge.getName())});
+        }
+        for (EntityType groupType : EntityGroup.groupTypes) {
+            for (String[] rename : renames) {
+                if (rename[0].equals(rename[1])) {
+                    continue;
+                }
+                EntityGroup group = findEntityGroupByTypeAndName(tenantId, ownerId, groupType, rename[0]);
+                if (group != null) {
+                    group.setName(rename[1]);
+                    saveEntityGroup(tenantId, group);
+                }
+            }
+        }
+    }
+
+    private static <V> V getUninterruptibly(ListenableFuture<V> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
+
 
     @Override
     public EntityGroup assignEntityGroupToEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType) {

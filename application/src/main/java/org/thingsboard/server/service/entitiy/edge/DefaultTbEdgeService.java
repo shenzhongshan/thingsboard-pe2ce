@@ -29,6 +29,7 @@ import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.rule.RuleChain;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.entitiy.AbstractTbEntityService;
@@ -40,6 +41,7 @@ import org.thingsboard.server.service.entitiy.AbstractTbEntityService;
 public class DefaultTbEdgeService extends AbstractTbEntityService implements TbEdgeService {
 
     private final RuleChainService ruleChainService;
+    private final EntityGroupService entityGroupService;
 
     @Override
     public Edge save(Edge edge, RuleChain edgeTemplateRootRuleChain, User user) throws Exception {
@@ -49,8 +51,25 @@ public class DefaultTbEdgeService extends AbstractTbEntityService implements TbE
             if (ActionType.ADDED.equals(actionType) && edge.getRootRuleChainId() == null) {
                 edge.setRootRuleChainId(edgeTemplateRootRuleChain.getId());
             }
+            // 改名前先取旧名字："[Edge] X All" 镜像分组的名字里嵌了它，保存后就拿不到了。
+            String oldEdgeName = null;
+            if (ActionType.UPDATED.equals(actionType)) {
+                Edge existing = edgeService.findEdgeById(tenantId, edge.getId());
+                if (existing != null) {
+                    oldEdgeName = existing.getName();
+                }
+            }
             Edge savedEdge = checkNotNull(edgeService.saveEdge(edge));
             EdgeId edgeId = savedEdge.getId();
+
+            if (oldEdgeName != null && !oldEdgeName.equals(savedEdge.getName())) {
+                String customerName = null;
+                if (savedEdge.getCustomerId() != null && !savedEdge.getCustomerId().isNullUid()) {
+                    Customer customer = customerService.findCustomerById(tenantId, savedEdge.getCustomerId());
+                    customerName = customer != null ? customer.getName() : null;
+                }
+                entityGroupService.renameEdgeAllGroups(tenantId, savedEdge, oldEdgeName, customerName, customerName);
+            }
 
             if (ActionType.ADDED.equals(actionType)) {
                 ruleChainService.assignRuleChainToEdge(tenantId, edgeTemplateRootRuleChain.getId(), edgeId);
