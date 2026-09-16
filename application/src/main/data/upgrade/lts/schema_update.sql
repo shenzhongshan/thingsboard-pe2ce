@@ -91,3 +91,8 @@ ALTER TABLE alarm ADD COLUMN IF NOT EXISTS propagate_to_owner_hierarchy BOOLEAN;
 ALTER TABLE resource ADD COLUMN IF NOT EXISTS customer_id uuid;
 
 -- RESOURCE CUSTOMER_ID ADDITION END
+
+-- Which entity group this edge event belongs to. PE's edge sync is group-centric:
+-- DeviceUpdateMsg and friends carry entityGroupIdMSB/LSB and the value is threaded from here.
+-- NULL means the event is not group-scoped (rule chains, admin settings, ...).
+ALTER TABLE edge_event ADD COLUMN IF NOT EXISTS entity_group_id uuid;

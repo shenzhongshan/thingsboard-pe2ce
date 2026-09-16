@@ -47,6 +47,7 @@ import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
 import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TbResourceId;
@@ -749,6 +750,11 @@ public class DefaultTbClusterService implements TbClusterService {
 
     @Override
     public void sendNotificationMsgToEdge(TenantId tenantId, EdgeId edgeId, EntityId entityId, String body, EdgeEventType type, EdgeEventActionType action, EdgeId originatorEdgeId) {
+        sendNotificationMsgToEdge(tenantId, edgeId, entityId, body, type, action, null, null, originatorEdgeId);
+    }
+
+    @Override
+    public void sendNotificationMsgToEdge(TenantId tenantId, EdgeId edgeId, EntityId entityId, String body, EdgeEventType type, EdgeEventActionType action, EntityType entityGroupType, EntityGroupId entityGroupId, EdgeId originatorEdgeId) {
         if (!edgesEnabled) {
             return;
         }
@@ -784,6 +790,13 @@ public class DefaultTbClusterService implements TbClusterService {
         if (originatorEdgeId != null) {
             builder.setOriginatorEdgeIdMSB(originatorEdgeId.getId().getMostSignificantBits());
             builder.setOriginatorEdgeIdLSB(originatorEdgeId.getId().getLeastSignificantBits());
+        }
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits());
+            builder.setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        if (entityGroupType != null) {
+            builder.setEntityGroupType(entityGroupType.name());
         }
         EdgeNotificationMsgProto msg = builder.build();
         log.trace("[{}] sending notification to edge service {}", tenantId.getId(), msg);

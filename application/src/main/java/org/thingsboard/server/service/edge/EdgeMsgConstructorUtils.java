@@ -236,18 +236,28 @@ public class EdgeMsgConstructorUtils {
         return AlarmCommentUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(alarmComment)).build();
     }
 
-    public static AssetUpdateMsg constructAssetUpdatedMsg(UpdateMsgType msgType, Asset asset) {
+    public static AssetUpdateMsg constructAssetUpdatedMsg(UpdateMsgType msgType, Asset asset, EntityGroupId entityGroupId) {
         resetVersion(asset);
-        return AssetUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(asset))
+        AssetUpdateMsg.Builder builder = AssetUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(asset))
                 .setIdMSB(asset.getUuidId().getMostSignificantBits())
-                .setIdLSB(asset.getUuidId().getLeastSignificantBits()).build();
+                .setIdLSB(asset.getUuidId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static AssetUpdateMsg constructAssetDeleteMsg(AssetId assetId) {
-        return AssetUpdateMsg.newBuilder()
+    public static AssetUpdateMsg constructAssetDeleteMsg(AssetId assetId, EntityGroupId entityGroupId) {
+        AssetUpdateMsg.Builder builder = AssetUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(assetId.getId().getMostSignificantBits())
-                .setIdLSB(assetId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(assetId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static AssetProfileUpdateMsg constructAssetProfileUpdatedMsg(UpdateMsgType msgType, AssetProfile assetProfile) {
@@ -264,11 +274,16 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(assetProfileId.getId().getLeastSignificantBits()).build();
     }
 
-    public static CustomerUpdateMsg constructCustomerUpdatedMsg(UpdateMsgType msgType, Customer customer) {
+    public static CustomerUpdateMsg constructCustomerUpdatedMsg(UpdateMsgType msgType, Customer customer, EntityGroupId entityGroupId) {
         resetVersion(customer);
-        return CustomerUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(customer))
+        CustomerUpdateMsg.Builder builder = CustomerUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(customer))
                 .setIdMSB(customer.getId().getId().getMostSignificantBits())
-                .setIdLSB(customer.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(customer.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static CustomerUpdateMsg constructCustomerDeleteMsg(CustomerId customerId) {
@@ -278,32 +293,52 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(customerId.getId().getLeastSignificantBits()).build();
     }
 
-    public static DashboardUpdateMsg constructDashboardUpdatedMsg(UpdateMsgType msgType, Dashboard dashboard) {
+    public static DashboardUpdateMsg constructDashboardUpdatedMsg(UpdateMsgType msgType, Dashboard dashboard, EntityGroupId entityGroupId) {
         resetVersion(dashboard);
-        return DashboardUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(dashboard))
+        DashboardUpdateMsg.Builder builder = DashboardUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(dashboard))
                 .setIdMSB(dashboard.getId().getId().getMostSignificantBits())
-                .setIdLSB(dashboard.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(dashboard.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DashboardUpdateMsg constructDashboardDeleteMsg(DashboardId dashboardId) {
-        return DashboardUpdateMsg.newBuilder()
+    public static DashboardUpdateMsg constructDashboardDeleteMsg(DashboardId dashboardId, EntityGroupId entityGroupId) {
+        DashboardUpdateMsg.Builder builder = DashboardUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(dashboardId.getId().getMostSignificantBits())
-                .setIdLSB(dashboardId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(dashboardId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DeviceUpdateMsg constructDeviceUpdatedMsg(UpdateMsgType msgType, Device device) {
+    public static DeviceUpdateMsg constructDeviceUpdatedMsg(UpdateMsgType msgType, Device device, EntityGroupId entityGroupId) {
         resetVersion(device);
-        return DeviceUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(device))
+        DeviceUpdateMsg.Builder builder = DeviceUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(device))
                 .setIdMSB(device.getId().getId().getMostSignificantBits())
-                .setIdLSB(device.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(device.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DeviceUpdateMsg constructDeviceDeleteMsg(DeviceId deviceId) {
-        return DeviceUpdateMsg.newBuilder()
+    public static DeviceUpdateMsg constructDeviceDeleteMsg(DeviceId deviceId, EntityGroupId entityGroupId) {
+        DeviceUpdateMsg.Builder builder = DeviceUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(deviceId.getId().getMostSignificantBits())
-                .setIdLSB(deviceId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(deviceId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static DeviceCredentialsUpdateMsg constructDeviceCredentialsUpdatedMsg(DeviceCredentials deviceCredentials) {
@@ -425,18 +460,28 @@ public class EdgeMsgConstructorUtils {
         return builder.build();
     }
 
-    public static EntityViewUpdateMsg constructEntityViewUpdatedMsg(UpdateMsgType msgType, EntityView entityView) {
+    public static EntityViewUpdateMsg constructEntityViewUpdatedMsg(UpdateMsgType msgType, EntityView entityView, EntityGroupId entityGroupId) {
         resetVersion(entityView);
-        return EntityViewUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(entityView))
+        EntityViewUpdateMsg.Builder builder = EntityViewUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(entityView))
                 .setIdMSB(entityView.getId().getId().getMostSignificantBits())
-                .setIdLSB(entityView.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(entityView.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static EntityViewUpdateMsg constructEntityViewDeleteMsg(EntityViewId entityViewId) {
-        return EntityViewUpdateMsg.newBuilder()
+    public static EntityViewUpdateMsg constructEntityViewDeleteMsg(EntityViewId entityViewId, EntityGroupId entityGroupId) {
+        EntityViewUpdateMsg.Builder builder = EntityViewUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(entityViewId.getId().getMostSignificantBits())
-                .setIdLSB(entityViewId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(entityViewId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static NotificationRuleUpdateMsg constructNotificationRuleUpdateMsg(UpdateMsgType msgType, NotificationRule notificationRule) {
@@ -691,18 +736,28 @@ public class EdgeMsgConstructorUtils {
         return TenantProfileUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(tenantProfile)).build();
     }
 
-    public static UserUpdateMsg constructUserUpdatedMsg(UpdateMsgType msgType, User user) {
+    public static UserUpdateMsg constructUserUpdatedMsg(UpdateMsgType msgType, User user, EntityGroupId entityGroupId) {
         resetVersion(user);
-        return UserUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(user))
+        UserUpdateMsg.Builder builder = UserUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(user))
                 .setIdMSB(user.getId().getId().getMostSignificantBits())
-                .setIdLSB(user.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(user.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static UserUpdateMsg constructUserDeleteMsg(UserId userId) {
-        return UserUpdateMsg.newBuilder()
+    public static UserUpdateMsg constructUserDeleteMsg(UserId userId, EntityGroupId entityGroupId) {
+        UserUpdateMsg.Builder builder = UserUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(userId.getId().getMostSignificantBits())
-                .setIdLSB(userId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(userId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static UserCredentialsUpdateMsg constructUserCredentialsUpdatedMsg(UserCredentials userCredentials) {

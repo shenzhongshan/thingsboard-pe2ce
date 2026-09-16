@@ -73,6 +73,16 @@ public final class EdgeUtils {
                                                EdgeEventActionType action,
                                                EntityId entityId,
                                                JsonNode body) {
+        return constructEdgeEvent(tenantId, edgeId, type, action, entityId, body, null);
+    }
+
+    public static EdgeEvent constructEdgeEvent(TenantId tenantId,
+                                               EdgeId edgeId,
+                                               EdgeEventType type,
+                                               EdgeEventActionType action,
+                                               EntityId entityId,
+                                               JsonNode body,
+                                               EntityId entityGroupId) {
         EdgeEvent edgeEvent = new EdgeEvent();
         edgeEvent.setTenantId(tenantId);
         edgeEvent.setEdgeId(edgeId);
@@ -80,6 +90,9 @@ public final class EdgeUtils {
         edgeEvent.setAction(action);
         if (entityId != null) {
             edgeEvent.setEntityId(entityId.getId());
+        }
+        if (entityGroupId != null) {
+            edgeEvent.setEntityGroupId(entityGroupId.getId());
         }
         edgeEvent.setBody(body);
         return edgeEvent;

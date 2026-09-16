@@ -629,6 +629,7 @@ public class ModelConstants {
     public static final String EDGE_EVENT_ACTION_PROPERTY = "edge_event_action";
     public static final String EDGE_EVENT_UID_PROPERTY = "edge_event_uid";
     public static final String EDGE_EVENT_ENTITY_ID_PROPERTY = "entity_id";
+    public static final String EDGE_EVENT_ENTITY_GROUP_ID_PROPERTY = "entity_group_id";
     public static final String EDGE_EVENT_BODY_PROPERTY = "body";
 
     public static final String EXTERNAL_ID_PROPERTY = "external_id";

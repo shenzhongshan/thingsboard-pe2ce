@@ -43,6 +43,9 @@ public class EdgeEvent extends BaseData<EdgeEventId> {
     private String uid;
     private EdgeEventType type;
     private transient JsonNode body;
+    // 事件所属的实体分组。PE 的 edge 同步以分组为单位，实体消息要带 entityGroupIdMSB/LSB，
+    // 值从这里一路传到 EdgeMsgConstructorUtils。非分组作用域的事件（规则链、管理设置等）为 null。
+    private UUID entityGroupId;
 
     public EdgeEvent() {
         super();

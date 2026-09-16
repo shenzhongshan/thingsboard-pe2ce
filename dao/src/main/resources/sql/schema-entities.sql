@@ -819,6 +819,7 @@ CREATE TABLE IF NOT EXISTS edge_event (
     edge_event_action varchar(255),
     body varchar(10000000),
     tenant_id uuid,
+    entity_group_id uuid,
     ts bigint NOT NULL
 ) PARTITION BY RANGE(created_time);
 ALTER TABLE IF EXISTS edge_event ALTER COLUMN seq_id SET CYCLE;
