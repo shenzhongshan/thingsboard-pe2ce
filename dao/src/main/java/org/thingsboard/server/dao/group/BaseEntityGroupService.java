@@ -401,6 +401,7 @@ public class BaseEntityGroupService implements EntityGroupService {
             case USER -> userService.findUsersByTenantId(tenantId, pageLink);
             case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantId(tenantId, pageLink);
             case DASHBOARD -> dashboardService.findDashboardsByTenantId(tenantId, pageLink);
+            case EDGE -> edgeService.findEdgeInfosByTenantId(tenantId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
     }
@@ -415,6 +416,7 @@ public class BaseEntityGroupService implements EntityGroupService {
             case USER -> userService.findCustomerUsers(tenantId, customerId, pageLink);
             case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             case DASHBOARD -> dashboardService.findDashboardsByTenantIdAndCustomerId(tenantId, customerId, pageLink);
+            case EDGE -> edgeService.findEdgeInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
     }
@@ -474,6 +476,7 @@ public class BaseEntityGroupService implements EntityGroupService {
                 case USER -> userService.findUserById(tenantId, new UserId(entityId.getId()));
                 case ENTITY_VIEW -> entityViewService.findEntityViewInfoById(tenantId, new EntityViewId(entityId.getId()));
                 case DASHBOARD -> dashboardService.findDashboardInfoById(tenantId, new DashboardId(entityId.getId()));
+                case EDGE -> edgeService.findEdgeInfoById(tenantId, new EdgeId(entityId.getId()));
                 default -> null;
             };
         } catch (Exception e) {

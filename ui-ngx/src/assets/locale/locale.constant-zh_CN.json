@@ -19,6 +19,7 @@
     "entity-groups": "实体组",
     "group-type-device": "设备组",
     "group-type-asset": "资产组",
+    "group-type-edge": "边缘组",
     "group-type-customer": "客户组",
     "group-type-user": "用户组",
     "group-type-entity-view": "实体视图组",

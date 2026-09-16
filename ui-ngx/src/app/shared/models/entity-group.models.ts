@@ -31,9 +31,10 @@ export class EntityGroupId implements HasUUID {
 export const GROUP_ALL_NAME = 'All';
 
 // CE port: group types limited to these six.
+// 与后端 EntityGroup.groupTypes 保持一致（PE 4.3.1.1 的 7 种）。
 export const entityGroupTypes: EntityType[] = [
   EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET,
-  EntityType.ENTITY_VIEW, EntityType.DASHBOARD
+  EntityType.ENTITY_VIEW, EntityType.DASHBOARD, EntityType.EDGE
 ];
 
 export interface EntityGroup extends BaseData<EntityGroupId> {

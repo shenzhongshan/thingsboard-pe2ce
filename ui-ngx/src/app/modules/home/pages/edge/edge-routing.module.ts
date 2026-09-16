@@ -42,6 +42,11 @@ import {
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
+import { EdgeGroupEntitiesTableConfigResolver } from '@home/pages/entity-group/group-entities-table-config.resolvers';
+import { groupMembersPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 
 const routes: Routes = [
   {
@@ -304,6 +309,73 @@ const routes: Routes = [
         ]
       },
       {
+        // Edge 实例本身可以分组（PE 4.3.1.1 的 groupTypes 含 EDGE）。
+        // 结构镜像 asset-routing 的 groups 分支。注意每个叶子路由都要带 auth ——
+        // AuthGuard 只看最深一层 activated route 的 data.auth，父路由上的不生效。
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.group-type-edge',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-edge',
+              groupType: EntityType.EDGE
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                labelFunction: groupMembersPageBreadcrumbLabelFunction,
+                icon: 'view_list'
+              } as BreadCrumbConfig<GroupMembersPageComponent>
+            },
+            children: [
+              {
+                path: '',
+                component: GroupMembersPageComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.group-type-edge',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'router'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'edge.edge-instances',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
         path: 'ruleChains',
         data: {
           breadcrumb: {
@@ -431,7 +503,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    EdgesTableConfigResolver
+    EdgesTableConfigResolver,
+    EdgeGroupEntitiesTableConfigResolver
   ]
 })
 export class EdgeRoutingModule {

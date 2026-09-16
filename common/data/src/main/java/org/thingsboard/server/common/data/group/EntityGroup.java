@@ -46,9 +46,12 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
 
     private static final long serialVersionUID = 2807349040519543363L;
 
+    // 与 PE 4.3.1.1 一致的 7 种可分组实体。新增一项时务必同步检查所有按 group type 分派的
+    // switch —— BaseEntityGroupService 里是 default -> throw，只加类型不加分支会在运行时
+    // 才炸而编译完全通过。EntityGroupTypeDispatchTest 是这条约束的守卫。
     public static final EntityType[] groupTypes = new EntityType[]{
             EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET,
-            EntityType.ENTITY_VIEW, EntityType.DASHBOARD
+            EntityType.ENTITY_VIEW, EntityType.DASHBOARD, EntityType.EDGE
     };
     public static final String GROUP_ALL_NAME = "All";
 
