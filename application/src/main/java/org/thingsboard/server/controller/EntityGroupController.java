@@ -31,6 +31,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntityInfo;
+import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.StringUtils;
@@ -808,6 +810,91 @@ public class EntityGroupController extends BaseController {
                 Resource.groupResourceFromGroupType(entityGroup.getType()), operation,
                 entityGroup.getId(), entityGroup);
         return entityGroup;
+    }
+
+
+    @ApiOperation(value = "Assign entity group to edge (assignEntityGroupToEdge)",
+            notes = "把实体分组分配给一台 edge。PE 的 edge 同步以分组为单位：分配之后该组内的实体才会" +
+                    "被下发到这台 edge。分配是异步的——先写关系并产生 edge event，edge 连上后再收到。")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @PostMapping(value = {"/edge/{edgeId}/entityGroup/{entityGroupId}/{groupType}"})
+    public EntityGroup assignEntityGroupToEdge(
+            @Parameter(description = "A string value representing the edge id", required = true)
+            @PathVariable("edgeId") String strEdgeId,
+            @Parameter(description = "A string value representing the entity group id", required = true)
+            @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId,
+            @Parameter(description = "Entity group type", required = true,
+                    schema = @Schema(allowableValues = {"ASSET", "DEVICE", "USER", "ENTITY_VIEW", "DASHBOARD"}))
+            @PathVariable("groupType") String strGroupType) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        checkParameter(ENTITY_GROUP_ID, strEntityGroupId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        Edge edge = checkEdgeId(edgeId, Operation.WRITE);
+        EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
+        EntityGroup entityGroup = checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)), Operation.READ);
+        EntityType groupType = resolveGroupType(strGroupType, entityGroup);
+        return checkNotNull(entityGroupService.assignEntityGroupToEdge(getTenantId(), entityGroupId, edgeId, groupType));
+    }
+
+    @ApiOperation(value = "Unassign entity group from edge (unassignEntityGroupFromEdge)",
+            notes = "解除实体分组与 edge 的分配关系。edge 收到后会在本地移除该分组及组内实体。")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @DeleteMapping(value = {"/edge/{edgeId}/entityGroup/{entityGroupId}/{groupType}"})
+    public EntityGroup unassignEntityGroupFromEdge(
+            @Parameter(description = "A string value representing the edge id", required = true)
+            @PathVariable("edgeId") String strEdgeId,
+            @Parameter(description = "A string value representing the entity group id", required = true)
+            @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId,
+            @Parameter(description = "Entity group type", required = true,
+                    schema = @Schema(allowableValues = {"ASSET", "DEVICE", "USER", "ENTITY_VIEW", "DASHBOARD"}))
+            @PathVariable("groupType") String strGroupType) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        checkParameter(ENTITY_GROUP_ID, strEntityGroupId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
+        EntityGroup entityGroup = checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)), Operation.READ);
+        EntityType groupType = resolveGroupType(strGroupType, entityGroup);
+        return checkNotNull(entityGroupService.unassignEntityGroupFromEdge(getTenantId(), entityGroupId, edgeId, groupType));
+    }
+
+    @ApiOperation(value = "Get entity groups assigned to edge (getEdgeEntityGroups)")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = {"/edge/{edgeId}/entityGroups/{groupType}"}, params = {"pageSize", "page"})
+    public PageData<EntityGroup> getEdgeEntityGroups(
+            @Parameter(description = "A string value representing the edge id", required = true)
+            @PathVariable("edgeId") String strEdgeId,
+            @Parameter(description = "Entity group type", required = true)
+            @PathVariable("groupType") String strGroupType,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.READ);
+        EntityType groupType = resolveGroupType(strGroupType, null);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(entityGroupService.findEdgeEntityGroupsByType(getTenantId(), edgeId, groupType, pageLink));
+    }
+
+    /**
+     * groupType 既来自路径也隐含在分组自身。两者都给时必须一致 —— 否则调用方可以用
+     * DEVICE 的路径把一个 USER 组挂到 edge 上，关系类型与组类型就对不上了。
+     */
+    private EntityType resolveGroupType(String strGroupType, EntityGroup entityGroup) throws ThingsboardException {
+        EntityType groupType;
+        try {
+            groupType = EntityType.valueOf(strGroupType);
+        } catch (IllegalArgumentException e) {
+            throw new ThingsboardException("Unsupported entity group type: " + strGroupType, ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+        }
+        if (entityGroup != null && entityGroup.getType() != groupType) {
+            throw new ThingsboardException("Entity group type mismatch: group is " + entityGroup.getType()
+                    + " but " + groupType + " was requested", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+        }
+        return groupType;
     }
 
 }

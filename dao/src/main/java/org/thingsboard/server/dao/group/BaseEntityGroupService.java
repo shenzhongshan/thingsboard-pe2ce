@@ -60,6 +60,11 @@ import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.dao.sql.group.EntityGroupRepository;
 import org.thingsboard.server.dao.user.UserService;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.ArrayList;
@@ -86,6 +91,13 @@ public class BaseEntityGroupService implements EntityGroupService {
     @Autowired
     @Lazy
     private GroupPermissionService groupPermissionService;
+
+    // 同样字段注入 + @Lazy：edge 侧的分组分配会反过来调用本服务
+    // （PE 的 assignTenantAdministratorsAndUsersGroupToEdge 就是这么用的），
+    // 做成构造依赖会在启动时形成不可解的环。
+    @Autowired
+    @Lazy
+    private EdgeService edgeService;
 
     private final EntityGroupRepository entityGroupRepository;
     private final RelationService relationService;
@@ -668,6 +680,72 @@ public class BaseEntityGroupService implements EntityGroupService {
         permission.setUserGroupId(userGroupId);
         permission.setRoleId(roleId);
         groupPermissionService.saveGroupPermission(tenantId, permission);
+    }
+
+
+    // ---- edge 分组分配 ----
+    // PE 的 edge 同步以分组为单位。这里建立的是 edge -> group 的 EDGE 关系，
+    // 与成员关系（group -> entity，FROM_ENTITY_GROUP）完全独立。
+    // 发布的 ActionEntityEvent 带上 entityGroup，EdgeEventSourcingListener 会把它
+    // 变成 edge_event.entity_group_id，最终成为实体消息上的 entityGroupIdMSB/LSB。
+
+    public static final String EDGE_ENTITY_GROUP_RELATION_PREFIX = "EDGE_ENTITY_GROUP_";
+
+    @Override
+    public EntityGroup assignEntityGroupToEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType) {
+        log.trace("Executing assignEntityGroupToEdge, tenantId [{}], entityGroupId [{}], edgeId [{}]", tenantId, entityGroupId, edgeId);
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            throw new DataValidationException("Can't assign non-existent entity group to edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't assign entity group to non-existent edge!");
+        }
+        relationService.saveRelation(tenantId, new EntityRelation(edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE));
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(entityGroupId)
+                .actionType(ActionType.ASSIGNED_TO_EDGE).entityGroup(entityGroup).build());
+        return entityGroup;
+    }
+
+    @Override
+    public EntityGroup unassignEntityGroupFromEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType) {
+        log.trace("Executing unassignEntityGroupFromEdge, tenantId [{}], entityGroupId [{}], edgeId [{}]", tenantId, entityGroupId, edgeId);
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            throw new DataValidationException("Can't unassign non-existent entity group from edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't unassign entity group from non-existent edge!");
+        }
+        relationService.deleteRelation(tenantId, edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE);
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(entityGroupId)
+                .actionType(ActionType.UNASSIGNED_FROM_EDGE).entityGroup(entityGroup).build());
+        return entityGroup;
+    }
+
+    @Override
+    public PageData<EntityGroup> findEdgeEntityGroupsByType(TenantId tenantId, EdgeId edgeId, EntityType groupType, PageLink pageLink) {
+        log.trace("Executing findEdgeEntityGroupsByType, tenantId [{}], edgeId [{}], groupType [{}]", tenantId, edgeId, groupType);
+        return DaoUtil.toPageData(entityGroupRepository.findEdgeEntityGroupsByType(
+                edgeId.getId(), EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public PageData<EntityGroup> findEdgeEntityGroupsByOwnerIdAndType(TenantId tenantId, EdgeId edgeId, EntityId ownerId, EntityType groupType, PageLink pageLink) {
+        log.trace("Executing findEdgeEntityGroupsByOwnerIdAndType, tenantId [{}], edgeId [{}], ownerId [{}]", tenantId, edgeId, ownerId);
+        return DaoUtil.toPageData(entityGroupRepository.findEdgeEntityGroupsByOwnerIdAndType(
+                edgeId.getId(), ownerId.getId(), EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public ListenableFuture<Boolean> checkEntityGroupAssignedToEdgeAsync(TenantId tenantId, EdgeId edgeId, EntityGroupId entityGroupId, EntityType groupType) {
+        log.trace("Executing checkEntityGroupAssignedToEdgeAsync, tenantId [{}], edgeId [{}], entityGroupId [{}]", tenantId, edgeId, entityGroupId);
+        return relationService.checkRelationAsync(tenantId, edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE);
     }
 
 }

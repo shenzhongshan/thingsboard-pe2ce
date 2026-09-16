@@ -15,10 +15,12 @@
  */
 package org.thingsboard.server.dao.group;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -145,5 +147,22 @@ public interface EntityGroupService {
      * groupType (either may be null for tenant-owned). No-op if oldOwnerId equals newOwnerId.
      */
     void moveAllGroupMembership(TenantId tenantId, CustomerId oldOwnerId, CustomerId newOwnerId, EntityType groupType, EntityId entityId);
+
+    /**
+     * 把实体分组分配给一台 edge。PE 的 edge 同步以分组为单位：分配之后该组内的实体才会被
+     * 下发到这台 edge，实体消息上的 entityGroupIdMSB/LSB 也由此而来。
+     *
+     * 关系存在 RelationTypeGroup.EDGE 下，类型 EDGE_ENTITY_GROUP_&lt;GROUP_TYPE&gt;，方向 edge -&gt; group。
+     * 与成员关系（FROM_ENTITY_GROUP / "Contains"，方向 group -&gt; entity）是两套，互不干扰。
+     */
+    EntityGroup assignEntityGroupToEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType);
+
+    EntityGroup unassignEntityGroupFromEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType);
+
+    PageData<EntityGroup> findEdgeEntityGroupsByType(TenantId tenantId, EdgeId edgeId, EntityType groupType, PageLink pageLink);
+
+    PageData<EntityGroup> findEdgeEntityGroupsByOwnerIdAndType(TenantId tenantId, EdgeId edgeId, EntityId ownerId, EntityType groupType, PageLink pageLink);
+
+    ListenableFuture<Boolean> checkEntityGroupAssignedToEdgeAsync(TenantId tenantId, EdgeId edgeId, EntityGroupId entityGroupId, EntityType groupType);
 
 }
