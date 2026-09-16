@@ -15,62 +15,25 @@
  */
 package org.thingsboard.server.service.edge.rpc.processor.integration;
 
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.integration.Integration;
-import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.IntegrationId;
-import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.common.data.msg.TbMsgType;
-import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.gen.edge.v1.DownlinkMsg;
 import org.thingsboard.server.gen.edge.v1.EdgeVersion;
-import org.thingsboard.server.gen.edge.v1.IntegrationUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.UpdateMsgType;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.edge.rpc.processor.BaseEdgeProcessor;
 import org.thingsboard.server.service.edge.EdgeMsgConstructorUtils;
 
-import java.util.UUID;
 
 @Slf4j
 @Component
 @TbCoreComponent
-public class IntegrationEdgeProcessor extends BaseIntegrationProcessor implements IntegrationProcessor {
-
-    @Override
-    public ListenableFuture<Void> processIntegrationMsgFromEdge(TenantId tenantId, Edge edge, IntegrationUpdateMsg updateMsg) {
-        IntegrationId entityId = new IntegrationId(new UUID(updateMsg.getIdMSB(), updateMsg.getIdLSB()));
-        try {
-            edgeSynchronizationManager.getEdgeId().set(edge.getId());
-
-            return switch (updateMsg.getMsgType()) {
-                case ENTITY_CREATED_RPC_MESSAGE, ENTITY_UPDATED_RPC_MESSAGE -> {
-                    boolean created = saveOrUpdateIntegration(tenantId, entityId, updateMsg);
-                    if (created) {
-                        Integration entity = edgeCtx.getIntegrationService().findIntegrationById(tenantId, entityId);
-                        if (entity != null) {
-                            pushEntityEventToRuleEngine(tenantId, edge, entity, TbMsgType.ENTITY_CREATED);
-                        }
-                    }
-                    yield Futures.immediateFuture(null);
-                }
-                case ENTITY_DELETED_RPC_MESSAGE -> {
-                    deleteIntegration(tenantId, edge, entityId);
-                    yield Futures.immediateFuture(null);
-                }
-                default -> handleUnsupportedMsgType(updateMsg.getMsgType());
-            };
-        } catch (DataValidationException e) {
-            return Futures.immediateFailedFuture(e);
-        } finally {
-            edgeSynchronizationManager.getEdgeId().remove();
-        }
-    }
+public class IntegrationEdgeProcessor extends BaseEdgeProcessor {
 
     @Override
     public DownlinkMsg convertEdgeEventToDownlink(EdgeEvent edgeEvent, EdgeVersion edgeVersion) {

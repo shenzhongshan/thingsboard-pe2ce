@@ -67,21 +67,15 @@ import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.ai.AiModelProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.apikey.ApiKeyProcessor;
 import org.thingsboard.server.dao.group.EntityGroupService;
-import org.thingsboard.server.service.edge.rpc.processor.group.EntityGroupProcessor;
 import org.thingsboard.server.dao.role.RoleService;
-import org.thingsboard.server.service.edge.rpc.processor.role.RoleProcessor;
 import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
-import org.thingsboard.server.service.edge.rpc.processor.grouppermission.GroupPermissionProcessor;
 import org.thingsboard.server.dao.converter.ConverterService;
-import org.thingsboard.server.service.edge.rpc.processor.converter.ConverterProcessor;
 import org.thingsboard.server.dao.integration.IntegrationService;
-import org.thingsboard.server.service.edge.rpc.processor.integration.IntegrationProcessor;
 import org.thingsboard.server.dao.scheduler.SchedulerEventService;
 import org.thingsboard.server.service.edge.rpc.processor.scheduler.SchedulerEventProcessor;
 import org.thingsboard.server.dao.report.ReportTemplateService;
 import org.thingsboard.server.service.edge.rpc.processor.report.ReportTemplateProcessor;
 import org.thingsboard.server.dao.secret.SecretService;
-import org.thingsboard.server.service.edge.rpc.processor.secret.SecretProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.AlarmProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.comment.AlarmCommentProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.asset.AssetEdgeProcessor;
@@ -105,7 +99,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Lazy
@@ -350,25 +343,10 @@ public class EdgeContextComponent {
     @Autowired
     private SecretService secretService;
 
-    @Autowired
-    @Lazy
-    private EntityGroupProcessor entityGroupProcessor;
 
-    @Autowired
-    @Lazy
-    private RoleProcessor roleProcessor;
 
-    @Autowired
-    @Lazy
-    private GroupPermissionProcessor groupPermissionProcessor;
 
-    @Autowired
-    @Lazy
-    private ConverterProcessor converterProcessor;
 
-    @Autowired
-    @Lazy
-    private IntegrationProcessor integrationProcessor;
 
     @Autowired
     @Lazy
@@ -378,8 +356,5 @@ public class EdgeContextComponent {
     @Lazy
     private ReportTemplateProcessor reportTemplateProcessor;
 
-    @Autowired
-    @Lazy
-    private SecretProcessor secretProcessor;
 
 }

@@ -15,62 +15,25 @@
  */
 package org.thingsboard.server.service.edge.rpc.processor.converter;
 
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.converter.Converter;
-import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.ConverterId;
-import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.common.data.msg.TbMsgType;
-import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.gen.edge.v1.DownlinkMsg;
 import org.thingsboard.server.gen.edge.v1.EdgeVersion;
-import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.UpdateMsgType;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.edge.rpc.processor.BaseEdgeProcessor;
 import org.thingsboard.server.service.edge.EdgeMsgConstructorUtils;
 
-import java.util.UUID;
 
 @Slf4j
 @Component
 @TbCoreComponent
-public class ConverterEdgeProcessor extends BaseConverterProcessor implements ConverterProcessor {
-
-    @Override
-    public ListenableFuture<Void> processConverterMsgFromEdge(TenantId tenantId, Edge edge, ConverterUpdateMsg updateMsg) {
-        ConverterId entityId = new ConverterId(new UUID(updateMsg.getIdMSB(), updateMsg.getIdLSB()));
-        try {
-            edgeSynchronizationManager.getEdgeId().set(edge.getId());
-
-            return switch (updateMsg.getMsgType()) {
-                case ENTITY_CREATED_RPC_MESSAGE, ENTITY_UPDATED_RPC_MESSAGE -> {
-                    boolean created = saveOrUpdateConverter(tenantId, entityId, updateMsg);
-                    if (created) {
-                        Converter entity = edgeCtx.getConverterService().findConverterById(tenantId, entityId);
-                        if (entity != null) {
-                            pushEntityEventToRuleEngine(tenantId, edge, entity, TbMsgType.ENTITY_CREATED);
-                        }
-                    }
-                    yield Futures.immediateFuture(null);
-                }
-                case ENTITY_DELETED_RPC_MESSAGE -> {
-                    deleteConverter(tenantId, edge, entityId);
-                    yield Futures.immediateFuture(null);
-                }
-                default -> handleUnsupportedMsgType(updateMsg.getMsgType());
-            };
-        } catch (DataValidationException e) {
-            return Futures.immediateFailedFuture(e);
-        } finally {
-            edgeSynchronizationManager.getEdgeId().remove();
-        }
-    }
+public class ConverterEdgeProcessor extends BaseEdgeProcessor {
 
     @Override
     public DownlinkMsg convertEdgeEventToDownlink(EdgeEvent edgeEvent, EdgeVersion edgeVersion) {
