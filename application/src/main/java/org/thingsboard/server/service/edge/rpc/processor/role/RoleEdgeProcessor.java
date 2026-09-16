@@ -30,7 +30,7 @@ import org.thingsboard.server.common.data.msg.TbMsgType;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.gen.edge.v1.DownlinkMsg;
 import org.thingsboard.server.gen.edge.v1.EdgeVersion;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
 import org.thingsboard.server.gen.edge.v1.UpdateMsgType;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.edge.EdgeMsgConstructorUtils;
@@ -43,7 +43,7 @@ import java.util.UUID;
 public class RoleEdgeProcessor extends BaseRoleProcessor implements RoleProcessor {
 
     @Override
-    public ListenableFuture<Void> processRoleMsgFromEdge(TenantId tenantId, Edge edge, RoleUpdateMsg updateMsg) {
+    public ListenableFuture<Void> processRoleMsgFromEdge(TenantId tenantId, Edge edge, RoleProto updateMsg) {
         RoleId entityId = new RoleId(new UUID(updateMsg.getIdMSB(), updateMsg.getIdLSB()));
         try {
             edgeSynchronizationManager.getEdgeId().set(edge.getId());
@@ -82,14 +82,14 @@ public class RoleEdgeProcessor extends BaseRoleProcessor implements RoleProcesso
                     UpdateMsgType msgType = getUpdateMsgType(edgeEvent.getAction());
                     return DownlinkMsg.newBuilder()
                             .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                            .addRoleUpdateMsg(EdgeMsgConstructorUtils.constructRoleUpdatedMsg(msgType, entity))
+                            .addRoleMsg(EdgeMsgConstructorUtils.constructRoleUpdatedMsg(msgType, entity))
                             .build();
                 }
             }
             case DELETED -> {
                 return DownlinkMsg.newBuilder()
                         .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                        .addRoleUpdateMsg(EdgeMsgConstructorUtils.constructRoleDeleteMsg(entityId))
+                        .addRoleMsg(EdgeMsgConstructorUtils.constructRoleDeleteMsg(entityId))
                         .build();
             }
         }

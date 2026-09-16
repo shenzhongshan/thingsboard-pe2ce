@@ -106,10 +106,10 @@ import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.gen.edge.v1.EntityGroupUpdateMsg;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.id.RoleId;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
@@ -794,27 +794,27 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(entityGroupId.getId().getLeastSignificantBits()).build();
     }
 
-    public static RoleUpdateMsg constructRoleUpdatedMsg(UpdateMsgType msgType, Role role) {
-        return RoleUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(role))
+    public static RoleProto constructRoleUpdatedMsg(UpdateMsgType msgType, Role role) {
+        return RoleProto.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(role))
                 .setIdMSB(role.getId().getId().getMostSignificantBits())
                 .setIdLSB(role.getId().getId().getLeastSignificantBits()).build();
     }
 
-    public static RoleUpdateMsg constructRoleDeleteMsg(RoleId roleId) {
-        return RoleUpdateMsg.newBuilder()
+    public static RoleProto constructRoleDeleteMsg(RoleId roleId) {
+        return RoleProto.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(roleId.getId().getMostSignificantBits())
                 .setIdLSB(roleId.getId().getLeastSignificantBits()).build();
     }
 
-    public static GroupPermissionUpdateMsg constructGroupPermissionUpdatedMsg(UpdateMsgType msgType, GroupPermission groupPermission) {
-        return GroupPermissionUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(groupPermission))
+    public static GroupPermissionProto constructGroupPermissionUpdatedMsg(UpdateMsgType msgType, GroupPermission groupPermission) {
+        return GroupPermissionProto.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(groupPermission))
                 .setIdMSB(groupPermission.getId().getId().getMostSignificantBits())
                 .setIdLSB(groupPermission.getId().getId().getLeastSignificantBits()).build();
     }
 
-    public static GroupPermissionUpdateMsg constructGroupPermissionDeleteMsg(GroupPermissionId groupPermissionId) {
-        return GroupPermissionUpdateMsg.newBuilder()
+    public static GroupPermissionProto constructGroupPermissionDeleteMsg(GroupPermissionId groupPermissionId) {
+        return GroupPermissionProto.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(groupPermissionId.getId().getMostSignificantBits())
                 .setIdLSB(groupPermissionId.getId().getLeastSignificantBits()).build();

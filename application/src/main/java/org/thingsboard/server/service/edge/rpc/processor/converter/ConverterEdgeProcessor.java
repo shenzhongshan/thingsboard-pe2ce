@@ -82,14 +82,14 @@ public class ConverterEdgeProcessor extends BaseConverterProcessor implements Co
                     UpdateMsgType msgType = getUpdateMsgType(edgeEvent.getAction());
                     return DownlinkMsg.newBuilder()
                             .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                            .addConverterUpdateMsg(EdgeMsgConstructorUtils.constructConverterUpdatedMsg(msgType, entity))
+                            .addConverterMsg(EdgeMsgConstructorUtils.constructConverterUpdatedMsg(msgType, entity))
                             .build();
                 }
             }
             case DELETED -> {
                 return DownlinkMsg.newBuilder()
                         .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                        .addConverterUpdateMsg(EdgeMsgConstructorUtils.constructConverterDeleteMsg(entityId))
+                        .addConverterMsg(EdgeMsgConstructorUtils.constructConverterDeleteMsg(entityId))
                         .build();
             }
         }

@@ -82,14 +82,14 @@ public class IntegrationEdgeProcessor extends BaseIntegrationProcessor implement
                     UpdateMsgType msgType = getUpdateMsgType(edgeEvent.getAction());
                     return DownlinkMsg.newBuilder()
                             .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                            .addIntegrationUpdateMsg(EdgeMsgConstructorUtils.constructIntegrationUpdatedMsg(msgType, entity))
+                            .addIntegrationMsg(EdgeMsgConstructorUtils.constructIntegrationUpdatedMsg(msgType, entity))
                             .build();
                 }
             }
             case DELETED -> {
                 return DownlinkMsg.newBuilder()
                         .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                        .addIntegrationUpdateMsg(EdgeMsgConstructorUtils.constructIntegrationDeleteMsg(entityId))
+                        .addIntegrationMsg(EdgeMsgConstructorUtils.constructIntegrationDeleteMsg(entityId))
                         .build();
             }
         }

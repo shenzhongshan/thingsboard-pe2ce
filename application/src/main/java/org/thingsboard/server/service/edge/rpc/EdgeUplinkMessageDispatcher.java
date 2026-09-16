@@ -28,8 +28,8 @@ import org.thingsboard.server.gen.edge.v1.AlarmCommentUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AlarmUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.EntityGroupUpdateMsg;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.IntegrationUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.SchedulerEventUpdateMsg;
@@ -234,56 +234,10 @@ public class EdgeUplinkMessageDispatcher {
                     }
                 }
             }
-            if (uplinkMsg.getEntityGroupUpdateMsgCount() > 0) {
-                for (EntityGroupUpdateMsg entityGroupUpdateMsg : uplinkMsg.getEntityGroupUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getEntityGroupProcessor().processEntityGroupMsgFromEdge(edge.getTenantId(), edge, entityGroupUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
-            if (uplinkMsg.getRoleUpdateMsgCount() > 0) {
-                for (RoleUpdateMsg roleUpdateMsg : uplinkMsg.getRoleUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getRoleProcessor().processRoleMsgFromEdge(edge.getTenantId(), edge, roleUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
-            if (uplinkMsg.getGroupPermissionUpdateMsgCount() > 0) {
-                for (GroupPermissionUpdateMsg groupPermissionUpdateMsg : uplinkMsg.getGroupPermissionUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getGroupPermissionProcessor().processGroupPermissionMsgFromEdge(edge.getTenantId(), edge, groupPermissionUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
-            if (uplinkMsg.getConverterUpdateMsgCount() > 0) {
-                for (ConverterUpdateMsg converterUpdateMsg : uplinkMsg.getConverterUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getConverterProcessor().processConverterMsgFromEdge(edge.getTenantId(), edge, converterUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
-            if (uplinkMsg.getIntegrationUpdateMsgCount() > 0) {
-                for (IntegrationUpdateMsg integrationUpdateMsg : uplinkMsg.getIntegrationUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getIntegrationProcessor().processIntegrationMsgFromEdge(edge.getTenantId(), edge, integrationUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
+            // EntityGroup / Role / GroupPermission / Converter / Integration / Secret 没有上行分支：
+            // PE 4.3.1.1 的 UplinkMsg 里不存在这些字段，它们是云端单向下发的配置，edge 不回推。
+            // edge 只会通过 entityGroupEntitiesRequestMsg / entityGroupPermissionsRequestMsg
+            // 主动索要分组成员与分组权限（这两个 request 的处理待补）。
             if (uplinkMsg.getSchedulerEventUpdateMsgCount() > 0) {
                 for (SchedulerEventUpdateMsg schedulerEventUpdateMsg : uplinkMsg.getSchedulerEventUpdateMsgList()) {
                     state.lockSequenceDependency();
@@ -299,16 +253,6 @@ public class EdgeUplinkMessageDispatcher {
                     state.lockSequenceDependency();
                     try {
                         result.add(ctx.getReportTemplateProcessor().processReportTemplateMsgFromEdge(edge.getTenantId(), edge, reportTemplateUpdateMsg));
-                    } finally {
-                        state.unlockSequenceDependency();
-                    }
-                }
-            }
-            if (uplinkMsg.getSecretUpdateMsgCount() > 0) {
-                for (SecretUpdateMsg secretUpdateMsg : uplinkMsg.getSecretUpdateMsgList()) {
-                    state.lockSequenceDependency();
-                    try {
-                        result.add(ctx.getSecretProcessor().processSecretMsgFromEdge(edge.getTenantId(), edge, secretUpdateMsg));
                     } finally {
                         state.unlockSequenceDependency();
                     }

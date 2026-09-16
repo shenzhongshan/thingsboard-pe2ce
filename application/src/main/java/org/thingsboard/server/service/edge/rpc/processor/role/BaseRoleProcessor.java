@@ -23,13 +23,13 @@ import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.RoleId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.msg.TbMsgType;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
 import org.thingsboard.server.service.edge.rpc.processor.BaseEdgeProcessor;
 
 @Slf4j
 public abstract class BaseRoleProcessor extends BaseEdgeProcessor {
 
-    protected boolean saveOrUpdateRole(TenantId tenantId, RoleId entityId, RoleUpdateMsg updateMsg) {
+    protected boolean saveOrUpdateRole(TenantId tenantId, RoleId entityId, RoleProto updateMsg) {
         boolean isCreated = false;
         try {
             Role entity = JacksonUtil.fromString(updateMsg.getEntity(), Role.class, true);

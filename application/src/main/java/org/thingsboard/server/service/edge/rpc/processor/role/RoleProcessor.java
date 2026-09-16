@@ -18,11 +18,11 @@ package org.thingsboard.server.service.edge.rpc.processor.role;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
 import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
 
 public interface RoleProcessor extends EdgeProcessor {
 
-    ListenableFuture<Void> processRoleMsgFromEdge(TenantId tenantId, Edge edge, RoleUpdateMsg roleUpdateMsg);
+    ListenableFuture<Void> processRoleMsgFromEdge(TenantId tenantId, Edge edge, RoleProto roleUpdateMsg);
 
 }

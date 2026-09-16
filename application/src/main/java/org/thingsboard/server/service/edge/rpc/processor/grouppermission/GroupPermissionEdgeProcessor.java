@@ -30,7 +30,7 @@ import org.thingsboard.server.common.data.msg.TbMsgType;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.gen.edge.v1.DownlinkMsg;
 import org.thingsboard.server.gen.edge.v1.EdgeVersion;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.gen.edge.v1.UpdateMsgType;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.edge.EdgeMsgConstructorUtils;
@@ -43,7 +43,7 @@ import java.util.UUID;
 public class GroupPermissionEdgeProcessor extends BaseGroupPermissionProcessor implements GroupPermissionProcessor {
 
     @Override
-    public ListenableFuture<Void> processGroupPermissionMsgFromEdge(TenantId tenantId, Edge edge, GroupPermissionUpdateMsg updateMsg) {
+    public ListenableFuture<Void> processGroupPermissionMsgFromEdge(TenantId tenantId, Edge edge, GroupPermissionProto updateMsg) {
         GroupPermissionId entityId = new GroupPermissionId(new UUID(updateMsg.getIdMSB(), updateMsg.getIdLSB()));
         try {
             edgeSynchronizationManager.getEdgeId().set(edge.getId());
@@ -82,14 +82,14 @@ public class GroupPermissionEdgeProcessor extends BaseGroupPermissionProcessor i
                     UpdateMsgType msgType = getUpdateMsgType(edgeEvent.getAction());
                     return DownlinkMsg.newBuilder()
                             .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                            .addGroupPermissionUpdateMsg(EdgeMsgConstructorUtils.constructGroupPermissionUpdatedMsg(msgType, entity))
+                            .addGroupPermissionMsg(EdgeMsgConstructorUtils.constructGroupPermissionUpdatedMsg(msgType, entity))
                             .build();
                 }
             }
             case DELETED -> {
                 return DownlinkMsg.newBuilder()
                         .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
-                        .addGroupPermissionUpdateMsg(EdgeMsgConstructorUtils.constructGroupPermissionDeleteMsg(entityId))
+                        .addGroupPermissionMsg(EdgeMsgConstructorUtils.constructGroupPermissionDeleteMsg(entityId))
                         .build();
             }
         }

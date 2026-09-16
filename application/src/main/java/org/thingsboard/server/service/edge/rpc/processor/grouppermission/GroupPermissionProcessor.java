@@ -18,11 +18,11 @@ package org.thingsboard.server.service.edge.rpc.processor.grouppermission;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
 
 public interface GroupPermissionProcessor extends EdgeProcessor {
 
-    ListenableFuture<Void> processGroupPermissionMsgFromEdge(TenantId tenantId, Edge edge, GroupPermissionUpdateMsg groupPermissionUpdateMsg);
+    ListenableFuture<Void> processGroupPermissionMsgFromEdge(TenantId tenantId, Edge edge, GroupPermissionProto groupPermissionUpdateMsg);
 
 }

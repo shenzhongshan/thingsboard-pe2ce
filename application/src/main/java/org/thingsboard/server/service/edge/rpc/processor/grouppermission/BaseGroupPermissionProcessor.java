@@ -23,13 +23,13 @@ import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.msg.TbMsgType;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.service.edge.rpc.processor.BaseEdgeProcessor;
 
 @Slf4j
 public abstract class BaseGroupPermissionProcessor extends BaseEdgeProcessor {
 
-    protected boolean saveOrUpdateGroupPermission(TenantId tenantId, GroupPermissionId entityId, GroupPermissionUpdateMsg updateMsg) {
+    protected boolean saveOrUpdateGroupPermission(TenantId tenantId, GroupPermissionId entityId, GroupPermissionProto updateMsg) {
         boolean isCreated = false;
         try {
             GroupPermission entity = JacksonUtil.fromString(updateMsg.getEntity(), GroupPermission.class, true);
