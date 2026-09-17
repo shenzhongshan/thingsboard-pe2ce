@@ -28,6 +28,10 @@ import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 
 import java.util.EnumMap;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
@@ -121,6 +125,36 @@ public final class EdgeUtils {
             return String.format(EntityGroup.GROUP_EDGE_CUSTOMER_ALL_NAME_PATTERN, customerName, edgeName);
         }
         return String.format(EntityGroup.GROUP_EDGE_ALL_NAME_PATTERN, edgeName);
+    }
+
+    // ---- edge 模板的参数化占位符 ----
+    // 一份集成模板要下发到 N 台 edge，每台的 broker 地址/凭据都不同。PE 的做法是配置里写
+    // ${{attrKey}}，下发时用该 edge 自己的 SERVER_SCOPE 属性替换。注意是**双大括号**，
+    // 与规则引擎的 ${} 单括号不是一回事。
+    private static final Pattern ATTRIBUTE_PATTERN = Pattern.compile("(\\$\\{\\{)(.*?)(}})");
+    private static final String ATTRIBUTE_PLACEHOLDER_PATTERN = "${{%s}}";
+    private static final String ATTRIBUTE_REGEXP_PLACEHOLDER_PATTERN = "\\$\\{\\{%s}}";
+
+    /** 从配置 JSON 里挑出所有 ${{key}} 的 key。 */
+    public static Set<String> getAttributeKeysFromConfiguration(String configuration) {
+        Set<String> keys = new HashSet<>();
+        if (configuration == null) {
+            return keys;
+        }
+        Matcher m = ATTRIBUTE_PATTERN.matcher(configuration);
+        while (m.find()) {
+            keys.add(m.group(2));
+        }
+        return keys;
+    }
+
+    public static String formatAttributeKeyToPlaceholderFormat(String attributeKey) {
+        return String.format(ATTRIBUTE_PLACEHOLDER_PATTERN, attributeKey);
+    }
+
+    /** 用于 String.replaceAll 的正则形式（大括号和 $ 都要转义）。 */
+    public static String formatAttributeKeyToRegexpPlaceholderFormat(String attributeKey) {
+        return String.format(ATTRIBUTE_REGEXP_PLACEHOLDER_PATTERN, attributeKey);
     }
 
     public static String createErrorMsgFromRootCauseAndStackTrace(Throwable t) {

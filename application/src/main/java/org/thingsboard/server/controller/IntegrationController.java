@@ -114,6 +114,8 @@ public class IntegrationController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/integrations"}, params = {"pageSize", "page"})
     public PageData<Integration> getIntegrations(
+            @Parameter(description = "只列 edge 模板。模板与普通实体分居两个命名空间，互不可见。")
+            @RequestParam(value = "isEdgeTemplate", required = false, defaultValue = "false") boolean isEdgeTemplate,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = "Case-insensitive 'substring' filter based on integration name")
@@ -124,6 +126,9 @@ public class IntegrationController extends BaseController {
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        if (isEdgeTemplate) {
+            return checkNotNull(integrationService.findTenantEdgeTemplateIntegrations(getTenantId(), pageLink));
+        }
         return integrationService.findTenantIntegrations(getTenantId(), pageLink);
     }
 

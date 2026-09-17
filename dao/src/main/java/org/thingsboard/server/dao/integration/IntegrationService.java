@@ -66,4 +66,8 @@ public interface IntegrationService extends EntityDaoService {
 
     PageData<Integration> findIntegrationsByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink);
 
+
+    /** 租户下的 edge 模板集成。模板与普通集成分居两个命名空间，列表互不可见。 */
+    PageData<Integration> findTenantEdgeTemplateIntegrations(TenantId tenantId, PageLink pageLink);
+
 }

@@ -36,6 +36,8 @@ import org.thingsboard.server.common.data.alarm.EntityAlarm;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.cf.CalculatedField;
 import org.thingsboard.server.common.data.domain.Domain;
+import org.thingsboard.server.common.data.converter.Converter;
+import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
@@ -214,6 +216,18 @@ public class EdgeEventSourcingListener {
                 case RULE_CHAIN:
                     if (entity instanceof RuleChain ruleChain) {
                         return RuleChainType.EDGE.equals(ruleChain.getType());
+                    }
+                    break;
+                // 只有 edge 模板才下发。普通集成/转换器在云端有运行实例，推给 edge 会变成
+                // 两个进程同时连同一个外部端点。
+                case CONVERTER:
+                    if (entity instanceof Converter converter) {
+                        return converter.isEdgeTemplate();
+                    }
+                    break;
+                case INTEGRATION:
+                    if (entity instanceof Integration integration) {
+                        return integration.isEdgeTemplate();
                     }
                     break;
                 case USER:

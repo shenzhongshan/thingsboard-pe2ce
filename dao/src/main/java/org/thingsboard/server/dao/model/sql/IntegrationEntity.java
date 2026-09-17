@@ -92,6 +92,9 @@ public class IntegrationEntity extends BaseVersionedEntity<Integration> implemen
     @Column(name = "external_id")
     private UUID externalId;
 
+    @Column(name = "is_edge_template")
+    private boolean edgeTemplate;
+
     public IntegrationEntity() {
         super();
     }
@@ -121,6 +124,7 @@ public class IntegrationEntity extends BaseVersionedEntity<Integration> implemen
         if (integration.getExternalId() != null) {
             this.externalId = integration.getExternalId().getId();
         }
+        this.edgeTemplate = integration.isEdgeTemplate();
     }
 
     @Override
@@ -128,6 +132,7 @@ public class IntegrationEntity extends BaseVersionedEntity<Integration> implemen
         Integration integration = new Integration(new IntegrationId(id));
         integration.setCreatedTime(createdTime);
         integration.setVersion(version);
+        integration.setEdgeTemplate(edgeTemplate);
         if (tenantId != null) {
             integration.setTenantId(TenantId.fromUUID(tenantId));
         }

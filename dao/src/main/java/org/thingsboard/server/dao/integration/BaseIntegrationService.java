@@ -93,8 +93,14 @@ public class BaseIntegrationService implements IntegrationService {
         if (integration.getDefaultConverterId() == null) {
             throw new DataValidationException("Integration uplink converter should be specified!");
         }
-        if (converterRepository.findById(integration.getDefaultConverterId().getId()).isEmpty()) {
+        var uplinkConverter = converterRepository.findById(integration.getDefaultConverterId().getId());
+        if (uplinkConverter.isEmpty()) {
             throw new DataValidationException("Integration is referencing a non-existent uplink converter!");
+        }
+        // 模板与普通实体是两个互不相交的命名空间：模板集成下发到 edge 后要在那边找到它的
+        // 转换器，而普通转换器不会被下发；反过来普通集成引用模板转换器，云端跑起来也会缺件。
+        if (uplinkConverter.get().isEdgeTemplate() != integration.isEdgeTemplate()) {
+            throw new DataValidationException("Edge integration can't have non-edge converter and vise versa!");
         }
         if (StringUtils.isEmpty(integration.getRoutingKey())) {
             integration.setRoutingKey(UUID.randomUUID().toString());
@@ -201,9 +207,11 @@ public class BaseIntegrationService implements IntegrationService {
         if (integration == null) {
             throw new DataValidationException("Can't assign non-existent integration to edge!");
         }
-        // TODO(3d)：Integration.isEdgeTemplate 还没落地（那是"集成模板"那一档的内容）。
-        // 补上之后这里要加校验：只有 edge 模板集成能分配给 edge —— 普通集成在云端有运行
-        // 实例，下发给 edge 会变成两个进程同时连同一个外部端点。
+        if (!integration.isEdgeTemplate()) {
+            // 普通集成在云端有运行实例；下发给 edge 会变成两个进程同时连同一个外部端点
+            // （同一个 MQTT topic / 同一个 Kafka 消费组），消息被随机瓜分。
+            throw new DataValidationException("Only edge template integration can be assigned to edge!");
+        }
         if (edgeService.findEdgeById(tenantId, edgeId) == null) {
             throw new DataValidationException("Can't assign integration to non-existent edge!");
         }
@@ -236,6 +244,13 @@ public class BaseIntegrationService implements IntegrationService {
     public PageData<Integration> findIntegrationsByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink) {
         return DaoUtil.toPageData(integrationRepository.findByTenantIdAndEdgeId(
                 tenantId.getId(), edgeId.getId(), pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+
+    @Override
+    public PageData<Integration> findTenantEdgeTemplateIntegrations(TenantId tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(integrationRepository.findByTenantIdAndIsEdgeTemplate(
+                tenantId.getId(), true, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
     }
 
 }
