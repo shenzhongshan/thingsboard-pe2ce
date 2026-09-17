@@ -39,7 +39,20 @@
           </button>
         </div>
       </div>
-      <div #mapHost class="tianditu-map" aria-label="智能防雷设备地图"></div>
+      <!-- 地图由公共组件统一渲染；本页通过 includeDevice 仅保留防雷设备。 -->
+      <div class="tianditu-map" aria-label="智能防雷设备地图">
+        <tb-smart-lightning-device-map
+          #deviceMap
+          [devices]="mapDevicesForMap"
+          [includeDevice]="includeSmartLightningMapDevice"
+          [addingPoint]="isAddingMapPoint"
+          [draftPoint]="pendingMapPoint"
+          [assetPaths]="mapAssetPaths"
+          [activeAlarmNames]="activeAlarmNames"
+          (mapClick)="onMapClick($event)"
+          (deviceClick)="onDeviceMapClick($event)">
+        </tb-smart-lightning-device-map>
+      </div>
       @if (pendingMapPoint) {
         <div class="map-point-binding-panel" role="dialog" aria-label="绑定地图点位设备">
           <div class="map-point-binding-title">绑定设备</div>

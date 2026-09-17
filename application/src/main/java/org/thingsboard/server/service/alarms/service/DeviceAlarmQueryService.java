@@ -22,9 +22,24 @@ import java.util.List;
  */
 public interface DeviceAlarmQueryService {
 
+    /**
+     * 告警分页访问器：调用方只处理当前页，不能把所有页合并到内存。
+     */
+    @FunctionalInterface
+    interface AlarmPageVisitor {
+        void visit(List<AlarmInfo> page) throws ThingsboardException;
+    }
+
     /** 根据当前用户权限查询一页告警。 */
     PageData<AlarmInfo> findPage(SecurityUser user, AlarmQueryV2 query) throws ThingsboardException;
 
-    /** 根据当前用户权限读取查询条件匹配的全部告警。 */
-    List<AlarmInfo> findAll(SecurityUser user, AlarmQueryV2 query) throws ThingsboardException;
+    /**
+     * 根据当前用户权限逐页处理告警。
+     *
+     * <p>实现只在内存中保留当前页，适合统计、去重和趋势聚合等场景；
+     * 不允许在该方法内部合并出全量告警列表。</p>
+     */
+    void forEachPage(SecurityUser user, AlarmQueryV2 query, AlarmPageVisitor visitor)
+            throws ThingsboardException;
+
 }

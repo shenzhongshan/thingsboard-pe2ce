@@ -1,9 +1,8 @@
 package org.thingsboard.server.service.monitoring.util;
 
-import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
+import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummaryDTO;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -19,22 +18,21 @@ public final class DeviceStatusSummaryCalculator {
     private DeviceStatusSummaryCalculator() {
     }
 
-    public static DeviceStatusSummary calculate(
-            List<UUID> visibleDeviceIds,
+    public static DeviceStatusSummaryDTO calculate(
+            Set<UUID> visibleDeviceIds,
             Map<UUID, String> activeValuesByDeviceId,
-            List<UUID> activeAlarmDeviceIds
+            Set<UUID> activeAlarmDeviceIds
     ) {
-        Set<UUID> visibleDeviceIdSet = new HashSet<>(visibleDeviceIds);
         Set<UUID> abnormalDeviceIds = new HashSet<>();
         for (UUID deviceId : activeAlarmDeviceIds) {
-            if (visibleDeviceIdSet.contains(deviceId)) {
+            if (visibleDeviceIds.contains(deviceId)) {
                 abnormalDeviceIds.add(deviceId);
             }
         }
 
         int normal = 0;
         for (UUID deviceId : visibleDeviceIds) {
-            boolean active = isActive(activeValuesByDeviceId.get(deviceId));
+            boolean active = MonitoringValueParser.isActive(activeValuesByDeviceId.get(deviceId));
             if (!active) {
                 abnormalDeviceIds.add(deviceId);
             }
@@ -42,11 +40,7 @@ public final class DeviceStatusSummaryCalculator {
                 normal++;
             }
         }
-        return new DeviceStatusSummary(normal, abnormalDeviceIds.size());
-    }
-
-    private static boolean isActive(String value) {
-        return "true".equalsIgnoreCase(value) || "1".equals(value);
+        return new DeviceStatusSummaryDTO(normal, abnormalDeviceIds.size());
     }
 
 }

@@ -10,45 +10,36 @@ import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
-import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.alarm.AlarmInfo;
-import org.thingsboard.server.common.data.alarm.AlarmQueryV2;
-import org.thingsboard.server.common.data.alarm.AlarmSearchStatus;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.DeviceId;
-import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.kv.Aggregation;
 import org.thingsboard.server.common.data.kv.BaseReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.ReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
-import org.thingsboard.server.common.data.page.PageData;
-import org.thingsboard.server.common.data.page.PageLink;
-import org.thingsboard.server.common.data.page.SortOrder;
-import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
-import org.thingsboard.server.service.alarms.dto.DeviceAlarmTypeTotalDTO;
-import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
-import org.thingsboard.server.service.monitoring.dto.GroundAlarmTypeTotalDTO;
-import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.GroundResistanceExtrema;
-import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
-import org.thingsboard.server.service.monitoring.dto.SpdAlarmTypeTotalDTO;
-import org.thingsboard.server.service.monitoring.dto.SpdMetricExtrema;
-import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
+import org.thingsboard.server.service.alarms.bo.AlarmDimensionCountBO;
+import org.thingsboard.server.service.alarms.bo.AlarmOverviewAggregateBO;
+import org.thingsboard.server.service.alarms.service.AlarmStatisticsService;
+import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummaryDTO;
+import org.thingsboard.server.service.monitoring.dto.AlarmTypeTotalDTO;
+import org.thingsboard.server.service.monitoring.dto.GroundResistanceExtremaDTO;
+import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummaryDTO;
+import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
+import org.thingsboard.server.service.monitoring.dto.SpdMetricExtremaDTO;
+import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummaryDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
-import org.thingsboard.server.service.monitoring.util.MonitoringPeriodWindow;
+import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
+import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
+import org.thingsboard.server.service.monitoring.util.MonitoringDeviceFilters;
+import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.monitoring.util.SpdMonitoringCalculator;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.springframework.stereotype.Service;
@@ -65,51 +56,147 @@ import org.thingsboard.server.service.monitoring.service.SmartLightningDashboard
 @TbCoreComponent
 public class SmartLightningDashboardServiceImpl implements SmartLightningDashboardService {
 
+    /** 单批时序请求上限，避免设备数量大时一次创建过多 Future。 */
+    private static final int TELEMETRY_BATCH_SIZE = 50;
+
     private final GroundSummaryHandler groundSummaryHandler;
     private final SpdSummaryHandler spdSummaryHandler;
     private final LightningCurrentSummaryHandler lightningCurrentSummaryHandler;
 
     public SmartLightningDashboardServiceImpl(
             SmartLightningDeviceService smartLightningDeviceService,
-            DeviceAlarmQueryService alarmQueryService,
+            AlarmStatisticsService alarmStatisticsService,
             TimeseriesService timeseriesService
     ) {
         this.groundSummaryHandler = new GroundSummaryHandler(
-                smartLightningDeviceService, alarmQueryService, timeseriesService);
+                smartLightningDeviceService, alarmStatisticsService, timeseriesService);
         this.spdSummaryHandler = new SpdSummaryHandler(
-                smartLightningDeviceService, alarmQueryService, timeseriesService);
+                smartLightningDeviceService, alarmStatisticsService, timeseriesService);
         this.lightningCurrentSummaryHandler = new LightningCurrentSummaryHandler(
-                smartLightningDeviceService, alarmQueryService, timeseriesService);
+                smartLightningDeviceService, alarmStatisticsService, timeseriesService);
     }
 
     @Override
-    public GroundMonitoringSummary getGroundSummary(SecurityUser user, String period)
+    public GroundMonitoringSummaryDTO getGroundSummary(SecurityUser user, String period)
             throws ThingsboardException {
         return groundSummaryHandler.getSummary(user, period);
     }
 
     @Override
-    public SpdMonitoringSummary getSpdSummary(SecurityUser user, String period)
+    public SpdMonitoringSummaryDTO getSpdSummary(SecurityUser user, String period)
             throws ThingsboardException {
         return spdSummaryHandler.getSummary(user, period);
     }
 
     @Override
-    public LightningCurrentMonitoringSummary getLightningCurrentSummary(SecurityUser user, String period)
+    public LightningCurrentMonitoringSummaryDTO getLightningCurrentSummary(SecurityUser user, String period)
             throws ThingsboardException {
         return lightningCurrentSummaryHandler.getSummary(user, period);
+    }
+
+    /**
+     * 统一分批读取一组设备的周期遥测，并保持返回结果与设备列表顺序一致。
+     *
+     * <p>ThingsBoard 当前没有“多个实体 + 多个历史键”的同步批量接口，因此这里仍通过
+     * {@link TimeseriesService} 并发读取，但统一限制每批 Future 数量。单台设备失败时返回
+     * 空列表，不影响同批其他设备；调用方只负责自己的指标聚合。</p>
+     */
+    private static List<List<TsKvEntry>> readTelemetryInBatches(
+            TimeseriesService timeseriesService,
+            SecurityUser user,
+            List<MonitoringDeviceContextBO> devices,
+            List<ReadTsKvQuery> queries,
+            String errorMessage) throws ThingsboardException {
+        if (devices.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<List<TsKvEntry>> entriesByDevice = new ArrayList<>();
+        for (int batchStart = 0; batchStart < devices.size(); batchStart += TELEMETRY_BATCH_SIZE) {
+            int batchEnd = Math.min(batchStart + TELEMETRY_BATCH_SIZE, devices.size());
+            List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
+            for (int index = batchStart; index < batchEnd; index++) {
+                MonitoringDeviceContextBO device = devices.get(index);
+                futures.add(timeseriesService.findAll(
+                        user.getTenantId(), new DeviceId(device.getDeviceId()), queries));
+            }
+            try {
+                List<List<TsKvEntry>> batchEntries = Futures.successfulAsList(futures).get();
+                for (List<TsKvEntry> entries : batchEntries) {
+                    entriesByDevice.add(entries == null ? Collections.emptyList() : entries);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
+            } catch (ExecutionException e) {
+                throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
+            }
+        }
+        return entriesByDevice;
+    }
+
+    /**
+     * 统一读取看板周期告警聚合结果。
+     *
+     * <p>类型数量、告警总数和告警设备去重数量都在数据库完成，处理器只接收聚合结果，
+     * 不再把周期内的告警明细全部加载到 JVM。</p>
+     */
+    private static AlarmRecordAggregate collectAlarmRecords(
+            SecurityUser user, Set<UUID> deviceIds, MonitoringPeriodWindow window,
+            AlarmStatisticsService alarmStatisticsService) {
+        AlarmRecordAggregate result = AlarmRecordAggregate.empty();
+        if (deviceIds.isEmpty()) {
+            return result;
+        }
+        List<AlarmDimensionCountBO> rows = alarmStatisticsService.countByType(
+                user, deviceIds, window.getStartTs(), window.getEndTs(), false);
+        for (AlarmDimensionCountBO row : rows) {
+            int count = CountValueSupport.toIntCount(row.getCount());
+            result.count += count;
+            result.typeTotals.add(new AlarmTypeTotalDTO(row.getDimension(), count));
+        }
+        AlarmOverviewAggregateBO overview = alarmStatisticsService.getOverview(
+                user, deviceIds, window.getStartTs(), window.getEndTs());
+        result.alarmDeviceCount = CountValueSupport.toIntCount(overview.getAlarmedDeviceCount());
+        return result;
+    }
+
+    /**
+     * 统一筛选看板各板块的功能分类。
+     *
+     * <p>传入的设备已经由 {@link SmartLightningDeviceService} 完成权限校验和
+     * productCategory=lightning 过滤，这里只判断 functionCategory，避免三个处理器
+     * 分别维护重复且容易出现口径差异的筛选代码。</p>
+     */
+    private static List<MonitoringDeviceContextBO> findVisibleDevicesByFunctionCategory(
+            SmartLightningDeviceService deviceService,
+            SecurityUser user,
+            String functionCategory) throws ThingsboardException {
+        List<MonitoringDeviceContextBO> visibleDevices =
+                deviceService.getAllLightningDeviceContexts(user);
+        return MonitoringDeviceFilters.byFunctionCategory(visibleDevices, functionCategory);
+    }
+
+    /** 保存看板告警聚合结果，不保存告警明细或设备 ID 集合。 */
+    private static final class AlarmRecordAggregate {
+        private int count;
+        private int alarmDeviceCount;
+        private final List<AlarmTypeTotalDTO> typeTotals = new ArrayList<>();
+
+        private static AlarmRecordAggregate empty() {
+            return new AlarmRecordAggregate();
+        }
     }
 
     @RequiredArgsConstructor
     private static final class GroundSummaryHandler {
     
     
-        private static final int QUERY_PAGE_SIZE = 10_000;
+        private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
         private static final String GROUND_RESISTANCE_FUNCTION_CATEGORY = "ground_resistance";
         private static final String GROUND_RESISTANCE_TELEMETRY_KEY = "groundResistance";
     
         private final SmartLightningDeviceService smartLightningDeviceService;
-        private final DeviceAlarmQueryService alarmQueryService;
+        private final AlarmStatisticsService alarmStatisticsService;
         private final TimeseriesService timeseriesService;
     
         /**
@@ -120,126 +207,64 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          * @return 设备总数、在线/离线数量、周期内告警数、告警类型统计、报警率和阻值范围
          * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
          */
-        public GroundMonitoringSummary getSummary(SecurityUser user, String period) throws ThingsboardException {
+        public GroundMonitoringSummaryDTO getSummary(SecurityUser user, String period) throws ThingsboardException {
             MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-            List<SmartLightningDeviceContextDTO> groundDevices = findVisibleGroundDevices(user);
-            List<EntityId> groundDeviceIds = new ArrayList<>();
+            List<MonitoringDeviceContextBO> groundDevices = findVisibleGroundDevices(user);
+            Set<UUID> groundDeviceIds = new HashSet<>();
             int online = 0;
-            for (SmartLightningDeviceContextDTO device : groundDevices) {
-                groundDeviceIds.add(new DeviceId(device.getDeviceId()));
+            for (MonitoringDeviceContextBO device : groundDevices) {
+                groundDeviceIds.add(device.getDeviceId());
                 if (Boolean.TRUE.equals(device.getActive())) {
                     online++;
                 }
             }
     
-            GroundAlarmAggregate alarms = countGroundAlarmsSince(user, groundDeviceIds, window);
-            GroundResistanceExtrema resistanceExtrema = findGroundResistanceRange(user, groundDevices, window);
+            AlarmRecordAggregate alarms = collectAlarmRecords(
+                    user, groundDeviceIds, window, alarmStatisticsService);
+            GroundResistanceExtremaDTO resistanceExtrema = findGroundResistanceRange(user, groundDevices, window);
     
             int total = groundDevices.size();
-            double alarmRate = total == 0 ? 0D : alarms.alarmDeviceIds.size() * 100D / total;
-            return new GroundMonitoringSummary(
+            double alarmRate = total == 0 ? 0D : alarms.alarmDeviceCount * 100D / total;
+            return new GroundMonitoringSummaryDTO(
                     total, online, total - online, alarms.count, alarms.typeTotals, alarmRate,
                     resistanceExtrema.getMaximum(), resistanceExtrema.getMinimum(), resistanceExtrema);
         }
     
         /** 复用智能防雷设备服务的权限、批量属性和 productCategory 过滤。 */
-        private List<SmartLightningDeviceContextDTO> findVisibleGroundDevices(SecurityUser user)
+        private List<MonitoringDeviceContextBO> findVisibleGroundDevices(SecurityUser user)
                 throws ThingsboardException {
-            PageData<SmartLightningDeviceContextDTO> pageData = smartLightningDeviceService.getLightningDeviceContexts(
-                    user, new PageLink(QUERY_PAGE_SIZE, 0));
-            List<SmartLightningDeviceContextDTO> groundDevices = new ArrayList<>();
-            for (SmartLightningDeviceContextDTO device : pageData.getData()) {
-                if (GROUND_RESISTANCE_FUNCTION_CATEGORY.equalsIgnoreCase(
-                        MonitoringValueParser.trimToEmpty(device.getFunctionCategory()))) {
-                    groundDevices.add(device);
-                }
-            }
-            return groundDevices;
-        }
-    
-        /** 告警按 createdTime（触发时间）筛选，包含在窗口中已清除的历史告警。 */
-        private GroundAlarmAggregate countGroundAlarmsSince(
-                SecurityUser user, List<EntityId> groundDeviceIds, MonitoringPeriodWindow window)
-                throws ThingsboardException {
-            if (groundDeviceIds.isEmpty()) {
-                return GroundAlarmAggregate.empty();
-            }
-            Set<UUID> groundDeviceIdValues = new HashSet<>();
-            for (EntityId groundDeviceId : groundDeviceIds) {
-                groundDeviceIdValues.add(groundDeviceId.getId());
-            }
-    
-            TimePageLink pageLink = new TimePageLink(
-                    QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC,
-                    window.getStartTs(), window.getEndTs());
-            AlarmQueryV2 query = new AlarmQueryV2(
-                    null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ANY), Collections.emptyList(), null);
-            GroundAlarmAggregate result = GroundAlarmAggregate.empty();
-            for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
-                EntityId originator = alarm.getOriginator();
-                if (originator != null && originator.getEntityType() == EntityType.DEVICE
-                        && groundDeviceIdValues.contains(originator.getId())) {
-                    result.count++;
-                    result.alarmDeviceIds.add(originator.getId());
-                    String type = alarm.getType() == null || alarm.getType().isBlank()
-                            ? "未分类" : alarm.getType().trim();
-                    result.countsByType.put(type, result.countsByType.getOrDefault(type, 0) + 1);
-                }
-            }
-            for (Map.Entry<String, Integer> entry : result.countsByType.entrySet()) {
-                result.typeTotals.add(new GroundAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
-            }
-            result.typeTotals.sort(new Comparator<GroundAlarmTypeTotalDTO>() {
-                @Override
-                public int compare(GroundAlarmTypeTotalDTO left, GroundAlarmTypeTotalDTO right) {
-                    int countOrder = Integer.compare(right.getCount(), left.getCount());
-                    return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
-                }
-            });
-            return result;
+            return findVisibleDevicesByFunctionCategory(
+                    smartLightningDeviceService, user, GROUND_RESISTANCE_FUNCTION_CATEGORY);
         }
     
         /**
          * 同时读取每台地网设备在当前周期的阻值。TimeseriesService 没有按实体保留结果的
          * 单次批量 API，故由服务层并行发起查询并统一等待，前端始终只请求一个汇总接口。
          */
-        private GroundResistanceExtrema findGroundResistanceRange(
-                SecurityUser user, List<SmartLightningDeviceContextDTO> groundDevices,
+        private GroundResistanceExtremaDTO findGroundResistanceRange(
+                SecurityUser user, List<MonitoringDeviceContextBO> groundDevices,
                 MonitoringPeriodWindow window)
                 throws ThingsboardException {
-            List<EntityId> groundDeviceIds = new ArrayList<>();
-            for (SmartLightningDeviceContextDTO device : groundDevices) {
-                groundDeviceIds.add(new DeviceId(device.getDeviceId()));
+            if (groundDevices.isEmpty()) {
+                return new GroundResistanceExtremaDTO(null, null, null, null, null, null, null, null);
             }
-            if (groundDeviceIds.isEmpty()) {
-                return new GroundResistanceExtrema(null, null, null, null, null, null, null, null);
-            }
-            List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
-            for (EntityId groundDeviceId : groundDeviceIds) {
-                futures.add(timeseriesService.findAll(
-                        user.getTenantId(), new DeviceId(groundDeviceId.getId()), List.of(new BaseReadTsKvQuery(
-                                GROUND_RESISTANCE_TELEMETRY_KEY,
-                                window.getStartTs(),
-                                window.getEndTs(),
-                                0,
-                                QUERY_PAGE_SIZE,
-                                Aggregation.NONE,
-                                "ASC"))));
-            }
-    
-            List<List<TsKvEntry>> entriesByDevice;
-            try {
-                entriesByDevice = Futures.allAsList(futures).get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ThingsboardException("Failed to read ground resistance telemetry", e, ThingsboardErrorCode.DATABASE);
-            } catch (ExecutionException e) {
-                throw new ThingsboardException("Failed to read ground resistance telemetry", e, ThingsboardErrorCode.DATABASE);
-            }
-    
+            List<ReadTsKvQuery> queries = List.of(new BaseReadTsKvQuery(
+                    GROUND_RESISTANCE_TELEMETRY_KEY,
+                    window.getStartTs(),
+                    window.getEndTs(),
+                    0,
+                    QUERY_PAGE_SIZE,
+                    Aggregation.NONE,
+                    "ASC"));
+            List<List<TsKvEntry>> entriesByDevice = readTelemetryInBatches(
+                    timeseriesService,
+                    user,
+                    groundDevices,
+                    queries,
+                    "Failed to read ground resistance telemetry");
             ResistanceExtremaAggregate result = new ResistanceExtremaAggregate();
             for (int index = 0; index < entriesByDevice.size(); index++) {
-                SmartLightningDeviceContextDTO device = groundDevices.get(index);
+                MonitoringDeviceContextBO device = groundDevices.get(index);
                 for (TsKvEntry entry : entriesByDevice.get(index)) {
                     Double resistanceValue = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
                     if (resistanceValue == null) {
@@ -259,21 +284,9 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                     }
                 }
             }
-            return result.toDto();
+            return result.toDTO();
         }
-    
-        /** 同一轮告警查询同时保留条数和按设备去重后的集合，避免统计口径分叉。 */
-        private static final class GroundAlarmAggregate {
-            private int count;
-            private final Set<UUID> alarmDeviceIds = new HashSet<>();
-            private final Map<String, Integer> countsByType = new HashMap<>();
-            private final List<GroundAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
-    
-            private static GroundAlarmAggregate empty() {
-                return new GroundAlarmAggregate();
-            }
-        }
-    
+
         /** 保存地网阻值最值及其来源信息，最终转换为接口 DTO。 */
         private static final class ResistanceExtremaAggregate {
             private Double maximum;
@@ -285,8 +298,8 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             private String minimumParameter;
             private Long minimumTime;
     
-            private GroundResistanceExtrema toDto() {
-                return new GroundResistanceExtrema(
+            private GroundResistanceExtremaDTO toDTO() {
+                return new GroundResistanceExtremaDTO(
                         maximum, maximumDeviceName, maximumParameter, maximumTime,
                         minimum, minimumDeviceName, minimumParameter, minimumTime);
             }
@@ -298,11 +311,9 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
     
     
         /** 单次设备、告警或遥测查询使用的最大记录数。 */
-        private static final int QUERY_PAGE_SIZE = 10_000;
+        private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
         /** SPD 监测设备在服务器属性中的功能分类值。 */
         private static final String FUNCTION_CATEGORY = "spd_monitor";
-        /** 防雷产品大类，避免把同名功能分类的其他产品纳入 SPD 统计。 */
-        private static final String PRODUCT_CATEGORY = "lightning";
         /** 规则链已经转换后的漏电流规范键；不再读取 I1/I2/I3 原始测点。 */
         private static final List<String> LEAKAGE_KEYS = List.of(
                 "leakageA", "leakageB", "leakageC");
@@ -327,7 +338,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
         /** 复用智能防雷设备服务，负责权限过滤和设备上下文查询。 */
         private final SmartLightningDeviceService smartLightningDeviceService;
         /** 复用公共告警查询服务，避免在本实现中重复处理告警权限分支。 */
-        private final DeviceAlarmQueryService alarmQueryService;
+        private final AlarmStatisticsService alarmStatisticsService;
         /** ThingsBoard 时序服务，用于查询周期指标和实时状态遥测。 */
         private final TimeseriesService timeseriesService;
     
@@ -339,34 +350,37 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          * @return 实时设备状态、周期告警数、雷击次数和三类周期最值
          * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
          */
-        public SpdMonitoringSummary getSummary(SecurityUser user, String period) throws ThingsboardException {
+        public SpdMonitoringSummaryDTO getSummary(SecurityUser user, String period) throws ThingsboardException {
             MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-            List<SmartLightningDeviceContextDTO> devices = findVisibleSpdDevices(user);
-            List<EntityId> deviceIds = new ArrayList<>();
+            List<MonitoringDeviceContextBO> devices = findVisibleSpdDevices(user);
+            Set<UUID> deviceIds = new HashSet<>();
             int online = 0;
-            for (SmartLightningDeviceContextDTO device : devices) {
-                deviceIds.add(new DeviceId(device.getDeviceId()));
+            for (MonitoringDeviceContextBO device : devices) {
+                deviceIds.add(device.getDeviceId());
                 if (Boolean.TRUE.equals(device.getActive())) {
                     online++;
                 }
             }
     
-            AlarmAggregate alarmAggregate = countAlarms(user, deviceIds, window);
+            AlarmRecordAggregate alarmAggregate = collectAlarmRecords(
+                    user, deviceIds, window, alarmStatisticsService);
             SpdTelemetryReadResult telemetry = readSpdTelemetry(user, devices, window);
+            // 周期遥测统一通过 ThingsBoard TimeseriesService 读取，保持 SQL、Timescale、Cassandra
+            // 的存储抽象一致，并保留最值来源设备、参数键和原始时间戳。
             LeakageAggregate leakage = findMaximumLeakage(telemetry.entriesByDevice, devices);
-            SpdMetricExtrema temperatureExtrema = findMetricExtrema(
+            SpdMetricExtremaDTO temperatureExtrema = findMetricExtrema(
                     telemetry.entriesByDevice, devices, PERIODIC_TEMPERATURE_KEYS, false,
                     window.getStartTs(), window.getEndTs());
-            SpdMetricExtrema leakageExtrema = findMetricExtrema(
+            SpdMetricExtremaDTO leakageExtrema = findMetricExtrema(
                     telemetry.entriesByDevice, devices, LEAKAGE_KEYS, true,
                     window.getStartTs(), window.getEndTs());
-            SpdMetricExtrema voltageExtrema = findMetricExtrema(
+            SpdMetricExtremaDTO voltageExtrema = findMetricExtrema(
                     telemetry.entriesByDevice, devices, VOLTAGE_KEYS, false,
                     window.getStartTs(), window.getEndTs());
             long lightningCount = calculateLightningCount(telemetry.entriesByDevice, window.getStartTs());
             RealtimeStatusAggregate realtime = summarizeRealtimeStatus(telemetry.entriesByDevice);
             int total = devices.size();
-            return new SpdMonitoringSummary(
+            return new SpdMonitoringSummaryDTO(
                     total,
                     online,
                     total - online,
@@ -401,90 +415,10 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          * @param user 当前登录用户
          * @return 功能分类为 spd_monitor 的设备上下文列表
          */
-        private List<SmartLightningDeviceContextDTO> findVisibleSpdDevices(SecurityUser user)
+        private List<MonitoringDeviceContextBO> findVisibleSpdDevices(SecurityUser user)
                 throws ThingsboardException {
-            List<SmartLightningDeviceContextDTO> devices = new ArrayList<>();
-            PageLink pageLink = new PageLink(QUERY_PAGE_SIZE, 0);
-            while (pageLink != null) {
-                PageData<SmartLightningDeviceContextDTO> page =
-                        smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
-                for (SmartLightningDeviceContextDTO device : page.getData()) {
-                    if (isSpdDevice(device)) {
-                        devices.add(device);
-                    }
-                }
-                pageLink = page.hasNext() ? pageLink.nextPageLink() : null;
-            }
-            return devices;
-        }
-    
-        /** 同时校验产品大类和功能分类，保证 SPD 卡片只统计防雷 SPD 设备。 */
-        private boolean isSpdDevice(SmartLightningDeviceContextDTO device) {
-            return PRODUCT_CATEGORY.equalsIgnoreCase(
-                            MonitoringValueParser.trimToEmpty(device.getProductCategory()))
-                    && FUNCTION_CATEGORY.equalsIgnoreCase(
-                            MonitoringValueParser.trimToEmpty(device.getFunctionCategory()));
-        }
-    
-        /**
-         * 统计周期内属于指定 SPD 设备的告警数量。
-         *
-         * <p>查询使用告警创建时间窗口并保留 ANY 状态，已清除的历史告警
-         * 也参与周期统计；设备集合用于排除其他类型设备的告警。</p>
-         *
-         * @param user 当前登录用户
-         * @param deviceIds SPD 设备实体 ID
-         * @param window 当前统计周期的起止时间
-         * @return 周期内告警条数及按告警类型降序排列的统计结果
-         */
-        private AlarmAggregate countAlarms(SecurityUser user, List<EntityId> deviceIds, MonitoringPeriodWindow window)
-                throws ThingsboardException {
-            if (deviceIds.isEmpty()) {
-                return AlarmAggregate.empty();
-            }
-            Set<UUID> deviceIdSet = new HashSet<>();
-            for (EntityId deviceId : deviceIds) {
-                deviceIdSet.add(deviceId.getId());
-            }
-            TimePageLink pageLink = new TimePageLink(
-                    QUERY_PAGE_SIZE,
-                    0,
-                    null,
-                    SortOrder.BY_CREATED_TIME_DESC,
-                    window.getStartTs(),
-                    window.getEndTs());
-            AlarmQueryV2 query = new AlarmQueryV2(
-                    null,
-                    pageLink,
-                    Collections.emptyList(),
-                    List.of(AlarmSearchStatus.ANY),
-                    Collections.emptyList(),
-                    null);
-            Map<String, Integer> countsByType = new HashMap<>();
-            int count = 0;
-            for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
-                EntityId originator = alarm.getOriginator();
-                if (originator != null
-                        && originator.getEntityType() == EntityType.DEVICE
-                        && deviceIdSet.contains(originator.getId())) {
-                    String type = alarm.getType() == null || alarm.getType().isBlank()
-                            ? "未分类" : alarm.getType().trim();
-                    countsByType.put(type, countsByType.getOrDefault(type, 0) + 1);
-                    count++;
-                }
-            }
-            List<SpdAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
-            for (Map.Entry<String, Integer> entry : countsByType.entrySet()) {
-                typeTotals.add(new SpdAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
-            }
-            typeTotals.sort(new Comparator<SpdAlarmTypeTotalDTO>() {
-                @Override
-                public int compare(SpdAlarmTypeTotalDTO left, SpdAlarmTypeTotalDTO right) {
-                    int countOrder = Integer.compare(right.getCount(), left.getCount());
-                    return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
-                }
-            });
-            return new AlarmAggregate(count, typeTotals);
+            return findVisibleDevicesByFunctionCategory(
+                    smartLightningDeviceService, user, FUNCTION_CATEGORY);
         }
     
         /**
@@ -501,42 +435,25 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          */
         private SpdTelemetryReadResult readSpdTelemetry(
                 SecurityUser user,
-                List<SmartLightningDeviceContextDTO> devices,
+                List<MonitoringDeviceContextBO> devices,
                 MonitoringPeriodWindow window) throws ThingsboardException {
-            if (devices.isEmpty()) {
-                return new SpdTelemetryReadResult(Collections.emptyList());
-            }
-            List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
-            for (SmartLightningDeviceContextDTO device : devices) {
-                futures.add(timeseriesService.findAll(
-                        user.getTenantId(),
-                        new DeviceId(device.getDeviceId()),
-                        spdTelemetryQueries(window)));
-            }
-    
-            List<List<TsKvEntry>> entriesByDevice;
-            try {
-                entriesByDevice = Futures.allAsList(futures).get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ThingsboardException(
-                        "Failed to read SPD telemetry", e, ThingsboardErrorCode.DATABASE);
-            } catch (ExecutionException e) {
-                throw new ThingsboardException(
-                    "Failed to read SPD telemetry", e, ThingsboardErrorCode.DATABASE);
-            }
-            return new SpdTelemetryReadResult(entriesByDevice);
+            return new SpdTelemetryReadResult(readTelemetryInBatches(
+                    timeseriesService,
+                    user,
+                    devices,
+                    spdTelemetryQueries(window),
+                    "Failed to read SPD telemetry"));
         }
     
         /** 根据一次读取结果汇总周期内最大漏流及其来源信息。 */
         private LeakageAggregate findMaximumLeakage(
                 List<List<TsKvEntry>> entriesByDevice,
-                List<SmartLightningDeviceContextDTO> devices) {
+                List<MonitoringDeviceContextBO> devices) {
             LeakageAggregate result = LeakageAggregate.empty();
             for (int index = 0; index < entriesByDevice.size(); index++) {
                 List<TsKvEntry> entries = entriesByDevice.get(index);
                 boolean reported = false;
-                SmartLightningDeviceContextDTO device = devices.get(index);
+                MonitoringDeviceContextBO device = devices.get(index);
                 for (TsKvEntry entry : entries) {
                     if (!isLeakageKey(entry.getKey())) {
                         continue;
@@ -561,23 +478,23 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             }
             return result;
         }
-    
+
         /**
          * 汇总周期内某一组规范遥测键的最大值和最小值。
          *
          * <p>每个极值都保存来源设备、参数键和时间戳，方便前端悬浮提示直接展示完整来源。
          * 漏电流沿用看板现有口径，比较前取绝对值；温度和电压保持规则链输出值。</p>
          */
-        private SpdMetricExtrema findMetricExtrema(
+        private SpdMetricExtremaDTO findMetricExtrema(
                 List<List<TsKvEntry>> entriesByDevice,
-                List<SmartLightningDeviceContextDTO> devices,
+                List<MonitoringDeviceContextBO> devices,
                 List<String> keys,
                 boolean absoluteValue,
                 long windowStartTs,
                 long windowEndTs) {
             MetricExtremaAggregate result = MetricExtremaAggregate.empty();
             for (int index = 0; index < entriesByDevice.size(); index++) {
-                SmartLightningDeviceContextDTO device = devices.get(index);
+                MonitoringDeviceContextBO device = devices.get(index);
                 for (TsKvEntry entry : entriesByDevice.get(index)) {
                     if (!keys.contains(entry.getKey())
                             || entry.getTs() < windowStartTs
@@ -603,7 +520,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                     }
                 }
             }
-            return result.toDto();
+            return result.toDTO();
         }
     
         /**
@@ -635,12 +552,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                         readings.add(entry);
                     }
                 }
-                readings.sort(new Comparator<TsKvEntry>() {
-                    @Override
-                    public int compare(TsKvEntry left, TsKvEntry right) {
-                        return Long.compare(left.getTs(), right.getTs());
-                    }
-                });
+                readings.sort(Comparator.comparingLong(TsKvEntry::getTs));
                 List<Double> samples = new ArrayList<>();
                 for (TsKvEntry reading : readings) {
                     Double value = MonitoringValueParser.parseFiniteDouble(reading.getValueAsString());
@@ -660,18 +572,20 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             List<List<Double>> temperatureValues = new ArrayList<>();
             List<Double> lifeValues = new ArrayList<>();
             for (List<TsKvEntry> entries : entriesByDevice) {
-                groundValues.add(singleValueAsList(latestStatusValue(entries, GROUND_STATUS_KEYS)));
-                spdValues.add(singleValueAsList(latestStatusValue(entries, SPD_STATUS_KEYS)));
+                String groundStatus = latestStatusValue(entries, GROUND_STATUS_KEYS);
+                groundValues.add(groundStatus == null ? Collections.emptyList() : List.of(groundStatus));
+                String spdStatus = latestStatusValue(entries, SPD_STATUS_KEYS);
+                spdValues.add(spdStatus == null ? Collections.emptyList() : List.of(spdStatus));
     
                 List<Double> temperatures = new ArrayList<>();
                 for (List<String> keys : TEMPERATURE_KEYS) {
-                    Double value = latestTemperatureValue(entries, keys);
+                    Double value = latestNumericValue(entries, keys);
                     if (value != null) {
                         temperatures.add(value);
                     }
                 }
                 temperatureValues.add(temperatures);
-                lifeValues.add(latestLifeValue(entries));
+                lifeValues.add(latestNumericValue(entries, LIFE_KEYS));
             }
             return new RealtimeStatusAggregate(
                     SpdMonitoringCalculator.binaryStatus(groundValues),
@@ -692,16 +606,6 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                 return value == null ? "" : value;
             }
             return null;
-        }
-    
-        /** 直接读取规则链输出的最新温度值，不在后端做单位换算。 */
-        private Double latestTemperatureValue(List<TsKvEntry> entries, List<String> keys) {
-            return latestNumericValue(entries, keys);
-        }
-    
-        /** 直接读取规则链输出的最新寿命值，不在后端做单位换算。 */
-        private Double latestLifeValue(List<TsKvEntry> entries) {
-            return latestNumericValue(entries, LIFE_KEYS);
         }
     
         /** 读取指定规范键的最新数值。 */
@@ -730,11 +634,6 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             return latest;
         }
     
-        /** 将单个值转为状态计算器所需的设备通道列表。 */
-        private List<String> singleValueAsList(String value) {
-            return value == null ? Collections.emptyList() : List.of(value);
-        }
-    
         /** 仅允许漏电流规范键进入最大漏流聚合，避免混入其他实时参数。 */
         private boolean isLeakageKey(String key) {
             return LEAKAGE_KEYS.contains(key);
@@ -744,6 +643,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
         private List<ReadTsKvQuery> spdTelemetryQueries(MonitoringPeriodWindow window) {
             List<ReadTsKvQuery> queries = new ArrayList<>();
             List<String> periodicKeys = new ArrayList<>();
+            // 周期遥测统一通过 ThingsBoard 时序服务读取，不直接依赖底层 ts_kv 表。
             periodicKeys.addAll(LEAKAGE_KEYS);
             periodicKeys.addAll(PERIODIC_TEMPERATURE_KEYS);
             periodicKeys.addAll(VOLTAGE_KEYS);
@@ -808,21 +708,6 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             }
         }
     
-        /** 保存 SPD 周期告警总数及按类型排序后的统计项。 */
-        private static final class AlarmAggregate {
-            private final int count;
-            private final List<SpdAlarmTypeTotalDTO> typeTotals;
-    
-            private AlarmAggregate(int count, List<SpdAlarmTypeTotalDTO> typeTotals) {
-                this.count = count;
-                this.typeTotals = typeTotals;
-            }
-    
-            private static AlarmAggregate empty() {
-                return new AlarmAggregate(0, Collections.emptyList());
-            }
-        }
-    
         /** 保存四类实时参数的正常数和有参数设备数。 */
         private static final class RealtimeStatusAggregate {
             private final SpdMonitoringCalculator.StatusCount groundStatus;
@@ -857,8 +742,8 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                 return new MetricExtremaAggregate();
             }
     
-            private SpdMetricExtrema toDto() {
-                return new SpdMetricExtrema(
+            private SpdMetricExtremaDTO toDTO() {
+                return new SpdMetricExtremaDTO(
                         maximum,
                         maximumDeviceName,
                         maximumParameter,
@@ -897,12 +782,10 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
     
     
         /** 单次设备、告警或遥测查询使用的最大记录数。 */
-        private static final int QUERY_PAGE_SIZE = 10_000;
+        private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
     
         /** 雷电流监测设备在服务器属性中的功能分类值。 */
         private static final String FUNCTION_CATEGORY = "lightning_current";
-        /** 防雷产品大类，避免把同名功能分类的其他产品纳入雷电统计。 */
-        private static final String PRODUCT_CATEGORY = "lightning";
         /** 规则链输出的雷电监测规范键，不直接查询设备原始测点键。 */
         private static final List<String> TELEMETRY_KEYS = List.of(
                 "surgePeak", "surgeCount", "surgePolarity");
@@ -911,7 +794,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
         private final SmartLightningDeviceService smartLightningDeviceService;
     
         /** 复用公共告警查询服务，避免在本实现中重复处理告警权限。 */
-        private final DeviceAlarmQueryService alarmQueryService;
+        private final AlarmStatisticsService alarmStatisticsService;
     
         /** ThingsBoard 时序服务，用于查询设备规范遥测。 */
         private final TimeseriesService timeseriesService;
@@ -924,23 +807,24 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          * @return 设备数量、在线/离线数量、告警数、雷击次数和最大峰值
          * @throws ThingsboardException 周期参数非法或设备、告警、遥测查询失败时抛出
          */
-        public LightningCurrentMonitoringSummary getSummary(SecurityUser user, String period)
+        public LightningCurrentMonitoringSummaryDTO getSummary(SecurityUser user, String period)
                 throws ThingsboardException {
             MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-            List<SmartLightningDeviceContextDTO> devices = findVisibleLightningDevices(user);
-            List<EntityId> deviceIds = new ArrayList<>();
+            List<MonitoringDeviceContextBO> devices = findVisibleLightningDevices(user);
+            Set<UUID> deviceIds = new HashSet<>();
             int online = 0;
-            for (SmartLightningDeviceContextDTO device : devices) {
-                deviceIds.add(new DeviceId(device.getDeviceId()));
+            for (MonitoringDeviceContextBO device : devices) {
+                deviceIds.add(device.getDeviceId());
                 if (Boolean.TRUE.equals(device.getActive())) {
                     online++;
                 }
             }
     
-            AlarmAggregate alarmAggregate = countAlarms(user, deviceIds, window);
+            AlarmRecordAggregate alarmAggregate = collectAlarmRecords(
+                    user, deviceIds, window, alarmStatisticsService);
             LightningAggregate aggregate = findLightningAggregate(user, devices, window);
             int total = devices.size();
-            return new LightningCurrentMonitoringSummary(
+            return new LightningCurrentMonitoringSummaryDTO(
                     total,
                     online,
                     total - online,
@@ -968,95 +852,17 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          * @param user 当前登录用户
          * @return 功能分类为 lightning_current 的设备上下文列表
          */
-        private List<SmartLightningDeviceContextDTO> findVisibleLightningDevices(SecurityUser user)
+        private List<MonitoringDeviceContextBO> findVisibleLightningDevices(SecurityUser user)
                 throws ThingsboardException {
-            List<SmartLightningDeviceContextDTO> devices = new ArrayList<>();
-            PageLink pageLink = new PageLink(QUERY_PAGE_SIZE, 0);
-            while (pageLink != null) {
-                PageData<SmartLightningDeviceContextDTO> page =
-                        smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
-                for (SmartLightningDeviceContextDTO device : page.getData()) {
-                    if (isLightningCurrentDevice(device)) {
-                        devices.add(device);
-                    }
-                }
-                pageLink = page.hasNext() ? pageLink.nextPageLink() : null;
-            }
-            return devices;
-        }
-    
-        /** 同时校验产品大类和功能分类，保证雷电流卡片只统计防雷雷电流设备。 */
-        private boolean isLightningCurrentDevice(SmartLightningDeviceContextDTO device) {
-            return PRODUCT_CATEGORY.equalsIgnoreCase(
-                            MonitoringValueParser.trimToEmpty(device.getProductCategory()))
-                    && FUNCTION_CATEGORY.equalsIgnoreCase(
-                            MonitoringValueParser.trimToEmpty(device.getFunctionCategory()));
+            return findVisibleDevicesByFunctionCategory(
+                    smartLightningDeviceService, user, FUNCTION_CATEGORY);
         }
     
         /**
-         * 统计周期内属于指定雷电流设备的告警数量。
+         * 分批并行读取雷电流设备的规范遥测，并汇总事件数与峰值范围。
          *
-         * <p>查询使用告警创建时间作为触发时间，并保留 ANY 状态，确保已清除告警
-         * 也能参与周期统计；设备集合用于排除其他类型设备的告警。</p>
-         *
-         * @param user 当前登录用户
-         * @param deviceIds 雷电流设备实体 ID
-         * @param window 当前统计周期的起止时间
-         * @return 周期内告警条数和按数量降序排列的告警类型统计
-         */
-        private AlarmAggregate countAlarms(SecurityUser user, List<EntityId> deviceIds, MonitoringPeriodWindow window)
-                throws ThingsboardException {
-            if (deviceIds.isEmpty()) {
-                return AlarmAggregate.empty();
-            }
-            Set<UUID> deviceIdSet = new HashSet<>();
-            for (EntityId deviceId : deviceIds) {
-                deviceIdSet.add(deviceId.getId());
-            }
-            TimePageLink pageLink = new TimePageLink(
-                    QUERY_PAGE_SIZE,
-                    0,
-                    null,
-                    SortOrder.BY_CREATED_TIME_DESC,
-                    window.getStartTs(),
-                    window.getEndTs());
-            AlarmQueryV2 query = new AlarmQueryV2(
-                    null,
-                    pageLink,
-                    Collections.emptyList(),
-                    List.of(AlarmSearchStatus.ANY),
-                    Collections.emptyList(),
-                    null);
-            AlarmAggregate result = AlarmAggregate.empty();
-            for (AlarmInfo alarm : alarmQueryService.findAll(user, query)) {
-                EntityId originator = alarm.getOriginator();
-                if (originator != null
-                        && originator.getEntityType() == EntityType.DEVICE
-                        && deviceIdSet.contains(originator.getId())) {
-                    result.count++;
-                    String type = alarm.getType() == null || alarm.getType().isBlank()
-                            ? "未分类" : alarm.getType().trim();
-                    result.countsByType.put(type, result.countsByType.getOrDefault(type, 0) + 1);
-                }
-            }
-            for (Map.Entry<String, Integer> entry : result.countsByType.entrySet()) {
-                result.typeTotals.add(new DeviceAlarmTypeTotalDTO(entry.getKey(), entry.getValue()));
-            }
-            result.typeTotals.sort(new Comparator<DeviceAlarmTypeTotalDTO>() {
-                @Override
-                public int compare(DeviceAlarmTypeTotalDTO left, DeviceAlarmTypeTotalDTO right) {
-                    int countOrder = Integer.compare(right.getCount(), left.getCount());
-                    return countOrder != 0 ? countOrder : left.getType().compareTo(right.getType());
-                }
-            });
-            return result;
-        }
-    
-        /**
-         * 并行读取所有雷电流设备的规范遥测，并汇总事件数与峰值范围。
-         *
-         * <p>每台设备对应一个异步时序查询，使用 {@link Futures#allAsList(List)} 等待
-         * 全部设备返回，再按设备原顺序合并结果。</p>
+         * <p>每批最多创建固定数量的异步查询，当前批次完成后立即合并并释放结果，
+         * 避免大租户一次性创建大量 Future 或把全部设备的时序结果同时保留在内存中。</p>
          *
          * @param user 当前登录用户
          * @param devices 已经过权限和功能分类筛选的设备
@@ -1066,34 +872,20 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
          */
         private LightningAggregate findLightningAggregate(
                 SecurityUser user,
-                List<SmartLightningDeviceContextDTO> devices,
+                List<MonitoringDeviceContextBO> devices,
                 MonitoringPeriodWindow window) throws ThingsboardException {
             if (devices.isEmpty()) {
                 return LightningAggregate.empty();
             }
-            List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
-            for (SmartLightningDeviceContextDTO device : devices) {
-                futures.add(timeseriesService.findAll(
-                        user.getTenantId(),
-                        new DeviceId(device.getDeviceId()),
-                        telemetryQueries(window)));
-            }
-    
-            List<List<TsKvEntry>> entriesByDevice;
-            try {
-                entriesByDevice = Futures.allAsList(futures).get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ThingsboardException(
-                        "Failed to read lightning telemetry", e, ThingsboardErrorCode.DATABASE);
-            } catch (ExecutionException e) {
-                throw new ThingsboardException(
-                        "Failed to read lightning telemetry", e, ThingsboardErrorCode.DATABASE);
-            }
-    
             LightningAggregate result = LightningAggregate.empty();
+            List<List<TsKvEntry>> entriesByDevice = readTelemetryInBatches(
+                    timeseriesService,
+                    user,
+                    devices,
+                    telemetryQueries(window),
+                    "Failed to read lightning telemetry");
             for (int index = 0; index < entriesByDevice.size(); index++) {
-                SmartLightningDeviceContextDTO device = devices.get(index);
+                MonitoringDeviceContextBO device = devices.get(index);
                 List<TsKvEntry> entries = entriesByDevice.get(index);
                 PeakRangeResult peakRange = findPeakRange(entries);
                 if (peakRange.maximum != null) {
@@ -1128,8 +920,7 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
         private List<ReadTsKvQuery> telemetryQueries(MonitoringPeriodWindow window) {
             List<ReadTsKvQuery> queries = new ArrayList<>();
             for (String key : TELEMETRY_KEYS) {
-                queries.add(new BaseReadTsKvQuery(
-                        key,
+                queries.add(new BaseReadTsKvQuery(key,
                         window.getStartTs(),
                         window.getEndTs(),
                         0,
@@ -1163,8 +954,8 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
                 if (value == null) {
                     continue;
                 }
-                double normalizedValue = normalizePeakValue(value);
-                normalizedValue = Math.abs(normalizedValue);
+                // surgePeak 已由规则链完成单位和精度转换，后端只取峰值绝对值参与比较。
+                double normalizedValue = Math.abs(value);
                 if (result.maximum == null || normalizedValue > result.maximum) {
                     result.maximum = normalizedValue;
                     result.maximumTime = entry.getTs();
@@ -1228,17 +1019,6 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
         /** 判断遥测键是否为规则链输出的雷电峰值键。 */
         private boolean isPeakKey(String key) {
             return "surgePeak".equals(key);
-        }
-    
-        /**
-         * 返回规则链已经统一单位后的峰值，不再重复处理原始测点换算。
-         *
-         * @param value surgePeak 的数值
-         * @return 可直接用于比较和返回前端的峰值
-         */
-        private double normalizePeakValue(double value) {
-            // surgePeak 已由规则链完成单位和精度转换，后端只保留数值，不再重复换算。
-            return value;
         }
     
         /**
@@ -1309,16 +1089,5 @@ public class SmartLightningDashboardServiceImpl implements SmartLightningDashboa
             }
         }
     
-        /** 保存一次告警查询得到的总数及类型分组，保证卡片数字和悬浮详情口径一致。 */
-        private static final class AlarmAggregate {
-            private int count;
-            private final Map<String, Integer> countsByType = new HashMap<>();
-            private final List<DeviceAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
-    
-            /** 创建空告警统计，供无雷电流设备时直接返回。 */
-            private static AlarmAggregate empty() {
-                return new AlarmAggregate();
-            }
-        }
     }
 }

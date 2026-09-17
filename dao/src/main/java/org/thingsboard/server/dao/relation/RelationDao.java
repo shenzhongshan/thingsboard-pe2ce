@@ -32,6 +32,10 @@ public interface RelationDao {
 
     List<EntityRelation> findAllByFrom(TenantId tenantId, EntityId from, RelationTypeGroup typeGroup);
 
+    /** 按同一实体类型批量读取出边关系，避免调用方逐个实体查询。 */
+    List<EntityRelation> findAllByFrom(TenantId tenantId, List<? extends EntityId> fromEntities,
+                                       RelationTypeGroup typeGroup);
+
     List<EntityRelation> findAllByFrom(TenantId tenantId, EntityId from);
 
     List<EntityRelation> findAllByFromAndType(TenantId tenantId, EntityId from, String relationType, RelationTypeGroup typeGroup);

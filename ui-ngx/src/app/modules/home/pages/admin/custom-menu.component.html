@@ -90,12 +90,9 @@
             matTooltip="{{ 'action.drag' | translate }}" matTooltipPosition="above">
       <mat-icon>drag_indicator</mat-icon>
     </button>
-    @if (!item.isHome) {
-      <mat-slide-toggle [checked]="item.visible" (change)="toggleVisible(item, $event.checked)">
-      </mat-slide-toggle>
-    } @else {
-      <span class="tb-cm-toggle-placeholder"></span>
-    }
+    <!-- 首页也允许通过白标菜单配置隐藏；隐藏后仍保留 /home 路由，不影响系统回退访问。 -->
+    <mat-slide-toggle [checked]="item.visible" (change)="toggleVisible(item, $event.checked)">
+    </mat-slide-toggle>
     <tb-material-icon-select
       [asBoxInput]="true"
       [allowedCustomIcon]="true"

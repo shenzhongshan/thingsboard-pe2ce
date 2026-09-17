@@ -1,0 +1,32 @@
+<!-- 文件职责：自定义平台首页布局模板；不复用原生首页内容，保留系统外层导航栏。 -->
+<section class="home-overview-page">
+  <div class="metric-grid">
+    <article class="metric-card"><div class="metric-icon">⌂</div><div><span>总资产数</span><strong>{{ stats.assetTotal }}</strong><small>可见资产</small></div></article>
+    <article class="metric-card"><div class="metric-icon">▣</div><div><span>设备数量</span><strong>{{ stats.deviceTotal }}</strong><small>当前用户可见</small></div></article>
+    <article class="metric-card"><div class="metric-icon healthy">↗</div><div><span>当前在线</span><strong>{{ stats.onlineTotal }}</strong><small>在线设备</small></div><em class="metric-side">离线 {{ stats.offlineTotal }}</em></article>
+    <article class="metric-card"><div class="metric-icon critical">!</div><div><span>未清除告警</span><strong>{{ stats.alarmDeviceTotal }}</strong><small>告警设备</small></div><em class="metric-side">未配置 {{ stats.unconfiguredTotal }}</em></article>
+  </div>
+
+  <div class="analysis-grid">
+    <article class="panel distribution-panel">
+      <header><h2>设备数量统计</h2><span>按产品配置分布</span></header>
+      <div class="distribution-content">
+        <div class="donut" [ngStyle]="distributionDonutStyle()"></div>
+        <div class="distribution-list">
+          <div class="distribution-item" *ngFor="let item of distribution; let i = index"><i [style.background]="item.color"></i><span>{{ item.name }}</span><b>{{ item.value }}</b></div>
+          <div class="empty-text" *ngIf="!distribution.length">暂无设备数据</div>
+        </div>
+      </div>
+    </article>
+    <article class="panel status-panel">
+      <header><h2>设备状态统计</h2><span>在线、离线与未配置</span></header>
+      <div class="status-content">
+        <div class="status-ring" *ngFor="let item of [{label:'在线设备', value:stats.onlineTotal, color:'#32b866'}, {label:'离线设备', value:stats.offlineTotal, color:'#ff4a57'}, {label:'未配置坐标', value:stats.unconfiguredTotal, color:'#f5b31b'}]">
+          <div class="ring" [ngStyle]="statusDonutStyle(item.value, item.color)"><strong>{{ devices.length ? (item.value / devices.length * 100 | number:'1.0-0') : 0 }}%</strong></div><span>{{ item.label }}</span>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <article class="panel map-panel"><header><h2>设备地图</h2><span>红色告警 · 灰色离线 · 绿色在线</span></header><div class="overview-map"><tb-smart-lightning-device-map #deviceMap [devices]="devices" (deviceClick)="onDeviceClick($event)"></tb-smart-lightning-device-map></div></article>
+</section>

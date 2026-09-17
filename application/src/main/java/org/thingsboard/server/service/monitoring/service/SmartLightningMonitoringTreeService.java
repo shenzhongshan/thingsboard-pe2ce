@@ -16,7 +16,7 @@
 package org.thingsboard.server.service.monitoring.service;
 
 import org.thingsboard.server.common.data.exception.ThingsboardException;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
+import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeDTO;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 /**
@@ -28,5 +28,5 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 public interface SmartLightningMonitoringTreeService {
 
     /** 读取当前用户有 READ 权限的资产、设备及其 Contains 关系并返回树结构。 */
-    SmartLightningMonitoringTreeResponse getTree(SecurityUser user) throws ThingsboardException;
+    SmartLightningMonitoringTreeDTO getTree(SecurityUser user) throws ThingsboardException;
 }

@@ -36,6 +36,10 @@ public interface RelationRepository
                                                                         String fromType,
                                                                         String relationTypeGroup);
 
+    List<RelationEntity> findAllByFromIdInAndFromTypeAndRelationTypeGroup(List<UUID> fromIds,
+                                                                          String fromType,
+                                                                          String relationTypeGroup);
+
     List<RelationEntity> findAllByFromIdAndFromTypeAndRelationTypeGroupIn(UUID fromId,
                                                                           String fromType,
                                                                           List<String> relationTypeGroups);

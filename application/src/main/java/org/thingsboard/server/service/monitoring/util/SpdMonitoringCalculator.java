@@ -9,8 +9,6 @@ public final class SpdMonitoringCalculator {
 
     /** 参与设备数、正常设备数和异常设备数。 */
     public record StatusCount(int participating, int normal, int abnormal) { }
-    /** 仅保留最大和最小值；无有效值时均为 null。 */
-    public record Range(Double maximum, Double minimum) { }
 
     /**
      * 统计文本状态设备。
@@ -96,19 +94,6 @@ public final class SpdMonitoringCalculator {
             }
         }
         return new StatusCount(participating, normal, abnormal);
-    }
-
-    /** 数值窗口范围，不计算平均值。 */
-    public static Range range(List<Double> values) {
-        Double max = null;
-        Double min = null;
-        for (Double value : values) {
-            if (value != null && Double.isFinite(value)) {
-                max = max == null ? value : Math.max(max, value);
-                min = min == null ? value : Math.min(min, value);
-            }
-        }
-        return new Range(max, min);
     }
 
     /**

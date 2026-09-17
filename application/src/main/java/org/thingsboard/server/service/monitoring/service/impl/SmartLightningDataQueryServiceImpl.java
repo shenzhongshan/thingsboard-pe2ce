@@ -13,9 +13,14 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
+import org.thingsboard.server.service.monitoring.converter.MonitoringDeviceDTOConverter;
+import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDataQueryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.security.model.SecurityUser;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 智能防雷数据查询页面级服务实现。
@@ -37,6 +42,13 @@ public class SmartLightningDataQueryServiceImpl implements SmartLightningDataQue
     @Override
     public PageData<SmartLightningDeviceContextDTO> getDeviceContexts(SecurityUser user, PageLink pageLink)
             throws ThingsboardException {
-        return smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
+        PageData<MonitoringDeviceContextBO> contexts =
+                smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
+        List<SmartLightningDeviceContextDTO> response = new ArrayList<>();
+        for (MonitoringDeviceContextBO context : contexts.getData()) {
+            response.add(MonitoringDeviceDTOConverter.toDTO(context));
+        }
+        return new PageData<>(
+                response, contexts.getTotalPages(), contexts.getTotalElements(), contexts.hasNext());
     }
 }

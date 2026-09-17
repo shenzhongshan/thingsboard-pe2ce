@@ -33,8 +33,10 @@ import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.DeviceInfoFilter;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.entitiy.UserEntitiesService;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
+import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
+import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
+import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.dao.attributes.AttributesService;
@@ -54,7 +56,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceService {
 
-    private static final int QUERY_PAGE_SIZE = 10_000;
+    private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
     private static final String PRODUCT_CATEGORY_ATTRIBUTE = "productCategory";
     private static final String LIGHTNING_PRODUCT_CATEGORY = "lightning";
     private static final String ACTIVE_ATTRIBUTE = "active";
@@ -104,11 +106,11 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
      * 避免调用方再按设备逐个查询属性。</p>
      */
     @Override
-    public PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
+    public PageData<MonitoringDeviceContextBO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException {
         List<DeviceInfo> visibleDevices = findVisibleDevices(user, pageLink.getTextSearch());
-        List<SmartLightningDeviceContextDTO> contexts = buildLightningDeviceContexts(user, visibleDevices);
-        return createContextPageData(contexts, pageLink);
+        List<MonitoringDeviceContextBO> contexts = buildLightningDeviceContexts(user, visibleDevices);
+        return createPageData(contexts, pageLink);
     }
 
     /**
@@ -116,18 +118,18 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
      * 权限过滤、productCategory 判断和服务器属性批量读取均复用本服务既有实现。
      */
     @Override
-    public List<SmartLightningDeviceContextDTO> getAllLightningDeviceContexts(SecurityUser user)
+    public List<MonitoringDeviceContextBO> getAllLightningDeviceContexts(SecurityUser user)
             throws ThingsboardException {
         return buildLightningDeviceContexts(user, findVisibleDevices(user, null));
     }
 
     /** 将已完成权限过滤的设备批量转换为防雷设备上下文。 */
-    private List<SmartLightningDeviceContextDTO> buildLightningDeviceContexts(
+    private List<MonitoringDeviceContextBO> buildLightningDeviceContexts(
             SecurityUser user, List<DeviceInfo> visibleDevices) {
         Map<UUID, Map<String, String>> attributesByDevice = findDeviceAttributes(
                 user, visibleDevices, DEVICE_CONTEXT_ATTRIBUTES);
         Map<UUID, Device> devicesById = findDevicesWithConfiguration(visibleDevices);
-        List<SmartLightningDeviceContextDTO> contexts = new ArrayList<>();
+        List<MonitoringDeviceContextBO> contexts = new ArrayList<>();
         for (DeviceInfo device : visibleDevices) {
             Map<String, String> attributes = attributesByDevice.get(device.getId().getId());
             if (!isLightningDevice(attributes)) {
@@ -136,23 +138,6 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             contexts.add(toDeviceContext(device, devicesById.get(device.getId().getId()), attributes));
         }
         return contexts;
-    }
-
-    /** 跨页收集当前用户可见且 productCategory=lightning 的全部设备 ID，供告警统计等场景使用。 */
-    @Override
-    public Set<UUID> getLightningDeviceIds(SecurityUser user) throws ThingsboardException {
-        Set<UUID> deviceIds = new HashSet<>();
-        PageLink pageLink = new PageLink(QUERY_PAGE_SIZE, 0);
-        while (pageLink != null) {
-            PageData<SmartLightningDeviceContextDTO> pageData = getLightningDeviceContexts(user, pageLink);
-            for (SmartLightningDeviceContextDTO context : pageData.getData()) {
-                if (context.getDeviceId() != null) {
-                    deviceIds.add(context.getDeviceId());
-                }
-            }
-            pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
-        }
-        return deviceIds;
     }
 
     /** 返回当前用户有 READ 权限的全部设备 ID，不按产品分类过滤（告警分析页“全体设备”口径）。 */
@@ -232,45 +217,47 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     }
 
     /**
-     * 将设备实体、批量属性和设备配置合并为上下文 DTO。
+     * 将设备实体、批量属性和设备配置合并为服务内部上下文。
      *
      * @param device 已通过权限过滤的设备概要信息
      * @param deviceWithConfiguration 从 device 表补充的完整设备配置，可为 null
      * @param attributes 该设备的服务器属性键值表
      * @return 合并后的设备上下文
      */
-    private SmartLightningDeviceContextDTO toDeviceContext(
+    private MonitoringDeviceContextBO toDeviceContext(
             DeviceInfo device, Device deviceWithConfiguration, Map<String, String> attributes) {
-        SmartLightningDeviceContextDTO context = new SmartLightningDeviceContextDTO();
-        context.setDeviceId(device.getId().getId());
-        context.setDeviceName(device.getName());
-        context.setDeviceProfileName(device.getDeviceProfileName() == null
-                ? device.getType() : device.getDeviceProfileName());
-        context.setProductCategory(attributes.get(PRODUCT_CATEGORY_ATTRIBUTE));
-        context.setProductName(attributes.get("productName"));
-        context.setFunctionCategory(attributes.get("functionCategory"));
+        String deviceProtocol = null;
         // 对应 device.device_data.transportConfiguration.type，直接读取设备配置。
         DeviceData deviceData = deviceWithConfiguration != null
                 ? deviceWithConfiguration.getDeviceData() : device.getDeviceData();
         if (deviceData != null && deviceData.getTransportConfiguration() != null
                 && deviceData.getTransportConfiguration().getType() != null) {
-            context.setDeviceProtocol(deviceData.getTransportConfiguration().getType().name());
+            deviceProtocol = deviceData.getTransportConfiguration().getType().name();
         }
-        context.setActive(attributes.containsKey(ACTIVE_ATTRIBUTE)
-                ? isActive(attributes.get(ACTIVE_ATTRIBUTE)) : device.isActive());
-        context.setLastActivityTime(parseTimestamp(attributes.get("lastActivityTime")));
         String gatewayIdentifier = attributes.get("gatewayIdentifier");
         if (gatewayIdentifier == null || gatewayIdentifier.isBlank()) {
             gatewayIdentifier = attributes.get("gatewayId");
         }
-        context.setGatewayIdentifier(gatewayIdentifier);
-        context.setMeterAddress(attributes.get("meterAddress"));
-        context.setCircuitName(attributes.get("circuitName"));
-        context.setTimeSetting(attributes.get("timeSetting"));
-        // 经纬度与设备 ID 一起返回，前端据此恢复“设备—地图点位”绑定关系。
-        context.setLatitude(parseCoordinate(attributes.get("latitude"), -90, 90));
-        context.setLongitude(parseCoordinate(attributes.get("longitude"), -180, 180));
-        return context;
+        return MonitoringDeviceContextBO.builder()
+                .deviceId(device.getId().getId())
+                .deviceName(device.getName())
+                .deviceProfileName(device.getDeviceProfileName() == null
+                        ? device.getType() : device.getDeviceProfileName())
+                .productCategory(attributes.get(PRODUCT_CATEGORY_ATTRIBUTE))
+                .productName(attributes.get("productName"))
+                .functionCategory(attributes.get("functionCategory"))
+                .deviceProtocol(deviceProtocol)
+                // Device 只包含配置，不包含 active；回退值必须来自权限查询返回的 DeviceInfo。
+                .active(resolveActive(attributes, device.isActive()))
+                .lastActivityTime(parseTimestamp(attributes.get("lastActivityTime")))
+                .gatewayIdentifier(gatewayIdentifier)
+                .meterAddress(attributes.get("meterAddress"))
+                .circuitName(attributes.get("circuitName"))
+                .timeSetting(attributes.get("timeSetting"))
+                // 经纬度与设备 ID 一起保留，接口 DTO 映射后供前端恢复设备与地图点位关系。
+                .latitude(parseCoordinate(attributes.get("latitude"), -90, 90))
+                .longitude(parseCoordinate(attributes.get("longitude"), -180, 180))
+                .build();
     }
 
     /**
@@ -332,10 +319,20 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             if (!isLightningDevice(deviceAttributes)) {
                 continue;
             }
-            device.setActive(isActive(deviceAttributes.get(ACTIVE_ATTRIBUTE)));
+            device.setActive(resolveActive(deviceAttributes, device.isActive()));
             lightningDevices.add(device);
         }
         return lightningDevices;
+    }
+
+    /**
+     * 统一设备在线状态口径：服务器属性存在时优先使用属性，属性缺失时回退到设备实体状态。
+     */
+    private boolean resolveActive(Map<String, String> attributes, boolean fallbackActive) {
+        if (attributes != null && attributes.containsKey(ACTIVE_ATTRIBUTE)) {
+            return MonitoringValueParser.isActive(attributes.get(ACTIVE_ATTRIBUTE));
+        }
+        return fallbackActive;
     }
 
     private boolean isLightningDevice(Map<String, String> attributes) {
@@ -347,24 +344,12 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     }
 
     /** productCategory 过滤完成后再分页，totalElements 才是防雷设备总数。 */
-    private PageData<DeviceInfo> createPageData(List<DeviceInfo> devices, PageLink pageLink) {
-        int total = devices.size();
+    private <T> PageData<T> createPageData(List<T> data, PageLink pageLink) {
+        int total = data.size();
         int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
         int to = Math.min(from + pageLink.getPageSize(), total);
         int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / pageLink.getPageSize());
-        return new PageData<>(devices.subList(from, to), totalPages, total, to < total);
+        return new PageData<>(data.subList(from, to), totalPages, total, to < total);
     }
 
-    /** 与 {@link #createPageData} 相同的内存分页逻辑，作用于上下文 DTO 列表。 */
-    private PageData<SmartLightningDeviceContextDTO> createContextPageData(List<SmartLightningDeviceContextDTO> contexts, PageLink pageLink) {
-        int total = contexts.size();
-        int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
-        int to = Math.min(from + pageLink.getPageSize(), total);
-        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / pageLink.getPageSize());
-        return new PageData<>(contexts.subList(from, to), totalPages, total, to < total);
-    }
-
-    private boolean isActive(String value) {
-        return "true".equalsIgnoreCase(value) || "1".equals(value);
-    }
 }

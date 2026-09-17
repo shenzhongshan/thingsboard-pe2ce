@@ -17,11 +17,14 @@
 -->
 <div>
   <mat-card appearance="outlined" class="settings-card">
+    <!-- 标题节点始终直接参与 Material 插槽投影，避免外层控制流阻断内容投影。 -->
     <mat-card-header class="tb-ct-list-header">
-      @if (!searchMode) {
-        <mat-card-title>
+      <mat-card-title>
+        @if (!searchMode) {
           <span class="mat-headline-5" translate>custom-translation.custom-translation</span>
-        </mat-card-title>
+        }
+      </mat-card-title>
+      @if (!searchMode) {
         <span class="flex-1"></span>
         <button mat-icon-button type="button" (click)="addLanguage()"
                 matTooltip="{{ 'custom-translation.add-language' | translate }}" matTooltipPosition="above">

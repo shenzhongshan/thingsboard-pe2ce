@@ -6,9 +6,9 @@
 package org.thingsboard.server.service.monitoring.service;
 
 import org.thingsboard.server.common.data.exception.ThingsboardException;
-import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
+import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummaryDTO;
+import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummaryDTO;
+import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummaryDTO;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 /**
@@ -20,13 +20,12 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 public interface SmartLightningDashboardService {
 
     /** 返回地网监测板块的实时状态和指定周期统计。 */
-    GroundMonitoringSummary getGroundSummary(SecurityUser user, String period) throws ThingsboardException;
+    GroundMonitoringSummaryDTO getGroundSummary(SecurityUser user, String period) throws ThingsboardException;
 
     /** 返回 SPD 监测板块的实时状态和指定周期统计。 */
-    SpdMonitoringSummary getSpdSummary(SecurityUser user, String period) throws ThingsboardException;
+    SpdMonitoringSummaryDTO getSpdSummary(SecurityUser user, String period) throws ThingsboardException;
 
     /** 返回雷电流监测板块的实时状态和指定周期统计。 */
-    LightningCurrentMonitoringSummary getLightningCurrentSummary(SecurityUser user, String period)
+    LightningCurrentMonitoringSummaryDTO getLightningCurrentSummary(SecurityUser user, String period)
             throws ThingsboardException;
 }
-

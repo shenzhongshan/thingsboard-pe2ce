@@ -18,9 +18,7 @@ import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Objects;
 
 /** 设备告警模块共用的告警查询实现。 */
 @Service
@@ -56,30 +54,26 @@ public class DeviceAlarmQueryServiceImpl implements DeviceAlarmQueryService {
     }
 
     /**
-     * 跨页读取查询条件匹配的全部告警。
+     * 跨页读取查询条件匹配的告警，并把每一页交给调用方即时处理。
      *
-     * <p>循环调用 {@link #findPage} 并通过 nextPageLink 翻页，
-     * 直到没有下一页为止，避免固定上限造成统计遗漏。</p>
-     *
-     * @param user 当前登录用户，用于执行权限过滤
-     * @param query 告警查询条件，其分页参数决定每页大小
-     * @return 所有页合并后的完整告警列表
+     * <p>这里故意不创建全量 {@code List<AlarmInfo>}。调用方完成当前页的计数、
+     * 去重或分桶后，当前页即可被释放，避免历史告警量增长时持续占用堆内存。</p>
      */
     @Override
-    public List<AlarmInfo> findAll(SecurityUser user, AlarmQueryV2 query) throws ThingsboardException {
+    public void forEachPage(SecurityUser user, AlarmQueryV2 query, AlarmPageVisitor visitor)
+            throws ThingsboardException {
+        Objects.requireNonNull(visitor, "告警分页访问器不能为空");
         if (query == null || query.getPageLink() == null) {
-            return Collections.emptyList();
+            return;
         }
 
-        List<AlarmInfo> alarms = new ArrayList<>();
         TimePageLink pageLink = query.getPageLink();
         while (pageLink != null) {
             PageData<AlarmInfo> pageData = findPage(user, copyQueryWithPageLink(query, pageLink));
-            alarms.addAll(pageData.getData());
+            visitor.visit(pageData.getData());
             // hasNext 为 true 表示还有下一页，继续用下一页链接查询。
             pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
         }
-        return alarms;
     }
 
     /**

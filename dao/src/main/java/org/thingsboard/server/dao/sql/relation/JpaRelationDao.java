@@ -81,6 +81,23 @@ public class JpaRelationDao extends JpaAbstractDaoListeningExecutorService imple
                         typeGroup.name()));
     }
 
+    /** 通过 IN 查询一次读取多个资产的 Contains 关系。 */
+    @Override
+    public List<EntityRelation> findAllByFrom(TenantId tenantId, List<? extends EntityId> fromEntities,
+                                              RelationTypeGroup typeGroup) {
+        if (fromEntities == null || fromEntities.isEmpty()) {
+            return List.of();
+        }
+        EntityId first = fromEntities.get(0);
+        List<UUID> fromIds = new ArrayList<>();
+        for (EntityId entity : fromEntities) {
+            fromIds.add(entity.getId());
+        }
+        return DaoUtil.convertDataList(
+                relationRepository.findAllByFromIdInAndFromTypeAndRelationTypeGroup(
+                        fromIds, first.getEntityType().name(), typeGroup.name()));
+    }
+
     @Override
     public List<EntityRelation> findAllByFrom(TenantId tenantId, EntityId from) {
         return DaoUtil.convertDataList(

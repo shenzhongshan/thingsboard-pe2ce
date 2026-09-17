@@ -23,6 +23,17 @@ public final class MonitoringValueParser {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * 解析设备 SERVER_SCOPE 中的 active 值。
+     *
+     * <p>平台和历史数据中可能同时存在 true/false 与 1/0 文本，所有监测页面统一按
+     * 这一规则解析，避免不同页面出现在线数量不一致。</p>
+     */
+    public static boolean isActive(String value) {
+        String text = trimToEmpty(value);
+        return "true".equalsIgnoreCase(text) || "1".equals(text);
+    }
+
     /** 将文本解析为有限 double；空值、非法值和 Infinity/NaN 都返回 null。 */
     public static Double parseFiniteDouble(String value) {
         String text = trimToEmpty(value);

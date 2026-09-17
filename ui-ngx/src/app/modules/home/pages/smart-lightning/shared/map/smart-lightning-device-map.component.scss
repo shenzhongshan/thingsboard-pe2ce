@@ -1,0 +1,9 @@
+/* 文件职责：公共设备地图的尺寸、点位和弹窗样式；状态颜色由组件统一维护。 */
+:host { display: block; height: 100%; min-height: 300px; }
+.smart-lightning-device-map { width: 100%; height: 100%; min-height: 300px; background: #dfeef4; }
+.smart-lightning-device-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }
+.smart-lightning-device-map .leaflet-popup-content { margin: 0; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
+.smart-lightning-map-pin { background: transparent; border: 0; }
+.smart-lightning-map-popup { color: #29465d; }
+.smart-lightning-map-popup strong { color: #0a356a; font-size: 14px; }
+.map-status-alarm { color: #d32f2f; font-weight: 600; }.map-status-offline { color: #697586; font-weight: 600; }.map-status-online { color: #168548; font-weight: 600; }

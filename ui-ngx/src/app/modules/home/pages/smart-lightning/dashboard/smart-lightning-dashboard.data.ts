@@ -103,6 +103,27 @@ export const shouldReloadSmartLightningAlarms = (
   nextCount: number
 ): boolean => previousCount !== null && previousCount !== nextCount;
 
+/**
+ * 判断告警数量增加时是否需要等待一次后端事务提交再复读列表。
+ * 告警创建通知可能先于告警明细落库到达浏览器；只安排一次延迟复读，
+ * 不使用递归重试，避免请求链持续把页面置为加载状态。
+ */
+export const shouldScheduleSmartLightningAlarmSettleRefresh = (
+  previousCount: number | null,
+  nextCount: number
+): boolean => previousCount !== null && nextCount > previousCount;
+
+/**
+ * 只允许最新一轮告警列表请求写回页面。
+ *
+ * WebSocket 通知可能在上一轮 HTTP 请求尚未完成时再次到达，旧请求的响应
+ * 不能覆盖新请求的结果，也不能把最新请求重新置回加载态。
+ */
+export const isLatestSmartLightningAlarmRequest = (
+  requestId: number,
+  latestRequestId: number
+): boolean => requestId === latestRequestId;
+
 /** 按告警类型聚合的数量项。 */
 export interface SmartLightningAlarmTypeTotal {
   type: string;

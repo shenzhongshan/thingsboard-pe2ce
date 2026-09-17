@@ -63,9 +63,8 @@ export class SmartLightningRealtimeService {
   private readonly devicePageSize = 10_000;
   private subscriber?: TelemetrySubscriber;
   private consumerCount = 0;
-  /** WebSocket 建立后第一帧是当前快照，页面已经通过 HTTP 初始化，因此跳过以免重复请求。 */
+  /** 实体和告警明细首帧是当前快照，页面已经通过 HTTP 初始化，因此跳过以免重复请求。 */
   private initialEntityFrame = true;
-  private initialAlarmFrame = true;
   private initialAlarmDataFrame = true;
 
   /** 设备属性或实时遥测更新时发出的设备 ID 集合。 */
@@ -148,10 +147,9 @@ export class SmartLightningRealtimeService {
       this.deviceChangedSubject.next(this.extractDeviceIds(update));
     });
     subscriber.alarmCount$.subscribe((update) => {
-      if (this.initialAlarmFrame) {
-        this.initialAlarmFrame = false;
-        return;
-      }
+      // 告警数量首帧必须向页面透传，作为后续增减判断的基线。
+      // 如果在这里丢弃首帧，看板收到的第一次新增告警会被误认为基线，从而不触发列表刷新；
+      // 下一次清除才会成为第二个数量变化，所以会表现为“新增慢、清除快”。
       this.alarmChangedSubject.next({source: 'count', count: update.count});
     });
     subscriber.alarmData$.subscribe((update: AlarmDataUpdate) => {
@@ -186,7 +184,6 @@ export class SmartLightningRealtimeService {
     this.subscriber?.unsubscribe();
     this.subscriber = undefined;
     this.initialEntityFrame = true;
-    this.initialAlarmFrame = true;
     this.initialAlarmDataFrame = true;
   }
 }

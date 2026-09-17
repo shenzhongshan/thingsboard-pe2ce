@@ -18,9 +18,17 @@ const wsForwardUrl = "ws://localhost:8080";
 const ruleNodeUiforwardUrl = forwardUrl;
 
 const PROXY_CONFIG = {
+  // WebSocket 订阅使用同一个 /api 前缀；必须在通用 HTTP 代理上开启 ws，
+  // 否则开发服务器会先匹配 /api，导致 /api/ws 升级请求无法转发到 ThingsBoard。
+  "/api/ws": {
+    "target": wsForwardUrl,
+    "ws": true,
+    "secure": false
+  },
   "/api": {
     "target": forwardUrl,
     "secure": false,
+    "ws": true,
   },
   "/static/rulenode": {
     "target": ruleNodeUiforwardUrl,
@@ -37,11 +45,6 @@ const PROXY_CONFIG = {
   "/login/oauth2": {
     "target": forwardUrl,
     "secure": false,
-  },
-  "/api/ws": {
-    "target": wsForwardUrl,
-    "ws": true,
-    "secure": false
   },
 };
 

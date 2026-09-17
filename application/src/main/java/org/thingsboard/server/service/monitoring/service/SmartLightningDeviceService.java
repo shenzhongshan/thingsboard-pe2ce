@@ -19,12 +19,11 @@ import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
+import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.security.model.SecurityUser;
+import org.thingsboard.server.service.query.VisibleDeviceScopeService;
 
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 /**
  * 智能防雷模块公共设备服务。
@@ -33,13 +32,13 @@ import java.util.UUID;
  * productCategory=lightning 过滤；getVisibleDeviceIds 只执行当前用户权限过滤，
  * 供面向全体设备的告警统计使用。</p>
  */
-public interface SmartLightningDeviceService {
+public interface SmartLightningDeviceService extends VisibleDeviceScopeService {
 
     /** 返回当前用户可见且 productCategory=lightning 的设备，并在过滤后分页。 */
     PageData<DeviceInfo> getLightningDevices(SecurityUser user, PageLink pageLink) throws ThingsboardException;
 
     /** 批量返回当前用户可见防雷设备及其服务器属性，并在 productCategory 过滤后分页。 */
-    PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
+    PageData<MonitoringDeviceContextBO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException;
 
     /**
@@ -48,12 +47,7 @@ public interface SmartLightningDeviceService {
      * <p>供后端聚合服务复用同一套权限、产品分类和服务器属性读取逻辑，
      * 避免各聚合实现自行循环请求分页接口。</p>
      */
-    List<SmartLightningDeviceContextDTO> getAllLightningDeviceContexts(SecurityUser user)
+    List<MonitoringDeviceContextBO> getAllLightningDeviceContexts(SecurityUser user)
             throws ThingsboardException;
 
-    /** 返回当前用户可见且 productCategory=lightning 的全部设备 ID。 */
-    Set<UUID> getLightningDeviceIds(SecurityUser user) throws ThingsboardException;
-
-    /** 返回当前用户有读取权限的全部设备 ID，不按产品分类过滤。 */
-    Set<UUID> getVisibleDeviceIds(SecurityUser user) throws ThingsboardException;
 }

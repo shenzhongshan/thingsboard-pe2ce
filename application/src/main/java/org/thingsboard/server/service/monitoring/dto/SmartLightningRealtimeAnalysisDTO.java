@@ -10,7 +10,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 数据监测页实时分析聚合响应。
+ * 数据监测实时分析的服务层聚合传输对象。
  *
  * <p>五个板块使用同一资产范围和同一次最新遥测快照；不包含日、周、月历史统计。</p>
  */

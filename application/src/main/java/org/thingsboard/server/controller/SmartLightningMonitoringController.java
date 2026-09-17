@@ -26,13 +26,14 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.service.monitoring.dto.DeviceStatusSummary;
-import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningDeviceContextDTO;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
-import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummary;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningRealtimeAnalysisDTO;
+import org.thingsboard.server.service.monitoring.converter.MonitoringVOConverter;
+import org.thingsboard.server.service.monitoring.vo.DeviceStatusSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.GroundMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningDeviceContextVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningMonitoringTreeVO;
+import org.thingsboard.server.service.monitoring.vo.SpdMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.LightningCurrentMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningRealtimeAnalysisVO;
 import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDashboardService;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDataQueryService;
@@ -61,8 +62,8 @@ public class SmartLightningMonitoringController extends BaseController {
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SmartLightningMonitoringTreeResponse getMonitoringTree() throws ThingsboardException {
-        return monitoringTreeService.getTree(getCurrentUser());
+    public SmartLightningMonitoringTreeVO getMonitoringTree() throws ThingsboardException {
+        return MonitoringVOConverter.toVO(monitoringTreeService.getTree(getCurrentUser()));
     }
 
     /**
@@ -71,9 +72,10 @@ public class SmartLightningMonitoringController extends BaseController {
      */
     @GetMapping("/realtime-analysis")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SmartLightningRealtimeAnalysisDTO getRealtimeAnalysis(
+    public SmartLightningRealtimeAnalysisVO getRealtimeAnalysis(
             @RequestParam(required = false) UUID assetId) throws ThingsboardException {
-        return monitoringService.getRealtimeAnalysis(getCurrentUser(), assetId);
+        return MonitoringVOConverter.toVO(
+                monitoringService.getRealtimeAnalysis(getCurrentUser(), assetId));
     }
 
     /**
@@ -85,35 +87,36 @@ public class SmartLightningMonitoringController extends BaseController {
      */
     @GetMapping("/device-status-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public DeviceStatusSummary getDeviceStatusSummary() throws ThingsboardException {
-        return deviceStatusSummaryService.getSummary(getCurrentUser());
+    public DeviceStatusSummaryVO getDeviceStatusSummary() throws ThingsboardException {
+        return MonitoringVOConverter.toVO(deviceStatusSummaryService.getSummary(getCurrentUser()));
     }
 
     /** 地网监测接口仅负责接收请求并委托给业务服务。 */
     @GetMapping("/ground-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public GroundMonitoringSummary getGroundMonitoringSummary(
+    public GroundMonitoringSummaryVO getGroundMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return dashboardService.getGroundSummary(getCurrentUser(), period);
+        return MonitoringVOConverter.toVO(dashboardService.getGroundSummary(getCurrentUser(), period));
     }
 
     /** SPD 监测摘要：设备状态为当前快照，告警和周期数据盒子按所选周期统计。 */
     @GetMapping("/spd-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SpdMonitoringSummary getSpdMonitoringSummary(
+    public SpdMonitoringSummaryVO getSpdMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return dashboardService.getSpdSummary(getCurrentUser(), period);
+        return MonitoringVOConverter.toVO(dashboardService.getSpdSummary(getCurrentUser(), period));
     }
 
     /** 雷电流监测摘要：单条 surgeCount 直接计数，多条记录按累计计数器差值汇总。 */
     @GetMapping("/lightning-current-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public LightningCurrentMonitoringSummary getLightningCurrentMonitoringSummary(
+    public LightningCurrentMonitoringSummaryVO getLightningCurrentMonitoringSummary(
             @RequestParam(defaultValue = "day") String period
     ) throws ThingsboardException {
-        return dashboardService.getLightningCurrentSummary(getCurrentUser(), period);
+        return MonitoringVOConverter.toVO(
+                dashboardService.getLightningCurrentSummary(getCurrentUser(), period));
     }
 
     /**
@@ -140,13 +143,14 @@ public class SmartLightningMonitoringController extends BaseController {
      */
     @GetMapping("/device-contexts")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public PageData<SmartLightningDeviceContextDTO> getLightningDeviceContexts(
+    public PageData<SmartLightningDeviceContextVO> getLightningDeviceContexts(
             @RequestParam int pageSize,
             @RequestParam int page,
             @RequestParam(required = false) String textSearch
     ) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
-        return dataQueryService.getDeviceContexts(getCurrentUser(), pageLink);
+        return MonitoringVOConverter.toDeviceContextPage(
+                dataQueryService.getDeviceContexts(getCurrentUser(), pageLink));
     }
 
 }

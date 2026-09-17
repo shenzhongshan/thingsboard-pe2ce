@@ -17,7 +17,7 @@ import { EntityRelationService } from '@core/http/entity-relation.service';
 import * as echarts from 'echarts';
 import { ECharts, EChartsOption } from 'echarts';
 import L from 'leaflet';
-import { auditTime, catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { auditTime, catchError, forkJoin, map, Observable, of, Subject, Subscription, switchMap, takeUntil, timer } from 'rxjs';
 import { AlarmInfo, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
@@ -43,13 +43,10 @@ import {
   getSmartLightningProductName,
   getSmartLightningAlarmChartMessage,
   shouldReloadSmartLightningAlarms,
+  shouldScheduleSmartLightningAlarmSettleRefresh,
+  isLatestSmartLightningAlarmRequest,
 } from './smart-lightning-dashboard.data';
-import { smartLightningTianDiTuMapConfig } from './smart-lightning-map.config';
-import {
-  buildSmartLightningMapPoints,
-  filterSmartLightningMapDevicesWithoutPoints,
-  SmartLightningMapPoint
-} from './smart-lightning-map.data';
+import { filterSmartLightningMapDevicesWithoutPoints } from './smart-lightning-map.data';
 import {
   SmartLightningGroundMonitoringSummary,
   SmartLightningSpdMonitoringSummary,
@@ -68,6 +65,9 @@ import {
   formatSmartLightningMetric
 } from './smart-lightning-summary.data';
 import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
+import {getSmartLightningChangedSummaryTargets} from './smart-lightning-realtime-refresh';
+import { SmartLightningDeviceMapComponent } from '../shared/map/smart-lightning-device-map.component';
+import { SmartLightningMapDevice } from '../shared/map/smart-lightning-device-map.models';
 
 interface SmartLightningPendingMapPoint {
   latitude: number;
@@ -93,7 +93,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   /** 将统一单位表暴露给模板，避免模板内重复维护温度、电压和漏流单位。 */
   readonly SMART_LIGHTNING_UNITS = SMART_LIGHTNING_UNITS;
 
-  @ViewChild('mapHost') mapHost!: ElementRef<HTMLDivElement>;
+  @ViewChild('deviceMap') deviceMap?: SmartLightningDeviceMapComponent;
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
 
   data: SmartLightningMock = buildSmartLightningMock(SmartLightningPeriod.day);
@@ -120,23 +120,38 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   activeAlarmTypeTotals: SmartLightningAlarmTypeTotal[] = [];
 
   private readonly charts = new Map<string, ECharts>();
-  /** 已从服务器属性加载并绘制的持久化点位，key 为设备 ID。 */
-  private readonly persistedMapPoints = new Map<string, L.Marker>();
   private readonly destroy$ = new Subject<void>();
-  /** 当前页面的 Leaflet 地图实例。 */
-  private map?: L.Map;
-  /** 用户点击地图后产生的临时点位，确认绑定前不会持久化。 */
-  private draftMapPoint?: L.CircleMarker;
-  /** 当前选点模式注册的地图点击监听器，退出模式时必须主动解除。 */
-  private mapPointClickHandler?: (event: L.LeafletMouseEvent) => void;
   private resizeObserver?: ResizeObserver;
   private realtimeAlarmCount: number | null = null;
   private initialAlarmLoadFinished = false;
+  /** 告警列表请求序号；只允许最后一次请求更新页面状态。 */
+  private alarmLoadRequestId = 0;
+  /** 告警创建通知可能早于后端落库，保存一次有界的延迟复读订阅。 */
+  private alarmSettleRefreshSubscription?: Subscription;
 
   /** 控制地图是否处于用户选点模式；坐标需在绑定设备后才会持久化。 */
   isAddingMapPoint = false;
   /** 当前用户可见的防雷设备，供地图点位绑定下拉框使用。 */
   mapDevices: SmartLightningDeviceContext[] = [];
+  /** 将防雷设备上下文转换为公共地图模型；分类边界由本页面决定。 */
+  get mapDevicesForMap(): SmartLightningMapDevice[] {
+    return this.mapDevices.map((device) => ({
+      id: device.deviceId,
+      name: device.deviceName,
+      productName: device.productName || '--',
+      profileName: device.deviceProfileName || '--',
+      // 接口已经按 productCategory=lightning 过滤；缺少回传字段时按该接口契约回退，避免旧服务版本误隐藏点位。
+      productCategory: device.productCategory || 'lightning',
+      active: device.active === true,
+      latitude: device.latitude ?? undefined,
+      longitude: device.longitude ?? undefined,
+      assetPath: this.mapAssetPaths.get(device.deviceId) || '--',
+      alarmNames: this.activeAlarmNames.get(device.deviceId) || []
+    }));
+  }
+  /** 智能防雷页面只显示 productCategory=lightning 的设备；公共组件不承担该业务筛选。 */
+  readonly includeSmartLightningMapDevice = (device: SmartLightningMapDevice): boolean =>
+    device.productCategory?.trim().toLowerCase() === 'lightning';
   /**
    * 地图点位绑定下拉框的候选设备。
    *
@@ -144,17 +159,18 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
    * 避免同一设备被重复绑定到多个点位。
    */
   get availableMapDevices(): SmartLightningDeviceContext[] {
+    const mappedDeviceIds = new Set(this.mapDevices
+      .filter((device) => device.latitude != null && device.longitude != null)
+      .map((device) => device.deviceId));
     return filterSmartLightningMapDevicesWithoutPoints(
       this.mapDevices,
-      new Set(this.persistedMapPoints.keys())
+      mappedDeviceIds
     );
   }
-  /** 设备 ID 到根资产路径的索引，供地图弹窗显示绝对路径。 */
-  private mapAssetPaths = new Map<string, string>();
-  /** 当前未清除告警按设备聚合的名称，供地图弹窗和标记状态使用。 */
-  private activeAlarmNames = new Map<string, string[]>();
-  /** 告警接口失败时，弹窗显示“暂不可用”，避免把接口失败误判成无告警。 */
-  private mapAlarmLoadFailed = false;
+  /** 设备 ID 到根资产路径的索引，供公共地图组件弹窗显示绝对路径。 */
+  mapAssetPaths = new Map<string, string>();
+  /** 当前未清除告警按设备聚合的名称，供公共地图组件渲染状态和弹窗。 */
+  activeAlarmNames = new Map<string, string[]>();
   /** 已选地图坐标；只有确认绑定后才会写入设备服务器属性。 */
   pendingMapPoint: SmartLightningPendingMapPoint | null = null;
   /** 绑定面板中选中的设备 ID。 */
@@ -175,7 +191,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   ) {}
 
   ngAfterViewInit(): void {
-    this.initializeMap();
     this.renderCharts();
     this.loadLatestAlarms();
     this.loadAlarmSummary();
@@ -191,46 +206,39 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.alarmSettleRefreshSubscription?.unsubscribe();
     this.realtimeService.release();
-    this.cancelMapPointMode();
     this.resizeObserver?.disconnect();
     this.charts.forEach(chart => chart.dispose());
     this.charts.clear();
-    this.map?.remove();
   }
 
   /** 恢复地图上的添加点位入口，用户点击地图后生成一个临时点位。 */
   toggleMapPointMode(): void {
-    if (!this.map) {
+    if (!this.deviceMap) {
       return;
     }
     if (this.isAddingMapPoint) {
-      this.cancelMapPointMode();
+      this.isAddingMapPoint = false;
       this.cd.markForCheck();
       return;
     }
     this.isAddingMapPoint = true;
-    this.map.getContainer().style.cursor = 'crosshair';
-    this.mapPointClickHandler = (event: L.LeafletMouseEvent) => {
-      this.cancelMapPointMode();
-      this.draftMapPoint?.remove();
-      this.pendingMapPoint = {
-        latitude: event.latlng.lat,
-        longitude: event.latlng.lng
-      };
-      this.selectedMapDeviceId = '';
-      this.mapPointSaveError = '';
-      this.draftMapPoint = L.circleMarker(event.latlng, {
-        radius: 8,
-        color: '#ffffff',
-        weight: 3,
-        fillColor: '#195ce8',
-        fillOpacity: 1
-      }).bindPopup('请选择设备并确认绑定').addTo(this.map!);
-      this.cd.markForCheck();
-    };
-    this.map.on('click', this.mapPointClickHandler);
     this.cd.markForCheck();
+  }
+
+  /** 公共地图组件回传用户点击的坐标，页面随后负责选择设备并保存属性。 */
+  onMapClick(point: L.LatLng): void {
+    this.isAddingMapPoint = false;
+    this.pendingMapPoint = {latitude: point.lat, longitude: point.lng};
+    this.selectedMapDeviceId = '';
+    this.mapPointSaveError = '';
+    this.cd.markForCheck();
+  }
+
+  /** 点击公共地图中的设备时不改变筛选，只保留统一弹窗交互。 */
+  onDeviceMapClick(_device: SmartLightningMapDevice): void {
+    // 设备详情仍由地图弹窗负责展示，页面无需重复发起请求。
   }
 
   /** 记录用户在绑定面板中选择的设备。 */
@@ -247,7 +255,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     }
     // 下拉框会过滤已绑定设备，但提交前仍再次校验，防止并发刷新或旧页面状态造成重复绑定。
     const selectedDevice = this.mapDevices.find((device) => device.deviceId === this.selectedMapDeviceId);
-    if (!selectedDevice || this.persistedMapPoints.has(selectedDevice.deviceId)) {
+    if (!selectedDevice || (selectedDevice.latitude != null && selectedDevice.longitude != null)) {
       this.mapPointSaveError = '该设备已经绑定地图点位，请重新选择未绑定设备。';
       this.selectedMapDeviceId = '';
       this.cd.markForCheck();
@@ -271,11 +279,9 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
           device.latitude = this.pendingMapPoint.latitude;
           device.longitude = this.pendingMapPoint.longitude;
         }
-        this.draftMapPoint?.remove();
-        this.draftMapPoint = undefined;
-        // 清理临时图层后重新生成正式图层，保证当前页面和重新进入页面表现一致。
-        this.renderPersistedMapPoints(this.mapDevices);
-        this.persistedMapPoints.get(this.selectedMapDeviceId)?.openPopup();
+        // 清理临时图层后由公共组件重新生成正式图层，保证当前页面和重新进入页面表现一致。
+        this.deviceMap?.refresh();
+        this.deviceMap?.openDevicePopup(this.selectedMapDeviceId);
         this.pendingMapPoint = null;
         this.selectedMapDeviceId = '';
         this.mapPointSaving = false;
@@ -294,8 +300,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.pendingMapPoint = null;
     this.selectedMapDeviceId = '';
     this.mapPointSaveError = '';
-    this.draftMapPoint?.remove();
-    this.draftMapPoint = undefined;
     this.cd.markForCheck();
   }
 
@@ -441,43 +445,47 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
 
   /** 拉取最新告警列表：加载行上下文后写入告警表并刷新地图弹窗告警信息。 */
   loadLatestAlarms(): void {
+    const requestId = ++this.alarmLoadRequestId;
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
-    this.mapAlarmLoadFailed = false;
     this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
       map((pageData): AlarmInfo[] => {
         const sortedAlarms = pageData.data.map((alarm) => ({info: alarm, row: formatSmartLightningAlarm(alarm)}))
           .sort((left, right) => compareSmartLightningAlarms(left.row, right.row))
         // 地图告警状态必须基于全部当前告警，不能受表格只显示 10 条的限制。
-        this.updateMapAlarmDetails(sortedAlarms.map(({info}) => info));
+        this.updateActiveAlarmNames(sortedAlarms.map(({info}) => info));
         return sortedAlarms.slice(0, SMART_LIGHTNING_ALARM_DISPLAY_LIMIT).map(({info}) => info);
       }),
       switchMap((alarms) => this.resolveAlarmRows(alarms)),
       takeUntil(this.destroy$)
     ).subscribe({
       next: (alarms) => {
+        // WebSocket 变化可能在请求完成前再次触发刷新，旧响应不能覆盖新列表。
+        if (!isLatestSmartLightningAlarmRequest(requestId, this.alarmLoadRequestId)) {
+          return;
+        }
         this.alarms = alarms;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
         this.renderChart('alarm');
         // 告警接口和设备接口是并行请求，告警先返回时也要刷新已经绘制的点位弹窗。
-        this.renderPersistedMapPoints(this.mapDevices);
+        this.deviceMap?.refresh();
         this.cd.markForCheck();
-        if (this.realtimeAlarmCount !== null && this.realtimeAlarmCount !== this.activeAlarmCount) {
-          this.loadLatestAlarms();
-        }
       },
       error: () => {
+        // 旧请求失败时也不能清空新请求正在加载的结果。
+        if (!isLatestSmartLightningAlarmRequest(requestId, this.alarmLoadRequestId)) {
+          return;
+        }
         this.alarms = [];
         this.activeAlarmNames.clear();
-        this.mapAlarmLoadFailed = true;
         this.activeAlarmCount = null;
         this.activeAlarmTypeTotals = [];
         this.alarmsLoadError = true;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
         this.renderChart('alarm');
-        this.renderPersistedMapPoints(this.mapDevices);
+        this.deviceMap?.refresh();
         this.cd.markForCheck();
       }
     });
@@ -515,11 +523,20 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.realtimeService.deviceChanged$.pipe(
       auditTime(600),
       takeUntil(this.destroy$)
-    ).subscribe(() => {
+    ).subscribe((changedDeviceIds) => {
+      // 先使用当前设备上下文确定受影响分类，再刷新设备总览。
+      // 避免一台 SPD 设备上报数据时，同时重算地网和雷电流的整段周期数据。
+      const changedTargets = getSmartLightningChangedSummaryTargets(this.mapDevices, changedDeviceIds);
       this.loadDeviceSummary();
-      this.loadGroundSummary();
-      this.loadSpdSummary();
-      this.loadLightningSummary();
+      for (const target of changedTargets) {
+        if (target === 'ground') {
+          this.loadGroundSummary();
+        } else if (target === 'spd') {
+          this.loadSpdSummary();
+        } else {
+          this.loadLightningSummary();
+        }
+      }
     });
 
     this.realtimeService.alarmChanged$.pipe(
@@ -538,6 +555,11 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         if (!this.initialAlarmLoadFinished || !shouldReloadSmartLightningAlarms(previousCount, count)) {
           return;
         }
+        // 新增告警的数量通知可能早于告警明细事务提交；立即刷新用于快速响应，
+        // 仅对数量增加再安排一次延迟复读，避免读到落库前的旧列表。
+        if (shouldScheduleSmartLightningAlarmSettleRefresh(previousCount, count)) {
+          this.scheduleAlarmSettleRefresh();
+        }
       }
       this.loadLatestAlarms();
       this.loadAlarmSummary();
@@ -548,6 +570,20 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     });
 
     this.realtimeService.acquire();
+  }
+
+  /**
+   * 在告警创建通知后最多延迟复读一次列表。
+   * 新事件到达时取消旧计时器，防止多个计时器叠加请求。
+   */
+  private scheduleAlarmSettleRefresh(): void {
+    this.alarmSettleRefreshSubscription?.unsubscribe();
+    this.alarmSettleRefreshSubscription = timer(800).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.alarmSettleRefreshSubscription = undefined;
+      this.loadLatestAlarms();
+    });
   }
 
   /** 批量读取设备与 active 属性，计算顶部设备在线汇总并绘制地图点位。 */
@@ -565,7 +601,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         const assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(pageData.tree.roots);
         this.mapAssetPaths = getSmartLightningMonitoringAssetPaths(assetTree);
         // 设备上下文已经包含 SERVER_SCOPE 经纬度，读取完成后立即恢复持久化点位。
-        this.renderPersistedMapPoints(pageData.devices.data);
+        this.deviceMap?.refresh();
         const activeValues: unknown[] = [];
         for (const device of pageData.devices.data) {
           activeValues.push(device.active);
@@ -683,87 +719,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     }).pipe(map((context) => formatSmartLightningAlarm(alarm, context)));
   }
 
-  /** 初始化天地图底图；设备点位在设备上下文接口返回后单独绘制。 */
-  private initializeMap(): void {
-    const {center, zoom, token} = smartLightningTianDiTuMapConfig;
-    this.map = L.map(this.mapHost.nativeElement, {attributionControl: true, zoomControl: true}).setView(center, zoom);
-    const tileOptions: L.TileLayerOptions = {
-      subdomains: '01234567',
-      maxNativeZoom: 18,
-      maxZoom: 21,
-      attribution: '&copy; 天地图 Tianditu'
-    };
-    L.tileLayer(
-      'https://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + token,
-      tileOptions
-    ).addTo(this.map);
-    L.tileLayer(
-      'https://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + token,
-      tileOptions
-    ).addTo(this.map);
-  }
-
-  /**
-   * 根据后端批量返回的服务器属性绘制设备点位。
-   * 每次刷新先清理旧图层，避免设备坐标更新后出现重复标记。
-   */
-  private renderPersistedMapPoints(devices: SmartLightningDeviceContext[]): void {
-    this.persistedMapPoints.forEach((marker) => marker.remove());
-    this.persistedMapPoints.clear();
-    if (!this.map) {
-      return;
-    }
-    const points: SmartLightningMapPoint[] = buildSmartLightningMapPoints(devices);
-    const devicesById = new Map<string, SmartLightningDeviceContext>();
-    for (const device of devices) {
-      devicesById.set(device.deviceId, device);
-    }
-    for (const point of points) {
-      const device = devicesById.get(point.deviceId);
-      const status = this.getMapDeviceStatus(device);
-      // 每台设备只维护一个正式点位，设备重新选点后旧图层会在方法开头被清除。
-      const marker = L.marker([point.latitude, point.longitude], {
-        icon: this.buildMapMarkerIcon(device)
-      }).bindPopup(
-        this.buildMapPopupContent(point, device),
-        {className: `smart-lightning-map-popup-container smart-lightning-map-popup-${status}`}
-      ).addTo(this.map);
-      // 直接覆盖 Leaflet 运行时生成的外层节点，确保整个弹窗面板而非仅内容文字区域变色。
-      marker.on('popupopen', () => this.applyMapPopupBackground(marker, status));
-      this.persistedMapPoints.set(point.deviceId, marker);
-    }
-  }
-
-  /**
-   * 生成地图点位详情弹窗：设备名称、产品名称、绝对资产路径和告警情况。
-   * 所有文本均经过 HTML 转义，避免设备或资产名称中的特殊字符破坏弹窗结构。
-   */
-  private buildMapPopupContent(point: SmartLightningMapPoint, device?: SmartLightningDeviceContext): string {
-    const productName = point.productName || '未配置';
-    const assetPath = this.mapAssetPaths.get(point.deviceId) || point.deviceName;
-    const alarmNames = this.activeAlarmNames.get(point.deviceId) || [];
-    const status = this.getMapDeviceStatus(device);
-    const statusColor = this.getMapStatusColor(status);
-    const popupBackground = this.getMapPopupBackground(status);
-    const onlineText = device?.active === true ? '在线' : '离线';
-    const alarmText = this.mapAlarmLoadFailed
-      ? '暂无法获取'
-      : alarmNames.length > 0 ? alarmNames.join('/') : '无告警';
-    const alarmStyle = alarmNames.length > 0 && !this.mapAlarmLoadFailed
-      ? ' style="color:#d32f2f;font-weight:600"'
-      : '';
-    return `<div class="smart-lightning-map-popup" style="min-width:220px;padding:10px 12px;line-height:1.8;background:${popupBackground}">` +
-      `<strong>设备名称：${this.escapeMapPopupText(point.deviceName)}</strong><br>` +
-      `产品名称：${this.escapeMapPopupText(productName)}<br>` +
-      `绝对路径：${this.escapeMapPopupText(assetPath)}<br>` +
-      `<span style="color:${statusColor};font-weight:600">在线状态：${onlineText}</span><br>` +
-      `<span${alarmStyle}>告警情况：${this.escapeMapPopupText(alarmText)}</span><br>` +
-      `纬度：${point.latitude.toFixed(6)}<br>经度：${point.longitude.toFixed(6)}` +
-      `</div>`;
-  }
-
   /** 将当前未清除告警按设备 ID 聚合告警名称，避免地图弹窗逐设备发起告警请求。 */
-  private updateMapAlarmDetails(alarms: AlarmInfo[]): void {
+  private updateActiveAlarmNames(alarms: AlarmInfo[]): void {
     this.activeAlarmNames.clear();
     for (const alarm of alarms) {
       if (alarm.originator?.entityType !== EntityType.DEVICE ||
@@ -777,106 +734,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         names.push(alarmName);
       }
       this.activeAlarmNames.set(deviceId, names);
-    }
-  }
-
-  /**
-   * 根据设备当前状态创建水滴形地图标记。
-   * 状态优先级固定为：有未清除告警（红）> 离线（灰）> 在线（绿）。
-   */
-  private buildMapMarkerIcon(device?: SmartLightningDeviceContext): L.DivIcon {
-    const color = this.getMapStatusColor(this.getMapDeviceStatus(device));
-    const svg = `<svg width="30" height="38" viewBox="0 0 30 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
-      `<path d="M15 37C13.6 35.1 3 22.4 3 14.3C3 7.9 8.4 2.5 15 2.5S27 7.9 27 14.3C27 22.4 16.4 35.1 15 37Z" fill="${color}" stroke="#ffffff" stroke-width="2"/>` +
-      `<circle cx="15" cy="14" r="5" fill="#ffffff" fill-opacity=".9"/>` +
-      `</svg>`;
-    return L.divIcon({
-      className: 'smart-lightning-map-pin',
-      html: svg,
-      iconSize: [30, 38],
-      iconAnchor: [15, 37],
-      popupAnchor: [0, -34]
-    });
-  }
-
-  /** 返回地图设备状态；告警优先于在线和离线状态。 */
-  private getMapDeviceStatus(device?: SmartLightningDeviceContext): 'alarm' | 'offline' | 'online' {
-    const alarmNames = device ? this.activeAlarmNames.get(device.deviceId) || [] : [];
-    if (alarmNames.length > 0) {
-      return 'alarm';
-    }
-    return device?.active === true ? 'online' : 'offline';
-  }
-
-  /** 地图标记和弹窗共用同一套状态颜色，避免两处颜色判断不一致。 */
-  private getMapStatusColor(status: 'alarm' | 'offline' | 'online'): string {
-    if (status === 'alarm') {
-      return '#e53935';
-    }
-    if (status === 'offline') {
-      return '#8b95a5';
-    }
-    return '#16a34a';
-  }
-
-  /** 返回弹窗面板使用的浅色背景；状态颜色由整个 Leaflet 外层统一覆盖。 */
-  private getMapPopupBackground(status: 'alarm' | 'offline' | 'online'): string {
-    if (status === 'alarm') {
-      return '#fee2e2';
-    }
-    if (status === 'offline') {
-      return '#e5e7eb';
-    }
-    return '#dcfce7';
-  }
-
-  /**
-   * Leaflet 打开弹窗后才会创建外层 DOM，因此在 popupopen 事件中设置三层背景：
-   * 外层面板、内容容器和底部箭头，避免默认白色样式覆盖状态色。
-   */
-  private applyMapPopupBackground(
-    marker: L.Marker,
-    status: 'alarm' | 'offline' | 'online'
-  ): void {
-    const popupElement = marker.getPopup()?.getElement();
-    if (!popupElement) {
-      return;
-    }
-    const background = this.getMapPopupBackground(status);
-    const wrapper = popupElement.querySelector('.leaflet-popup-content-wrapper') as HTMLElement | null;
-    const content = popupElement.querySelector('.leaflet-popup-content') as HTMLElement | null;
-    const tip = popupElement.querySelector('.leaflet-popup-tip') as HTMLElement | null;
-    if (wrapper) {
-      wrapper.style.setProperty('background-color', background, 'important');
-    }
-    if (content) {
-      content.style.setProperty('background-color', background, 'important');
-    }
-    if (tip) {
-      tip.style.setProperty('background-color', background, 'important');
-    }
-  }
-
-  /** 地图弹窗使用文本内容，避免设备名称中的特殊字符被当作 HTML 解析。 */
-  private escapeMapPopupText(value: string): string {
-    return value.replace(/[&<>"']/g, (character) => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[character] || character));
-  }
-
-  /** 退出选点模式并解除地图点击监听，避免重复绑定造成一次点击生成多个点位。 */
-  private cancelMapPointMode(): void {
-    if (this.map && this.mapPointClickHandler) {
-      this.map.off('click', this.mapPointClickHandler);
-    }
-    this.mapPointClickHandler = undefined;
-    this.isAddingMapPoint = false;
-    if (this.map) {
-      this.map.getContainer().style.cursor = '';
     }
   }
 

@@ -53,6 +53,7 @@ import { EntityGroupModule } from '@home/pages/entity-group/entity-group.module'
 import { ReportingModule } from '@home/pages/reporting/reporting.module';
 import { SolutionTemplatesModule } from '@home/pages/solution-templates/solution-templates.module';
 import { SmartLightningDashboardModule } from '@home/pages/smart-lightning/dashboard/smart-lightning-dashboard.module';
+import { HomeOverviewModule } from '@home/pages/homeOverview/home-overview.module';
 
 @NgModule({
   exports: [
@@ -93,6 +94,7 @@ import { SmartLightningDashboardModule } from '@home/pages/smart-lightning/dashb
     ReportingModule,
     SolutionTemplatesModule,
     SmartLightningDashboardModule,
+    HomeOverviewModule,
   ]
 })
 export class HomePagesModule { }

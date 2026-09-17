@@ -17,7 +17,7 @@ package org.thingsboard.server.service.monitoring.service.impl;
 
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.relation.EntityRelation;
-import org.thingsboard.server.service.monitoring.dto.SmartLightningMonitoringTreeResponse;
+import org.thingsboard.server.service.query.VisibleAssetTree;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,8 +47,8 @@ public class SmartLightningMonitoringTreeBuilder {
      * 构建资产树。只允许 {@code ASSET -> ASSET/DEVICE} 的 Contains 关系；
      * 没有挂载到资产的设备不会作为根节点显示。
      */
-    public SmartLightningMonitoringTreeResponse build(Collection<VisibleEntity> visibleEntities,
-                                                       Collection<EntityRelation> relations) {
+    public VisibleAssetTree build(Collection<VisibleEntity> visibleEntities,
+                                  Collection<EntityRelation> relations) {
         Map<UUID, NodeDraft> nodesById = new HashMap<>();
         for (VisibleEntity entity : visibleEntities) {
             if (entity.id() != null && (entity.entityType() == EntityType.ASSET || entity.entityType() == EntityType.DEVICE)) {
@@ -57,7 +57,13 @@ public class SmartLightningMonitoringTreeBuilder {
         }
 
         Map<UUID, UUID> parentIdsByChildId = new HashMap<>();
-        List<EntityRelation> sortedRelations = new ArrayList<>(relations);
+        List<EntityRelation> sortedRelations = new ArrayList<>();
+        for (EntityRelation relation : relations) {
+            // 先过滤空关系端点，避免排序阶段解引用脏数据导致空指针。
+            if (isSortableRelation(relation)) {
+                sortedRelations.add(relation);
+            }
+        }
         // 多父级关系并不适用于树；排序保证始终选择同一条可用关系。
         sortedRelations.sort(Comparator.comparing((EntityRelation relation) -> relation.getFrom().getId().toString())
                 .thenComparing(relation -> relation.getTo().getId().toString()));
@@ -73,11 +79,20 @@ public class SmartLightningMonitoringTreeBuilder {
             }
         }
         rootDrafts.sort(Comparator.comparing(node -> node.entity.name()));
-        List<SmartLightningMonitoringTreeResponse.TreeNode> roots = new ArrayList<>();
+        List<VisibleAssetTree.Node> roots = new ArrayList<>();
         for (NodeDraft rootDraft : rootDrafts) {
             roots.add(toTreeNode(rootDraft, new HashSet<>()));
         }
-        return new SmartLightningMonitoringTreeResponse(roots);
+        return new VisibleAssetTree(roots);
+    }
+
+    /** 判断关系是否具备排序所需的完整端点和 ID。 */
+    private boolean isSortableRelation(EntityRelation relation) {
+        return relation != null
+                && relation.getFrom() != null
+                && relation.getTo() != null
+                && relation.getFrom().getId() != null
+                && relation.getTo().getId() != null;
     }
 
     private void addTreeRelation(EntityRelation relation, Map<UUID, NodeDraft> nodesById,
@@ -111,17 +126,17 @@ public class SmartLightningMonitoringTreeBuilder {
         return false;
     }
 
-    private SmartLightningMonitoringTreeResponse.TreeNode toTreeNode(NodeDraft draft, Set<UUID> visitedIds) {
+    private VisibleAssetTree.Node toTreeNode(NodeDraft draft, Set<UUID> visitedIds) {
         // 数据库若存在历史环，仍以空子集降级，避免序列化时无限递归。
         if (!visitedIds.add(draft.entity.id())) {
-            return new SmartLightningMonitoringTreeResponse.TreeNode(
+            return new VisibleAssetTree.Node(
                     draft.entity.id(), draft.entity.name(), draft.entity.entityType(), List.of());
         }
-        List<SmartLightningMonitoringTreeResponse.TreeNode> children = new ArrayList<>();
+        List<VisibleAssetTree.Node> children = new ArrayList<>();
         for (NodeDraft child : draft.children) {
             children.add(toTreeNode(child, new HashSet<>(visitedIds)));
         }
-        return new SmartLightningMonitoringTreeResponse.TreeNode(
+        return new VisibleAssetTree.Node(
                 draft.entity.id(), draft.entity.name(), draft.entity.entityType(), children);
     }
 

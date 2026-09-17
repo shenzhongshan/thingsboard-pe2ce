@@ -127,12 +127,9 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
     this.loadAlarmSeverityRanking();
     this.loadAlarmAnalysisOverview(this.statusPeriod, true, false);
     this.loadAlarmAnalysisOverview(this.coveragePeriod, false, true);
-    // 告警分析的数据全部来自聚合接口，收到实时失效通知后重新读取当前周期的统计。
+    // 告警分析的数据全部来自告警聚合接口，只在告警事件发生时刷新。
+    // 普通遥测变化不会改变告警统计，禁止因此重复执行整页历史聚合查询。
     this.realtimeService.alarmChanged$.pipe(
-      auditTime(600),
-      takeUntil(this.destroy$)
-    ).subscribe(() => this.reloadAnalysisData());
-    this.realtimeService.deviceChanged$.pipe(
       auditTime(600),
       takeUntil(this.destroy$)
     ).subscribe(() => this.reloadAnalysisData());
