@@ -22,7 +22,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.common.data.relation.RelationTypeGroup;
+import org.thingsboard.server.dao.edge.EdgeService;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.DebugModeUtil;
@@ -54,6 +62,14 @@ public class BaseIntegrationService implements IntegrationService {
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    private RelationService relationService;
+
+    // @Lazy：edge 侧的清理逻辑会反过来查集成，构造依赖会在启动时成环。
+    @Autowired
+    @Lazy
+    private EdgeService edgeService;
 
     private final IntegrationRepository integrationRepository;
     private final ConverterRepository converterRepository;
@@ -173,6 +189,53 @@ public class BaseIntegrationService implements IntegrationService {
     @Override
     public EntityType getEntityType() {
         return EntityType.INTEGRATION;
+    }
+
+
+    // ---- edge 分配 ----
+    // 只有 edge 模板集成能分配给 edge：普通集成在云端有运行实例，下发给 edge 会变成
+    // 两个进程同时连同一个外部端点。
+    @Override
+    public Integration assignIntegrationToEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId) {
+        Integration integration = findIntegrationById(tenantId, integrationId);
+        if (integration == null) {
+            throw new DataValidationException("Can't assign non-existent integration to edge!");
+        }
+        // TODO(3d)：Integration.isEdgeTemplate 还没落地（那是"集成模板"那一档的内容）。
+        // 补上之后这里要加校验：只有 edge 模板集成能分配给 edge —— 普通集成在云端有运行
+        // 实例，下发给 edge 会变成两个进程同时连同一个外部端点。
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't assign integration to non-existent edge!");
+        }
+        relationService.saveRelation(tenantId,
+                new EntityRelation(edgeId, integrationId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE));
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(integrationId)
+                .actionType(ActionType.ASSIGNED_TO_EDGE).build());
+        return integration;
+    }
+
+    @Override
+    public Integration unassignIntegrationFromEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId) {
+        Integration integration = findIntegrationById(tenantId, integrationId);
+        if (integration == null) {
+            throw new DataValidationException("Can't unassign non-existent integration from edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't unassign integration from non-existent edge!");
+        }
+        relationService.deleteRelation(tenantId, edgeId, integrationId,
+                EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE);
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(integrationId)
+                .actionType(ActionType.UNASSIGNED_FROM_EDGE).build());
+        return integration;
+    }
+
+    @Override
+    public PageData<Integration> findIntegrationsByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink) {
+        return DaoUtil.toPageData(integrationRepository.findByTenantIdAndEdgeId(
+                tenantId.getId(), edgeId.getId(), pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
     }
 
 }

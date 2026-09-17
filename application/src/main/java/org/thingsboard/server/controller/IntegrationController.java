@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
@@ -221,6 +222,34 @@ public class IntegrationController extends BaseController {
                     ThingsboardErrorCode.PERMISSION_DENIED);
         }
         return integration;
+    }
+
+
+    @ApiOperation(value = "Assign integration to edge",
+            notes = "把integration分配给一台 edge。分配后它会随全量同步下发；关系走 RelationTypeGroup.EDGE。")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PostMapping(value = {"/edge/{edgeId}/integration/{integrationId}"})
+    public Integration assignIntegrationToEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("integrationId") String strIntegrationId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        IntegrationId entityId = new IntegrationId(toUUID(strIntegrationId));
+        return checkNotNull(integrationService.assignIntegrationToEdge(getTenantId(), entityId, edgeId));
+    }
+
+    @ApiOperation(value = "Unassign integration from edge")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @DeleteMapping(value = {"/edge/{edgeId}/integration/{integrationId}"})
+    public Integration unassignIntegrationFromEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("integrationId") String strIntegrationId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        IntegrationId entityId = new IntegrationId(toUUID(strIntegrationId));
+        return checkNotNull(integrationService.unassignIntegrationFromEdge(getTenantId(), entityId, edgeId));
     }
 
 }

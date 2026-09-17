@@ -49,6 +49,17 @@ public interface IntegrationRepository extends JpaRepository<IntegrationEntity, 
 
     IntegrationEntity findByTenantIdAndName(UUID tenantId, String name);
 
+    // 分配给某台 edge 的集成。关系方向 edge -> integration，类型 "Contains"，
+    // 关系组 EDGE —— 与规则链一致，区别于分组用的 EDGE_ENTITY_GROUP_<TYPE>。
+    @Query("SELECT ie FROM IntegrationEntity ie, RelationEntity re WHERE ie.tenantId = :tenantId " +
+            "AND ie.id = re.toId AND re.toType = 'INTEGRATION' AND re.relationTypeGroup = 'EDGE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :edgeId AND re.fromType = 'EDGE' " +
+            "AND (:searchText IS NULL OR ilike(ie.name, CONCAT('%', :searchText, '%')) = true)")
+    Page<IntegrationEntity> findByTenantIdAndEdgeId(@Param("tenantId") UUID tenantId,
+                                                    @Param("edgeId") UUID edgeId,
+                                                    @Param("searchText") String searchText,
+                                                    Pageable pageable);
+
     @Query("SELECT externalId FROM IntegrationEntity WHERE id = :id")
     UUID getExternalIdById(@Param("id") UUID id);
 

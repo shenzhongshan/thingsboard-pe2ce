@@ -20,6 +20,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.common.data.relation.RelationTypeGroup;
+import org.thingsboard.server.dao.DaoUtil;
+import org.thingsboard.server.dao.edge.EdgeService;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.relation.RelationService;
+import org.thingsboard.server.exception.DataValidationException;
+import org.thingsboard.server.dao.sql.scheduler.SchedulerEventInfoRepository;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -49,6 +60,17 @@ public class BaseSchedulerEventService implements SchedulerEventService {
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    private RelationService relationService;
+
+    @Autowired
+    private SchedulerEventInfoRepository schedulerEventInfoRepository;
+
+    // @Lazy：edge 侧清理会反查调度事件，构造依赖会成环。
+    @Autowired
+    @Lazy
+    private EdgeService edgeService;
 
     private final SchedulerEventDao schedulerEventDao;
     private final DataValidator<SchedulerEvent> schedulerEventValidator;
@@ -153,6 +175,48 @@ public class BaseSchedulerEventService implements SchedulerEventService {
         for (UUID id : schedulerEventDao.findIdsByTenantIdAndCustomerId(tenantId, customerId.getId())) {
             deleteSchedulerEvent(tenantId, new SchedulerEventId(id));
         }
+    }
+
+
+    // ---- edge 分配 ----
+    @Override
+    public SchedulerEventInfo assignSchedulerEventToEdge(TenantId tenantId, SchedulerEventId schedulerEventId, EdgeId edgeId) {
+        SchedulerEventInfo event = findSchedulerEventInfoById(tenantId, schedulerEventId);
+        if (event == null) {
+            throw new DataValidationException("Can't assign non-existent scheduler event to edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't assign scheduler event to non-existent edge!");
+        }
+        relationService.saveRelation(tenantId,
+                new EntityRelation(edgeId, schedulerEventId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE));
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(schedulerEventId)
+                .actionType(ActionType.ASSIGNED_TO_EDGE).build());
+        return event;
+    }
+
+    @Override
+    public SchedulerEventInfo unassignSchedulerEventFromEdge(TenantId tenantId, SchedulerEventId schedulerEventId, EdgeId edgeId) {
+        SchedulerEventInfo event = findSchedulerEventInfoById(tenantId, schedulerEventId);
+        if (event == null) {
+            throw new DataValidationException("Can't unassign non-existent scheduler event from edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't unassign scheduler event from non-existent edge!");
+        }
+        relationService.deleteRelation(tenantId, edgeId, schedulerEventId,
+                EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE);
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(schedulerEventId)
+                .actionType(ActionType.UNASSIGNED_FROM_EDGE).build());
+        return event;
+    }
+
+    @Override
+    public PageData<SchedulerEventInfo> findSchedulerEventInfosByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink) {
+        return DaoUtil.toPageData(schedulerEventInfoRepository.findByTenantIdAndEdgeId(
+                tenantId.getId(), edgeId.getId(), pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
     }
 
 }
