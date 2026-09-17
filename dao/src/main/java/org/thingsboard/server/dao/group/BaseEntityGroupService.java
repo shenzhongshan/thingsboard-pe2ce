@@ -726,6 +726,20 @@ public class BaseEntityGroupService implements EntityGroupService {
     }
 
 
+
+    @Override
+    public void assignTenantAdministratorsAndUsersGroupToEdge(TenantId tenantId, EdgeId edgeId) {
+        // 新建 edge 时把租户级用户组挂上去，用户随后经 EntityGroupEdgeEventFetcher(USER) 同步过去。
+        // 少了这步，按分组同步的 edge 会一个用户都收不到 —— 没人能登录 edge。
+        ensureDefaultGroups(tenantId, null, EntityType.USER);
+        for (String groupName : new String[]{EntityGroup.GROUP_ALL_NAME, TENANT_ADMINS_GROUP}) {
+            EntityGroup group = findEntityGroupByTypeAndName(tenantId, null, EntityType.USER, groupName);
+            if (group != null) {
+                assignEntityGroupToEdge(tenantId, group.getId(), edgeId, EntityType.USER);
+            }
+        }
+    }
+
     @Override
     public void renameEdgeAllGroups(TenantId tenantId, Edge edge, String oldEdgeName, String oldCustomerName, String newCustomerName) {
         // "[Edge] X All" 的组名里嵌了 edge 名（客户所有时还嵌了客户名），所以 edge 或客户

@@ -75,6 +75,8 @@ public class DefaultTbEdgeService extends AbstractTbEntityService implements TbE
                 ruleChainService.assignRuleChainToEdge(tenantId, edgeTemplateRootRuleChain.getId(), edgeId);
                 savedEdge = edgeService.setEdgeRootRuleChain(tenantId, savedEdge, edgeTemplateRootRuleChain.getId());
                 edgeService.assignDefaultRuleChainsToEdge(tenantId, edgeId);
+                // 同步是按分组走的，所以用户也得先有组挂到这台 edge 上，否则新 edge 收不到任何用户。
+                entityGroupService.assignTenantAdministratorsAndUsersGroupToEdge(tenantId, edgeId);
             }
 
             logEntityActionService.logEntityAction(tenantId, edgeId, savedEdge, savedEdge.getCustomerId(), actionType, user);

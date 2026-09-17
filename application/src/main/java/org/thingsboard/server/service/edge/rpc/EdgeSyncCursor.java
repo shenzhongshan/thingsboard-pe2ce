@@ -25,6 +25,8 @@ import org.thingsboard.server.service.edge.rpc.fetch.AdminSettingsEdgeEventFetch
 import org.thingsboard.server.service.edge.rpc.fetch.AiModelEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.AssetProfilesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.CustomerRolesEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.PublicCustomerUserGroupEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerUsersEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DefaultProfilesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceProfilesEdgeEventFetcher;
@@ -82,24 +84,31 @@ public class EdgeSyncCursor {
         Customer publicCustomer = ctx.getCustomerService().findPublicCustomer(edge.getTenantId());
         if (publicCustomer != null) {
             fetchers.add(new CustomerEdgeEventFetcher(publicCustomer.getId()));
+            fetchers.add(new CustomerRolesEdgeEventFetcher(ctx.getRoleService(), publicCustomer.getId()));
+            // 公共仪表板靠这个组授权匿名访问；edge 上没有它，公共分享在本地就失效了。
+            fetchers.add(new PublicCustomerUserGroupEdgeEventFetcher(ctx.getEntityGroupService(), publicCustomer.getId()));
         }
         if (edge.getCustomerId() != null && !EntityId.NULL_UUID.equals(edge.getCustomerId().getId())) {
             fetchers.add(new CustomerEdgeEventFetcher(edge.getCustomerId()));
             fetchers.add(new CustomerUsersEdgeEventFetcher(ctx.getUserService(), edge.getCustomerId()));
+            // 客户自有角色：组权限会引用它们，缺了 edge 本地解析权限时会找不到角色。
+            fetchers.add(new CustomerRolesEdgeEventFetcher(ctx.getRoleService(), edge.getCustomerId()));
         }
         // 按分组同步，不是按租户推全量 —— 这是 PE 的语义：实体先被分配进组，组再分配给 edge，
         // 只有这样 edge 才知道每个实体属于哪个组（实体消息上的 entityGroupIdMSB/LSB）。
-        // 组内实体本身由 edge 主动请求（entityGroupEntitiesRequestMsg），见
-        // EntityGroupEntitiesEdgeEventFetcher。顺序对齐 PE 的 EdgeSyncCursor。
+        // 组本身在这里推；每个组的权限与成员由 EdgeGrpcSession.appendGroupScopedFetchers
+        // 在同步过程中动态追加。顺序对齐 PE 的 EdgeSyncCursor —— profiles 夹在分组之间是
+        // 有依据的，设备/资产必须在其 profile 之后到达。
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.DASHBOARD));
         fetchers.add(new DefaultProfilesEdgeEventFetcher(ctx.getDeviceProfileService(), ctx.getAssetProfileService()));
         fetchers.add(new DeviceProfilesEdgeEventFetcher(ctx.getDeviceProfileService()));
         fetchers.add(new AssetProfilesEdgeEventFetcher(ctx.getAssetProfileService()));
         // 注意：上面的 TenantAdminUsers/CustomerUsers 两个逐实体 fetcher **暂时保留**。
-        // PE 不需要它们，因为 PE 在建 edge 时会调 assignTenantAdministratorsAndUsersGroupToEdge，
-        // 把租户管理员/用户组挂到 edge 上，用户随后经这里的 USER 分组同步过去。
-        // CE 还没有那个方法，此时若把它们删掉，新建的 edge 会一个用户都收不到 —— 没人能登录 edge。
-        // 删除它们的前提是先补上 assignTenantAdministratorsAndUsersGroupToEdge。
+        // PE 不需要它们：PE 建 edge 时调 assignTenantAdministratorsAndUsersGroupToEdge 把用户组
+        // 挂到 edge 上，用户随后经下面的 USER 分组同步过去。CE 现在也有这个方法了，但它只在
+        // 新建 edge 时调用 —— **存量 edge 没有这层关系**，此刻删掉这两个 fetcher 会让它们
+        // 立刻失去全部用户，没人能登录 edge。
+        // 删除前提：给存量 edge 补一次分组关系（backfill），或在每次同步时幂等地确保它存在。
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.USER));
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.ASSET));
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.DEVICE));

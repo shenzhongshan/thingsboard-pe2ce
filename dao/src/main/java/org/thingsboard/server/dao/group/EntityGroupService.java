@@ -184,6 +184,13 @@ public interface EntityGroupService {
      * <p>PE 把这个方法放在 EdgeService 上；这里放在分组服务，因为组名/组查询的逻辑都在这边，
      * 且本服务已持有 edgeService，反过来给 EdgeServiceImpl 注入 entityGroupService 会多一条环。
      */
+    /**
+     * 新建 edge 时把租户级用户组（"All" 与 "Tenant Administrators"）分配给它。
+     * 用户随后经 EntityGroupEdgeEventFetcher(USER) 同步过去；没有这一步，按分组同步的
+     * edge 会一个用户都收不到。幂等。
+     */
+    void assignTenantAdministratorsAndUsersGroupToEdge(TenantId tenantId, EdgeId edgeId);
+
     void renameEdgeAllGroups(TenantId tenantId, Edge edge, String oldEdgeName, String oldCustomerName, String newCustomerName);
 
 }
