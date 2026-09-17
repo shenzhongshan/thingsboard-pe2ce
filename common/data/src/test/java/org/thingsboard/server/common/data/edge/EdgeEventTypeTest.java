@@ -38,7 +38,29 @@ class EdgeEventTypeTest {
         ENTITY_GROUP, CONVERTER, INTEGRATION, SCHEDULER_EVENT,
         DEVICE, ASSET, ENTITY_VIEW, DASHBOARD, RULE_CHAIN,
         // USER：PE 里用户通过用户组分配到 edge，不广播。CE 上游曾标成 true。
-        USER
+        USER,
+        // DEVICE_GROUP_OTA 挂在设备分组上，跟着分组走，不广播 —— 与同批加入的其它
+        // 设置类（WHITE_LABELING / CUSTOM_MENU / …，那些是 true）不同。
+        DEVICE_GROUP_OTA
+    }
+
+    /**
+     * 设置类事件不是实体：entityId 恒为 null，内容全在 body 里，只由 fetcher 产生。
+     * 它们的 entityType 必须是 null —— 若误填，EdgeUtils 的映射表会把该 EntityType
+     * 指向这个设置类事件，实体的正常同步就被劫持了。
+     */
+    enum SettingsLike {
+        WHITE_LABELING, LOGIN_WHITE_LABELING, MAIL_TEMPLATES,
+        CUSTOM_TRANSLATION, CUSTOM_MENU, ENCRYPTION_KEY, DEVICE_GROUP_OTA
+    }
+
+    @ParameterizedTest
+    @EnumSource(SettingsLike.class)
+    void settingsLikeTypesHaveNoEntityType(SettingsLike type) {
+        EdgeEventType edgeEventType = EdgeEventType.valueOf(type.name());
+        org.junit.jupiter.api.Assertions.assertNull(edgeEventType.getEntityType(),
+                edgeEventType + " carries its payload in the event body; giving it an entityType would "
+                        + "hijack that EntityType's normal sync in EdgeUtils' lookup map");
     }
 
     @ParameterizedTest

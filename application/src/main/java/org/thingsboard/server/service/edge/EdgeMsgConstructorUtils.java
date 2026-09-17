@@ -59,6 +59,7 @@ import org.thingsboard.server.common.data.device.profile.DeviceProfileTransportC
 import org.thingsboard.server.common.data.device.profile.Lwm2mDeviceProfileTransportConfiguration;
 import org.thingsboard.server.common.data.domain.DomainInfo;
 import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.encryptionkey.EncryptionKey;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.id.AiModelId;
@@ -99,6 +100,7 @@ import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
 import org.thingsboard.server.common.transport.util.JsonUtils;
+import org.thingsboard.server.gen.edge.v1.EncryptionKeyUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AiModelUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
 import org.thingsboard.server.common.data.group.EntityGroup;
@@ -933,6 +935,17 @@ public class EdgeMsgConstructorUtils {
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(reportTemplateId.getId().getMostSignificantBits())
                 .setIdLSB(reportTemplateId.getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 加密密钥随 edge 同步下发：edge 本地要用同一把密钥解开云端加密过的凭据
+     * （Secret / 集成配置里的密码等）。密钥不同则 edge 上所有密文都解不开。
+     */
+    public static EncryptionKeyUpdateMsg constructEncryptionKeyUpdatedMsg(UpdateMsgType msgType, EncryptionKey encryptionKey) {
+        return EncryptionKeyUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(encryptionKey))
+                .setIdMSB(encryptionKey.getId().getId().getMostSignificantBits())
+                .setIdLSB(encryptionKey.getId().getId().getLeastSignificantBits()).build();
     }
 
     public static SecretUpdateMsg constructSecretUpdatedMsg(UpdateMsgType msgType, Secret secret) {

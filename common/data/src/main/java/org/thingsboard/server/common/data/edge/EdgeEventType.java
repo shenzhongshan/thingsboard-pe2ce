@@ -50,6 +50,18 @@ public enum EdgeEventType {
     CALCULATED_FIELD(false, EntityType.CALCULATED_FIELD),
     AI_MODEL(true, EntityType.AI_MODEL),
     API_KEY(true, EntityType.API_KEY),
+    // 以下几类的 entityType 是 null：它们不是实体，而是"设置类"负载 —— edge event 的
+    // entityId 为空，内容全在 body 里，由 fetcher 直接产生，不走 processEntityNotification。
+    // （所以 EntityIdFactory 对它们没有映射也不会出问题；DEVICE_GROUP_OTA 例外，见下。）
+    WHITE_LABELING(true, null),
+    LOGIN_WHITE_LABELING(true, null),
+    MAIL_TEMPLATES(true, null),
+    CUSTOM_TRANSLATION(true, null),
+    CUSTOM_MENU(true, null),
+    ENCRYPTION_KEY(true, null),
+    // 按 edge 逐个分配（挂在设备分组上），与 PE 一致
+    DEVICE_GROUP_OTA(false, null),
+
     // USER 同理：PE 里用户是通过用户组分配到 edge 的，不广播。CE 上游把它标成了 true，
     // 这里按 PE 语义改为 false —— 用户更新改走 processNotificationToRelatedEdges。
     // allEdgesRelated=false：这几类是**按 edge 逐个分配**的，不是广播给租户下的所有 edge。
