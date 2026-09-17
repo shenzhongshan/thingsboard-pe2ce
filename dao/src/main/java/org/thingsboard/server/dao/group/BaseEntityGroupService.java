@@ -803,6 +803,19 @@ public class BaseEntityGroupService implements EntityGroupService {
         return entityGroup;
     }
 
+
+    @Override
+    public PageData<EntityId> findEntityIds(TenantId tenantId, EntityType groupType, EntityGroupId entityGroupId, PageLink pageLink) {
+        // edge 全量同步按页取组成员。"All" 组的成员来自 owner 维度的查询，普通组来自
+        // FROM_ENTITY_GROUP 关系；两种都在这里统一切页，调用方不必区分。
+        List<EntityId> all = findAllEntityIds(tenantId, entityGroupId);
+        int total = all.size();
+        int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
+        int to = Math.min(from + pageLink.getPageSize(), total);
+        int totalPages = pageLink.getPageSize() > 0 ? (int) Math.ceil((double) total / pageLink.getPageSize()) : 1;
+        return new PageData<>(all.subList(from, to), totalPages, total, to < total);
+    }
+
     @Override
     public PageData<EntityGroup> findEdgeEntityGroupsByType(TenantId tenantId, EdgeId edgeId, EntityType groupType, PageLink pageLink) {
         log.trace("Executing findEdgeEntityGroupsByType, tenantId [{}], edgeId [{}], groupType [{}]", tenantId, edgeId, groupType);

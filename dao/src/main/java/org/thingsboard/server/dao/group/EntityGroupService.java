@@ -125,6 +125,9 @@ public interface EntityGroupService {
     /** Raw member entity ids of a group (including the virtual "All" group). */
     List<EntityId> findAllEntityIds(TenantId tenantId, EntityGroupId entityGroupId);
 
+    /** 分页版，供 edge 全量同步逐页取组成员。 */
+    PageData<EntityId> findEntityIds(TenantId tenantId, EntityType groupType, EntityGroupId entityGroupId, PageLink pageLink);
+
     /**
      * Adds entityId as a member of the "All" group for groupType, owned by ownerId (null =
      * tenant-owned) — creating the group row first if needed. Idempotent: safe to call for an

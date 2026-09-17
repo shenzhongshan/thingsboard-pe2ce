@@ -24,15 +24,13 @@ import org.thingsboard.server.service.edge.EdgeContextComponent;
 import org.thingsboard.server.service.edge.rpc.fetch.AdminSettingsEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.AiModelEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.AssetProfilesEdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.AssetsEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerUsersEdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.DashboardsEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DefaultProfilesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceProfilesEdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.DevicesEdgeEventFetcher;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.EntityViewsEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.NotificationRuleEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.NotificationTargetEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.NotificationTemplateEdgeEventFetcher;
@@ -89,13 +87,23 @@ public class EdgeSyncCursor {
             fetchers.add(new CustomerEdgeEventFetcher(edge.getCustomerId()));
             fetchers.add(new CustomerUsersEdgeEventFetcher(ctx.getUserService(), edge.getCustomerId()));
         }
-        fetchers.add(new DashboardsEdgeEventFetcher(ctx.getDashboardService()));
+        // 按分组同步，不是按租户推全量 —— 这是 PE 的语义：实体先被分配进组，组再分配给 edge，
+        // 只有这样 edge 才知道每个实体属于哪个组（实体消息上的 entityGroupIdMSB/LSB）。
+        // 组内实体本身由 edge 主动请求（entityGroupEntitiesRequestMsg），见
+        // EntityGroupEntitiesEdgeEventFetcher。顺序对齐 PE 的 EdgeSyncCursor。
+        fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.DASHBOARD));
         fetchers.add(new DefaultProfilesEdgeEventFetcher(ctx.getDeviceProfileService(), ctx.getAssetProfileService()));
         fetchers.add(new DeviceProfilesEdgeEventFetcher(ctx.getDeviceProfileService()));
         fetchers.add(new AssetProfilesEdgeEventFetcher(ctx.getAssetProfileService()));
-        fetchers.add(new DevicesEdgeEventFetcher(ctx.getDeviceService()));
-        fetchers.add(new AssetsEdgeEventFetcher(ctx.getAssetService()));
-        fetchers.add(new EntityViewsEdgeEventFetcher(ctx.getEntityViewService()));
+        // 注意：上面的 TenantAdminUsers/CustomerUsers 两个逐实体 fetcher **暂时保留**。
+        // PE 不需要它们，因为 PE 在建 edge 时会调 assignTenantAdministratorsAndUsersGroupToEdge，
+        // 把租户管理员/用户组挂到 edge 上，用户随后经这里的 USER 分组同步过去。
+        // CE 还没有那个方法，此时若把它们删掉，新建的 edge 会一个用户都收不到 —— 没人能登录 edge。
+        // 删除它们的前提是先补上 assignTenantAdministratorsAndUsersGroupToEdge。
+        fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.USER));
+        fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.ASSET));
+        fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.DEVICE));
+        fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.ENTITY_VIEW));
         if (fullSync) {
             fetchers.add(new NotificationTemplateEdgeEventFetcher(ctx.getNotificationTemplateService()));
             fetchers.add(new NotificationTargetEdgeEventFetcher(ctx.getNotificationTargetService()));
@@ -116,6 +124,16 @@ public class EdgeSyncCursor {
             // would hand every edge all integration connection configs - so these stay unsynced
             // until edge assignment exists for them.
         }
+    }
+
+    /**
+     * 在遍历过程中追加 fetcher。分组是"目录"，推完一个组之后才知道要为它再取哪些数据
+     * （组权限、组成员），所以游标是会变长的 —— 见 EdgeGrpcSession.appendGroupScopedFetchers。
+     *
+     * <p>追加到末尾，不影响 currentIdx 已经走过的部分。
+     */
+    public void append(EdgeEventFetcher fetcher) {
+        fetchers.add(fetcher);
     }
 
     public boolean hasNext() {
