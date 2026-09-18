@@ -48,6 +48,7 @@ import org.thingsboard.server.gen.edge.v1.DeviceRpcCallMsg;
 import org.thingsboard.server.gen.edge.v1.DeviceUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.EntityDataProto;
 import org.thingsboard.server.gen.edge.v1.EntityViewUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.EntityGroupRequestMsg;
 import org.thingsboard.server.gen.edge.v1.EntityViewsRequestMsg;
 import org.thingsboard.server.gen.edge.v1.RelationRequestMsg;
 import org.thingsboard.server.gen.edge.v1.RelationUpdateMsg;
@@ -167,6 +168,18 @@ public class EdgeUplinkMessageDispatcher {
             if (uplinkMsg.getCalculatedFieldRequestMsgCount() > 0) {
                 for (CalculatedFieldRequestMsg calculatedFieldRequestMsg : uplinkMsg.getCalculatedFieldRequestMsgList()) {
                     result.add(ctx.getEdgeRequestsService().processCalculatedFieldRequestMsg(edge.getTenantId(), edge, calculatedFieldRequestMsg));
+                }
+            }
+            // 分组分配给运行中的 edge 之后，组本身随 ASSIGNED_TO_EDGE 下发，但成员和权限
+            // 只在全量同步时推。edge 拿到空组后靠下面这两条请求把它填满。
+            if (uplinkMsg.getEntityGroupEntitiesRequestMsgCount() > 0) {
+                for (EntityGroupRequestMsg request : uplinkMsg.getEntityGroupEntitiesRequestMsgList()) {
+                    result.add(ctx.getEdgeRequestsService().processEntityGroupEntitiesRequest(edge.getTenantId(), edge, request));
+                }
+            }
+            if (uplinkMsg.getEntityGroupPermissionsRequestMsgCount() > 0) {
+                for (EntityGroupRequestMsg request : uplinkMsg.getEntityGroupPermissionsRequestMsgList()) {
+                    result.add(ctx.getEdgeRequestsService().processEntityGroupPermissionsRequest(edge.getTenantId(), edge, request));
                 }
             }
             if (uplinkMsg.getUserCredentialsRequestMsgCount() > 0) {

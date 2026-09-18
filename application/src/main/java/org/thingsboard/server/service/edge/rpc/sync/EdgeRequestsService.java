@@ -18,6 +18,7 @@ package org.thingsboard.server.service.edge.rpc.sync;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.gen.edge.v1.EntityGroupRequestMsg;
 import org.thingsboard.server.gen.edge.v1.AttributesRequestMsg;
 import org.thingsboard.server.gen.edge.v1.CalculatedFieldRequestMsg;
 import org.thingsboard.server.gen.edge.v1.DeviceCredentialsRequestMsg;
@@ -49,5 +50,12 @@ public interface EdgeRequestsService {
 
     @Deprecated(since = "3.9.1", forRemoval = true)
     ListenableFuture<Void> processEntityViewsRequestMsg(TenantId tenantId, Edge edge, EntityViewsRequestMsg entityViewsRequestMsg);
+
+
+    /** edge 索要某个分组的成员（分组分配给运行中的 edge 之后）。 */
+    ListenableFuture<Void> processEntityGroupEntitiesRequest(TenantId tenantId, Edge edge, EntityGroupRequestMsg request);
+
+    /** edge 索要某个分组上的权限授予。 */
+    ListenableFuture<Void> processEntityGroupPermissionsRequest(TenantId tenantId, Edge edge, EntityGroupRequestMsg request);
 
 }
