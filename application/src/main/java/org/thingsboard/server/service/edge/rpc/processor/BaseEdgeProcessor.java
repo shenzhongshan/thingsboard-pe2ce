@@ -166,10 +166,15 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
         return switch (action) {
             case TIMESERIES_UPDATED, ALARM_ACK, ALARM_CLEAR, ALARM_ASSIGNED, ALARM_UNASSIGNED, ADDED_COMMENT,
                  UPDATED_COMMENT, DELETED -> true;
+            // 这些类型即使 edge 当前离线也要落库排队，等重连时补发。对齐 PE 的同名方法 ——
+            // 后半段（ROLE 起）是 PE 独有的类型，CE 之前直接丢弃，离线期间的白标/菜单/翻译/
+            // 密钥/集成改动重连后永远不会到达 edge。
             default -> switch (type) {
                 case ALARM, ALARM_COMMENT, RULE_CHAIN, RULE_CHAIN_METADATA, USER, CUSTOMER, TENANT, TENANT_PROFILE,
                      WIDGETS_BUNDLE, WIDGET_TYPE, ADMIN_SETTINGS, OTA_PACKAGE, QUEUE, RELATION, CALCULATED_FIELD, AI_MODEL, API_KEY, NOTIFICATION_TEMPLATE,
-                     NOTIFICATION_TARGET, NOTIFICATION_RULE -> true;
+                     NOTIFICATION_TARGET, NOTIFICATION_RULE,
+                     ROLE, INTEGRATION, CONVERTER, WHITE_LABELING, LOGIN_WHITE_LABELING, CUSTOM_TRANSLATION,
+                     CUSTOM_MENU, MAIL_TEMPLATES, SECRET -> true;
                 default -> false;
             };
         };
@@ -193,12 +198,14 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 futures.add(saveEdgeEvent(edge.getTenantId(), edge.getId(), type, actionType, entityId, body, false));
             }
         } else {
-            futures = processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, null, sourceEdgeId);
+            // body 必须透传：自定义菜单这类事件没有一等实体可查，内容全在 body 里。
+            // 之前这里写死 null，与 PE 不一致，对非系统租户等于把内容丢了。
+            futures = processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, sourceEdgeId);
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);
     }
 
-    private List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
+    protected List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
                                                                             EdgeEventType type,
                                                                             EdgeEventActionType actionType,
                                                                             EntityId entityId,
@@ -292,12 +299,21 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
 
     protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
                                                                        EdgeEventActionType actionType, EdgeId sourceEdgeId) {
+        return processNotificationToRelatedEdges(tenantId, ownerEntityId, entityId, type, actionType, sourceEdgeId, null);
+    }
+
+    /**
+     * 带 body 的版本。白标/自定义翻译这类"设置型"事件没有一等实体 id，内容全在 body 里，
+     * 丢了 body 就等于没下发。
+     */
+    protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
+                                                                       EdgeEventActionType actionType, EdgeId sourceEdgeId, JsonNode body) {
         List<ListenableFuture<Void>> futures = new ArrayList<>();
         PageDataIterableByTenantIdEntityId<EdgeId> edgeIds =
                 new PageDataIterableByTenantIdEntityId<>(edgeCtx.getEdgeService()::findRelatedEdgeIdsByEntityId, tenantId, ownerEntityId, RELATED_EDGES_CACHE_ITEMS);
         for (EdgeId relatedEdgeId : edgeIds) {
             if (!relatedEdgeId.equals(sourceEdgeId)) {
-                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, null));
+                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, body));
             }
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);

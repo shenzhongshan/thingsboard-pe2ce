@@ -27,6 +27,8 @@ import org.thingsboard.server.cache.limits.RateLimitService;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.msg.notification.NotificationRuleProcessor;
+import org.thingsboard.server.dao.translation.CustomTranslationService;
+import org.thingsboard.server.dao.menu.CustomMenuService;
 import org.thingsboard.server.dao.ota.DeviceGroupOtaPackageService;
 import org.thingsboard.server.dao.encryptionkey.EncryptionService;
 import org.thingsboard.server.dao.ai.AiModelService;
@@ -121,6 +123,12 @@ public class EdgeContextComponent {
             EdgeEventType eventType = processor.getEdgeEventType();
             if (eventType != null) {
                 processorMap.put(eventType, processor);
+            }
+            // 白标的三种事件类型共用一个 processor —— WhiteLabelingEdgeProcessor 只能从
+            // getEdgeEventType() 报出一种，另两种在这里手工登记，对齐 PE。
+            if (EdgeEventType.WHITE_LABELING.equals(eventType)) {
+                processorMap.put(EdgeEventType.LOGIN_WHITE_LABELING, processor);
+                processorMap.put(EdgeEventType.MAIL_TEMPLATES, processor);
             }
         });
         this.edgeEventProcessingExecutorService = ThingsBoardExecutors.newScheduledThreadPool(schedulerPoolSize, "edge-event-check-scheduler");
@@ -350,6 +358,12 @@ public class EdgeContextComponent {
 
     @Autowired
     private DeviceGroupOtaPackageService deviceGroupOtaPackageService;
+
+    @Autowired
+    private CustomMenuService customMenuService;
+
+    @Autowired
+    private CustomTranslationService customTranslationService;
 
 
 

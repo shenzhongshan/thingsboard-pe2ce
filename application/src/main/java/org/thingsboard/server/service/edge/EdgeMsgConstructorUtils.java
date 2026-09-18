@@ -15,6 +15,13 @@
  */
 package org.thingsboard.server.service.edge;
 
+import org.thingsboard.server.common.data.wl.WhiteLabeling;
+import org.thingsboard.server.common.data.menu.CustomMenu;
+import org.thingsboard.server.common.data.translation.CustomTranslation;
+import org.thingsboard.server.gen.edge.v1.WhiteLabelingProto;
+import org.thingsboard.server.gen.edge.v1.CustomMenuProto;
+import org.thingsboard.server.gen.edge.v1.CustomTranslationUpdateMsg;
+import org.apache.commons.collections4.CollectionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
@@ -540,6 +547,31 @@ public class EdgeMsgConstructorUtils {
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(oAuth2ClientId.getId().getMostSignificantBits())
                 .setIdLSB(oAuth2ClientId.getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 白标（通用/登录/邮件模板三种 type 共用一条消息）。整行序列化进 entity，
+     * 消息本身不带 id —— edge 侧按 WhiteLabeling 里的 tenantId/customerId/type 定位。
+     */
+    public static WhiteLabelingProto constructWhiteLabeling(UpdateMsgType msgType, WhiteLabeling whiteLabeling) {
+        return WhiteLabelingProto.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(whiteLabeling)).build();
+    }
+
+    /**
+     * 自定义菜单。assigneeList 是该菜单被指派到的实体 id 列表，删除时不带。
+     */
+    public static CustomMenuProto constructCustomMenuMsg(UpdateMsgType msgType, CustomMenu customMenu, List<EntityId> entityIds) {
+        CustomMenuProto.Builder builder = CustomMenuProto.newBuilder();
+        if (CollectionUtils.isNotEmpty(entityIds)) {
+            builder.setAssigneeList(JacksonUtil.toString(entityIds));
+        }
+        return builder.setMsgType(msgType).setEntity(JacksonUtil.toString(customMenu)).build();
+    }
+
+    public static CustomTranslationUpdateMsg constructCustomTranslationMsg(UpdateMsgType msgType, CustomTranslation customTranslation) {
+        return CustomTranslationUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(customTranslation)).build();
     }
 
     public static OAuth2DomainUpdateMsg constructOAuth2DomainUpdateMsg(UpdateMsgType msgType, DomainInfo domainInfo) {

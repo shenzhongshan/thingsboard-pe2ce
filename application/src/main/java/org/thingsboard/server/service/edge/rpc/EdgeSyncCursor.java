@@ -31,6 +31,10 @@ import org.thingsboard.server.service.edge.rpc.fetch.DefaultProfilesEdgeEventFet
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceProfilesEdgeEventFetcher;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceGroupOtaPackageEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.CustomMenuEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.SystemCustomMenuEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.CustomTranslationEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.WhiteLabelingEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EncryptionKeyEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EdgeEventFetcher;
@@ -81,6 +85,12 @@ public class EdgeSyncCursor {
             fetchers.add(new SystemWidgetsBundlesEdgeEventFetcher(ctx.getWidgetsBundleService()));
             fetchers.add(new TenantWidgetsBundlesEdgeEventFetcher(ctx.getWidgetsBundleService()));
             fetchers.add(new AiModelEdgeEventFetcher(ctx.getAiModelService()));
+            // 界面外观三件套：白标、自定义菜单、自定义翻译。系统级在前、租户级在后 ——
+            // edge 端是就近覆盖，顺序反了会让系统默认盖掉租户定制。
+            fetchers.add(new WhiteLabelingEdgeEventFetcher(ctx.getCustomerService()));
+            fetchers.add(new SystemCustomMenuEdgeEventFetcher(ctx.getCustomMenuService()));
+            fetchers.add(new CustomMenuEdgeEventFetcher(ctx.getCustomMenuService()));
+            fetchers.add(new CustomTranslationEdgeEventFetcher(ctx.getCustomerService(), ctx.getCustomTranslationService()));
         }
         Customer publicCustomer = ctx.getCustomerService().findPublicCustomer(edge.getTenantId());
         if (publicCustomer != null) {
