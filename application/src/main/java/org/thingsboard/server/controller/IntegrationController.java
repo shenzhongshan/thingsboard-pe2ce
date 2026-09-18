@@ -139,6 +139,8 @@ public class IntegrationController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/integrationInfos"}, params = {"pageSize", "page"})
     public PageData<IntegrationInfo> getIntegrationInfos(
+            @Parameter(description = "只列 edge 模板。模板与普通实体分居两个命名空间，互不可见。")
+            @RequestParam(value = "isEdgeTemplate", required = false, defaultValue = "false") boolean isEdgeTemplate,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = "Case-insensitive 'substring' filter based on integration name")
@@ -150,7 +152,9 @@ public class IntegrationController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.READ);
         TenantId tenantId = getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        PageData<Integration> pageData = integrationService.findTenantIntegrations(tenantId, pageLink);
+        PageData<Integration> pageData = isEdgeTemplate
+                ? integrationService.findTenantEdgeTemplateIntegrations(tenantId, pageLink)
+                : integrationService.findTenantIntegrations(tenantId, pageLink);
         List<IntegrationInfo> infos = pageData.getData().stream().map(IntegrationInfo::new).toList();
         // One aggregate query for the whole page rather than one per row.
         Map<UUID, ArrayNode> statsByEntityId = infos.isEmpty()

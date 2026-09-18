@@ -45,6 +45,8 @@ export interface ConverterDialogData {
    *  same: the type toggle and integration type are fixed to the slot you launched it from). */
   presetType?: ConverterType;
   presetIntegrationType?: IntegrationType;
+  /** edge 模板页开出来的对话框 —— 见 IntegrationDialogData 上的同名字段。 */
+  isEdgeTemplate?: boolean;
 }
 
 @Component({
@@ -71,6 +73,9 @@ export class ConverterDialogComponent implements OnInit {
 
   private converter: Converter;
 
+  /** 见 ConverterDialogData.isEdgeTemplate。 */
+  isEdgeTemplate = false;
+
   constructor(@Inject(MAT_DIALOG_DATA) public data: ConverterDialogData,
               private dialogRef: MatDialogRef<ConverterDialogComponent, Converter | boolean>,
               protected store: Store<AppState>,
@@ -79,6 +84,7 @@ export class ConverterDialogComponent implements OnInit {
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.converterId;
+    this.isEdgeTemplate = !!data.isEdgeTemplate;
   }
 
   ngOnInit() {
@@ -227,6 +233,7 @@ export class ConverterDialogComponent implements OnInit {
       integrationType: v.integrationType || null,
       debugSettings: v.debugSettings,
       configuration,
+      edgeTemplate: this.isEdgeTemplate,
       additionalInfo: { ...(this.converter?.additionalInfo || {}), description: v.description }
     };
     // Return the saved entity so an integration form that launched this dialog can bind the new

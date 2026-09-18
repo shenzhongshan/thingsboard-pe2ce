@@ -75,6 +75,9 @@ import {
 
 export interface IntegrationDialogData {
   integrationId?: string;
+  /** edge 模板页开出来的对话框：集成本身和它顺带保存的转换器都要打上模板位，
+   *  否则新建出来的东西会落到普通命名空间里、还会被云端真的拉起来。 */
+  isEdgeTemplate?: boolean;
 }
 
 @Component({
@@ -123,6 +126,9 @@ export class IntegrationDialogComponent implements OnInit {
 
   private integration: Integration;
 
+  /** 模板与普通实体分居两个命名空间；这个位决定本次保存落到哪一边。 */
+  isEdgeTemplate = false;
+
   constructor(@Inject(MAT_DIALOG_DATA) public data: IntegrationDialogData,
               private dialogRef: MatDialogRef<IntegrationDialogComponent, boolean>,
               protected store: Store<AppState>,
@@ -132,10 +138,11 @@ export class IntegrationDialogComponent implements OnInit {
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.integrationId;
+    this.isEdgeTemplate = !!data.isEdgeTemplate;
   }
 
   ngOnInit() {
-    const converters$ = this.converterService.getConverters(new PageLink(1024, 0));
+    const converters$ = this.converterService.getConverters(new PageLink(1024, 0), undefined, this.isEdgeTemplate);
     if (this.isEdit) {
       forkJoin([converters$, this.integrationService.getIntegration(this.data.integrationId)]).subscribe(
         ([convPage, integration]) => {
@@ -423,6 +430,7 @@ export class IntegrationDialogComponent implements OnInit {
           type: ConverterType.UPLINK,
           integrationType: basic.type,
           debugSettings: uplink.debugSettings,
+          edgeTemplate: this.isEdgeTemplate,
           configuration: { scriptLang: uplink.scriptLang, decoder: uplink.script, updateOnlyKeys: uplink.updateOnlyKeys || [] }
         } as Converter);
 
@@ -438,6 +446,7 @@ export class IntegrationDialogComponent implements OnInit {
             type: ConverterType.DOWNLINK,
             integrationType: basic.type,
             debugSettings: downlink.debugSettings,
+            edgeTemplate: this.isEdgeTemplate,
             configuration: { scriptLang: downlink.scriptLang, encoder: downlink.script, updateOnlyKeys: downlink.updateOnlyKeys || [] }
           } as Converter;
           return this.converterService.saveConverter(downlinkConverter).pipe(
@@ -465,6 +474,7 @@ export class IntegrationDialogComponent implements OnInit {
           defaultConverterId: savedUplink.id,
           downlinkConverterId,
           configuration,
+          edgeTemplate: this.isEdgeTemplate,
           additionalInfo: {...(this.integration?.additionalInfo || {}), description: c.description}
         };
         return this.integrationService.saveIntegration(integration);

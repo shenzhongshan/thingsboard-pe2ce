@@ -15,6 +15,7 @@
 ///
 
 import { Component, OnInit, Renderer2, ViewChild, ViewContainerRef } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -55,6 +56,11 @@ export class ConvertersComponent extends PageComponent implements OnInit {
 
   converterTypeTranslations = converterTypeTranslations;
 
+  /** 由路由 data.isEdgeTemplate 决定这个页面看的是 edge 模板还是普通实体 —— 同一套组件
+   *  服务 /integrations-center 和 /edgeManagement 两条路由，与 PE 一致。 */
+  isEdgeTemplate = false;
+
+
   @ViewChild('detailsDrawer') detailsDrawer: MatDrawer;
   detailsTarget: IntegrationDetailsPanelTarget = null;
   detailsFocusTab: 'overview' | 'events' = 'overview';
@@ -66,18 +72,20 @@ export class ConvertersComponent extends PageComponent implements OnInit {
               private entityDebugSettingsService: EntityDebugSettingsService,
               private viewContainerRef: ViewContainerRef,
               private renderer: Renderer2,
-              private dialog: MatDialog) {
+              private dialog: MatDialog,
+              private route: ActivatedRoute) {
     super(store);
   }
 
   ngOnInit() {
+    this.isEdgeTemplate = !!this.route.snapshot.data.isEdgeTemplate;
     this.reload();
   }
 
   reload() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: 'createdTime', direction: Direction.DESC });
-    this.converterService.getConverters(pageLink).subscribe((pageData) => {
+    this.converterService.getConverters(pageLink, undefined, this.isEdgeTemplate).subscribe((pageData) => {
       this.converters = pageData.data;
       this.totalElements = pageData.totalElements;
     });
@@ -199,6 +207,8 @@ export class ConvertersComponent extends PageComponent implements OnInit {
           integrationType: imported.integrationType,
           debugSettings: imported.debugSettings || { failuresEnabled: false, allEnabled: false, allEnabledUntil: 0 },
           configuration: imported.configuration || {},
+          // 从模板页导入的落在模板命名空间，否则导进来就看不见了。
+          edgeTemplate: this.isEdgeTemplate,
           additionalInfo: imported.additionalInfo || {}
         } as Converter;
         this.converterService.saveConverter(converter).subscribe(() => this.reload());
@@ -216,7 +226,7 @@ export class ConvertersComponent extends PageComponent implements OnInit {
       ConverterDialogComponent, {
         disableClose: true,
         panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-        data: { converterId }
+        data: { converterId, isEdgeTemplate: this.isEdgeTemplate }
       }).afterClosed().subscribe((changed) => {
       if (changed) {
         this.reload();

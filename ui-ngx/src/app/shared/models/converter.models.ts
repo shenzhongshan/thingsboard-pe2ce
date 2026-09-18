@@ -58,6 +58,9 @@ export interface Converter extends BaseData<ConverterId> {
   debugSettings?: EntityDebugSettings;
   configuration: ConverterConfiguration;
   additionalInfo?: {description?: string; [key: string]: any};
+  /** edge 模板：只存不跑，不计配额，随 edge 同步下发。模板与普通实体分居两个命名空间，
+   *  列表接口按这个位切分（后端 ?isEdgeTemplate=）。 */
+  edgeTemplate?: boolean;
   /** Set once this converter has been exported to a VCS repository. */
   externalId?: ConverterId;
 }

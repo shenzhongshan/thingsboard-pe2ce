@@ -46,9 +46,9 @@ export class ConverterService {
   constructor(private http: HttpClient) {
   }
 
-  public getConverters(pageLink: PageLink, integrationType?: string,
+  public getConverters(pageLink: PageLink, integrationType?: string, isEdgeTemplate = false,
                        config?: RequestConfig): Observable<PageData<Converter>> {
-    let url = `/api/converters${pageLink.toQuery()}`;
+    let url = `/api/converters${pageLink.toQuery()}&isEdgeTemplate=${isEdgeTemplate}`;
     if (integrationType) {
       url += `&integrationType=${integrationType}`;
     }

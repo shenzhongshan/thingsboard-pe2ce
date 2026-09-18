@@ -143,7 +143,7 @@ public class BaseIntegrationService implements IntegrationService {
 
     @Override
     public List<Integration> findAllEnabledIntegrations() {
-        return DaoUtil.convertDataList(integrationRepository.findAllByEnabledTrue());
+        return DaoUtil.convertDataList(integrationRepository.findAllEnabledNonTemplate());
     }
 
     @Override
