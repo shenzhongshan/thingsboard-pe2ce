@@ -481,6 +481,41 @@ public class EntityGroupController extends BaseController {
         return entityGroupService.findGroupEntities(getTenantId(), entityGroupId, pageLink);
     }
 
+    @ApiOperation(value = "Get edges by Entity Group Id (getEdgesByEntityGroupId)",
+            notes = "Lists the members of an EDGE group. Same data as /entityGroup/{entityGroupId}/entities, " +
+                    "but rejects groups of any other member type - PE's edge UI calls this path. " +
+                    "edgeLicenseKey is stripped unless the caller may create or write edges.")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = {"/entityGroup/{entityGroupId}/edges"}, params = {"pageSize", "page"})
+    public PageData<? extends HasName> getEdgesByEntityGroupId(
+            @Parameter(description = "A string value representing the entity group id", required = true)
+            @PathVariable(ENTITY_GROUP_ID) String strEntityGroupId,
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = "Case-insensitive 'substring' filter based on edge name")
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        checkParameter(ENTITY_GROUP_ID, strEntityGroupId);
+        accessControlService.checkPermission(getCurrentUser(), Resource.ENTITY_GROUP, Operation.READ);
+        EntityGroupId entityGroupId = new EntityGroupId(toUUID(strEntityGroupId));
+        EntityGroup entityGroup = checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroupId)));
+        if (!EntityType.EDGE.equals(entityGroup.getType())) {
+            throw new ThingsboardException("Entity group is not of type EDGE!", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+        }
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        PageData<? extends HasName> result = entityGroupService.findGroupEntities(getTenantId(), entityGroupId, pageLink);
+        // edge_license_key 是凭据，复用 EdgeController 里唯一的那份抹除实现。
+        boolean mayWrite = accessControlService.hasPermission(getCurrentUser(), Resource.EDGE, Operation.CREATE)
+                || accessControlService.hasPermission(getCurrentUser(), Resource.EDGE, Operation.WRITE);
+        if (!mayWrite) {
+            result.getData().forEach(entity -> {
+                if (entity instanceof Edge edge) {
+                    edge.setEdgeLicenseKey(null);
+                }
+            });
+        }
+        return result;
+    }
+
     @ApiOperation(value = "Make Entity Group public (makeEntityGroupPublic)",
             notes = "Makes the group available to public (non-authorized) users and stores the public flag. " +
                     "Only ASSET, DEVICE, ENTITY_VIEW, EDGE and DASHBOARD groups can be public.")

@@ -70,6 +70,34 @@ public interface EdgeRepository extends JpaRepository<EdgeEntity, UUID> {
                                                  @Param("textSearch") String textSearch,
                                                  Pageable pageable);
 
+    /**
+     * 只要租户自己持有（未分配给任何客户）的 edge。未分配有两种表示：列名为 SQL NULL，
+     * 或是 NULL_UUID 哨兵值 —— 两种都要排除，只判其一会漏。
+     */
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.EdgeInfoEntity(d, c.title, c.additionalInfo) " +
+            "FROM EdgeEntity d " +
+            "LEFT JOIN CustomerEntity c on c.id = d.customerId " +
+            "WHERE d.tenantId = :tenantId " +
+            "AND (d.customerId IS NULL OR d.customerId = :nullCustomerId) " +
+            "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<EdgeInfoEntity> findTenantEdgeInfosByTenantId(@Param("tenantId") UUID tenantId,
+                                                       @Param("nullCustomerId") UUID nullCustomerId,
+                                                       @Param("textSearch") String textSearch,
+                                                       Pageable pageable);
+
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.EdgeInfoEntity(d, c.title, c.additionalInfo) " +
+            "FROM EdgeEntity d " +
+            "LEFT JOIN CustomerEntity c on c.id = d.customerId " +
+            "WHERE d.tenantId = :tenantId " +
+            "AND d.type = :type " +
+            "AND (d.customerId IS NULL OR d.customerId = :nullCustomerId) " +
+            "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<EdgeInfoEntity> findTenantEdgeInfosByTenantIdAndType(@Param("tenantId") UUID tenantId,
+                                                              @Param("type") String type,
+                                                              @Param("nullCustomerId") UUID nullCustomerId,
+                                                              @Param("textSearch") String textSearch,
+                                                              Pageable pageable);
+
     @Query("SELECT d FROM EdgeEntity d WHERE d.tenantId = :tenantId " +
             "AND d.type = :type " +
             "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true)")
