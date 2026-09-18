@@ -187,12 +187,32 @@ public class EdgeGrpcSession implements EdgeSession {
         };
     }
 
+    /**
+     * 每次同步前幂等地确保租户用户组已分配给这台 edge。
+     *
+     * <p>用户是按分组同步的，edge 必须挂着 "All" / "Tenant Administrators" 两个用户组才能
+     * 收到用户。新建 edge 时 DefaultTbEdgeService 已经挂过，但**这个版本之前建的 edge 没有**
+     * —— 它们连上来时会一个用户都收不到，没人能登录 edge。
+     *
+     * <p>放在同步入口而不是写一次性迁移脚本：对新旧 edge 都自愈，重启/升级顺序无关，
+     * 也不需要运维记得执行某个脚本。代价是每次同步多两次分组查询 + 两次关系检查。
+     */
+    private void ensureTenantUserGroupsAssigned() {
+        try {
+            ctx.getEntityGroupService().assignTenantAdministratorsAndUsersGroupToEdge(getTenantId(), getEdgeId());
+        } catch (Exception e) {
+            // 不能因为这步失败就中断整个同步 —— 其余实体照常下发。
+            log.warn("[{}][{}] Failed to ensure tenant user groups are assigned to edge", getTenantId(), getEdgeId(), e);
+        }
+    }
+
     @Override
     public void startSyncProcess(boolean fullSync) {
         if (state.tryStartSync()) {
             saveSyncInProgressAsAttribute(true);
             log.info("[{}][{}][{}] Staring edge sync process", getTenantId(), getEdgeId(), getSessionId());
             interruptGeneralProcessingOnSync();
+            ensureTenantUserGroupsAssigned();
             doSync(new EdgeSyncCursor(ctx, state.getEdge(), fullSync));
         } else {
             log.info("[{}][{}][{}] Sync is already started, skipping starting it now", getTenantId(), getEdgeId(), getSessionId());

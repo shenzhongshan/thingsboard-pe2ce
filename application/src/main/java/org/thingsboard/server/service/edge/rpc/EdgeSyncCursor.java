@@ -27,7 +27,6 @@ import org.thingsboard.server.service.edge.rpc.fetch.AssetProfilesEdgeEventFetch
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.CustomerRolesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.PublicCustomerUserGroupEdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.CustomerUsersEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DefaultProfilesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceProfilesEdgeEventFetcher;
 import org.thingsboard.server.common.data.EntityType;
@@ -48,7 +47,6 @@ import org.thingsboard.server.service.edge.rpc.fetch.SecretEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.SysAdminRolesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.SystemWidgetTypesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.SystemWidgetsBundlesEdgeEventFetcher;
-import org.thingsboard.server.service.edge.rpc.fetch.TenantAdminUsersEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantResourcesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.TenantRolesEdgeEventFetcher;
@@ -76,7 +74,6 @@ public class EdgeSyncCursor {
             fetchers.add(new TenantRolesEdgeEventFetcher(ctx.getRoleService()));
             fetchers.add(new AdminSettingsEdgeEventFetcher(ctx.getAdminSettingsService(), TenantId.SYS_TENANT_ID));
             fetchers.add(new AdminSettingsEdgeEventFetcher(ctx.getAdminSettingsService(), edge.getTenantId()));
-            fetchers.add(new TenantAdminUsersEdgeEventFetcher(ctx.getUserService()));
             fetchers.add(new OAuth2EdgeEventFetcher(ctx.getDomainService()));
             fetchers.add(new SystemWidgetTypesEdgeEventFetcher(ctx.getWidgetTypeService()));
             fetchers.add(new TenantWidgetTypesEdgeEventFetcher(ctx.getWidgetTypeService()));
@@ -93,7 +90,6 @@ public class EdgeSyncCursor {
         }
         if (edge.getCustomerId() != null && !EntityId.NULL_UUID.equals(edge.getCustomerId().getId())) {
             fetchers.add(new CustomerEdgeEventFetcher(edge.getCustomerId()));
-            fetchers.add(new CustomerUsersEdgeEventFetcher(ctx.getUserService(), edge.getCustomerId()));
             // 客户自有角色：组权限会引用它们，缺了 edge 本地解析权限时会找不到角色。
             fetchers.add(new CustomerRolesEdgeEventFetcher(ctx.getRoleService(), edge.getCustomerId()));
         }
@@ -106,12 +102,9 @@ public class EdgeSyncCursor {
         fetchers.add(new DefaultProfilesEdgeEventFetcher(ctx.getDeviceProfileService(), ctx.getAssetProfileService()));
         fetchers.add(new DeviceProfilesEdgeEventFetcher(ctx.getDeviceProfileService()));
         fetchers.add(new AssetProfilesEdgeEventFetcher(ctx.getAssetProfileService()));
-        // 注意：上面的 TenantAdminUsers/CustomerUsers 两个逐实体 fetcher **暂时保留**。
-        // PE 不需要它们：PE 建 edge 时调 assignTenantAdministratorsAndUsersGroupToEdge 把用户组
-        // 挂到 edge 上，用户随后经下面的 USER 分组同步过去。CE 现在也有这个方法了，但它只在
-        // 新建 edge 时调用 —— **存量 edge 没有这层关系**，此刻删掉这两个 fetcher 会让它们
-        // 立刻失去全部用户，没人能登录 edge。
-        // 删除前提：给存量 edge 补一次分组关系（backfill），或在每次同步时幂等地确保它存在。
+        // 用户经 USER 分组同步，与 PE 一致 —— 原先按租户/客户推全量的那两个逐实体 fetcher
+        // 已删除。前提是 edge 上挂着用户组：新建时由 DefaultTbEdgeService 挂，存量 edge 由
+        // EdgeGrpcSession.ensureTenantUserGroupsAssigned 在每次同步前幂等补上。
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.USER));
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.ASSET));
         fetchers.add(new EntityGroupEdgeEventFetcher(ctx.getEntityGroupService(), EntityType.DEVICE));
