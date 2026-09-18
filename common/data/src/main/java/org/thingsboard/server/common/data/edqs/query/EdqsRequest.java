@@ -15,12 +15,16 @@
  */
 package org.thingsboard.server.common.data.edqs.query;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.thingsboard.server.common.data.query.EntityCountQuery;
 import org.thingsboard.server.common.data.query.EntityDataQuery;
+
+import java.util.Set;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -30,5 +34,10 @@ public class EdqsRequest {
 
     private EntityDataQuery entityDataQuery;
     private EntityCountQuery entityCountQuery;
+    /**
+     * What the caller may see. PE ships the whole MergedUserPermissions here; CE sends only the two
+     * decisions the engines need, riding the existing JSON payload of EdqsRequestMsg - no proto change.
+     */
+    private QueryPermissions queryPermissions;
 
 }

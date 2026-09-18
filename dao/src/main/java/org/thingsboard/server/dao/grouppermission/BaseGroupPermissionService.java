@@ -27,6 +27,8 @@ import org.thingsboard.server.dao.eventsourcing.GroupPermissionsEvictEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.JacksonUtil;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
@@ -35,6 +37,7 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.role.RoleType;
+import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.model.sql.GroupPermissionEntity;
 import org.thingsboard.server.dao.role.RoleService;
@@ -44,6 +47,7 @@ import org.thingsboard.server.exception.DataValidationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -57,6 +61,7 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     private final GroupPermissionRepository groupPermissionRepository;
     private final RoleService roleService;
     private final EntityGroupService entityGroupService;
+    private final CustomerDao customerDao;
 
     @Override
     public GroupPermission saveGroupPermission(TenantId tenantId, GroupPermission groupPermission) {
@@ -73,6 +78,7 @@ public class BaseGroupPermissionService implements GroupPermissionService {
         if (RoleType.GROUP.equals(role.getType()) && groupPermission.getEntityGroupId() == null) {
             throw new DataValidationException("Entity group should be specified for a GROUP-type role!");
         }
+        validateRoleScope(tenantId, role, groupPermission.getUserGroupId());
         groupPermission.setTenantId(tenantId);
         if (groupPermission.getId() == null) {
             groupPermission.setCreatedTime(System.currentTimeMillis());
@@ -82,6 +88,34 @@ public class BaseGroupPermissionService implements GroupPermissionService {
         eventPublisher.publishEvent(SaveEntityEvent.builder().tenantId(tenantId).entityId(saved.getId())
                 .entity(saved).created(created).broadcastEvent(true).build());
         return saved;
+    }
+
+    /**
+     * A customer-scoped role may only be granted inside that customer's subtree. Tenant-level roles
+     * are usable anywhere in the tenant. Without this, a role owned by customer A could be attached
+     * to a user group owned by unrelated customer B, and the grant would then outlive A's deletion
+     * as a dangling reference.
+     */
+    private void validateRoleScope(TenantId tenantId, Role role, EntityGroupId userGroupId) {
+        if (role.isTenantLevel()) {
+            return;
+        }
+        EntityGroup userGroup = entityGroupService.findEntityGroupById(tenantId, userGroupId);
+        if (userGroup == null) {
+            throw new DataValidationException("Group permission is referencing a non-existent user group!");
+        }
+        EntityId groupOwner = userGroup.getOwnerId();
+        if (groupOwner == null || !EntityType.CUSTOMER.equals(groupOwner.getEntityType())) {
+            throw new DataValidationException("Customer-owned role can't be assigned to a tenant-level user group!");
+        }
+        if (role.getCustomerId().getId().equals(groupOwner.getId())) {
+            return;
+        }
+        boolean roleOwnerIsAncestor = customerDao.findAncestors(tenantId.getId(), groupOwner.getId()).stream()
+                .anyMatch(ancestor -> ancestor.getUuidId().equals(role.getCustomerId().getId()));
+        if (!roleOwnerIsAncestor) {
+            throw new DataValidationException("Role can't be assigned outside of its owning customer's scope!");
+        }
     }
 
     @Override
@@ -152,6 +186,12 @@ public class BaseGroupPermissionService implements GroupPermissionService {
         deleteAll(tenantId, groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), entityGroupId.getId()));
     }
 
+    @Override
+    @Transactional
+    public void deleteGroupPermissionsByTenantId(TenantId tenantId) {
+        deleteAll(tenantId, groupPermissionRepository.findByTenantId(tenantId.getId()));
+    }
+
     private void deleteAll(TenantId tenantId, List<GroupPermissionEntity> entities) {
         if (entities.isEmpty()) {
             return;
@@ -179,6 +219,15 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     public List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId) {
         return groupPermissionRepository.findByTenantIdAndRoleId(tenantId.getId(), roleId.getId())
                 .stream().map(GroupPermissionEntity::toData).toList();
+    }
+
+    @Override
+    public Optional<GroupPermission> findPublicGroupPermissionByTenantIdAndEntityGroupId(TenantId tenantId, EntityGroupId entityGroupId) {
+        return groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), entityGroupId.getId())
+                .stream()
+                .map(GroupPermissionEntity::toData)
+                .filter(GroupPermission::isPublic)
+                .findFirst();
     }
 
 }

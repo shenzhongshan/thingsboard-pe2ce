@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.entity;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,6 +33,7 @@ import org.thingsboard.server.common.data.HasEmail;
 import org.thingsboard.server.common.data.HasLabel;
 import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.HasTitle;
+import org.thingsboard.server.common.data.ObjectType;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.edqs.query.EdqsRequest;
 import org.thingsboard.server.common.data.edqs.query.EdqsResponse;
@@ -41,11 +43,13 @@ import org.thingsboard.server.common.data.id.HasId;
 import org.thingsboard.server.common.data.id.NameLabelAndCustomerDetails;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
+import org.thingsboard.server.common.data.query.AliasEntityId;
 import org.thingsboard.server.common.data.query.ComplexOperation;
 import org.thingsboard.server.common.data.query.EntityCountQuery;
 import org.thingsboard.server.common.data.query.EntityData;
 import org.thingsboard.server.common.data.query.EntityDataPageLink;
 import org.thingsboard.server.common.data.query.EntityDataQuery;
+import org.thingsboard.server.common.data.query.EntityFilter;
 import org.thingsboard.server.common.data.query.EntityFilterType;
 import org.thingsboard.server.common.data.query.EntityKey;
 import org.thingsboard.server.common.data.query.EntityKeyType;
@@ -54,6 +58,8 @@ import org.thingsboard.server.common.data.query.EntityNameFilter;
 import org.thingsboard.server.common.data.query.EntityTypeFilter;
 import org.thingsboard.server.common.data.query.KeyFilter;
 import org.thingsboard.server.common.data.query.RelationsQueryFilter;
+import org.thingsboard.server.common.data.query.SingleEntityFilter;
+import org.thingsboard.server.common.data.query.StateEntityOwnerFilter;
 import org.thingsboard.server.common.data.query.TsValue;
 import org.thingsboard.server.common.msg.edqs.EdqsApiService;
 import org.thingsboard.server.common.msg.edqs.EdqsService;
@@ -67,6 +73,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -118,6 +125,11 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
 
     @Override
     public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query) {
+        return countEntitiesByQuery(tenantId, customerId, query, QueryPermissions.UNRESTRICTED);
+    }
+
+    @Override
+    public long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, QueryPermissions queryPermissions) {
         log.trace("Executing countEntitiesByQuery, tenantId [{}], customerId [{}], query [{}]", tenantId, customerId, query);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
@@ -128,11 +140,12 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
         if (edqsService.isApiEnabled() && validForEdqs(query) && !tenantId.isSysTenantId()) {
             EdqsRequest request = EdqsRequest.builder()
                     .entityCountQuery(query)
+                    .queryPermissions(queryPermissions)
                     .build();
             EdqsResponse response = processEdqsRequest(tenantId, customerId, request);
             result = response.getEntityCountQueryResult();
         } else {
-            result = entityQueryDao.countEntitiesByQuery(tenantId, customerId, query);
+            result = entityQueryDao.countEntitiesByQuery(tenantId, customerId, query, queryPermissions);
         }
         edqsStatsService.reportEntityCountQuery(tenantId, query, System.nanoTime() - startNs);
         return result;
@@ -140,6 +153,11 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
 
     @Override
     public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
+        return findEntityDataByQuery(tenantId, customerId, query, QueryPermissions.UNRESTRICTED);
+    }
+
+    @Override
+    public PageData<EntityData> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
         log.trace("Executing findEntityDataByQuery, tenantId [{}], customerId [{}], query [{}]", tenantId, customerId, query);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
@@ -150,18 +168,25 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
         if (edqsService.isApiEnabled() && validForEdqs(query) && !tenantId.isSysTenantId()) {
             EdqsRequest request = EdqsRequest.builder()
                     .entityDataQuery(query)
+                    .queryPermissions(queryPermissions)
                     .build();
             EdqsResponse response = processEdqsRequest(tenantId, customerId, request);
             result = response.getEntityDataQueryResult();
         } else {
-            result = findEntityDataByQueryInternal(tenantId, customerId, query);
+            result = findEntityDataByQueryInternal(tenantId, customerId, query, queryPermissions);
         }
+        result = maskUnreadableValues(result, queryPermissions);
         edqsStatsService.reportEntityDataQuery(tenantId, query, System.nanoTime() - startNs);
         return result;
     }
 
     @Override
     public ListenableFuture<PageData<EntityData>> findEntityDataByQueryAsync(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
+        return findEntityDataByQueryAsync(tenantId, customerId, query, QueryPermissions.UNRESTRICTED);
+    }
+
+    @Override
+    public ListenableFuture<PageData<EntityData>> findEntityDataByQueryAsync(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
         log.trace("Executing findEntityDataByQueryAsync, tenantId [{}], customerId [{}], query [{}]", tenantId, customerId, query);
 
         try {
@@ -175,38 +200,83 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
         if (edqsService.isApiEnabled() && validForEdqs(query) && !tenantId.isSysTenantId()) {
             EdqsRequest request = EdqsRequest.builder()
                     .entityDataQuery(query)
+                    .queryPermissions(queryPermissions)
                     .build();
             long startNs = System.nanoTime();
             return Futures.transform(processEdqsRequestAsync(tenantId, customerId, request), response -> {
                 edqsStatsService.reportEntityDataQuery(tenantId, query, System.nanoTime() - startNs);
-                return response.getEntityDataQueryResult();
+                return maskUnreadableValues(response.getEntityDataQueryResult(), queryPermissions);
             }, MoreExecutors.directExecutor());
         }
 
         return jpaExecutorService.submit(() -> {
             long startNs = System.nanoTime();
-            PageData<EntityData> result = findEntityDataByQueryInternal(tenantId, customerId, query);
+            PageData<EntityData> result = maskUnreadableValues(
+                    findEntityDataByQueryInternal(tenantId, customerId, query, queryPermissions), queryPermissions);
             edqsStatsService.reportEntityDataQuery(tenantId, query, System.nanoTime() - startNs);
             return result;
         });
     }
 
-    private PageData<EntityData> findEntityDataByQueryInternal(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
+    private PageData<EntityData> findEntityDataByQueryInternal(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
         if (!isValidForOptimization(query)) {
-            return entityQueryDao.findEntityDataByQuery(tenantId, customerId, query);
+            return entityQueryDao.findEntityDataByQuery(tenantId, customerId, query, queryPermissions);
         }
         // 1 step - find entity data by filter and sort columns
-        PageData<EntityData> entityDataByQuery = findEntityIdsByFilterAndSorterColumns(tenantId, customerId, query);
+        PageData<EntityData> entityDataByQuery = findEntityIdsByFilterAndSorterColumns(tenantId, customerId, query, queryPermissions);
         if (entityDataByQuery == null || entityDataByQuery.getData().isEmpty()) {
             return entityDataByQuery;
         }
         // 2 step - find entity data by entity ids from the 1st step
-        List<EntityData> entities = fetchEntityDataByIdsFromInitialQuery(tenantId, customerId, query, entityDataByQuery.getData());
+        List<EntityData> entities = fetchEntityDataByIdsFromInitialQuery(tenantId, customerId, query, entityDataByQuery.getData(), queryPermissions);
         return new PageData<>(entities, entityDataByQuery.getTotalPages(), entityDataByQuery.getTotalElements(), entityDataByQuery.hasNext());
     }
 
-    private boolean validForEdqs(EntityCountQuery query) { // for compatibility with PE
-        return true;
+    /**
+     * Whether EDQS can answer this query, or whether it has to fall back to the SQL engine.
+     * <p>
+     * EDQS holds only {@link ObjectType#edqsTypes} in memory. A query naming any other entity type
+     * would silently return nothing rather than erroring, so route those to SQL. Two shapes need the
+     * check:
+     * <ul>
+     *   <li>STATE_ENTITY_OWNER, which looks the state entity up to derive its owner (an alarm most
+     *       notably - PE hardcodes exactly that exclusion);</li>
+     *   <li>filters that name their target type outright, which is how a query over a type CE
+     *       deliberately keeps non-resident (BLOB_ENTITY, REPORT - their services publish no entity
+     *       events, so a resident copy would drift) reaches us.</li>
+     * </ul>
+     * Every other filter is answered from an index that can only contain resident entities.
+     */
+    private boolean validForEdqs(EntityCountQuery query) {
+        EntityFilter entityFilter = query.getEntityFilter();
+        if (entityFilter instanceof StateEntityOwnerFilter filter) {
+            AliasEntityId stateEntity = filter.getSingleEntity() != null ? filter.getSingleEntity() : filter.getDefaultStateEntity();
+            if (stateEntity == null || stateEntity.isAliasEntityId()) {
+                return false;
+            }
+            return isEdqsResident(stateEntity.getEntityType());
+        }
+        EntityType queried = namedEntityType(entityFilter);
+        return queried == null || isEdqsResident(queried);
+    }
+
+    private static boolean isEdqsResident(EntityType entityType) {
+        return ObjectType.edqsTypes.contains(ObjectType.fromEntityType(entityType));
+    }
+
+    /**
+     * The entity type a filter names outright, or null when the filter's result type is implied by an
+     * index EDQS owns (relation walks, profile/type filters, entity groups) and so is always resident.
+     */
+    private static EntityType namedEntityType(EntityFilter entityFilter) {
+        return switch (entityFilter) {
+            case EntityTypeFilter f -> f.getEntityType();
+            case EntityListFilter f -> f.getEntityType();
+            case EntityNameFilter f -> f.getEntityType();
+            case SingleEntityFilter f -> f.getSingleEntity() != null && !f.getSingleEntity().isAliasEntityId()
+                    ? f.getSingleEntity().getEntityType() : null;
+            case null, default -> null;
+        };
     }
 
     private EdqsResponse processEdqsRequest(TenantId tenantId, CustomerId customerId, EdqsRequest request) {
@@ -274,7 +344,8 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
                     EntityDataQuery query = new EntityDataQuery(filter, new EntityDataPageLink(ids.size(), 0, null, null),
                             List.of(new EntityKey(EntityKeyType.ENTITY_FIELD, ModelConstants.NAME_PROPERTY)), Collections.emptyList(), Collections.emptyList());
 
-                    entityQueryDao.findEntityDataByQuery(tenantId, customerId, query).getData().forEach(entityData -> {
+                    // internal name lookup by explicit id list - no user context, so owner scope only
+                    entityQueryDao.findEntityDataByQuery(tenantId, customerId, query, QueryPermissions.UNRESTRICTED).getData().forEach(entityData -> {
                         EntityId entityId = entityData.getEntityId();
                         Optional.ofNullable(entityData.getLatest().get(EntityKeyType.ENTITY_FIELD))
                                 .map(fields -> fields.get(ModelConstants.NAME_PROPERTY))
@@ -404,7 +475,7 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
         return !(filteringKeys.containsAll(entityFields) && filteringKeys.containsAll(latestValues));
     }
 
-    private PageData<EntityData> findEntityIdsByFilterAndSorterColumns(TenantId tenantId, CustomerId customerId, EntityDataQuery query) {
+    private PageData<EntityData> findEntityIdsByFilterAndSorterColumns(TenantId tenantId, CustomerId customerId, EntityDataQuery query, QueryPermissions queryPermissions) {
         List<EntityKey> entityFields = null;
         List<EntityKey> latestValues = null;
         if (query.getPageLink().getSortOrder() != null) {
@@ -420,10 +491,10 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
             }
         }
         EntityDataQuery entityQuery = new EntityDataQuery(query.getEntityFilter(), query.getPageLink(), entityFields, latestValues, query.getKeyFilters(), query.getKeyFiltersOperation());
-        return this.entityQueryDao.findEntityDataByQuery(tenantId, customerId, entityQuery);
+        return this.entityQueryDao.findEntityDataByQuery(tenantId, customerId, entityQuery, queryPermissions);
     }
 
-    private List<EntityData> fetchEntityDataByIdsFromInitialQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, List<EntityData> initialQueryResult) {
+    private List<EntityData> fetchEntityDataByIdsFromInitialQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, List<EntityData> initialQueryResult, QueryPermissions queryPermissions) {
         List<EntityData> result = new ArrayList<>();
 
         List<String> entityIds = initialQueryResult.stream().map(d -> d.getEntityId().getId().toString()).collect(Collectors.toList());
@@ -435,23 +506,60 @@ public class BaseEntityService extends AbstractEntityService implements EntitySe
                 chunks.add(entityIds.subList(i, Math.min(entityIds.size(), i + MAX_ENTITY_IDS_SIZE)));
             }
             for (List<String> chunk : chunks) {
-                result.addAll(findEntityDataByEntityIds(tenantId, customerId, query, chunk, entityType, chunk.size()));
+                result.addAll(findEntityDataByEntityIds(tenantId, customerId, query, chunk, entityType, chunk.size(), queryPermissions));
             }
         } else {
-            result.addAll(findEntityDataByEntityIds(tenantId, customerId, query, entityIds, entityType, query.getPageLink().getPageSize()));
+            result.addAll(findEntityDataByEntityIds(tenantId, customerId, query, entityIds, entityType, query.getPageLink().getPageSize(), queryPermissions));
         }
         return result;
     }
 
     private List<EntityData> findEntityDataByEntityIds(TenantId tenantId, CustomerId customerId, EntityDataQuery query,
-                                                       List<String> entityIds, EntityType entityType, int pageSize) {
+                                                       List<String> entityIds, EntityType entityType, int pageSize,
+                                                       QueryPermissions queryPermissions) {
         EntityListFilter filter = new EntityListFilter();
         filter.setEntityType(entityType);
         filter.setEntityList(entityIds);
 
         EntityDataPageLink pageLink = new EntityDataPageLink(pageSize, 0, null, query.getPageLink().getSortOrder());
         EntityDataQuery entityQuery = new EntityDataQuery(filter, pageLink, query.getEntityFields(), query.getLatestValues(), null);
-        return this.entityQueryDao.findEntityDataByQuery(tenantId, customerId, entityQuery).getData();
+        return this.entityQueryDao.findEntityDataByQuery(tenantId, customerId, entityQuery, queryPermissions).getData();
+    }
+
+    /**
+     * Blanks attribute/timeseries values the caller may not read, leaving the entity itself visible.
+     * READ on an entity does not imply reading its values: PE grants READ_ATTRIBUTES and
+     * READ_TELEMETRY separately and returns TsValue.EMPTY for the rest.
+     * <p>
+     * Deliberately applied here, on the result of whichever engine ran, rather than inside each
+     * engine as PE does. Both engines converge on this one PageData, so a single pass cannot drift -
+     * and engine drift has been the recurring defect in this area. The trade-off is that values are
+     * fetched and then discarded: this is an authorization fix, not data minimisation at the source.
+     */
+    private static PageData<EntityData> maskUnreadableValues(PageData<EntityData> page, QueryPermissions permissions) {
+        if (page == null || permissions.unrestricted() || page.getData().isEmpty()) {
+            return page;
+        }
+        for (EntityData entityData : page.getData()) {
+            Map<EntityKeyType, Map<String, TsValue>> latest = entityData.getLatest();
+            if (latest == null || latest.isEmpty()) {
+                continue;
+            }
+            EntityType entityType = entityData.getEntityId() != null ? entityData.getEntityId().getEntityType() : null;
+            boolean attrs = permissions.hasAttributeRead(entityType);
+            boolean ts = permissions.hasTimeseriesRead(entityType);
+            if (attrs && ts) {
+                continue;
+            }
+            latest.forEach((keyType, values) -> {
+                boolean allowed = keyType.isAttribute() ? attrs
+                        : (keyType == EntityKeyType.TIME_SERIES ? ts : true);
+                if (!allowed) {
+                    values.replaceAll((key, value) -> TsValue.EMPTY);
+                }
+            });
+        }
+        return page;
     }
 
 }

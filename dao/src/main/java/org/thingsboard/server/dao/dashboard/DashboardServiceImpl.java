@@ -212,6 +212,14 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
             throw new DataValidationException("Can't assign dashboard to customer from different tenant!");
         }
         if (dashboard.addAssignedCustomer(customer)) {
+            // Keep the owner column in lockstep with the group move below. CE treats assignment as an
+            // ownership transfer (moveAllGroupMembership hands the dashboard to the customer's "All"
+            // group), so letting customer_id diverge from that would give two contradictory answers
+            // to "who owns this dashboard". NOTE: this is deliberately unlike PE, where assigning and
+            // owning are independent and only OwnerController changes the owner.
+            if (dashboard.getCustomerId() == null || dashboard.getCustomerId().isNullUid()) {
+                dashboard.setCustomerId(customerId);
+            }
             try {
                 createRelation(tenantId, new EntityRelation(customerId, dashboardId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.DASHBOARD));
             } catch (Exception e) {
@@ -234,6 +242,11 @@ public class DashboardServiceImpl extends AbstractEntityService implements Dashb
             throw new DataValidationException("Can't unassign dashboard from non-existent customer!");
         }
         if (dashboard.removeAssignedCustomer(customer)) {
+            // Mirror of assign: giving the dashboard back to the tenant also clears the owner, but
+            // only if this customer was the owner - unassigning some other shared customer must not.
+            if (customerId.equals(dashboard.getCustomerId())) {
+                dashboard.setCustomerId(null);
+            }
             try {
                 deleteRelation(tenantId, new EntityRelation(customerId, dashboardId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.DASHBOARD));
             } catch (Exception e) {

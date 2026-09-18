@@ -1099,7 +1099,6 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         ]
       },
       {id: MenuId.solution_templates},
-      {id: MenuId.device_simulators},
       {
         id: MenuId.entities,
         pages: [
@@ -1140,7 +1139,8 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.otaUpdates},
           {id: MenuId.version_control},
           {id: MenuId.scheduler},
-          {id: MenuId.task_manager}
+          {id: MenuId.task_manager},
+          {id: MenuId.device_simulators}
         ]
       },
       {
@@ -1191,6 +1191,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.settings,
         pages: [
           {id: MenuId.home_settings},
+          {id: MenuId.mail_server},
           {id: MenuId.notification_settings},
           {id: MenuId.repository_settings},
           {id: MenuId.auto_commit_settings},

@@ -15,9 +15,11 @@
  */
 package org.thingsboard.integration.remote;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.thingsboard.server.coapserver.CoapServerService;
 import org.thingsboard.server.service.integration.AwsKinesisIntegrationRuntimeFactory;
 import org.thingsboard.server.service.integration.AwsSqsIntegrationRuntimeFactory;
 import org.thingsboard.server.service.integration.AzureEventHubIntegrationRuntimeFactory;
@@ -67,8 +69,11 @@ public class RemoteIntegrationRuntimeFactoryConfiguration {
     }
 
     @Bean
-    public CoapIntegrationRuntimeFactory coapIntegrationRuntimeFactory() {
-        return new CoapIntegrationRuntimeFactory();
+    public CoapIntegrationRuntimeFactory coapIntegrationRuntimeFactory(
+            @Autowired(required = false) CoapServerService coapServerService) {
+        // Optional on purpose: this process runs no CoAP server, so the bean is absent and the
+        // runtime falls back to legacy port mode. Mirrors IntegrationRuntimeFactoryConfiguration.
+        return new CoapIntegrationRuntimeFactory(coapServerService);
     }
 
     @Bean

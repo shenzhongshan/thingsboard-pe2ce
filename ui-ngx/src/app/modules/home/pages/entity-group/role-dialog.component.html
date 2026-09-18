@@ -52,17 +52,19 @@
                 <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
                   <mat-form-field class="flex-1">
                     <mat-label translate>role.resource</mat-label>
-                    <mat-select formControlName="resource" required>
-                      @for (res of roleResources; track res) {
-                        <mat-option [value]="res">{{ roleResourceTranslations.get(res) | translate }}</mat-option>
+                    <mat-select formControlName="resource" required
+                                (selectionChange)="onResourceChanged($any(row))">
+                      @for (res of resourceOptions(row.get('resource').value); track res) {
+                        <mat-option [value]="res">{{ roleResourceTranslation(res) | translate }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
                   <mat-form-field class="flex-1">
                     <mat-label translate>role.operations</mat-label>
-                    <mat-select formControlName="operations" multiple required>
-                      @for (op of roleOperations; track op) {
-                        <mat-option [value]="op">{{ roleOperationTranslations.get(op) | translate }}</mat-option>
+                    <mat-select formControlName="operations" multiple required
+                                [disabled]="!row.get('resource').value">
+                      @for (op of operationsFor(row.get('resource').value, row.get('operations').value); track op) {
+                        <mat-option [value]="op">{{ roleOperationTranslation(op) | translate }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
@@ -81,8 +83,8 @@
             <mat-form-field class="w-full">
               <mat-label translate>role.operations</mat-label>
               <mat-select formControlName="groupOperations" multiple>
-                @for (op of roleOperations; track op) {
-                  <mat-option [value]="op">{{ roleOperationTranslations.get(op) | translate }}</mat-option>
+                @for (op of groupOperationsFor(form.get('groupOperations').value); track op) {
+                  <mat-option [value]="op">{{ roleOperationTranslation(op) | translate }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>

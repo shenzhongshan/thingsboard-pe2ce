@@ -52,6 +52,7 @@ import org.thingsboard.rule.engine.api.MailService;
 import org.thingsboard.rule.engine.api.SmsService;
 import org.thingsboard.server.common.data.AdminSettings;
 import org.thingsboard.server.common.data.FeaturesInfo;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.SystemInfo;
 import org.thingsboard.server.common.data.UpdateMessage;
@@ -92,6 +93,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.thingsboard.server.controller.ControllerConstants.SYSTEM_AUTHORITY_PARAGRAPH;
+import static org.thingsboard.server.controller.ControllerConstants.SYSTEM_OR_TENANT_AUTHORITY_PARAGRAPH;
 import static org.thingsboard.server.controller.ControllerConstants.TENANT_AUTHORITY_PARAGRAPH;
 
 @RestController
@@ -125,16 +127,44 @@ public class AdminController extends BaseController {
 
     @ApiOperation(value = "Get the Administration Settings object using key (getAdminSettings)",
             notes = "Get the Administration Settings object using specified string key. Referencing non-existing key will cause an error." + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @GetMapping(value = "/settings/{key}")
     public AdminSettings getAdminSettings(
             @Parameter(description = "A string value of the key (e.g. 'general' or 'mail').")
-            @PathVariable("key") String key) throws ThingsboardException {
-        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
-        AdminSettings adminSettings = checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, key), "No Administration settings found for key: " + key);
+            @PathVariable("key") String key,
+            @Parameter(description = "Use system settings if settings are not defined on tenant level.")
+            @RequestParam(required = false, defaultValue = "false") boolean systemByDefault) throws ThingsboardException {
+        AdminSettings adminSettings;
+        if (Authority.SYS_ADMIN.equals(getCurrentUser().getAuthority())) {
+            accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+            adminSettings = checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, key), "No Administration settings found for key: " + key);
+        } else {
+            accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
+            adminSettings = getTenantAdminSettings(getTenantId(), key, systemByDefault);
+        }
         if (adminSettings.getKey().equals(MAIL_SETTINGS_KEY)) {
             ((ObjectNode) adminSettings.getJsonValue()).remove("password");
             ((ObjectNode) adminSettings.getJsonValue()).remove("refreshToken");
+        }
+        return adminSettings;
+    }
+
+    /**
+     * A tenant's own settings row for {@code key}, or - depending on {@code systemByDefault} - the
+     * system row it currently inherits, or an empty placeholder so the UI has a form to fill in.
+     * Never returns null. Mirrors PE's AdminController.
+     */
+    private AdminSettings getTenantAdminSettings(TenantId tenantId, String key, boolean systemByDefault) throws ThingsboardException {
+        AdminSettings adminSettings = adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, key);
+        if (adminSettings == null) {
+            if (systemByDefault) {
+                return checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, key),
+                        "No Administration settings found for key: " + key);
+            }
+            adminSettings = new AdminSettings();
+            adminSettings.setTenantId(tenantId);
+            adminSettings.setKey(key);
+            adminSettings.setJsonValue(JacksonUtil.newObjectNode());
         }
         return adminSettings;
     }
@@ -143,19 +173,28 @@ public class AdminController extends BaseController {
             notes = "Creates or Updates the Administration Settings. Platform generates random Administration Settings Id during settings creation. " +
                     "The Administration Settings Id will be present in the response. Specify the Administration Settings Id when you would like to update the Administration Settings. " +
                     "Referencing non-existing Administration Settings Id will cause an error." + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @PostMapping(value = "/settings")
     public AdminSettings saveAdminSettings(
             @Parameter(description = "A JSON value representing the Administration Settings.")
             @RequestBody AdminSettings adminSettings) throws ThingsboardException {
-        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.WRITE);
-        adminSettings.setTenantId(getTenantId());
-        adminSettings = checkNotNull(adminSettingsService.saveAdminSettings(TenantId.SYS_TENANT_ID, adminSettings));
+        boolean sysAdmin = Authority.SYS_ADMIN.equals(getCurrentUser().getAuthority());
+        if (sysAdmin) {
+            accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.WRITE);
+        } else {
+            accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
+        }
+        TenantId tenantId = sysAdmin ? TenantId.SYS_TENANT_ID : getTenantId();
+        adminSettings.setTenantId(tenantId);
+        adminSettings = checkNotNull(adminSettingsService.saveAdminSettings(tenantId, adminSettings));
         if (adminSettings.getKey().equals(MAIL_SETTINGS_KEY)) {
-            mailService.updateMailConfiguration();
+            if (sysAdmin) {
+                // only the system sender is cached; tenant configs are resolved per send
+                mailService.updateMailConfiguration();
+            }
             ((ObjectNode) adminSettings.getJsonValue()).remove("password");
             ((ObjectNode) adminSettings.getJsonValue()).remove("refreshToken");
-        } else if (adminSettings.getKey().equals("sms")) {
+        } else if (adminSettings.getKey().equals("sms") && sysAdmin) {
             smsService.updateSmsConfiguration();
         }
         return adminSettings;
@@ -207,31 +246,40 @@ public class AdminController extends BaseController {
     @ApiOperation(value = "Send test email (sendTestMail)",
             notes = "Attempts to send test email to the System Administrator User using Mail Settings provided as a parameter. " +
                     "You may change the 'To' email in the user profile of the System Administrator. " + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @PostMapping(value = "/settings/testMail")
     public void sendTestMail(
             @Parameter(description = "A JSON value representing the Mail Settings.")
             @RequestBody AdminSettings adminSettings) throws ThingsboardException {
-        accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+        boolean sysAdmin = Authority.SYS_ADMIN.equals(getCurrentUser().getAuthority());
+        if (sysAdmin) {
+            accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);
+        } else {
+            accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
+        }
+        // the stored row the request's redacted fields are backfilled from: a tenant testing its own
+        // settings must read back its own password/refresh token, never the system server's
+        TenantId settingsTenantId = sysAdmin ? TenantId.SYS_TENANT_ID : getTenantId();
         adminSettings = checkNotNull(adminSettings);
         if (adminSettings.getKey().equals(MAIL_SETTINGS_KEY)) {
+            AdminSettings storedSettings = adminSettingsService.findAdminSettingsByTenantIdAndKey(settingsTenantId, MAIL_SETTINGS_KEY);
             if (adminSettings.getJsonValue().has("enableOauth2") && adminSettings.getJsonValue().get("enableOauth2").asBoolean()) {
-                AdminSettings mailSettings = checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, MAIL_SETTINGS_KEY));
-                JsonNode refreshToken = mailSettings.getJsonValue().get("refreshToken");
+                JsonNode refreshToken = storedSettings == null ? null : storedSettings.getJsonValue().get("refreshToken");
                 if (refreshToken == null) {
                     throw new ThingsboardException("Refresh token was not generated. Please, generate refresh token.", ThingsboardErrorCode.GENERAL);
                 }
                 ObjectNode settings = (ObjectNode) adminSettings.getJsonValue();
                 settings.put("refreshToken", refreshToken.asText());
             } else {
-                if (!adminSettings.getJsonValue().has("password")) {
-                    AdminSettings mailSettings = checkNotNull(adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, MAIL_SETTINGS_KEY));
-                    ((ObjectNode) adminSettings.getJsonValue()).put("password", mailSettings.getJsonValue().get("password").asText());
+                // the GET strips the password, so an unchanged form posts back without one
+                if (!adminSettings.getJsonValue().has("password") && storedSettings != null
+                        && storedSettings.getJsonValue().has("password")) {
+                    ((ObjectNode) adminSettings.getJsonValue()).put("password", storedSettings.getJsonValue().get("password").asText());
                 }
             }
             String email = getCurrentUser().getEmail();
             try {
-                mailService.sendTestMail(adminSettings.getJsonValue(), email);
+                mailService.sendTestMail(settingsTenantId, adminSettings.getJsonValue(), email);
             } catch (ThingsboardException e) {
                 String error = e.getMessage();
                 if (e.getCause() != null) {
@@ -244,8 +292,8 @@ public class AdminController extends BaseController {
 
     @ApiOperation(value = "Send test sms (sendTestSms)",
             notes = "Attempts to send test sms to the System Administrator User using SMS Settings and phone number provided as a parameters of the request. "
-                    + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('SYS_ADMIN')")
+                    + SYSTEM_OR_TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @PostMapping(value = "/settings/testSms")
     public void sendTestSms(
             @Parameter(description = "A JSON value representing the Test SMS request.")
@@ -407,8 +455,8 @@ public class AdminController extends BaseController {
 
     @ApiOperation(value = "Get OAuth2 log in processing URL (getMailProcessingUrl)", notes = "Returns the URL enclosed in " +
             "double quotes. After successful authentication with OAuth2 provider and user consent for requested scope, it makes a redirect to this path so that the platform can do " +
-            "further log in processing and generating access tokens. " + SYSTEM_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAnyAuthority('SYS_ADMIN')")
+            "further log in processing and generating access tokens. " + SYSTEM_OR_TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
     @GetMapping(value = "/mail/oauth2/loginProcessingUrl")
     public String getMailProcessingUrl() throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.ADMIN_SETTINGS, Operation.READ);

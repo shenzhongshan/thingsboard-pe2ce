@@ -90,13 +90,45 @@ public class DefaultSmsService implements SmsService {
         return this.sendSms(this.smsSender, numberTo, message);
     }
 
+    /**
+     * The sender a tenant's messages go out through: its own provider when it has configured one and
+     * has not ticked "use system SMS provider settings", otherwise the platform's shared sender.
+     * Mirrors the mail side and PE's own {@code DefaultSmsService}.
+     *
+     * <p>Tenant senders are built per call rather than cached, like PE - SMS volume is low, and a
+     * cache would need invalidating on every tenant settings edit.
+     */
+    private SmsSender resolveSmsSender(TenantId tenantId) throws ThingsboardException {
+        if (tenantId != null && !tenantId.isNullUid() && !tenantId.isSysTenantId()) {
+            AdminSettings tenantSettings = adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, "sms");
+            if (tenantSettings != null) {
+                JsonNode jsonConfig = tenantSettings.getJsonValue();
+                JsonNode useSystem = jsonConfig.get("useSystemSmsSettings");
+                if (useSystem != null && !useSystem.asBoolean()) {
+                    try {
+                        SmsProviderConfiguration configuration = JacksonUtil.convertValue(jsonConfig, SmsProviderConfiguration.class);
+                        return this.smsSenderFactory.createSmsSender(replaceSmsSecretUsages(configuration, tenantId));
+                    } catch (Exception e) {
+                        throw new ThingsboardException("Unable to send SMS: invalid tenant SMS provider configuration!",
+                                ThingsboardErrorCode.GENERAL);
+                    }
+                }
+            }
+        }
+        if (this.smsSender == null) {
+            throw new ThingsboardException("Unable to send SMS: no SMS provider configured!", ThingsboardErrorCode.GENERAL);
+        }
+        return this.smsSender;
+    }
+
     @Override
     public void sendSms(TenantId tenantId, CustomerId customerId, String[] numbersTo, String message) throws ThingsboardException {
         if (apiUsageStateService.getApiUsageState(tenantId).isSmsSendEnabled()) {
+            SmsSender sender = resolveSmsSender(tenantId);
             int smsCount = 0;
             try {
                 for (String numberTo : numbersTo) {
-                    smsCount += this.sendSms(numberTo, message);
+                    smsCount += this.sendSms(sender, numberTo, message);
                 }
             } finally {
                 if (smsCount > 0) {
@@ -123,7 +155,11 @@ public class DefaultSmsService implements SmsService {
 
     @Override
     public boolean isConfigured(TenantId tenantId) {
-        return smsSender != null;
+        try {
+            return resolveSmsSender(tenantId) != null;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private int sendSms(SmsSender smsSender, String numberTo, String message) throws ThingsboardException {
@@ -138,7 +174,12 @@ public class DefaultSmsService implements SmsService {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private SmsProviderConfiguration replaceSmsSecretUsages(SmsProviderConfiguration configuration) {
-        return secretConfigurationService.replaceSecretUsages(TenantId.SYS_TENANT_ID, configuration, (Class) configuration.getClass());
+        return replaceSmsSecretUsages(configuration, TenantId.SYS_TENANT_ID);
+    }
+
+    /** Secrets referenced by a tenant's own provider config belong to that tenant, not the system. */
+    private SmsProviderConfiguration replaceSmsSecretUsages(SmsProviderConfiguration configuration, TenantId tenantId) {
+        return secretConfigurationService.replaceSecretUsages(tenantId, configuration, (Class) configuration.getClass());
     }
 
     private ThingsboardException handleException(Exception exception) {

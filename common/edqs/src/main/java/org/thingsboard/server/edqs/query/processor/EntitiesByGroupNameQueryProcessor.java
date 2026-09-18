@@ -39,11 +39,9 @@ import java.util.regex.Pattern;
  * "the group named X owned by Y" lookups where the name is expected to be unique per owner; a
  * union-of-all-matches would silently merge unrelated groups' members into one datasource.
  * <p>
- * PE's owner model is polymorphic (tenant/customer/user/...); EDQS only tracks a plain customerId
- * per entity, so only CUSTOMER owners are actually filtered here - a TENANT (or other) ownerId is
- * treated as "no extra scoping" beyond the tenant-wide EDQS partition. Narrower than PE, not
- * incorrect: it can only ever return more candidates than a true owner-hierarchy check would,
- * never fewer.
+ * Owner scoping mirrors {@code DefaultEntityQueryRepository#entitiesByGroupNameQuery}: an absent
+ * ownerId means the tenant, not "any owner". Getting that wrong is not a narrowing - with two
+ * same-named groups under different owners it resolves to the wrong group entirely.
  */
 public class EntitiesByGroupNameQueryProcessor extends AbstractSingleEntityTypeQueryProcessor<EntitiesByGroupNameFilter> {
 
@@ -55,7 +53,11 @@ public class EntitiesByGroupNameQueryProcessor extends AbstractSingleEntityTypeQ
         super(repo, ctx, query, (EntitiesByGroupNameFilter) query.getEntityFilter());
         this.groupType = filter.getGroupType();
         this.namePattern = RepositoryUtils.toEntityNameSqlLikePattern(filter.getEntityGroupNameFilter());
-        this.ownerId = filter.getOwnerId();
+        // An absent ownerId means the CALLER's own owner - their customer, or the tenant for a tenant
+        // user - which is PE's getCtxOwnerId. Defaulting to the tenant instead would make a customer
+        // user resolve a same-named group owned by the tenant rather than their own.
+        this.ownerId = filter.getOwnerId() != null ? filter.getOwnerId()
+                : (ctx.isTenantUser() ? ctx.getTenantId() : ctx.getCustomerId());
     }
 
     @Override
@@ -77,22 +79,28 @@ public class EntitiesByGroupNameQueryProcessor extends AbstractSingleEntityTypeQ
     }
 
     private Set<EntityData<?>> collectMembers() {
-        boolean scopeToCustomer = ownerId != null && ownerId.getEntityType() == EntityType.CUSTOMER;
+        boolean scopeToCustomer = ownerId.getEntityType() == EntityType.CUSTOMER;
         EntityData<?> matchedGroup = null;
         for (EntityData<?> group : repository.getEntitySet(EntityType.ENTITY_GROUP)) {
             String type = group.getFields() != null ? group.getFields().getType() : null;
             if (!groupType.name().equals(type)) {
                 continue;
             }
-            if (scopeToCustomer && !ownerId.getId().equals(group.getCustomerId())) {
+            // EntityGroupFields sets customerId only for customer-owned groups, so a null customerId
+            // is exactly "tenant-owned" - the two branches below are complementary, never both false.
+            if (scopeToCustomer ? !ownerId.getId().equals(group.getCustomerId()) : group.getCustomerId() != null) {
                 continue;
             }
             String name = group.getFields().getName();
             if (namePattern != null && (name == null || !namePattern.matcher(name).matches())) {
                 continue;
             }
-            matchedGroup = group;
-            break;
+            // A prefix/wildcard name filter can match several groups of the same owner. The SQL path
+            // breaks that tie with `order by g.id limit 1`; iterate to the same winner rather than
+            // taking whichever the createdTime-ordered set happens to yield first.
+            if (matchedGroup == null || group.getId().compareTo(matchedGroup.getId()) < 0) {
+                matchedGroup = group;
+            }
         }
         Set<EntityData<?>> members = new HashSet<>();
         if (matchedGroup == null) {

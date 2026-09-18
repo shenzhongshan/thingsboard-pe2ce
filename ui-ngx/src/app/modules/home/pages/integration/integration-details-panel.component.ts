@@ -24,7 +24,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { EntityId } from '@shared/models/id/entity-id';
 import { EntityType } from '@shared/models/entity-type.models';
-import { DebugEventType } from '@shared/models/event.models';
+import { DebugConverterEventBody, DebugEventType } from '@shared/models/event.models';
 import { AuditLogMode } from '@shared/models/audit-log.models';
 import { AttributeScope, LatestTelemetry } from '@shared/models/telemetry/telemetry.models';
 import { ScriptLanguage } from '@shared/models/rule-node.models';
@@ -50,6 +50,7 @@ import {
   ConverterDialogData
 } from '@home/pages/integration/converter/converter-dialog.component';
 import {
+  ConverterTestDebugIn,
   ConverterTestDialogComponent,
   ConverterTestDialogData
 } from '@home/pages/integration/converter/converter-test-dialog.component';
@@ -248,6 +249,62 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
     return base + (this.converterIsUplink ? 'decoder_fn' : 'encoder_fn');
   }
 
+  /**
+   * Label for the events tab's "test with this message" row action. Null for integrations, which
+   * have no script to replay a message through - and that also switches the action off entirely.
+   */
+  get converterTestButtonLabel(): string {
+    if (this.target?.kind !== 'converter') {
+      return null;
+    }
+    return this.converterIsUplink ? 'converter.test-decoder' : 'converter.test-encoder';
+  }
+
+  /**
+   * PE's "使用此消息测试解码器函数": replays a recorded converter_debug_event row through the test
+   * dialog. Mapping is a port of PE's ConverterController#createDebugInFromFoundEvent - uplink rows
+   * carry the raw payload plus metadata, downlink rows carry an array of {msg, msgType, metadata}
+   * and the last element is the one to replay.
+   */
+  testConverterFunctionWithEvent(body: DebugConverterEventBody): void {
+    if (!body) {
+      return;
+    }
+    const debugIn: ConverterTestDebugIn = { inContentType: body.inMessageType };
+    if (body.type === 'Downlink') {
+      let entry: any = null;
+      try {
+        const parsed = JSON.parse(body.in);
+        if (Array.isArray(parsed) && parsed.length) {
+          entry = parsed[parsed.length - 1];
+        }
+      } catch (e) {
+        entry = null;
+      }
+      // PE drops a textual msg rather than dumping a quoted string into the JSON editor
+      debugIn.inContent = entry && entry.msg && typeof entry.msg === 'object' ? JSON.stringify(entry.msg, null, 2) : '';
+      debugIn.inMsgType = entry?.msgType;
+      debugIn.inMetadata = entry?.metadata;
+      debugIn.inIntegrationMetadata = this.parseMetadata(body.metadata);
+    } else {
+      debugIn.inContent = body.in;
+      debugIn.inMetadata = this.parseMetadata(body.metadata);
+    }
+    this.openConverterTestDialog(debugIn);
+  }
+
+  private parseMetadata(raw: string): any {
+    if (!raw) {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   exportConverter(): void {
     const id = this.converter?.id?.id;
     if (id) {
@@ -256,6 +313,10 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
   }
 
   testConverterFunction(): void {
+    this.openConverterTestDialog();
+  }
+
+  private openConverterTestDialog(debugIn?: ConverterTestDebugIn): void {
     this.dialog.open<ConverterTestDialogComponent, ConverterTestDialogData, string>(
       ConverterTestDialogComponent, {
         disableClose: false,
@@ -263,7 +324,8 @@ export class IntegrationDetailsPanelComponent implements OnChanges {
         data: {
           type: this.converterForm.get('type').getRawValue(),
           script: this.converterForm.get('script').getRawValue(),
-          scriptLang: this.converterForm.get('scriptLang').getRawValue()
+          scriptLang: this.converterForm.get('scriptLang').getRawValue(),
+          debugIn
         }
       }).afterClosed().subscribe((savedScript) => {
       // Only writable while editing; in read mode the control is disabled and setValue is a no-op

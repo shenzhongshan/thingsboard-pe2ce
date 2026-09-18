@@ -93,3 +93,11 @@ ALTER TABLE alarm ADD COLUMN IF NOT EXISTS propagate_to_owner_hierarchy BOOLEAN;
 ALTER TABLE resource ADD COLUMN IF NOT EXISTS customer_id uuid;
 
 -- RESOURCE CUSTOMER_ID ADDITION END
+
+-- CREATE TABLE IF NOT EXISTS is a no-op on an existing database, so a new column needs its own
+-- ALTER to reach one. Without this line only a fresh install would get dashboard.customer_id.
+ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id uuid;
+
+-- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather than SQL
+-- NULL, because the name-uniqueness lookup is an equality match and "= NULL" never matches.
+ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;

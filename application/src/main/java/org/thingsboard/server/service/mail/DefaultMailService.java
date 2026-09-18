@@ -91,11 +91,79 @@ public class DefaultMailService implements MailService {
     @Value("${mail.per_tenant_rate_limits:}")
     private String perTenantRateLimitConfig;
 
+    @Value("${actors.rule.allow_system_mail_service:true}")
+    private boolean allowSystemMailService;
+
     private TbMailSender mailSender;
 
     private String mailFrom;
 
     private long timeout;
+
+    /** The mail configuration actually in force for a tenant, and whether it is the system one. */
+    private record ConfigEntry(JsonNode jsonConfig, boolean isSystem) {}
+
+    /**
+     * Resolves which mail server a tenant's outgoing mail goes through.
+     *
+     * <p>A tenant may keep its own SMTP configuration under its own {@code mail} admin-settings row.
+     * The row carries a {@code useSystemMailSettings} flag: when it is absent or true the tenant has
+     * opted back into the platform's mail server, so the tenant row is ignored entirely. This
+     * mirrors PE's {@code DefaultMailService#getConfig}.
+     *
+     * @param allowSystem whether falling back to the system mail server is permitted for this call
+     *                    site (rule-engine sends honour {@code actors.rule.allow_system_mail_service})
+     */
+    private ConfigEntry getConfig(TenantId tenantId, boolean allowSystem) throws ThingsboardException {
+        try {
+            JsonNode jsonConfig = null;
+            if (tenantId != null && !tenantId.isNullUid() && !tenantId.isSysTenantId()) {
+                AdminSettings tenantSettings = adminSettingsService.findAdminSettingsByTenantIdAndKey(tenantId, "mail");
+                if (tenantSettings != null) {
+                    jsonConfig = tenantSettings.getJsonValue();
+                    JsonNode useSystem = jsonConfig.get("useSystemMailSettings");
+                    if (useSystem == null || useSystem.asBoolean()) {
+                        jsonConfig = null;
+                    }
+                }
+            }
+            boolean isSystem = false;
+            if (jsonConfig == null) {
+                if (!allowSystem) {
+                    throw new ThingsboardException("Access to System Mail Service is forbidden!", ThingsboardErrorCode.GENERAL);
+                }
+                AdminSettings systemSettings = adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, "mail");
+                if (systemSettings != null) {
+                    jsonConfig = systemSettings.getJsonValue();
+                    isSystem = true;
+                }
+            }
+            if (jsonConfig == null) {
+                throw new IncorrectParameterException("Failed to get mail configuration. Settings not found!");
+            }
+            return new ConfigEntry(jsonConfig, isSystem);
+        } catch (ThingsboardException e) {
+            throw e;
+        } catch (Exception e) {
+            throw handleException(e);
+        }
+    }
+
+    /** The sender + envelope for a tenant, built fresh per send the way PE does. */
+    private TbMailSender senderFor(ConfigEntry entry, TenantId tenantId) {
+        // secrets and OAuth2 refresh tokens must resolve against whichever tenant owns the config
+        return new TbMailSender(ctx, entry.isSystem() ? TenantId.SYS_TENANT_ID : tenantId, entry.jsonConfig());
+    }
+
+    private String mailFromOf(JsonNode jsonConfig) {
+        JsonNode node = jsonConfig.get("mailFrom");
+        return node == null ? mailFrom : node.asText();
+    }
+
+    private long timeoutOf(JsonNode jsonConfig) {
+        JsonNode node = jsonConfig.get("timeout");
+        return node == null ? DEFAULT_TIMEOUT : node.asLong(DEFAULT_TIMEOUT);
+    }
 
     @PostConstruct
     private void init() {
@@ -107,14 +175,19 @@ public class DefaultMailService implements MailService {
         timeoutScheduler.shutdownNow();
     }
 
+    /**
+     * Rebuilds the cached <b>system</b> sender. Tenant-scoped sends resolve their configuration per
+     * call in {@link #getConfig(TenantId, boolean)} instead, so a tenant saving its own mail
+     * settings does not go through here and cannot disturb the system sender.
+     */
     @Override
     public void updateMailConfiguration() {
         AdminSettings settings = adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, "mail");
         if (settings != null) {
             JsonNode jsonConfig = settings.getJsonValue();
-            mailSender = new TbMailSender(ctx, jsonConfig);
-            mailFrom = jsonConfig.get("mailFrom").asText();
-            timeout = jsonConfig.get("timeout").asLong(DEFAULT_TIMEOUT);
+            mailSender = new TbMailSender(ctx, TenantId.SYS_TENANT_ID, jsonConfig);
+            mailFrom = mailFromOf(jsonConfig);
+            timeout = timeoutOf(jsonConfig);
         } else {
             throw new IncorrectParameterException("Failed to update mail configuration. Settings not found!");
         }
@@ -122,22 +195,25 @@ public class DefaultMailService implements MailService {
 
     @Override
     public void sendEmail(TenantId tenantId, String email, String subject, String message) throws ThingsboardException {
-        sendMail(mailSender, mailFrom, email, subject, message, timeout);
+        ConfigEntry entry = getConfig(tenantId, true);
+        JsonNode jsonConfig = entry.jsonConfig();
+        sendMail(senderFor(entry, tenantId), mailFromOf(jsonConfig), email, subject, message, timeoutOf(jsonConfig));
     }
 
     @Override
-    public void sendTestMail(JsonNode jsonConfig, String email) throws ThingsboardException {
-        TbMailSender testMailSender = new TbMailSender(ctx, jsonConfig);
-        String mailFrom = jsonConfig.get("mailFrom").asText();
+    public void sendTestMail(TenantId tenantId, JsonNode jsonConfig, String email) throws ThingsboardException {
+        // built from the config the caller is testing, not from what is persisted - but still
+        // scoped to the tenant so ${secret:...} placeholders in it resolve against their owner
+        TbMailSender testMailSender = new TbMailSender(ctx, tenantId, jsonConfig);
+        String mailFrom = mailFromOf(jsonConfig);
         String subject = messages.getMessage("test.message.subject", null, Locale.US);
-        long timeout = jsonConfig.get("timeout").asLong(DEFAULT_TIMEOUT);
 
         Map<String, Object> model = new HashMap<>();
         model.put(TARGET_EMAIL, email);
 
         String message = mergeTemplateIntoString("test.ftl", model);
 
-        sendMail(testMailSender, mailFrom, email, subject, message, timeout);
+        sendMail(testMailSender, mailFrom, email, subject, message, timeoutOf(jsonConfig));
     }
 
     @Override
@@ -206,15 +282,22 @@ public class DefaultMailService implements MailService {
 
     @Override
     public void send(TenantId tenantId, CustomerId customerId, TbEmail tbEmail) throws ThingsboardException {
-        sendMail(tenantId, customerId, tbEmail, this.mailSender, timeout);
+        // the rule-engine "send email" node: a tenant with its own mail server uses it, and whether
+        // it may otherwise borrow the platform's one is what allow_system_mail_service governs
+        ConfigEntry entry = getConfig(tenantId, allowSystemMailService);
+        JsonNode jsonConfig = entry.jsonConfig();
+        sendMail(tenantId, customerId, tbEmail, senderFor(entry, tenantId), mailFromOf(jsonConfig), timeoutOf(jsonConfig));
     }
 
     @Override
     public void send(TenantId tenantId, CustomerId customerId, TbEmail tbEmail, JavaMailSender javaMailSender, long timeout) throws ThingsboardException {
-        sendMail(tenantId, customerId, tbEmail, javaMailSender, timeout);
+        // caller supplied its own SMTP connection, so no settings lookup - only the envelope's
+        // default "from" still comes from whatever configuration applies to this tenant
+        sendMail(tenantId, customerId, tbEmail, javaMailSender, mailFromOf(getConfig(tenantId, true).jsonConfig()), timeout);
     }
 
-    private void sendMail(TenantId tenantId, CustomerId customerId, TbEmail tbEmail, JavaMailSender javaMailSender, long timeout) throws ThingsboardException {
+    private void sendMail(TenantId tenantId, CustomerId customerId, TbEmail tbEmail, JavaMailSender javaMailSender,
+                          String mailFrom, long timeout) throws ThingsboardException {
         if (apiUsageStateService.getApiUsageState(tenantId).isEmailSendEnabled()) {
             if (tenantId != null && !tenantId.isSysTenantId() && StringUtils.isNotEmpty(perTenantRateLimitConfig) &&
                     !rateLimitService.checkRateLimit(LimitedApi.EMAILS, (Object) tenantId, perTenantRateLimitConfig)) {
@@ -310,12 +393,19 @@ public class DefaultMailService implements MailService {
 
     @Override
     public void testConnection(TenantId tenantId) throws Exception {
-        mailSender.testConnection();
+        ConfigEntry entry = getConfig(tenantId, true);
+        senderFor(entry, tenantId).testConnection();
     }
 
     @Override
     public boolean isConfigured(TenantId tenantId) {
-        return mailSender != null;
+        try {
+            ConfigEntry entry = getConfig(tenantId, allowSystemMailService);
+            senderFor(entry, tenantId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String toEnabledValueLabel(ApiFeature apiFeature) {

@@ -269,7 +269,9 @@ const routes: Routes = [
         component: MailServerComponent,
         canDeactivate: [ConfirmOnExitGuard],
         data: {
-          auth: [Authority.SYS_ADMIN],
+          // PE exposes this tab to tenant admins too: a tenant can point outgoing mail at its own
+          // SMTP server, or tick "use system settings" to keep using the platform's.
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
           title: 'admin.outgoing-mail-settings',
           breadcrumb: {
             menuId: MenuId.mail_server

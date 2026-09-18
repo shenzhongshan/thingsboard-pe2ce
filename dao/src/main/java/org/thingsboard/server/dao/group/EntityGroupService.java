@@ -22,6 +22,7 @@ import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 
@@ -60,6 +61,14 @@ public interface EntityGroupService {
     /** Removes every group the owner holds, including its "All" groups. Call when deleting the owner. */
     void deleteEntityGroupsByOwner(TenantId tenantId, EntityId ownerId);
 
+    /**
+     * Removes every group the tenant owns - its own and its customers' - together with the
+     * FROM_ENTITY_GROUP membership relations pointing at them. Called when deleting the tenant:
+     * customer-owned groups are swept by {@link #deleteEntityGroupsByOwner} as each customer goes,
+     * but the tenant's own groups have no such hook and would otherwise outlive the tenant.
+     */
+    void deleteEntityGroupsByTenantId(TenantId tenantId);
+
     void addEntitiesToEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds);
 
     void removeEntitiesFromEntityGroup(TenantId tenantId, EntityGroupId entityGroupId, List<EntityId> entityIds);
@@ -83,10 +92,15 @@ public interface EntityGroupService {
                                                       List<EntityGroupId> groupIds, boolean includeOwnerScope,
                                                       PageLink pageLink);
 
-    EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId, boolean isPublic);
+    EntityGroup makePublic(TenantId tenantId, EntityGroupId entityGroupId);
+
+    EntityGroup makePrivate(TenantId tenantId, EntityGroupId entityGroupId);
 
     /** Ensures + returns the "All" group id for the given owner+type (tenant-owned when ownerId is null). */
     EntityGroupId findOrCreateAllGroupId(TenantId tenantId, CustomerId ownerId, EntityType groupType);
+
+    /** Ensures + returns the "Public Users" USER group owned by the given customer (PE parity). */
+    EntityGroup findOrCreatePublicUsersGroup(TenantId tenantId, CustomerId customerId);
 
     /**
      * All entity-group ids the given entity belongs to: its tenant-level (and, if customerId is
@@ -116,6 +130,15 @@ public interface EntityGroupService {
      * the old owner's relation).
      */
     void ensureAllGroupMembership(TenantId tenantId, CustomerId ownerId, EntityType groupType, EntityId entityId);
+
+    /**
+     * Puts a newly created user into the default user group matching their authority, and makes sure
+     * that group is bound to the corresponding default role. PE does this in
+     * findOrCreateTenantAdminsGroup/findOrCreateCustomerUsersGroup; without it a user has no role
+     * grant at all, which is harmless while permissions are additive but would lock them out the
+     * moment enforcement becomes deny-by-default.
+     */
+    void ensureDefaultUserRoleMembership(TenantId tenantId, CustomerId ownerId, UserId userId, boolean tenantAdmin);
 
     /**
      * Moves entityId's "All"-group membership from oldOwnerId's group to newOwnerId's group for

@@ -41,6 +41,10 @@ public class EntityQueryProcessorFactory {
             case DEVICE_SEARCH_QUERY -> new DeviceSearchQueryProcessor(repo, ctx, query);
             case ENTITY_VIEW_SEARCH_QUERY -> new EntityViewSearchQueryProcessor(repo, ctx, query);
             case EDGE_SEARCH_QUERY -> new EdgeTypeSearchQueryProcessor(repo, ctx, query);
+            case SCHEDULER_EVENT -> new SchedulerEventQueryProcessor(repo, ctx, query);
+            case STATE_ENTITY_OWNER -> new StateEntityOwnerQueryProcessor(repo, ctx, query);
+            // STATE_ENTITY is resolved into a concrete filter before it reaches any query engine
+            // (EntityFilter#resolveEntityFilter), so it is intentionally absent here.
             default -> throw new RuntimeException("Not Implemented!");
         };
     }

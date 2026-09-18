@@ -685,6 +685,19 @@ integrations:
     # Periodically logs per-type integration counters (uplink/downlink messages, starts, failures)
     enabled: "${INTEGRATIONS_STATS_ENABLED:true}"
     print_interval_ms: "${INTEGRATIONS_STATS_PRINT_INTERVAL_MS:60000}"
+  statistics:
+    # How often the accumulated per-integration message/error counters are flushed into a
+    # stats_event row (milliseconds). This interval is also the resolution of the "daily activity"
+    # sparkline on the integrations list, which buckets those rows by hour.
+    persist_frequency: "${INTEGRATIONS_STATISTICS_PERSIST_FREQUENCY:3600000}"
+  activity:
+    # Devices fed by an integration never open a transport session, so the integration itself is
+    # what reports their activity (otherwise they would stay "inactive" forever). This is the
+    # interval, in milliseconds, over which activity events are batched before being reported.
+    reporting_period: "${INTEGRATIONS_ACTIVITY_REPORTING_PERIOD:3000}"
+    # Which activity events within each reporting period are actually reported.
+    # 'FIRST', 'LAST', 'FIRST_AND_LAST' or 'ALL'.
+    reporting_strategy: "${INTEGRATIONS_ACTIVITY_REPORTING_STRATEGY:LAST}"
   # Remote integrations: the integration runs in a separate process and connects back over gRPC
   rpc:
     enabled: "${INTEGRATIONS_RPC_ENABLED:false}"
@@ -1101,6 +1114,8 @@ audit-log:
       "ota_package": "${AUDIT_LOG_MASK_OTA_PACKAGE:W}" # Ota package logging levels.
       "calculated_field": "${AUDIT_LOG_MASK_CALCULATED_FIELD:W}" # Calculated field logging levels.
       "ai_model": "${AUDIT_LOG_MASK_AI_MODEL:W}" # AI model logging levels.
+      "integration": "${AUDIT_LOG_MASK_INTEGRATION:W}" # Integration logging levels.
+      "converter": "${AUDIT_LOG_MASK_CONVERTER:W}" # Converter logging levels.
   sink:
     # Type of external sink. possible options: none, elasticsearch
     type: "${AUDIT_LOG_SINK_TYPE:none}"

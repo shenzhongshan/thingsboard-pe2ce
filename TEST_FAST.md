@@ -46,6 +46,8 @@ Use `-Dpkg.skip=true` to skip all packaging at once (equivalent to all four flag
 | `-Dpkg.skip.rpm=true`      | Gradle `buildRpm`                         | Yes — no test depends on the RPM                             |
 | `-Dpkg.skip.zip=true`      | `maven-assembly-plugin` Windows ZIP       | Yes — no test depends on the ZIP                             |
 
+The flags are independent: each one skips only its own artifact. Before 2026-09-08 that was not true — `-Dpkg.skip.deb=true` activated the `skip-deb` profile, which deactivated the `activeByDefault` `packaging` profile and thereby silently removed the boot jar and ZIP configuration as well. The `packaging` profile is now activated by property absence (`!pkg.packaging.disabled`), which is immune to that Maven rule. See `docs/architecture/01-build-system.md` → Maven Profiles → `packaging`.
+
 ## Testcontainers compatibility with the Docker API workaround
 
 In case your tests failed to run testcontainers due to unsupported Docker API version

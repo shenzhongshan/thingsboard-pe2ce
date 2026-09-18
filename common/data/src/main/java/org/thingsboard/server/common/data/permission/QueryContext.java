@@ -15,17 +15,18 @@
  */
 package org.thingsboard.server.common.data.permission;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
-@AllArgsConstructor
 public class QueryContext {
 
     @Getter
@@ -37,11 +38,45 @@ public class QueryContext {
     @Getter
     private final boolean ignorePermissionCheck;
 
+    /**
+     * Only set for the STATE_ENTITY_OWNER filter, where the queried entity type is not known from the
+     * filter alone: it is whatever the resolved owner of the state entity turns out to be (TENANT or
+     * CUSTOMER). {@code entityType} above is that owner's type; this is the owner id itself.
+     */
+    @Getter
+    private final EntityId ownerId;
+
+    /**
+     * What the querying user may see: which entity types their own owner scope covers, and which
+     * entity groups a GROUP role grants them. UNRESTRICTED for internal callers, which run at tenant
+     * scope and are not acting for a user.
+     */
+    @Getter
+    private final QueryPermissions queryPermissions;
+
     @Getter
     private final Map<UUID, UUID> relatedParentIdMap = new HashMap<>();
 
     public QueryContext(TenantId tenantId, CustomerId customerId, EntityType entityType) {
         this(tenantId, customerId, entityType, false);
+    }
+
+    public QueryContext(TenantId tenantId, CustomerId customerId, EntityType entityType, boolean ignorePermissionCheck) {
+        this(tenantId, customerId, entityType, ignorePermissionCheck, null);
+    }
+
+    public QueryContext(TenantId tenantId, CustomerId customerId, EntityType entityType, boolean ignorePermissionCheck, EntityId ownerId) {
+        this(tenantId, customerId, entityType, ignorePermissionCheck, ownerId, QueryPermissions.UNRESTRICTED);
+    }
+
+    public QueryContext(TenantId tenantId, CustomerId customerId, EntityType entityType, boolean ignorePermissionCheck,
+                        EntityId ownerId, QueryPermissions queryPermissions) {
+        this.tenantId = tenantId;
+        this.customerId = customerId;
+        this.entityType = entityType;
+        this.ignorePermissionCheck = ignorePermissionCheck;
+        this.ownerId = ownerId;
+        this.queryPermissions = queryPermissions == null ? QueryPermissions.UNRESTRICTED : queryPermissions;
     }
 
     public boolean isTenantUser() {

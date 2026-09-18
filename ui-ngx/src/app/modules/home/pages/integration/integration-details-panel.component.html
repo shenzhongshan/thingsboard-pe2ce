@@ -287,7 +287,9 @@
             [entityId]="entityId"
             [defaultEventType]="defaultEventType"
             [debugEventTypes]="debugEventTypes"
-            [disableDebugEventAction]="true">
+            [functionTestButtonLabel]="converterTestButtonLabel"
+            [disableDebugEventAction]="!converterTestButtonLabel"
+            (debugEventSelected)="testConverterFunctionWithEvent($event)">
           </tb-event-table>
         </ng-template>
       </mat-tab>

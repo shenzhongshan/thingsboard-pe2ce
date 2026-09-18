@@ -19,7 +19,6 @@ import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, Router } from '@angular/router';
 import {
   CellActionDescriptor,
-  checkBoxCell,
   DateEntityTableColumn,
   EntityTableColumn,
   EntityTableConfig,
@@ -61,6 +60,10 @@ import {
   AddEntitiesToEdgeDialogComponent,
   AddEntitiesToEdgeDialogData
 } from '@home/dialogs/add-entities-to-edge-dialog.component';
+import {
+  EntityViewOwnerGroupsDialogComponent,
+  EntityViewOwnerGroupsDialogData
+} from '@home/pages/entity-view/entity-view-owner-groups-dialog.component';
 
 @Injectable()
 export class EntityViewsTableConfigResolver  {
@@ -170,10 +173,6 @@ export class EntityViewsTableConfigResolver  {
     if (entityViewScope === 'tenant') {
       columns.push(
         new EntityTableColumn<EntityViewInfo>('customerTitle', 'customer.customer', '33%'),
-        new EntityTableColumn<EntityViewInfo>('customerIsPublic', 'entity-view.public', '60px',
-          entity => {
-            return checkBoxCell(entity.customerIsPublic);
-          }, () => ({}), false),
         // Not sortable: groups is stitched in after the query (EntityViewServiceImpl.toEntityViewInfos),
         // so it is not a queryable property — sortProperty=groups would blow up in the JPQL.
         new EntityTableColumn<EntityViewInfo>('groups', 'entity-view.groups', '25%',
@@ -204,44 +203,20 @@ export class EntityViewsTableConfigResolver  {
     if (entityViewScope === 'tenant') {
       actions.push(
         {
-          name: this.translate.instant('entity-view.make-public'),
-          icon: 'share',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.makePublic($event, entity)
-        },
-        {
-          name: this.translate.instant('entity-view.assign-to-customer'),
-          icon: 'assignment_ind',
-          isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.assignToCustomer($event, [entity.id])
-        },
-        {
-          name: this.translate.instant('entity-view.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('entity-view.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('entity-view.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         }
       );
     }
     if (entityViewScope === 'customer') {
       actions.push(
         {
-          name: this.translate.instant('entity-view.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('entity-view.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          name: this.translate.instant('entity-view.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: () => true,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         }
       );
     }
@@ -448,10 +423,29 @@ export class EntityViewsTableConfigResolver  {
     );
   }
 
+  manageOwnerAndGroups($event: Event, entityView: EntityViewInfo) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.dialog.open<EntityViewOwnerGroupsDialogComponent, EntityViewOwnerGroupsDialogData, boolean>(
+      EntityViewOwnerGroupsDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data: {entityView}
+      }).afterClosed().subscribe((res) => {
+      if (res) {
+        this.config.updateData(this.config.componentsData.entityViewScope !== 'tenant');
+      }
+    });
+  }
+
   onEntityViewAction(action: EntityAction<EntityViewInfo>, config: EntityTableConfig<EntityViewInfo>): boolean {
     switch (action.action) {
       case 'open':
         this.openEntityView(action.event, action.entity, config);
+        return true;
+      case 'manageOwnerAndGroups':
+        this.manageOwnerAndGroups(action.event, action.entity);
         return true;
       case 'makePublic':
         this.makePublic(action.event, action.entity);

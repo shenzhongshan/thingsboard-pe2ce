@@ -18,14 +18,15 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormArray, UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
+import { forkJoin, of } from 'rxjs';
 import { AppState } from '@core/core.state';
 import { RoleService } from '@core/http/role.service';
+import { PermissionService } from '@core/http/permission.service';
 import {
+  AllowedPermissionsInfo,
   Role,
-  roleOperations,
-  roleOperationTranslations,
-  roleResources,
-  roleResourceTranslations,
+  roleOperationTranslation,
+  roleResourceTranslation,
   RoleType
 } from '@shared/models/role.models';
 
@@ -45,32 +46,83 @@ export class RoleDialogComponent implements OnInit {
   loaded = false;
 
   RoleType = RoleType;
-  roleResources = roleResources;
-  roleOperations = roleOperations;
-  roleResourceTranslations = roleResourceTranslations;
-  roleOperationTranslations = roleOperationTranslations;
+  roleResourceTranslation = roleResourceTranslation;
+  roleOperationTranslation = roleOperationTranslation;
 
+  /** Resources this authority may be granted, from the server. */
+  allowedResources: string[] = [];
+  /** Operations a GROUP role may grant — a strict subset of all operations. */
+  groupRoleOperations: string[] = [];
+
+  private permissions: AllowedPermissionsInfo;
   private role: Role;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: RoleDialogData,
               private dialogRef: MatDialogRef<RoleDialogComponent, boolean>,
               protected store: Store<AppState>,
               private roleService: RoleService,
+              private permissionService: PermissionService,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.roleId;
   }
 
   ngOnInit() {
-    if (this.isEdit) {
-      this.roleService.getRole(this.data.roleId).subscribe((role) => {
-        this.role = role;
-        this.buildForm(role);
-        this.loaded = true;
-      });
-    } else {
-      this.role = {name: '', type: RoleType.GENERIC, permissions: {}, additionalInfo: {}};
-      this.buildForm(this.role);
+    forkJoin({
+      permissions: this.permissionService.getAllowedPermissions(),
+      role: this.isEdit ? this.roleService.getRole(this.data.roleId) : of<Role>(
+        {name: '', type: RoleType.GENERIC, permissions: {}, additionalInfo: {}} as Role)
+    }).subscribe(({permissions, role}) => {
+      this.permissions = permissions;
+      this.allowedResources = (permissions.allowedResources || []).slice().sort();
+      this.groupRoleOperations = (permissions.allowedForGroupRoleOperations || []).slice().sort();
+      this.role = role;
+      this.buildForm(role);
       this.loaded = true;
+    });
+  }
+
+  /**
+   * Options for a GENERIC row: what the server allows for that resource, plus anything already
+   * persisted on the role. The union matters — roles saved by the previous editor may hold
+   * operations this resource never accepted, and hiding them would drop them silently on the next
+   * save instead of letting the user see and remove them.
+   */
+  operationsFor(resource: string, selected?: string[]): string[] {
+    const allowed = (resource && this.permissions?.operationsByResource?.[resource]) || [];
+    return this.mergeSorted(allowed, selected);
+  }
+
+  /** Same union rule as above, for the GROUP role's single operation list. */
+  groupOperationsFor(selected?: string[]): string[] {
+    return this.mergeSorted(this.groupRoleOperations, selected);
+  }
+
+  /** Resource options, plus any persisted resource the server no longer offers. */
+  resourceOptions(selected?: string): string[] {
+    return this.mergeSorted(this.allowedResources, selected ? [selected] : []);
+  }
+
+  private mergeSorted(base: string[], extra?: string[]): string[] {
+    const set = new Set(base);
+    (extra || []).forEach((v) => {
+      if (v) {
+        set.add(v);
+      }
+    });
+    return Array.from(set).sort();
+  }
+
+  /**
+   * Changing the resource invalidates operations that the new resource does not accept. Dropping
+   * them here (rather than at save time) keeps what is on screen equal to what will be persisted.
+   */
+  onResourceChanged(row: UntypedFormGroup) {
+    const resource = row.get('resource')?.value;
+    const allowed = new Set(this.operationsFor(resource));
+    const current: string[] = row.get('operations')?.value || [];
+    const kept = current.filter((op) => allowed.has(op));
+    if (kept.length !== current.length) {
+      row.get('operations').setValue(kept);
     }
   }
 

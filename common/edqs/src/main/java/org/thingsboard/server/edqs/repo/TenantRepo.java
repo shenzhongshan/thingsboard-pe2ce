@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.edqs.repo;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import lombok.extern.slf4j.Slf4j;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ObjectType;
@@ -34,9 +35,12 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.permission.QueryContext;
 import org.thingsboard.server.common.data.query.EntityCountQuery;
 import org.thingsboard.server.common.data.query.EntityDataQuery;
+import org.thingsboard.server.common.data.query.AliasEntityId;
 import org.thingsboard.server.common.data.query.EntityDataSortOrder;
 import org.thingsboard.server.common.data.query.EntityFilter;
+import org.thingsboard.server.common.data.query.EntityFilterType;
 import org.thingsboard.server.common.data.query.EntityKeyType;
+import org.thingsboard.server.common.data.query.StateEntityOwnerFilter;
 import org.thingsboard.server.common.data.query.TsValue;
 import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
@@ -48,6 +52,8 @@ import org.thingsboard.server.edqs.data.DeviceData;
 import org.thingsboard.server.edqs.data.EntityData;
 import org.thingsboard.server.edqs.data.EntityProfileData;
 import org.thingsboard.server.edqs.data.GenericData;
+import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.edqs.data.RelationInfo;
 import org.thingsboard.server.edqs.data.RelationsRepo;
 import org.thingsboard.server.edqs.data.TenantData;
 import org.thingsboard.server.edqs.query.EdqsDataQuery;
@@ -57,10 +63,13 @@ import org.thingsboard.server.edqs.query.processor.EntityQueryProcessor;
 import org.thingsboard.server.edqs.query.processor.EntityQueryProcessorFactory;
 import org.thingsboard.server.edqs.util.RepositoryUtils;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +98,8 @@ public class TenantRepo {
     private final ConcurrentMap<EntityType, Set<EntityData<?>>> entitySetByType = new ConcurrentHashMap<>();
     private final ConcurrentMap<EntityType, ConcurrentMap<UUID, EntityData<?>>> entityMapByType = new ConcurrentHashMap<>();
     private final ConcurrentMap<RelationTypeGroup, RelationsRepo> relations = new ConcurrentHashMap<>();
+    /** parent customer id -> direct child customer ids, backing {@link #getAllCustomers(UUID)}. */
+    private final ConcurrentMap<UUID, Set<UUID>> customersHierarchy = new ConcurrentHashMap<>();
 
     private final Lock entityUpdateLock = new ReentrantLock();
 
@@ -196,6 +207,17 @@ public class TenantRepo {
 
             UUID newCustomerId = fields.getCustomerId();
             UUID oldCustomerId = entityData.getCustomerId();
+            if (entityType == EntityType.CUSTOMER && entityIdMismatch(oldCustomerId, newCustomerId)) {
+                // For a CUSTOMER, "customerId" is its parent - maintain the parent -> children index.
+                // Like PE, this is in addition to (not instead of) the customer-bucket upkeep below,
+                // so a sub-customer is also listed among its parent's entities.
+                if (oldCustomerId != null) {
+                    customersHierarchy.computeIfAbsent(oldCustomerId, id -> ConcurrentHashMap.newKeySet()).remove(entityId);
+                }
+                if (newCustomerId != null) {
+                    customersHierarchy.computeIfAbsent(newCustomerId, id -> ConcurrentHashMap.newKeySet()).add(entityId);
+                }
+            }
             entityData.setCustomerId(newCustomerId);
             if (entityIdMismatch(oldCustomerId, newCustomerId)) {
                 if (oldCustomerId != null) {
@@ -223,6 +245,15 @@ public class TenantRepo {
             if (removed != null) {
                 if (removed.getFields() != null) {
                     getEntitySet(entityType).remove(removed);
+                }
+                if (entityType == EntityType.CUSTOMER) {
+                    customersHierarchy.remove(entityId);
+                    if (removed.getCustomerId() != null) {
+                        Set<UUID> siblings = customersHierarchy.get(removed.getCustomerId());
+                        if (siblings != null) {
+                            siblings.remove(entityId);
+                        }
+                    }
                 }
                 edqsStatsService.reportRemoved(entity.type());
 
@@ -329,20 +360,59 @@ public class TenantRepo {
         }
     }
 
+    /**
+     * The given customer plus every customer below it, transitively. Mirrors the SQL engine's
+     * recursive customers_ids CTE, so a parent-customer user sees its sub-customers' entities.
+     * Iterative rather than recursive, and guarded by the visited set, so a cycle cannot hang it.
+     */
+    public Set<UUID> getAllCustomers(UUID customerId) {
+        Set<UUID> result = new HashSet<>();
+        if (customerId == null) {
+            return result;
+        }
+        Deque<UUID> queue = new ArrayDeque<>();
+        queue.add(customerId);
+        while (!queue.isEmpty()) {
+            UUID current = queue.poll();
+            if (!result.add(current)) {
+                continue;
+            }
+            Set<UUID> children = customersHierarchy.get(current);
+            if (children != null) {
+                queue.addAll(children);
+            }
+        }
+        return result;
+    }
+
     public Set<EntityData<?>> getEntitySet(EntityType entityType) {
         return entitySetByType.computeIfAbsent(entityType, et -> new ConcurrentSkipListSet<>(CREATED_TIME_AND_ID_DESC_COMPARATOR));
     }
 
     public PageData<QueryResult> findEntityDataByQuery(CustomerId customerId, EntityDataQuery oldQuery, boolean ignorePermissionCheck) {
+        return findEntityDataByQuery(customerId, oldQuery, ignorePermissionCheck, QueryPermissions.UNRESTRICTED);
+    }
+
+    public PageData<QueryResult> findEntityDataByQuery(CustomerId customerId, EntityDataQuery oldQuery, boolean ignorePermissionCheck, QueryPermissions queryPermissions) {
         EdqsDataQuery query = RepositoryUtils.toNewQuery(oldQuery);
-        QueryContext ctx = buildContext(customerId, query.getEntityFilter(), ignorePermissionCheck);
+        QueryContext ctx = buildContext(customerId, query.getEntityFilter(), ignorePermissionCheck, queryPermissions);
+        if (ctx == null) {
+            return PageData.emptyPageData();
+        }
         EntityQueryProcessor queryProcessor = EntityQueryProcessorFactory.create(this, ctx, query);
         return sortAndConvert(query, queryProcessor.processQuery(), ctx);
     }
 
     public long countEntitiesByQuery(CustomerId customerId, EntityCountQuery oldQuery, boolean ignorePermissionCheck) {
+        return countEntitiesByQuery(customerId, oldQuery, ignorePermissionCheck, QueryPermissions.UNRESTRICTED);
+    }
+
+    public long countEntitiesByQuery(CustomerId customerId, EntityCountQuery oldQuery, boolean ignorePermissionCheck, QueryPermissions queryPermissions) {
         EdqsQuery query = RepositoryUtils.toNewQuery(oldQuery);
-        QueryContext ctx = buildContext(customerId, query.getEntityFilter(), ignorePermissionCheck);
+        QueryContext ctx = buildContext(customerId, query.getEntityFilter(), ignorePermissionCheck, queryPermissions);
+        if (ctx == null) {
+            return 0;
+        }
         EntityQueryProcessor queryProcessor = EntityQueryProcessorFactory.create(this, ctx, query);
         return queryProcessor.count();
     }
@@ -407,8 +477,29 @@ public class TenantRepo {
         return results;
     }
 
-    private QueryContext buildContext(CustomerId customerId, EntityFilter filter, boolean ignorePermissionCheck) {
-        return new QueryContext(tenantId, customerId, resolveEntityType(filter), ignorePermissionCheck);
+    /**
+     * Returns null when the query cannot be answered from memory at all, in which case callers return an
+     * empty result. Today that only happens for STATE_ENTITY_OWNER pointed at an entity this repo does not
+     * hold; BaseEntityService#validForEdqs already keeps those on the SQL path, so this is a backstop.
+     */
+    private QueryContext buildContext(CustomerId customerId, EntityFilter filter, boolean ignorePermissionCheck, QueryPermissions queryPermissions) {
+        if (filter.getType() == EntityFilterType.STATE_ENTITY_OWNER) {
+            StateEntityOwnerFilter ownerFilter = (StateEntityOwnerFilter) filter;
+            AliasEntityId stateEntity = ownerFilter.getSingleEntity() != null
+                    ? ownerFilter.getSingleEntity() : ownerFilter.getDefaultStateEntity();
+            if (stateEntity == null || stateEntity.isAliasEntityId()) {
+                return null;
+            }
+            EntityData<?> ed = get(stateEntity.getEntityType(), stateEntity.getId());
+            if (ed == null || ed.getFields() == null) {
+                return null;
+            }
+            // Owner is the entity's customer if it has one, else the tenant - the same rule
+            // DefaultEntityQueryRepository#resolveOwnerId applies on the SQL side.
+            EntityId ownerId = ed.getCustomerId() != null ? new CustomerId(ed.getCustomerId()) : tenantId;
+            return new QueryContext(tenantId, customerId, ownerId.getEntityType(), ignorePermissionCheck, ownerId, queryPermissions);
+        }
+        return new QueryContext(tenantId, customerId, resolveEntityType(filter), ignorePermissionCheck, null, queryPermissions);
     }
 
     public TenantId getTenantId() {

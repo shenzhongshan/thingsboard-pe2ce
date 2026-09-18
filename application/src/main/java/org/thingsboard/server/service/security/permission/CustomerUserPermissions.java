@@ -29,6 +29,8 @@ import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
+import org.thingsboard.server.common.data.id.RoleId;
+import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.id.TbResourceId;
 import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.pat.ApiKeyInfo;
@@ -84,6 +86,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.DEVICE_PROFILE, profilePermissionChecker);
         put(Resource.ASSET_PROFILE, profilePermissionChecker);
         put(Resource.TB_RESOURCE, customerResourcePermissionChecker);
+        put(Resource.ROLE, customerRolePermissionChecker);
         put(Resource.MOBILE_APP_SETTINGS, new PermissionChecker.GenericPermissionChecker(Operation.READ));
         put(Resource.API_KEY, apiKeysPermissionChecker);
         // Blobs are tenant/customer-scoped like devices and assets, so the same checker applies.
@@ -227,11 +230,12 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     if (!(entity instanceof HasCustomerId)) {
                         return false;
                     }
-                    boolean baseline = super.hasPermission(user, operation, entityId, entity)
-                            && (operation.equals(Operation.CLAIM_DEVICES) || user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId()));
-                    if (baseline) {
-                        return true;
-                    }
+                    // Deny-by-default (PE semantics): owning the entity is no longer sufficient by
+                    // itself. Access must come from a GENERIC role grant - which hasGroupOrGeneric
+                    // Permission still confines to the user's own owner scope - or from a GROUP
+                    // grant. Nobody starts with zero permissions: every user is placed in a default
+                    // user group bound to a default role by
+                    // EntityGroupService#ensureDefaultUserRoleMembership.
                     return hasGroupOrGenericPermission(user, Resource.of(entityId.getEntityType()), operation, entityId, ownerOf(user, entity));
                 }
             };
@@ -259,6 +263,37 @@ public class CustomerUserPermissions extends AbstractPermissions {
      * customer user may only manage resources they themselves own, mirroring PE's per-customer
      * image scoping (see {@code ImageController#getImages} branching on {@code isCustomerUser()}).
      */
+    /**
+     * Mirrors PE's customerStandaloneEntityPermissionChecker for roles. The coarse "may this user
+     * touch roles at all" answer comes from the generic grant, so a customer user with only the
+     * default read-only Customer User role can list roles but not create them. The fine-grained
+     * owner scoping (own roles, plus tenant-level ones for READ) is enforced here AND again in
+     * RoleController#checkAccess - the controller alone is not enough, because an entity query can
+     * reach roles without going through it.
+     */
+    private final PermissionChecker customerRolePermissionChecker =
+            new PermissionChecker<RoleId, Role>() {
+
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation) {
+                    MergedUserPermissions perms = user.getUserPermissions();
+                    return perms != null && perms.hasGenericPermission(Resource.ROLE, operation);
+                }
+
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation, RoleId roleId, Role role) {
+                    if (!user.getTenantId().equals(role.getTenantId())) {
+                        return false;
+                    }
+                    boolean owned = user.getCustomerId() != null && user.getCustomerId().equals(role.getCustomerId());
+                    if (!owned && !(Operation.READ.equals(operation) && role.isTenantLevel())) {
+                        return false;
+                    }
+                    return hasPermission(user, operation);
+                }
+
+            };
+
     private final PermissionChecker customerResourcePermissionChecker =
             new PermissionChecker<TbResourceId, TbResourceInfo>() {
 

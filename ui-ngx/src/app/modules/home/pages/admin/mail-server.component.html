@@ -34,6 +34,14 @@
     <mat-card-content style="padding-top: 16px;">
       <form [formGroup]="mailSettings" (ngSubmit)="save()">
         <fieldset [disabled]="isLoading$ | async">
+          @if (isTenantAdmin) {
+            <mat-slide-toggle class="mat-block" style="margin-bottom: 16px;"
+                              [checked]="useSystemMailSettings"
+                              (change)="useSystemMailSettingsChanged($event.checked)">
+              {{ 'admin.use-system-mail-settings' | translate }}
+            </mat-slide-toggle>
+          }
+          @if (!isTenantAdmin || !useSystemMailSettings) {
           <mat-form-field class="mat-block" appearance="outline">
             <mat-label translate>admin.mail-from</mat-label>
             <input matInput formControlName="mailFrom" required/>
@@ -380,12 +388,15 @@
               </section>
             }
           </fieldset>
+          }
           <div class="flex flex-row items-center justify-end gap-4 xs:flex-col xs:items-stretch">
-            <button mat-raised-button type="button"
-                    [disabled]="(isLoading$ | async) || mailSettings.get('enableOauth2').value ? mailSettings.invalid || domainForm.invalid || (mailSettings.dirty || domainForm.dirty) : mailSettings.invalid"
-                    (click)="sendTestMail()">
-              {{'admin.send-test-mail' | translate}}
-            </button>
+            @if (!isTenantAdmin || !useSystemMailSettings) {
+              <button mat-raised-button type="button"
+                      [disabled]="(isLoading$ | async) || mailSettings.get('enableOauth2').value ? mailSettings.invalid || domainForm.invalid || (mailSettings.dirty || domainForm.dirty) : mailSettings.invalid"
+                      (click)="sendTestMail()">
+                {{'admin.send-test-mail' | translate}}
+              </button>
+            }
             <button mat-raised-button color="primary"
                     [disabled]="(isLoading$ | async) || mailSettings.invalid || domainForm.invalid || (!mailSettings.dirty && !domainForm.dirty)"
                     type="submit">{{'action.save' | translate}}

@@ -40,8 +40,10 @@ import org.thingsboard.server.dao.encryptionkey.EncryptionService;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.mobile.QrCodeSettingService;
 import org.thingsboard.server.dao.notification.NotificationSettingsService;
+import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.service.validator.TenantDataValidator;
@@ -92,6 +94,12 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
     protected TbTransactionalCache<TenantId, Boolean> existsTenantCache;
     @Autowired
     private EncryptionService encryptionService;
+    @Autowired
+    @Lazy
+    private EntityGroupService entityGroupService;
+    @Autowired
+    @Lazy
+    private RoleService roleService;
 
     @Override
     @TransactionalEventListener
@@ -176,6 +184,12 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
         trendzSettingsService.deleteTrendzSettings(tenantId);
         qrCodeSettingService.deleteByTenantId(tenantId);
         encryptionService.deleteEncryptionKeyByTenantId(tenantId);
+        // Entity groups, group permissions and roles are not housekeeper-deletable entity types, so
+        // they have no entry in the cleanUpService list below and have to be swept here or they
+        // outlive the tenant. Groups take their group permissions and their FROM_ENTITY_GROUP
+        // membership relations with them; roles go last, because the permissions reference them.
+        entityGroupService.deleteEntityGroupsByTenantId(tenantId);
+        roleService.deleteRolesByTenantId(tenantId);
 
         tenantDao.removeById(tenantId, tenantId.getId());
         publishEvictEvent(new TenantEvictEvent(tenantId, true));

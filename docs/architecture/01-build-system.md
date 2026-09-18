@@ -242,6 +242,13 @@ The frontend Maven module uses `frontend-maven-plugin` to invoke Yarn during the
 
 The `skip-pkg` profile is activated automatically when `-Dpkg.skip=true` is set, and it sets all four individual skip flags to `true`.
 
+To build only the Windows ZIP (no .deb, no .rpm):
+
+```bash
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=false
+# -> application/target/thingsboard-windows.zip
+```
+
 ## Maven Profiles
 
 ### `default` (active by default)
@@ -264,16 +271,22 @@ Activated automatically when `-Dpkg.skip.deb=true`. Sets `pkg.deb.phase=none` so
 
 ### `skip-pkg`
 
-Activated automatically when `-Dpkg.skip=true`. Convenience profile that sets all packaging skip flags to `true` and `pkg.deb.phase=none`. This is a single-toggle to disable all packaging.
+Activated automatically when `-Dpkg.skip=true`. Convenience profile that sets all packaging skip flags to `true`, plus `pkg.deb.phase=none` and `pkg.dist.phase=none`. This is a single-toggle to disable all packaging.
 
-### `packaging` (active by default)
+### `packaging` (always active)
+
+Activated by the **absence** of the `pkg.packaging.disabled` property, so it is on for every build unless you explicitly pass `-Dpkg.packaging.disabled=true`.
+
+> It is deliberately *not* `activeByDefault`. Maven's `DefaultProfileSelector` drops every `activeByDefault` profile of a POM as soon as any other profile of that **same** POM activates — and `skip-deb` / `skip-pkg` above activate on plain `-D` properties. Under the old `activeByDefault` form, `-Dpkg.skip.deb=true` silently deleted this entire `pluginManagement` block: `maven-assembly-plugin` was left with no executions and no descriptor, so no Windows ZIP was produced regardless of `pkg.skip.zip`, and `spring-boot-maven-plugin` lost its `repackage` execution so no boot JAR was produced either — with no error in either case. (The rule is per-POM: `ui-ngx`'s `activeByDefault` `yarn-build` profile lives in `ui-ngx/pom.xml` and is unaffected by root-POM profile activation.)
+>
+> Check with `mvn -N help:active-profiles -Dpkg.skip.deb=true` — both `skip-deb` and `packaging` must be listed.
 
 Defines the packaging plugin configuration used by all modules. Contains `pluginManagement` blocks for:
 - **`maven-resources-plugin`**: Copies configuration, scripts, control files, and init scripts for Linux/Windows packaging
-- **`maven-dependency-plugin`**: Copies the WinSW service wrapper executable for Windows packaging
+- **`maven-dependency-plugin`**: Copies the WinSW service wrapper executable for Windows packaging. Bound to `pkg.dist.phase`
 - **`maven-jar-plugin`**: Configures manifest entries (Implementation-Title, Implementation-Version)
 - **`spring-boot-maven-plugin`**: Builds the bootable JAR (repackage + build-info goals). Skips when `pkg.skip.bootjar=true`
-- **`gradle-maven-plugin`**: Invokes the Gradle build inside `packaging/java/` to produce .deb and .rpm packages. Skips individual tasks via `pkg.skip.deb` and `pkg.skip.rpm`
+- **`gradle-maven-plugin`**: Invokes the Gradle build inside `packaging/java/` to produce .deb and .rpm packages. Bound to `pkg.dist.phase`; skips individual tasks via `pkg.skip.deb` and `pkg.skip.rpm` (passed to Gradle as `-PskipDeb` / `-PskipRpm`, applied by `onlyIf` in `build.gradle`). Note these only skip the tasks — the Gradle invocation itself still happens unless `pkg.dist.phase=none`
 - **`maven-assembly-plugin`**: Produces a Windows ZIP distribution. Skipped via `pkg.skip.zip`
 - **`build-helper-maven-plugin`**: Attaches the .deb artifact to the Maven reactor so downstream modules can reference it. Phase is controlled by `pkg.deb.phase`
 
@@ -310,11 +323,15 @@ Produced by the same Gradle build. No Maven reactor module depends on the RPM ar
 
 ### Windows ZIP Archive
 
-Produced by `maven-assembly-plugin` using the descriptor at `packaging/java/assembly/windows.xml`. Includes:
-- Configuration files
-- Control scripts (Windows batch files)
-- WinSW service wrapper executable
-- The boot JAR
+Produced by `maven-assembly-plugin` using the descriptor at `packaging/java/assembly/windows.xml`, written to `application/target/thingsboard-windows.zip` (the `-windows` suffix is the descriptor's `<id>`). Layout:
+
+```
+thingsboard/lib/thingsboard.jar          the boot JAR
+thingsboard/thingsboard.exe              WinSW service wrapper
+thingsboard/thingsboard.xml              service definition
+thingsboard/install.bat|uninstall.bat|upgrade.bat
+thingsboard/conf/ data/ install/ logs/
+```
 
 Skipped with `-Dpkg.skip.zip=true`.
 
@@ -434,6 +451,9 @@ Located in `msa/black-box-tests`. These are full integration/E2E tests using:
 | `pkg.skip.deb` | `false` | Skip .deb packaging |
 | `pkg.skip.rpm` | `false` | Skip .rpm packaging |
 | `pkg.skip.zip` | `false` | Skip Windows ZIP packaging |
+| `pkg.deb.phase` | `${pkg.package.phase}` | Internal: phase of the `attach-deb` execution; `none` when the .deb is skipped |
+| `pkg.dist.phase` | `${pkg.package.phase}` | Internal: phase of the Gradle invocation and the WinSW download; `none` under `-Dpkg.skip=true` |
+| `pkg.packaging.disabled` | (unset) | Set to any value to deactivate the `packaging` profile entirely |
 
 ## Key External Dependencies (Version-Pinned)
 

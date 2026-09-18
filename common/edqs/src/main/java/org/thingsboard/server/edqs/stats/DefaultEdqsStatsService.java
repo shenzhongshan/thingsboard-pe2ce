@@ -61,13 +61,24 @@ public class DefaultEdqsStatsService implements EdqsStatsService {
         statsFactory.createGauge("edqsMapGauges", "tenantReposSize", DefaultEdqsRepository.getRepos(), Map::size);
     }
 
+    // Callers pass ObjectType.fromEntityType(...), which returns null for the ~20 EntityType values
+    // with no ObjectType counterpart. Those reach TenantRepo#getOrCreate as the endpoint of a relation
+    // (RelationsRepo indexes whatever the relation points at, resident type or not). Counting is
+    // observability - it must never be able to abort ingestion, which is exactly what an unguarded
+    // computeIfAbsent(null, ...) NPE did: it killed indexing of every entity-group membership relation.
     @Override
     public void reportAdded(ObjectType objectType) {
+        if (objectType == null) {
+            return;
+        }
         getObjectGauge(objectType).incrementAndGet();
     }
 
     @Override
     public void reportRemoved(ObjectType objectType) {
+        if (objectType == null) {
+            return;
+        }
         getObjectGauge(objectType).decrementAndGet();
     }
 

@@ -1,0 +1,200 @@
+========================================================================
+thingsboard-ce 打包命令
+生成日期：2026-09-08（2026-09-08 修订：packaging profile 激活方式）
+========================================================================
+
+【命令 A：只编译，不出发行包】在 thingsboard-ce 目录下执行：
+
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true
+
+【命令 B：出 Windows 单体 zip（不出 deb / rpm）】
+
+mvn clean install -T6 -DskipTests -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=false
+
+  产物：application/target/thingsboard-windows.zip   （单体 Windows 安装包）
+        application/target/thingsboard-4.4.0-SNAPSHOT-boot.jar
+
+  zip 内部结构（2026-09-08 实测，1722 个文件 / 约 530MB）：
+        thingsboard/lib/thingsboard.jar     boot jar
+        thingsboard/thingsboard.exe         WinSW 服务包装器
+        thingsboard/thingsboard.xml         服务定义
+        thingsboard/install.bat  uninstall.bat  upgrade.bat
+        thingsboard/conf/  data/  install/  logs/
+  与 PE 的 thingsboard-windows-4.3.1.1pe 目录结构一致。
+
+换行写法（bash / git bash）用反斜杠 \，PowerShell 用反引号 `。
+
+
+------------------------------------------------------------------------
+【各参数含义】
+------------------------------------------------------------------------
+
+-T6
+    并行构建，6 个线程。并行粒度是"模块之间"，有依赖关系的模块仍按顺序构建。
+    -T1C 表示每核 1 线程（机器换了不用改数字）；不写则串行。
+    副作用：多模块日志交错。排查失败时直接看日志末尾的 Reactor Summary，
+    不要顺着往下读。
+    本仓库对并行做过防护：msa/pom.xml 里把 ui-ngx -> web-ui -> js-executor
+    用纯 reactor 依赖串起来，避免多个 yarn install 同时抢 ~/.cache/yarn
+    造成偶发的 "tsc: not found"。所以 -T6 在这个项目里是安全的。
+
+-DskipTests
+    跳过测试（仍然编译测试代码）。
+
+-Dpkg.skip.deb=true
+    跳过 Gradle buildDeb + Maven attach-artifact。
+    出处：根 pom.xml 的 skip-deb profile -> pkg.deb.phase=none，
+    并向 Gradle 传 -PskipDeb=true。
+
+-Dpkg.skip.rpm=true
+    跳过 Gradle buildRpm（向 Gradle 传 -PskipRpm=true）。
+
+-Dpkg.skip.zip=true
+    跳过 maven-assembly-plugin 生成的 Windows 分发 ZIP。
+    置 false（或不写）才会产出 application/target/thingsboard-windows.zip。
+    描述符：packaging/java/assembly/windows.xml（其中 <id>windows</id>
+    是文件名里 "-windows" 后缀的来源）。
+
+docker 镜像
+    不需要任何参数。msa/pom.xml:40 的 <dockerfile.skip>true</dockerfile.skip>
+    本来就是默认值，全仓库没有任何地方把它置回 false。
+    只有显式传 -Ddockerfile.skip=false 才会打镜像。
+    想写明白防止将来默认值被改，可以加 -Ddockerfile.skip=true（幂等）。
+
+
+------------------------------------------------------------------------
+【为什么不用 -Dpkg.skip=true】
+------------------------------------------------------------------------
+
+-Dpkg.skip=true 是四合一开关（bootjar + deb + rpm + zip），会连
+pkg.skip.bootjar 一起打开，把 application/target/thingsboard-*-boot.jar
+也跳掉 —— 那正是用来实际运行的产物。
+上面这组保留 boot jar，只砍掉发行包。
+
+四个开关的对照表见 thingsboard-ce/TEST_FAST.md 的 "pkg.skip.* flags reference"。
+
+
+------------------------------------------------------------------------
+【已修复的坑：-Dpkg.skip.deb=true 曾经把整个 packaging profile 关掉】
+（2026-09-08 修复，改动在根 pom.xml。老版本工作树上仍然会踩）
+------------------------------------------------------------------------
+
+症状：命令 B（zip=false）不产出 thingsboard.zip，也不报错；
+      连 application/target/*-boot.jar 都没有。
+
+原因：Maven 的 DefaultProfileSelector 规则 ——
+      同一个 POM 里只要有任意一个 profile 被激活（-P 或属性激活），
+      该 POM 中所有 activeByDefault 的 profile 全部失效。
+
+      根 pom.xml 里所有打包插件的配置（assembly 的 ZIP、spring-boot
+      repackage、gradle deb/rpm、winsw 拷贝）都在 packaging profile 的
+      pluginManagement 里，而它原本靠 activeByDefault 生效。
+      -Dpkg.skip.deb=true 会按属性激活 skip-deb profile，于是
+      packaging（和空的 default）被连坐踢掉 —— assembly 插件在
+      effective-pom 里只剩 artifactId + version，没有 executions、
+      没有 descriptor，所以既不干活也不报错。
+
+      注意这条规则是"按 POM 分组"的：ui-ngx 的 yarn-build 属于
+      ui-ngx/pom.xml 自己的 profile 组，不受根 pom 影响（已实测）。
+
+修复：packaging profile 改成属性缺失激活，不受该规则影响：
+
+      <activation><property><name>!pkg.packaging.disabled</name></property></activation>
+
+      想主动关掉打包插件配置时传 -Dpkg.packaging.disabled=true。
+
+      同时新增内部属性 pkg.dist.phase（默认 = pkg.package.phase，
+      skip-pkg profile 里置 none），用来绑定两个没有自己 skip 开关的
+      execution：gradle-maven-plugin（deb/rpm）和 winsw service.exe 拷贝。
+      否则 packaging profile 一直生效后，-Dpkg.skip=true 会平白多跑一次
+      Gradle 和一次 winsw 下载，失去"纯编译"快速路径的意义。
+
+验证（不用真跑构建）：
+
+      mvn -N help:active-profiles -Dpkg.skip.deb=true
+      # 修复前只有 skip-deb；修复后是 skip-deb + packaging
+
+      mvn -pl application help:effective-pom -Dpkg.skip.deb=true -Doutput=eff.xml
+      # 搜 maven-assembly-plugin，应能看到
+      #   assembly@package + skipAssembly=false + windows.xml 描述符
+
+
+------------------------------------------------------------------------
+【坑 1：clean 会清掉前端产物】
+------------------------------------------------------------------------
+
+ui-ngx 的 Angular 编译只在 yarn-build profile 下执行。
+（更正 2026-09-08：yarn-build 是 activeByDefault，实测在 -Dpkg.skip=true
+ 和 -Dpkg.skip.deb=true 下都仍然激活 —— 上面那条"打包开关会把它关掉"的
+ 推断不成立，profile 的 activeByDefault 规则按 POM 分组，根 pom 的 profile
+ 影响不到 ui-ngx/pom.xml。只有传 -Dyarn-start 才会顶掉它。
+ 如果当时确实打出了空的前端 jar，原因在别处，需要重新定位。）
+clean 会删掉 ui-ngx/target/generated-resources/public 里已构建的前端产物，
+重新打出来的 ui-ngx jar 就是空的，运行起来没有界面。
+
+两种做法二选一：
+  a) 加 -P yarn-build（会重新跑 Angular 编译，慢）
+  b) 不加 clean（增量构建，前端产物保留）
+
+单独重建前端并让运行中的后端生效：
+  cd ui-ngx && node_modules/.bin/ng build --configuration development
+  cd .. && mvn -o install -pl ui-ngx -DskipTests -Dpkg.skip=true
+（第二步不会重跑 Angular 编译，只是把 generated-resources 打进 jar；
+ 必须做，否则后端从 ~/.m2 读到的还是旧 jar，界面不会更新）
+
+
+------------------------------------------------------------------------
+【坑 2：当前工作树上这条命令会失败，原因与打包参数无关】
+------------------------------------------------------------------------
+
+2026-09-08 实测（离线 -o 模式）结果：
+
+  Failed to execute goal on project integration-azure:
+  Could not resolve dependencies
+  com.azure:azure-messaging-eventhubs-checkpointstore-blob:jar:1.21.8
+
+deb / rpm / zip 三个跳过参数全部正常工作，msa/tb-node 对 application:deb
+的依赖也没有解析失败。失败点在 integration-azure 的依赖版本上：
+
+  提交 12a6898567 "亚马逊集成库版本修改" (2026-09-07) 把根 pom.xml 的
+  -  <azure.eventhubs.checkpointstore.blob.version>1.23.0</...>
+  +  <azure.eventhubs.checkpointstore.blob.version>1.21.8</...>
+
+  * 本地 ~/.m2 里只有 1.23.0，没有 1.21.8
+  * PE 实际用的是 1.20.6
+    (thingsboard/lib/.../azure-messaging-eventhubs-checkpointstore-blob-1.20.6.jar)
+  * 提交信息写的是"亚马逊(AWS)"，改的却是 Azure 的属性；
+    AWS 的版本属性是另外两个（aws.sdk.version / awssdk.v2.version），没动过
+
+  common/integration/azure/target/ 里的 jar 是 2026-09-05 构建的，
+  说明这个改动之后该模块从未成功编译过（之前都用 -pl 只构建受影响模块，绕开了它）。
+
+待确认后再跑全量构建。
+
+  状态更新 2026-09-08：根 pom.xml:138 现在是 1.20.6（与 PE 一致），
+  且 ~/.m2 里 1.20.6 和 1.23.0 都在，这个阻塞点看起来已经消掉。
+  （只核对了版本号和本地仓库，没有重跑全量 reactor 构建来证实。）
+
+
+------------------------------------------------------------------------
+【附：只想跳过整个 msa 微服务子树时】
+------------------------------------------------------------------------
+
+mvn clean install -T6 -DskipTests \
+  -Dpkg.skip.deb=true -Dpkg.skip.rpm=true -Dpkg.skip.zip=true \
+  -pl '!msa/tb,!msa/web-ui,!msa/vc-executor,!msa/vc-executor-docker,!msa/tb-node,!msa/transport,!msa/js-executor,!msa/monitoring,!msa/edqs'
+
+
+------------------------------------------------------------------------
+【附：本地启动后端（非打包）】
+------------------------------------------------------------------------
+
+cd thingsboard-ce
+SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/thingsboard_ce" \
+EDGES_ENABLED=true \
+mvn -o spring-boot:run -pl application -Dlicense.skip=true -Dmaven.gitcommitid.skip=true
+
+注意：spring-boot:run 从 ~/.m2 加载兄弟模块，不是从各模块的 target/。
+改了 application 以外的模块后，必须先
+  mvn -o install -pl <被改的模块> -am -DskipTests
+否则重启后跑的还是旧代码。

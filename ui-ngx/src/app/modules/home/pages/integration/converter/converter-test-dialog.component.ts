@@ -26,6 +26,20 @@ export interface ConverterTestDialogData {
   type: ConverterType;
   script: string;
   scriptLang: ConverterScriptLanguage;
+  /**
+   * Optional prefill from a recorded converter debug event ("test with this message"). When absent
+   * the dialog opens on its own sample payload, exactly as before.
+   */
+  debugIn?: ConverterTestDebugIn;
+}
+
+/** PE's `debugIn` shape, as produced from a `converter_debug_event` row. */
+export interface ConverterTestDebugIn {
+  inContentType?: string;
+  inContent?: string;
+  inMsgType?: string;
+  inMetadata?: any;
+  inIntegrationMetadata?: any;
 }
 
 @Component({
@@ -51,20 +65,42 @@ export class ConverterTestDialogComponent {
     // PE's test dialog lets you edit the script right there and "保存" (Save) writes it back into
     // the caller's own form - matches that here via the dialog's close result instead of PE's direct
     // backend write, since this port's wizard-embedded converter isn't a persisted entity yet.
+    const debugIn = this.data.debugIn;
     this.form = this.fb.group(this.isUplink ? {
-      payloadContentType: [ContentType.JSON],
-      payload: ['{\n  "deviceName": "Device A",\n  "deviceType": "thermostat",\n  "temperature": 22,\n  "humidity": 51\n}', [Validators.required]],
-      metadata: [{ integrationName: 'Test integration' }],
+      payloadContentType: [this.contentTypeOrDefault(debugIn?.inContentType)],
+      payload: [debugIn?.inContent ?? '{\n  "deviceName": "Device A",\n  "deviceType": "thermostat",\n  "temperature": 22,\n  "humidity": 51\n}', [Validators.required]],
+      metadata: [debugIn ? this.asObject(debugIn.inMetadata) : { integrationName: 'Test integration' }],
       script: [this.data.script],
       output: ['']
     } : {
-      msg: ['{\n  "temp": 22\n}', [Validators.required]],
-      msgType: ['POST_TELEMETRY_REQUEST', [Validators.required]],
-      metadata: [{}],
-      integrationMetadata: [{}],
+      msg: [debugIn?.inContent || '{\n  "temp": 22\n}', [Validators.required]],
+      msgType: [debugIn?.inMsgType || 'POST_TELEMETRY_REQUEST', [Validators.required]],
+      metadata: [this.asObject(debugIn?.inMetadata)],
+      integrationMetadata: [this.asObject(debugIn?.inIntegrationMetadata)],
       script: [this.data.script],
       output: ['']
     });
+  }
+
+  /** A debug event's recorded content type is free text; fall back rather than break the picker. */
+  private contentTypeOrDefault(value: string): ContentType {
+    return this.contentTypes.includes(value as ContentType) ? value as ContentType : ContentType.JSON;
+  }
+
+  /** `tb-key-val-map` binds to a plain object; debug events carry metadata as a JSON string. */
+  private asObject(value: any): any {
+    if (!value) {
+      return {};
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    return typeof value === 'object' ? value : {};
   }
 
   /** Drives the payload editor's syntax mode; downlink has no picker and is always JSON. */

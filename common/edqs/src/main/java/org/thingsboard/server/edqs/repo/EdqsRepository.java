@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.edqs.repo;
 
+import org.thingsboard.server.common.data.permission.QueryPermissions;
 import org.thingsboard.server.common.data.edqs.EdqsEvent;
 import org.thingsboard.server.common.data.edqs.query.QueryResult;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -31,7 +32,12 @@ public interface EdqsRepository {
 
     long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, boolean ignorePermissionCheck);
 
+    /** @param queryPermissions groups the user may READ via a GROUP role; unioned with owner scope. */
+    long countEntitiesByQuery(TenantId tenantId, CustomerId customerId, EntityCountQuery query, boolean ignorePermissionCheck, QueryPermissions queryPermissions);
+
     PageData<QueryResult> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, boolean ignorePermissionCheck);
+
+    PageData<QueryResult> findEntityDataByQuery(TenantId tenantId, CustomerId customerId, EntityDataQuery query, boolean ignorePermissionCheck, QueryPermissions queryPermissions);
 
     void clearIf(Predicate<TenantId> predicate);
 

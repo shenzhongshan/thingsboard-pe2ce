@@ -123,6 +123,10 @@ public interface EntityFields {
         return null;
     }
 
+    default String getFormat() {
+        return "";
+    }
+
     default String getQueueName() {
         return "";
     }
@@ -165,6 +169,7 @@ public interface EntityFields {
             case "edgeTemplate" -> Boolean.toString(isEdgeTemplate());
             case "configuration" -> getConfiguration();
             case "schedule" -> getSchedule();
+            case "format" -> getFormat();
             case "originatorId" -> getOriginatorId().getId().toString();
             case "originatorType" -> getOriginatorId().getEntityType().toString();
             case "queueName" -> getQueueName();

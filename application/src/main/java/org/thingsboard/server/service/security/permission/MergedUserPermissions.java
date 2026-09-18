@@ -21,9 +21,11 @@ import org.thingsboard.server.common.data.id.EntityGroupId;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * CE port of PE's MergedUserPermissions: the effective, precomputed set of permissions granted to
@@ -71,6 +73,31 @@ public final class MergedUserPermissions implements Serializable {
         // authored before the per-type split (and the stock roles) keep working unchanged.
         return Resource.groupResources().contains(resource)
                 && checkOperation(genericPermissions.get(Resource.ENTITY_GROUP), operation);
+    }
+
+    /**
+     * Ids of every entity group this user may READ through a GROUP role, regardless of member type.
+     * <p>
+     * This is the payload the entity query engines need: their permission clause is otherwise pure
+     * owner scope, so an entity shared from another owner via a group grant - which
+     * {@code CustomerUserPermissions#hasGroupOrGenericPermission} does honour on the REST path -
+     * is invisible to a query. Passing bare ids rather than the whole MergedUserPermissions (as PE
+     * does) keeps this class in the application module: dao and common/edqs cannot depend on it.
+     * <p>
+     * Deliberately not filtered by entity type: group membership already constrains what a group
+     * contains, and the query filters by type anyway.
+     */
+    public Set<UUID> getReadableEntityGroupIds() {
+        Set<UUID> result = new HashSet<>();
+        if (!Operation.READ.isAllowedForGroupRole()) {
+            return result;
+        }
+        groupPermissions.forEach((groupId, info) -> {
+            if (checkOperation(info.getOperations(), Operation.READ)) {
+                result.add(groupId.getId());
+            }
+        });
+        return result;
     }
 
     public boolean hasGroupPermissions(EntityGroupId entityGroupId, Operation operation) {

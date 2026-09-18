@@ -16,7 +16,9 @@
 package org.thingsboard.server.dao.sql.scheduler;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Component;
+import org.thingsboard.server.common.data.edqs.fields.SchedulerEventFields;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -81,6 +83,15 @@ public class JpaSchedulerEventDao extends JpaAbstractDao<SchedulerEventEntity, S
     @Override
     public EntityType getEntityType() {
         return EntityType.SCHEDULER_EVENT;
+    }
+
+    /**
+     * Feeds {@code EdqsSyncService#syncTenantEntity} - required now that SCHEDULER_EVENT is one of
+     * {@code ObjectType#edqsTenantTypes}, otherwise the initial sync throws UnsupportedOperationException.
+     */
+    @Override
+    public List<SchedulerEventFields> findNextBatch(UUID id, int batchSize) {
+        return schedulerEventRepository.findNextBatch(id, Limit.of(batchSize));
     }
 
     @Override

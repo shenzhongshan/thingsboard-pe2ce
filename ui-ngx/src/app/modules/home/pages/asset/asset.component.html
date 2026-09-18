@@ -24,21 +24,9 @@
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
-          (click)="onEntityAction($event, 'makePublic')"
-          [class.!hidden]="isEdit || assetScope !== 'tenant' || isAssignedToCustomer(entity) || entity?.customerIsPublic">
-    {{'asset.make-public' | translate }}
-  </button>
-  <button mat-raised-button color="primary"
-          [disabled]="(isLoading$ | async)"
-          (click)="onEntityAction($event, 'assignToCustomer')"
-          [class.!hidden]="isEdit || assetScope !== 'tenant' || isAssignedToCustomer(entity)">
-    {{'asset.assign-to-customer' | translate }}
-  </button>
-  <button mat-raised-button color="primary"
-          [disabled]="(isLoading$ | async)"
-          (click)="onEntityAction($event, 'unassignFromCustomer')"
-          [class.!hidden]="isEdit || (assetScope !== 'customer' && assetScope !== 'tenant') || !isAssignedToCustomer(entity)">
-    {{ (entity?.customerIsPublic ? 'asset.make-private' : 'asset.unassign-from-customer') | translate }}
+          (click)="onEntityAction($event, 'manageOwnerAndGroups')"
+          [class.!hidden]="isEdit || (assetScope !== 'tenant' && assetScope !== 'customer')">
+    {{'asset.manage-owner-and-groups' | translate }}
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"

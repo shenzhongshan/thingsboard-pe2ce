@@ -43,6 +43,7 @@ import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
+import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
@@ -108,6 +109,10 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
     @Autowired
     @Lazy
     private EntityGroupService entityGroupService;
+
+    @Autowired
+    @Lazy
+    private RoleService roleService;
 
     @TransactionalEventListener(classes = CustomerCacheEvictEvent.class)
     @Override
@@ -244,6 +249,8 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
         edgeService.unassignCustomerEdges(customer.getTenantId(), customerId);
         userService.deleteCustomerUsers(customer.getTenantId(), customerId);
         apiUsageStateService.deleteApiUsageStateByEntityId(customerId);
+        // Roles owned by this customer die with it; tenant-level roles are untouched.
+        roleService.deleteRolesByTenantIdAndCustomerId(customer.getTenantId(), customerId);
         // Last, after everything that could still be moved out of those groups has been unassigned.
         entityGroupService.deleteEntityGroupsByOwner(customer.getTenantId(), customerId);
         customerDao.removeById(tenantId, customerId.getId());

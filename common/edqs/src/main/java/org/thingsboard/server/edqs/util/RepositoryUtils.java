@@ -99,9 +99,10 @@ public class RepositoryUtils {
             case ENTITY_GROUP_LIST -> ((EntityGroupListFilter) entityFilter).getGroupType();
             case ENTITY_GROUP_NAME -> ((EntityGroupNameFilter) entityFilter).getGroupType();
             case ENTITIES_BY_GROUP_NAME -> ((EntitiesByGroupNameFilter) entityFilter).getGroupType();
-            // EDQS has no index for scheduler events, so this is served by the SQL path, not memory.
             case SCHEDULER_EVENT -> EntityType.SCHEDULER_EVENT;
-            // the concrete type is only known once the dashboard state is resolved at query time
+            // the concrete type is only known once the dashboard state is resolved at query time.
+            // For STATE_ENTITY_OWNER that resolution happens in TenantRepo#buildContext, which does
+            // not consult this method; STATE_ENTITY never reaches a query engine at all.
             case STATE_ENTITY, STATE_ENTITY_OWNER -> null;
         };
     }

@@ -30,9 +30,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.common.util.JacksonUtil;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.converter.Converter;
+import org.thingsboard.server.common.data.event.LifecycleEvent;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
+import org.thingsboard.server.common.data.plugin.ComponentLifecycleEvent;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -42,6 +46,7 @@ import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.script.ScriptLanguage;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.converter.ConverterService;
+import org.thingsboard.server.dao.event.EventService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.integration.ConverterExecutorService;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -70,6 +75,7 @@ public class ConverterController extends BaseController {
 
     private final ConverterService converterService;
     private final ConverterExecutorService converterExecutorService;
+    private final EventService eventService;
 
     @ApiOperation(value = "Get Converter (getConverterById)")
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
@@ -91,10 +97,29 @@ public class ConverterController extends BaseController {
             @RequestBody Converter converter) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.CONVERTER, Operation.WRITE);
         converter.setTenantId(getTenantId());
+        ActionType actionType = converter.getId() == null ? ActionType.ADDED : ActionType.UPDATED;
         if (converter.getId() != null) {
             checkAccess(checkNotNull(converterService.findConverterById(getTenantId(), converter.getId())));
         }
-        return converterService.saveConverter(converter);
+        try {
+            Converter saved = converterService.saveConverter(converter);
+            // PE records an UPDATED lifecycle event whenever a converter's script changes
+            // (DefaultDataConverterService); without it the converter's "Lifecycle events" tab
+            // would never have a single row.
+            eventService.saveAsync(LifecycleEvent.builder()
+                    .tenantId(getTenantId())
+                    .entityId(saved.getId().getId())
+                    .serviceId(serviceInfoProvider.getServiceId())
+                    .lcEventType(ComponentLifecycleEvent.UPDATED.name())
+                    .success(true)
+                    .build());
+            logEntityActionService.logEntityAction(getTenantId(), saved.getId(), saved, actionType, getCurrentUser());
+            return saved;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(getTenantId(), emptyId(EntityType.CONVERTER), converter,
+                    actionType, getCurrentUser(), e);
+            throw e;
+        }
     }
 
     @ApiOperation(value = "Get Converters (getConverters)")
@@ -127,8 +152,16 @@ public class ConverterController extends BaseController {
         checkParameter(CONVERTER_ID, strConverterId);
         accessControlService.checkPermission(getCurrentUser(), Resource.CONVERTER, Operation.DELETE);
         ConverterId converterId = new ConverterId(toUUID(strConverterId));
-        checkAccess(checkNotNull(converterService.findConverterById(getTenantId(), converterId)));
-        converterService.deleteConverter(getTenantId(), converterId);
+        Converter converter = checkAccess(checkNotNull(converterService.findConverterById(getTenantId(), converterId)));
+        try {
+            converterService.deleteConverter(getTenantId(), converterId);
+            logEntityActionService.logEntityAction(getTenantId(), converterId, converter, ActionType.DELETED,
+                    getCurrentUser(), strConverterId);
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(getTenantId(), emptyId(EntityType.CONVERTER), ActionType.DELETED,
+                    getCurrentUser(), e, strConverterId);
+            throw e;
+        }
     }
 
     @ApiOperation(value = "Test uplink converter (testUpLinkConverter)",

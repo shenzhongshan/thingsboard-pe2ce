@@ -23,6 +23,7 @@ import org.thingsboard.server.edqs.data.EntityData;
 import org.thingsboard.server.edqs.query.EdqsQuery;
 import org.thingsboard.server.edqs.repo.TenantRepo;
 
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -37,9 +38,33 @@ public abstract class AbstractSimpleQueryProcessor<T extends EntityFilter> exten
 
     @Override
     protected void processCustomerQuery(UUID customerId, Consumer<EntityData<?>> processor) {
-        var customerData = (CustomerData) repository.getEntityMap(EntityType.CUSTOMER).get(customerId);
-        if (customerData != null) {
-            process(customerData.getEntities(entityType), processor);
+        // Union over the customer and its sub-customers, as PE's processCustomerGenericRead does.
+        var customers = repository.getEntityMap(EntityType.CUSTOMER);
+        // Deny-by-default: skip the owner-scope sweep entirely without a generic READ grant; only
+        // entities reached through an explicit group grant remain below.
+        Set<UUID> scope = ctx.getQueryPermissions().hasGenericRead(entityType)
+                ? customerScope(customerId) : java.util.Set.of();
+        for (UUID scopedCustomerId : scope) {
+            var customerData = (CustomerData) customers.get(scopedCustomerId);
+            if (customerData == null) {
+                continue;
+            }
+            // Querying CUSTOMER entities: a customer lives in its PARENT's bucket, so the buckets
+            // alone would omit the querying customer itself (which has no parent in scope). The SQL
+            // side's `e.id in (recursive customers_ids)` does include it, so emit it here too.
+            if (entityType == EntityType.CUSTOMER) {
+                if (matches(customerData)) {
+                    processor.accept(customerData);
+                }
+            } else {
+                process(customerData.getEntities(entityType), processor);
+            }
+        }
+        // Entities shared in via a GROUP role live outside the customer buckets entirely.
+        for (EntityData<?> ed : grantedGroupMembers()) {
+            if (ed.getEntityType() == entityType && ed.getFields() != null && matches(ed)) {
+                processor.accept(ed);
+            }
         }
     }
 

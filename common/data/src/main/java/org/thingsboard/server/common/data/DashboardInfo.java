@@ -21,6 +21,7 @@ import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
@@ -31,11 +32,17 @@ import java.util.Objects;
 import java.util.Set;
 
 @Schema
-public class DashboardInfo extends BaseData<DashboardId> implements HasName, HasTenantId, HasTitle, HasImage, HasVersion {
+public class DashboardInfo extends BaseData<DashboardId> implements HasName, HasTenantId, HasCustomerId, HasTitle, HasImage, HasVersion {
 
     private static final long serialVersionUID = -9080404114760433799L;
 
     private TenantId tenantId;
+    /**
+     * The OWNER of this dashboard. Distinct from {@link #assignedCustomers}, which is the set of
+     * customers it is SHARED with: a dashboard owned by customer A may still be shared with B.
+     * Mirrors PE, which carries both columns for the same reason.
+     */
+    private CustomerId customerId;
     @NoXss
     @Length(fieldName = "title")
     private String title;
@@ -59,6 +66,7 @@ public class DashboardInfo extends BaseData<DashboardId> implements HasName, Has
     public DashboardInfo(DashboardInfo dashboardInfo) {
         super(dashboardInfo);
         this.tenantId = dashboardInfo.getTenantId();
+        this.customerId = dashboardInfo.getCustomerId();
         this.title = dashboardInfo.getTitle();
         this.image = dashboardInfo.getImage();
         this.assignedCustomers = dashboardInfo.getAssignedCustomers();
@@ -89,6 +97,18 @@ public class DashboardInfo extends BaseData<DashboardId> implements HasName, Has
 
     public void setTenantId(TenantId tenantId) {
         this.tenantId = tenantId;
+    }
+
+    @Override
+    @Schema(description = "JSON object with Customer Id that OWNS the dashboard. Null when the " +
+            "dashboard is owned by the tenant. Not the same as assignedCustomers, which lists the " +
+            "customers the dashboard is shared with.")
+    public CustomerId getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(CustomerId customerId) {
+        this.customerId = customerId;
     }
 
     @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Title of the dashboard.")

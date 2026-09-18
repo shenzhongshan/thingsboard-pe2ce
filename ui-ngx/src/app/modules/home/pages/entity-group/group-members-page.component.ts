@@ -113,7 +113,10 @@ export class GroupMembersPageComponent extends PageComponent implements OnInit {
   }
 
   private togglePublic(group: EntityGroup, isPublic: boolean) {
-    this.entityGroupService.makeEntityGroupPublic(group.id.id, isPublic).subscribe(() => {
+    const request = isPublic
+      ? this.entityGroupService.makeEntityGroupPublic(group.id.id)
+      : this.entityGroupService.makeEntityGroupPrivate(group.id.id);
+    request.subscribe(() => {
       this.groupDetailsPanel?.reloadEntity();
     });
   }
