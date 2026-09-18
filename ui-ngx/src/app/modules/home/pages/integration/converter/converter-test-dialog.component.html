@@ -82,10 +82,14 @@
         </div>
       }
       <div class="tb-test-panel">
+        <!-- disableUndefinedCheck: TBEL built-ins (decodeToString/JSON/...) are invisible to the
+             JS linter and would be flagged as errors, blocking the form - same as every other
+             converter/integration editor in this port. -->
         <tb-js-func formControlName="script"
                     [functionName]="isUplink ? 'decoder' : 'encoder'"
                     [functionArgs]="isUplink ? ['payload', 'metadata'] : ['msg', 'metadata', 'msgType']"
                     [scriptLanguage]="scriptEditorLang"
+                    [disableUndefinedCheck]="true"
                     [fillHeight]="true"
                     [helpId]="scriptHelpId"
                     [helpPopupStyle]="{width: '760px'}"

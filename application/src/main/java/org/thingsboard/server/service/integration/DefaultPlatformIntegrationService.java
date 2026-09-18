@@ -30,6 +30,7 @@ import org.thingsboard.common.util.DebugModeUtil;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.AttributeScope;
+import org.thingsboard.server.common.data.DataConstants;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.kv.BaseAttributeKvEntry;
 import org.thingsboard.server.common.data.kv.BasicTsKvEntry;
@@ -731,7 +732,11 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
             pushMsg(tenantId, device, TbMsgType.POST_TELEMETRY_REQUEST, telemetry, msgMetaData);
         }
         if (attributes != null && !attributes.isEmpty()) {
-            pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, attributes, msgMetaData);
+            // PE 上行转换器约定：返回对象中的 attributes 属于目标设备的服务器端属性。
+            // 使用独立元数据副本，避免属性作用域影响同一报文中的遥测消息。
+            TbMsgMetaData attributesMetaData = msgMetaData.copy();
+            attributesMetaData.putValue(DataConstants.SCOPE, AttributeScope.SERVER_SCOPE.name());
+            pushMsg(tenantId, device, TbMsgType.POST_ATTRIBUTES_REQUEST, attributes, attributesMetaData);
         }
         if ((telemetry != null && !telemetry.isEmpty()) || (attributes != null && !attributes.isEmpty())) {
             // An integration-fed device never opens a transport session, so this is the only thing

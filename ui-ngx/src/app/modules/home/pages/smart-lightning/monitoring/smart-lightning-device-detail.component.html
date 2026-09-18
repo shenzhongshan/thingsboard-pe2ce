@@ -27,7 +27,7 @@
     <a class="back-link" href="" (click)="goBack($event)"><tb-icon>arrow_back</tb-icon>{{returnLabel}}</a>
     <section class="detail-grid">
       <article class="surface device-summary">
-        <div class="summary-top"><div class="device-mark"><tb-icon>electric_meter</tb-icon><strong class="product-name">{{productName}}</strong></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
+        <div class="summary-top"><div class="device-mark" aria-label="设备图片占位"><tb-icon>electric_meter</tb-icon></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
         @if (productSpecification; as specification) {
           <section class="product-specification" aria-label="产品参数">
             <header>
@@ -35,6 +35,10 @@
               <span [title]="specification.model">{{specification.model}}</span>
             </header>
             <dl>
+              <div>
+                <dt>产品名称</dt>
+                <dd [title]="specification.productName">{{specification.productName}}</dd>
+              </div>
               @for (item of specification.items; track item.label) {
                 <div>
                   <dt>{{item.label}}</dt>

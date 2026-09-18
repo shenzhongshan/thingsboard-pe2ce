@@ -1,0 +1,21 @@
+/* 文件职责：设备日志列表布局与表格样式，保持项目蓝绿配色但不依赖原生设备页面样式。 */
+:host { display: block; height: 100%; }
+.device-log-page { min-height: 100%; padding: 16px; background: #edf1f4; color: #173b63; box-sizing: border-box; }
+.log-list-panel { background: #fff; border: 1px solid #d5dee6; box-shadow: 0 7px 18px rgba(29, 60, 87, .07); padding: 0 14px 14px; }
+.log-toolbar { display: flex; align-items: end; gap: 10px; padding: 14px 0; border-bottom: 1px solid #e7edf3; }
+.device-count { display: inline-flex; align-items: center; align-self: center; gap: 7px; min-width: 108px; color: #345875; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.meta-dot { width: 6px; height: 20px; display: inline-block; background: #195ce8; border-radius: 2px; }
+.device-count strong { color: #195ce8; font-size: 20px; font-weight: 600; line-height: 1; }
+.device-count small { color: #70859b; font-size: 12px; font-weight: 400; }
+.search-field { display: flex; flex-direction: column; gap: 5px; width: min(360px, 100%); color: #5b7087; font-size: 12px; }
+.search-field input { border: 1px solid #cbd7e3; border-radius: 4px; padding: 9px 11px; font-size: 14px; outline: none; }.search-field input:focus { border-color: #1766e8; }
+button { border: 0; border-radius: 4px; cursor: pointer; font: inherit; }.primary-button, .detail-button { background: #1662e8; color: #fff; }.secondary-button { background: #eff3f7; color: #43627f; }.primary-button, .secondary-button { padding: 9px 18px; }
+button:disabled { opacity: .45; cursor: not-allowed; }button:focus-visible, input:focus-visible { outline: 2px solid #195ce8; outline-offset: 2px; }.table-wrap { overflow: auto; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; } th, td { border-bottom: 1px solid #e5ebf1; padding: 13px 14px; text-align: left; font-size: 14px; } th { background: #e7f1fc; color: #315b82; font-weight: 600; } tr:hover td { background: #f8fbff; }
+.device-name { width: 42%; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.profile-name { width: 38%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.operation-column { width: 150px; text-align: center; }.detail-button { padding: 8px 15px; }
+.table-state { text-align: center; color: #71869c; padding: 35px 12px; }.table-state.error { color: #d34a4a; }
+.pagination { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 14px; color: #71869c; font-size: 13px; }.pagination button { padding: 7px 12px; background: #f0f4f8; color: #315b82; }.pagination strong { color: #315b82; font-weight: 500; }
+.drawer-mask { position: fixed; inset: 0; z-index: 20; background: rgba(10, 35, 62, .26); animation: mask-enter .2s ease both; }
+@keyframes mask-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .drawer-mask { animation: none; } }
+@media (max-width: 720px) { .device-log-page { padding: 8px; }.log-list-panel { padding-inline: 9px; }.log-toolbar { flex-wrap: wrap; }.device-count { min-width: 100%; }.search-field { width: 100%; }.operation-column { width: 120px; } th, td { padding: 10px 8px; font-size: 13px; } }

@@ -1,0 +1,46 @@
+<!-- 文件职责：设备日志列表模板；详情数据仅在打开右侧抽屉后加载。 -->
+<main class="device-log-page">
+  <section class="log-list-panel">
+    <form class="log-toolbar" (ngSubmit)="submitSearch()">
+      <!-- 设备总数与筛选控件放在同一行，避免统计信息单独占据整行。 -->
+      <div class="device-count" aria-live="polite">
+        <span class="meta-dot" aria-hidden="true"></span>
+        <span>设备</span>
+        <strong>{{totalElements}}</strong>
+        <small>台</small>
+      </div>
+      <label class="search-field">
+        <span>设备名称</span>
+        <input name="search" [(ngModel)]="search" placeholder="输入设备名称搜索">
+      </label>
+      <button type="submit" class="primary-button">查询</button>
+      <button type="button" class="secondary-button" (click)="resetSearch()">重置</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>设备名称</th><th>设备配置类型</th><th class="operation-column">操作</th></tr></thead>
+        <tbody>
+          <tr *ngIf="loading"><td colspan="3" class="table-state">正在读取设备列表…</td></tr>
+          <tr *ngIf="!loading && loadError"><td colspan="3" class="table-state error">设备列表读取失败，请稍后重试</td></tr>
+          <tr *ngIf="!loading && !loadError && !devices.length"><td colspan="3" class="table-state">当前用户暂无可见设备</td></tr>
+          <tr *ngFor="let device of devices; trackBy: trackByDeviceId">
+            <td class="device-name" [title]="device.deviceName">{{device.deviceName}}</td>
+            <td class="profile-name" [title]="device.deviceProfileName || '未配置'">{{device.deviceProfileName || '未配置'}}</td>
+            <td class="operation-column"><button type="button" class="detail-button" (click)="openDevice(device)">查看日志</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pagination" aria-label="设备日志列表分页">
+      <span>共 {{totalElements}} 台设备</span>
+      <button type="button" (click)="changePage(page - 1)" [disabled]="page === 0">上一页</button>
+      <strong>{{totalPages ? page + 1 : 0}} / {{totalPages}}</strong>
+      <button type="button" (click)="changePage(page + 1)" [disabled]="!totalPages || page + 1 >= totalPages">下一页</button>
+    </nav>
+  </section>
+
+  <div class="drawer-mask" *ngIf="selectedDevice" (click)="closeDrawer()"></div>
+  <tb-device-log-detail-drawer *ngIf="selectedDevice" [device]="selectedDevice" (close)="closeDrawer()"></tb-device-log-detail-drawer>
+</main>

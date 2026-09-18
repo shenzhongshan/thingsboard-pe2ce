@@ -1,0 +1,46 @@
+<!-- 文件职责：设备日志详情抽屉模板，三页签对应服务器属性、最新遥测和时间线。 -->
+<aside class="log-drawer" role="dialog" aria-label="设备日志详情">
+  <header class="drawer-header">
+    <div><h2>{{device.deviceName}}</h2><p>{{device.deviceProfileName || '未配置设备类型'}}</p></div>
+    <button type="button" class="close-button" aria-label="关闭" (click)="close.emit()">×</button>
+  </header>
+  <nav class="drawer-tabs" role="tablist">
+    <button type="button" role="tab" [class.active]="activeTab === 'attributes'" (click)="activeTab = 'attributes'">服务器属性</button>
+    <button type="button" role="tab" [class.active]="activeTab === 'telemetry'" (click)="activeTab = 'telemetry'">最新遥测</button>
+    <button type="button" role="tab" [class.active]="activeTab === 'timeline'" (click)="activeTab = 'timeline'">变更时间线</button>
+  </nav>
+  <section class="drawer-content">
+    <div *ngIf="loading" class="drawer-state">正在读取日志数据…</div>
+    <div *ngIf="!loading && loadError" class="drawer-state error">日志读取失败，请稍后重试</div>
+    <ng-container *ngIf="!loading && !loadError">
+      <section *ngIf="activeTab === 'attributes'" class="data-section">
+        <div *ngIf="!snapshot.attributes.length" class="empty-state">暂无服务器属性</div>
+        <div class="data-row" *ngFor="let item of snapshot.attributes"><span>{{item.key}}</span><strong>{{item.value}}</strong><time>{{formatTime(item.lastUpdateTs || 0)}}</time></div>
+      </section>
+      <section *ngIf="activeTab === 'telemetry'" class="data-section">
+        <div *ngIf="!telemetryRows().length" class="empty-state">暂无最新遥测</div>
+        <div class="data-row" *ngFor="let item of telemetryRows()"><span>{{item.key}}</span><strong>{{item.value}}</strong><time>{{formatTime(item.timestamp)}}</time></div>
+      </section>
+      <section *ngIf="activeTab === 'timeline'" class="timeline">
+        <div *ngIf="!snapshot.timeline.length" class="empty-state">暂无可展示的变更记录</div>
+        <article class="timeline-item" *ngFor="let item of snapshot.timeline">
+          <i></i>
+          <div class="timeline-event-content">
+            <small>{{formatTime(item.timestamp)}}</small>
+            <h3><span class="timeline-source">来源：{{formatTimelineSource(item.category)}}</span>{{item.key}}</h3>
+            <div *ngIf="item.fields?.length" class="timeline-fields">
+              <div *ngFor="let field of item.fields" class="timeline-field">
+                <span>{{field.label}}</span><strong>{{field.value}}</strong>
+              </div>
+            </div>
+            <p *ngIf="!item.fields?.length">{{item.value}}</p>
+          </div>
+        </article>
+        <button *ngIf="timelineHasNext" type="button" class="timeline-more"
+                [disabled]="loadingMoreTimeline" (click)="loadMoreTimeline()">
+          {{loadingMoreTimeline ? '正在加载…' : '查看更多'}}
+        </button>
+      </section>
+    </ng-container>
+  </section>
+</aside>

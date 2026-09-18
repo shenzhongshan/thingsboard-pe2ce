@@ -414,3 +414,122 @@
   .product-specification dt,
   .product-specification dd { font-size: 9px; }
 }
+
+/*
+ * 设备摘要顶部采用横向标题布局：产品名称与图标横向展开，
+ * 操作按钮仍固定在右侧；压缩顶部高度后，产品参数区域自然上移。
+ */
+.summary-top {
+  min-height: 68px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.device-mark {
+  flex: 0 0 clamp(76px, 20%, 112px);
+  width: clamp(76px, 20%, 112px);
+  min-width: 76px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.device-mark tb-icon {
+  flex: 0 0 auto;
+  font-size: 30px;
+}
+
+.product-name {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* 产品参数标题行使用内容宽度，避免标题单独占用过大的横向空间。 */
+.product-specification header {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.product-specification h2 {
+  flex: 0 0 auto;
+  width: max-content;
+  white-space: nowrap;
+}
+
+.product-specification header span {
+  max-width: min(70%, 260px);
+  margin-left: 0;
+}
+
+/* 产品参数标题行只保留必要的上下留白，避免把固定参数整体向下推。 */
+.product-specification header {
+  min-height: 19px;
+  padding-bottom: 3px;
+}
+
+.product-specification h2 {
+  line-height: 1.15;
+}
+
+/* 五个操作按钮始终保持一行，并按当前摘要宽度均分，避免笔记本端换行错位。 */
+.mock-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  align-content: center;
+  gap: 5px;
+}
+
+.mock-actions button {
+  min-width: 0;
+  overflow: visible;
+  padding-right: clamp(1px, .28vw, 5px);
+  padding-left: clamp(1px, .28vw, 5px);
+  font-size: clamp(7px, .7vw, 11px);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .summary-top {
+    gap: 7px;
+    padding: 7px 9px;
+  }
+
+  .device-mark {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    gap: 6px;
+    padding: 5px 7px;
+  }
+
+  .device-mark tb-icon {
+    font-size: 26px;
+  }
+
+  .product-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .mock-actions {
+    width: 100%;
+    flex-basis: 100%;
+    gap: 4px;
+  }
+}

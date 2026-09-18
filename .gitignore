@@ -41,3 +41,5 @@ rebuild-docker.sh
 .planning
 /tools
 /.vscode
+/.md
+.md
