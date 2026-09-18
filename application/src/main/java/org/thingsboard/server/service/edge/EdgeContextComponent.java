@@ -27,6 +27,7 @@ import org.thingsboard.server.cache.limits.RateLimitService;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.msg.notification.NotificationRuleProcessor;
+import org.thingsboard.server.dao.ota.DeviceGroupOtaPackageService;
 import org.thingsboard.server.dao.encryptionkey.EncryptionService;
 import org.thingsboard.server.dao.ai.AiModelService;
 import org.thingsboard.server.dao.pat.ApiKeyService;
@@ -346,6 +347,9 @@ public class EdgeContextComponent {
 
     @Autowired
     private EncryptionService encryptionService;
+
+    @Autowired
+    private DeviceGroupOtaPackageService deviceGroupOtaPackageService;
 
 
 

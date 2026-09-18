@@ -48,6 +48,7 @@ import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.ai.AiModel;
 import org.thingsboard.server.common.data.pat.ApiKey;
 import org.thingsboard.server.common.data.alarm.Alarm;
@@ -100,6 +101,7 @@ import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
 import org.thingsboard.server.common.transport.util.JsonUtils;
+import org.thingsboard.server.gen.edge.v1.DeviceGroupOtaPackageUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.EncryptionKeyUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AiModelUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
@@ -946,6 +948,15 @@ public class EdgeMsgConstructorUtils {
                 .setEntity(JacksonUtil.toString(encryptionKey))
                 .setIdMSB(encryptionKey.getId().getId().getMostSignificantBits())
                 .setIdLSB(encryptionKey.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 设备分组的 OTA 配置。这是挂在分组上的设置行，不是一等实体 —— 所以消息里没有
+     * idMSB/idLSB，整条内容走 entity 字段。
+     */
+    public static DeviceGroupOtaPackageUpdateMsg constructDeviceGroupOtaUpdateMsg(UpdateMsgType msgType, DeviceGroupOtaPackage otaPackage) {
+        return DeviceGroupOtaPackageUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(otaPackage)).build();
     }
 
     public static SecretUpdateMsg constructSecretUpdatedMsg(UpdateMsgType msgType, Secret secret) {

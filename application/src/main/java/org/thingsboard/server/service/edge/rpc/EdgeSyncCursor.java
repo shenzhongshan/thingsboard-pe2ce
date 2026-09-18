@@ -30,6 +30,7 @@ import org.thingsboard.server.service.edge.rpc.fetch.PublicCustomerUserGroupEdge
 import org.thingsboard.server.service.edge.rpc.fetch.DefaultProfilesEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.DeviceProfilesEdgeEventFetcher;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.service.edge.rpc.fetch.DeviceGroupOtaPackageEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EncryptionKeyEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EdgeEventFetcher;
@@ -117,6 +118,8 @@ public class EdgeSyncCursor {
             fetchers.add(new IntegrationsEdgeEventFetcher(ctx.getIntegrationService()));
             // 加密密钥必须在 Secret 之前到达 —— 先有钥匙才能解密文。
             fetchers.add(new EncryptionKeyEdgeEventFetcher());
+            // 设备分组的 OTA 配置，跟着已分配的 DEVICE 分组走。
+            fetchers.add(new DeviceGroupOtaPackageEdgeEventFetcher(ctx.getDeviceGroupOtaPackageService(), ctx.getEntityGroupService()));
             fetchers.add(new OtaPackagesEdgeEventFetcher(ctx.getOtaPackageService()));
             // sync device profiles twice to update software and hardware fields
             fetchers.add(new DeviceProfilesEdgeEventFetcher(ctx.getDeviceProfileService()));
