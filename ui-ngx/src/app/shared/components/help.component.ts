@@ -15,7 +15,9 @@
 ///
 
 import { Component, Input } from '@angular/core';
-import { HelpLinks } from '@shared/models/constants';
+import { helpBaseUrl, HelpLinks } from '@shared/models/constants';
+import { Observable } from 'rxjs';
+import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
 @Component({
     selector: '[tb-help]',
@@ -26,6 +28,12 @@ export class HelpComponent {
 
   @Input('tb-help') helpLinkId: string;
 
+  readonly enableHelpLinks$: Observable<boolean>;
+
+  constructor(private wl: WhiteLabelingApplyService) {
+    this.enableHelpLinks$ = this.wl.isEnableHelpLinks$();
+  }
+
   gotoHelpPage(): void {
     let helpUrl = HelpLinks.linksMap[this.helpLinkId];
     if (!helpUrl && this.helpLinkId &&
@@ -33,6 +41,10 @@ export class HelpComponent {
       helpUrl = this.helpLinkId;
     }
     if (helpUrl) {
+      const wlHelpLinkBaseUrl = this.wl.getHelpLinkBaseUrl();
+      if (wlHelpLinkBaseUrl) {
+        helpUrl = helpUrl.replace(helpBaseUrl, wlHelpLinkBaseUrl);
+      }
       window.open(helpUrl, '_blank');
     }
   }

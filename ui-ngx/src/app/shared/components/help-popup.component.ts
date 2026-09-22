@@ -32,6 +32,7 @@ import { isDefinedAndNotNull } from '@core/utils';
 import { coerceBoolean } from '@shared/decorators/coercion';
 import { Observable } from 'rxjs';
 import { TranslateService } from '@ngx-translate/core';
+import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
 @Component({
     selector: '[tb-help-popup], [tb-help-popup-content], [tb-help-popup-content-base64], [tb-help-popup-async-content]',
@@ -88,11 +89,15 @@ export class HelpPopupComponent implements OnChanges {
   triggerSafeHtml: SafeHtml = null;
   textMode = false;
 
+  readonly enableHelpLinks$: Observable<boolean>;
+
   constructor(private viewContainerRef: ViewContainerRef,
               private sanitizer: DomSanitizer,
               private renderer: Renderer2,
               private popoverService: TbPopoverService,
-              private translate: TranslateService) {
+              private translate: TranslateService,
+              private wl: WhiteLabelingApplyService) {
+    this.enableHelpLinks$ = this.wl.isEnableHelpLinks$();
   }
 
   ngOnChanges(_changes: SimpleChanges): void {

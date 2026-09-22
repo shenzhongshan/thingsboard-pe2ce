@@ -28,6 +28,8 @@ import {
   CustomCssDialogComponent,
   CustomCssDialogData
 } from '@home/pages/admin/custom-css-dialog.component';
+import { getCurrentAuthUser } from '@core/auth/auth.selectors';
+import { Authority } from '@shared/models/authority.enum';
 
 @Component({
   selector: 'tb-white-labeling',
@@ -39,6 +41,10 @@ export class WhiteLabelingComponent extends PageComponent implements OnInit, Has
 
   whiteLabelingForm: UntypedFormGroup;
 
+  // Help links are a system-wide setting: the system params always win over tenant/customer ones
+  // when white labeling is merged, so only the system administrator may edit them (as in PE).
+  readonly isSysAdmin: boolean;
+
   private customCss: string = null;
 
   constructor(protected store: Store<AppState>,
@@ -47,6 +53,7 @@ export class WhiteLabelingComponent extends PageComponent implements OnInit, Has
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     super(store);
+    this.isSysAdmin = getCurrentAuthUser(this.store).authority === Authority.SYS_ADMIN;
   }
 
   ngOnInit() {
@@ -101,9 +108,10 @@ export class WhiteLabelingComponent extends PageComponent implements OnInit, Has
       favicon: v.favicon ? { url: v.favicon } : null,
       logoImageUrl: v.logo,
       logoImageHeight: v.logoImageHeight,
-      enableHelpLinks: v.enableHelpLinks,
-      helpLinkBaseUrl: v.helpLinkBaseUrl,
-      uiHelpBaseUrl: v.uiHelpBaseUrl,
+      // Only the system level carries the help link settings (see isSysAdmin).
+      enableHelpLinks: this.isSysAdmin ? v.enableHelpLinks : undefined,
+      helpLinkBaseUrl: this.isSysAdmin ? v.helpLinkBaseUrl : undefined,
+      uiHelpBaseUrl: this.isSysAdmin ? v.uiHelpBaseUrl : undefined,
       paletteSettings: {
         primaryPalette: v.primaryPalette,
         accentPalette: v.accentPalette

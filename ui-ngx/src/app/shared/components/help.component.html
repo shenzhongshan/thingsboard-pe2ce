@@ -15,10 +15,12 @@
     limitations under the License.
 
 -->
-<button mat-icon-button
-        type="button"
-        (click)="gotoHelpPage()"
-        matTooltip="{{'help.goto-help-page' | translate}}"
-        matTooltipPosition="above">
-  <mat-icon class="material-icons">help</mat-icon>
-</button>
+@if (enableHelpLinks$ | async) {
+  <button mat-icon-button
+          type="button"
+          (click)="gotoHelpPage()"
+          matTooltip="{{'help.goto-help-page' | translate}}"
+          matTooltipPosition="above">
+    <mat-icon class="material-icons">help</mat-icon>
+  </button>
+}

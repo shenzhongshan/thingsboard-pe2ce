@@ -36,7 +36,9 @@
       }
     </mat-select>
   </mat-form-field>
-  <button mat-stroked-button type="button" [disabled]="disabled" (click)="customize()">
+  <!-- A custom palette extends the selected one, so there is nothing to customize until a palette
+       is picked (same rule as PE: [disabled]="!palette.type"). -->
+  <button mat-stroked-button type="button" [disabled]="disabled || !selectedType" (click)="customize()">
     {{ 'white-labeling.custom' | translate }}
   </button>
 </div>
