@@ -7365,6 +7365,8 @@
         "entities-limit-exceeded": "Entities limit exceeded"
     },
     "tenant": {
+        "allow-white-labeling": "Allow white labeling",
+        "allow-customer-white-labeling": "Allow customer white labeling",
         "tenant": "Tenant",
         "tenants": "Tenants",
         "management": "Tenant management",

@@ -997,6 +997,26 @@ const menuFilters = new Map<MenuId, MenuFilter>([
   // (OTA updates / version control / scheduler / task manager live under it, per PE navigation).
   [
     MenuId.mobile_center, () => false
+  ],
+  // White labeling is hidden for tenants/customers it was revoked from
+  // (Tenant additionalInfo.allowWhiteLabeling), exactly as PE filters its menu.
+  [
+    MenuId.white_labeling, (authState) => authState.whiteLabelingAllowed
+  ],
+  [
+    MenuId.white_labeling_general, (authState) => authState.whiteLabelingAllowed
+  ],
+  [
+    MenuId.white_labeling_login, (authState) => authState.whiteLabelingAllowed
+  ],
+  [
+    MenuId.mail_templates, (authState) => authState.whiteLabelingAllowed
+  ],
+  [
+    MenuId.custom_translation, (authState) => authState.whiteLabelingAllowed
+  ],
+  [
+    MenuId.custom_menu, (authState) => authState.whiteLabelingAllowed
   ]
 ]);
 

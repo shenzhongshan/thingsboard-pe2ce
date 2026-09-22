@@ -26,6 +26,11 @@ public class SystemParams {
     boolean userTokenAccessEnabled;
     List<String> allowedDashboardIds;
     boolean edgesSupportEnabled;
+    // Whether the current user may white-label at all, and whether a tenant admin may delegate it
+    // to its customers (Tenant additionalInfo.allowWhiteLabeling / allowCustomerWhiteLabeling).
+    // The UI hides the white labeling menu when not allowed, as PE does.
+    boolean whiteLabelingAllowed;
+    boolean customerWhiteLabelingAllowed;
     boolean hasRepository;
     boolean tbelEnabled;
     boolean persistDeviceStateToTelemetry;

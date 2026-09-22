@@ -27,6 +27,8 @@ const emptyUserAuthState: AuthPayload = {
   forceFullscreen: false,
   allowedDashboardIds: [],
   edgesSupportEnabled: false,
+  whiteLabelingAllowed: false,
+  customerWhiteLabelingAllowed: false,
   hasRepository: false,
   tbelEnabled: false,
   persistDeviceStateToTelemetry: false,

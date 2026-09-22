@@ -23,6 +23,10 @@ export interface SysParamsState {
   userTokenAccessEnabled: boolean;
   allowedDashboardIds: string[];
   edgesSupportEnabled: boolean;
+  // Tenant additionalInfo.allowWhiteLabeling / allowCustomerWhiteLabeling, resolved for the
+  // current user by the backend; drives the visibility of the white labeling menu.
+  whiteLabelingAllowed: boolean;
+  customerWhiteLabelingAllowed: boolean;
   hasRepository: boolean;
   tbelEnabled: boolean;
   persistDeviceStateToTelemetry: boolean;

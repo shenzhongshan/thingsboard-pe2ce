@@ -7324,6 +7324,8 @@
     "entities-limit-exceeded": "实体数量超出限制"
   },
   "tenant": {
+    "allow-white-labeling": "允许白标",
+    "allow-customer-white-labeling": "允许客户白标",
     "tenant": "租户",
     "tenants": "租户",
     "management": "租户管理",

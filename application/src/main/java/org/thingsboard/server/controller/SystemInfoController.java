@@ -44,6 +44,7 @@ import org.thingsboard.server.common.msg.edqs.EdqsService;
 import org.thingsboard.server.common.data.tenant.profile.DefaultTenantProfileConfiguration;
 import org.thingsboard.server.dao.mobile.QrCodeSettingService;
 import org.thingsboard.server.dao.trendz.TrendzSettingsService;
+import org.thingsboard.server.dao.wl.WhiteLabelingService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
@@ -104,6 +105,9 @@ public class SystemInfoController extends BaseController {
     @Autowired
     private EdqsService edqsService;
 
+    @Autowired
+    private WhiteLabelingService whiteLabelingService;
+
     @PostConstruct
     public void init() {
         JsonNode info = buildInfoObject();
@@ -144,6 +148,11 @@ public class SystemInfoController extends BaseController {
             systemParams.setAllowedDashboardIds(Collections.emptyList());
         }
         systemParams.setEdgesSupportEnabled(edgesEnabled);
+        // System admin is always allowed; for tenants/customers this reflects the
+        // allowWhiteLabeling / allowCustomerWhiteLabeling flags of their tenant (and customer).
+        systemParams.setWhiteLabelingAllowed(whiteLabelingService.isWhiteLabelingAllowed(tenantId, customerId));
+        systemParams.setCustomerWhiteLabelingAllowed(currentUser.isTenantAdmin()
+                && whiteLabelingService.isCustomerWhiteLabelingAllowed(tenantId));
         if (currentUser.isTenantAdmin()) {
             systemParams.setHasRepository(versionControlService.getVersionControlSettings(tenantId) != null);
             systemParams.setTbelEnabled(tbelEnabled);
