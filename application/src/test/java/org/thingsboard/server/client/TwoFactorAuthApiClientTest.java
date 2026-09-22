@@ -38,7 +38,7 @@ public class TwoFactorAuthApiClientTest extends AbstractApiClientTest {
     @Test
     public void testTwoFactorAuthLifecycle() throws Exception {
         // save original platform 2FA settings as sysadmin
-        client.login("sysadmin@thingsboard.org", "sysadmin");
+        client.login("sysadmin@flexlink.com", "sysadmin");
 
         // configure platform 2FA settings with TOTP provider
         TotpTwoFaProviderConfig totpProviderConfig = new TotpTwoFaProviderConfig();

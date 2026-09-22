@@ -113,7 +113,7 @@ public class CalculatedFieldTest extends AbstractContainerTest {
 
     @BeforeClass
     public void beforeClass() {
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
 
         updateDefaultTenantProfile(tenantProfile -> {
             TenantProfileData profileData = tenantProfile.getProfileData();
@@ -152,7 +152,7 @@ public class CalculatedFieldTest extends AbstractContainerTest {
     @AfterClass
     public void afterClass() {
         testRestClient.resetToken();
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         testRestClient.deleteTenant(tenantId);
     }
 

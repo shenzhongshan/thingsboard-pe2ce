@@ -72,7 +72,7 @@ public class EdqsEntityDataQueryTest extends AbstractContainerTest {
 
     @BeforeClass
     public void beforeClass() throws Exception {
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         await().atMost(60, TimeUnit.SECONDS).until(() -> testRestClient.getEdqsState().isApiEnabled());
 
         tenantId = testRestClient.postTenant(EntityPrototypes.defaultTenantPrototype("Tenant")).getId();
@@ -83,7 +83,7 @@ public class EdqsEntityDataQueryTest extends AbstractContainerTest {
         customerUserId = testRestClient.postUser(defaultCustomerAdmin(tenantId, customerId,  "customerUser@thingsboard.org")).getId();
         assignDevicesToCustomer(customerId, tenantDevices, 12);
 
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         tenantId2 = testRestClient.postTenant(EntityPrototypes.defaultTenantPrototype("Tenant")).getId();
         tenant2AdminId = testRestClient.createUserAndLogin(defaultTenantAdmin(tenantId2, "tenant2Admin@thingsboard.org"), "tenant");
         testRestClient.postDeviceProfile(defaultDeviceProfile(deviceProfile));
@@ -95,13 +95,13 @@ public class EdqsEntityDataQueryTest extends AbstractContainerTest {
 
     @BeforeMethod
     public void beforeMethod() {
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
     }
 
     @AfterClass
     public void afterClass() {
         testRestClient.resetToken();
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         testRestClient.deleteTenant(tenantId);
         testRestClient.deleteTenant(tenantId2);
     }
@@ -121,7 +121,7 @@ public class EdqsEntityDataQueryTest extends AbstractContainerTest {
                 .until(() -> testRestClient.postCountDataQuery(query).equals(97L));
 
         testRestClient.resetToken();
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         testRestClient.getAndSetUserToken(tenant2AdminId);
         await("Waiting for total device count")
                 .atMost(30, TimeUnit.SECONDS)
@@ -140,7 +140,7 @@ public class EdqsEntityDataQueryTest extends AbstractContainerTest {
 
         // login other tenant admin
         testRestClient.resetToken();
-        testRestClient.login("sysadmin@thingsboard.org", "sysadmin");
+        testRestClient.login("sysadmin@flexlink.com", "sysadmin");
         testRestClient.getAndSetUserToken(tenant2AdminId);
         checkUserDevices(tenant2Devices);
     }

@@ -43,7 +43,7 @@ public class TenantProfileApiClientTest extends AbstractApiClientTest {
         List<TenantProfile> createdProfiles = new ArrayList<>();
 
         // authenticate as sysadmin for tenant profile management
-        client.login("sysadmin@thingsboard.org", "sysadmin");
+        client.login("sysadmin@flexlink.com", "sysadmin");
 
         // get initial count (there should be a default profile)
         PageDataTenantProfile initialProfiles = client.getTenantProfiles(100, 0, null, null, null);
@@ -155,7 +155,7 @@ public class TenantProfileApiClientTest extends AbstractApiClientTest {
             assertEquals(initialSize + 4, profilesAfterDelete.getData().size());
         } finally {
             // clean up created profiles
-            client.login("sysadmin@thingsboard.org", "sysadmin");
+            client.login("sysadmin@flexlink.com", "sysadmin");
 
             // ensure original default is restored before deleting test profiles
             TenantProfile originalDefault = initialProfiles.getData().stream()

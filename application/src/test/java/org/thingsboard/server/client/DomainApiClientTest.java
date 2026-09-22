@@ -48,7 +48,7 @@ public class DomainApiClientTest extends AbstractApiClientTest {
 
     @Test
     public void testDomainLifecycle() throws Exception {
-        client.login("sysadmin@thingsboard.org", "sysadmin");
+        client.login("sysadmin@flexlink.com", "sysadmin");
 
         long timestamp = System.currentTimeMillis();
 
