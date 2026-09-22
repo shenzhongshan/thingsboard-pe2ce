@@ -69,32 +69,42 @@
             <form [formGroup]="shareForm" class="flex flex-col gap-2" style="padding-top: 16px;">
               <mat-checkbox formControlName="enabled">{{ 'entity-group.share-group' | translate }}</mat-checkbox>
               @if (shareForm.get('enabled').value) {
-                <tb-entity-autocomplete
-                  formControlName="customerId"
-                  [entityType]="entityType.CUSTOMER"
-                  labelText="{{ 'entity-group.share-customer' | translate }}"
-                  appearance="outline">
-                </tb-entity-autocomplete>
-                <mat-checkbox formControlName="allUsers">{{ 'entity-group.share-all-users' | translate }}</mat-checkbox>
-                @if (!shareForm.get('allUsers').value) {
-                  <mat-form-field class="w-full" appearance="outline">
-                    <mat-label translate>entity-group.share-user-group</mat-label>
-                    <mat-select formControlName="userGroupId">
-                      @for (g of availableUserGroups; track g.id.id) {
-                        <mat-option [value]="g.id.id">{{ g.name }}</mat-option>
-                      }
-                    </mat-select>
-                    @if (shareForm.get('userGroupId').hasError('required')) {
-                      <mat-error>{{ 'entity-group.share-user-group-required' | translate }}</mat-error>
-                    }
-                  </mat-form-field>
+                <tb-owner-autocomplete
+                  formControlName="ownerId"
+                  appearance="outline"
+                  required>
+                </tb-owner-autocomplete>
+                <mat-checkbox formControlName="allUserGroup">{{ 'entity-group.all-users' | translate }}</mat-checkbox>
+                @if (!shareForm.get('allUserGroup').value) {
+                  <tb-entity-group-select
+                    formControlName="userGroupId"
+                    appearance="outline"
+                    [ownerId]="shareForm.get('ownerId').value"
+                    [allowedGroupTypes]="[entityType.USER]"
+                    placeholderText="entity-group.select-user-group"
+                    notFoundText="entity-group.no-user-groups-matching"
+                    requiredText="entity-group.target-user-group-required"
+                    required>
+                  </tb-entity-group-select>
                 }
-                <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>entity-group.share-permission</div>
-                <mat-radio-group formControlName="permission" class="flex flex-row" style="gap: 16px;">
-                  <mat-radio-button value="READ">{{ 'entity-group.share-permission-read' | translate }}</mat-radio-button>
-                  <mat-radio-button value="WRITE">{{ 'entity-group.share-permission-write' | translate }}</mat-radio-button>
-                  <mat-radio-button value="OTHER">{{ 'entity-group.share-permission-other' | translate }}</mat-radio-button>
+                <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>entity-group.permissions</div>
+                <mat-radio-group formControlName="permission" color="primary" class="flex flex-row" style="gap: 16px;">
+                  <mat-radio-button [value]="0">{{ 'role.operation-READ' | translate }}</mat-radio-button>
+                  <mat-radio-button [value]="1">{{ 'role.operation-WRITE' | translate }}</mat-radio-button>
+                  <mat-radio-button [value]="2">{{ 'entity-group.share-permission-other' | translate }}</mat-radio-button>
                 </mat-radio-group>
+                @if (shareForm.get('permission').value === 2) {
+                  <tb-entity-list
+                    formControlName="roleIds"
+                    appearance="outline"
+                    [entityType]="entityType.ROLE"
+                    [subType]="roleType.GROUP"
+                    labelText="{{ 'role.roles' | translate }}"
+                    placeholderText="{{ 'role.roles' | translate }}"
+                    requiredText="{{ 'role.roles-required' | translate }}"
+                    required>
+                  </tb-entity-list>
+                }
               }
             </form>
             <div class="flex items-center justify-start" style="padding-top: 8px;">

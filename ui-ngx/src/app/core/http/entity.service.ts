@@ -103,6 +103,8 @@ import { MobileAppService } from '@core/http/mobile-app.service';
 import { PlatformType } from '@shared/models/oauth2.models';
 import { AiModelService } from '@core/http/ai-model.service';
 import { ResourceType } from "@shared/models/resource.models";
+import { RoleService } from '@core/http/role.service';
+import { Role } from '@shared/models/role.models';
 
 @Injectable({
   providedIn: 'root'
@@ -137,6 +139,7 @@ export class EntityService {
     private mobileAppService: MobileAppService,
     private aiModelService: AiModelService,
     private entityGroupService: EntityGroupService,
+    private roleService: RoleService,
   ) { }
 
   private getEntityObservable(entityType: EntityType, entityId: string,
@@ -500,6 +503,12 @@ export class EntityService {
       case EntityType.AI_MODEL:
         pageLink.sortOrder.property = 'name';
         entitiesObservable = this.aiModelService.getAiModels(pageLink, config);
+        break;
+      case EntityType.ROLE:
+        pageLink.sortOrder.property = 'name';
+        entitiesObservable = this.roleService.getRoles(pageLink, config).pipe(
+          map(page => subType ? {...page, data: page.data.filter(r => (r as Role).type === subType)} : page)
+        );
         break;
     }
     return entitiesObservable;

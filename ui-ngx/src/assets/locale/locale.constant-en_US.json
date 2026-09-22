@@ -131,10 +131,15 @@
         "permissions-user-group-owner": "User group owner",
         "permissions-no-permissions-text": "No group permissions found",
         "owner-tenant": "Tenant",
-        "owner-customer": "Customer"
+        "owner-customer": "Customer",
+        "all-users": "All users",
+        "select-user-group": "Select user group",
+        "no-user-groups-matching": "No user groups matching '{{entityGroup}}' were found.",
+        "target-user-group-required": "Target user group is required."
     },
     "role": {
         "roles": "Roles",
+        "roles-required": "Roles are required.",
         "role": "Role",
         "add": "Add role",
         "edit": "Edit role",

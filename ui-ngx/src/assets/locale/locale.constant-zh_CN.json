@@ -131,10 +131,15 @@
     "permissions-user-group-owner": "用户组所有者",
     "permissions-no-permissions-text": "未找到组权限",
     "owner-tenant": "租户",
-    "owner-customer": "客户"
+    "owner-customer": "客户",
+    "all-users": "所有用户",
+    "select-user-group": "选择用户组",
+    "no-user-groups-matching": "未找到与 '{{entityGroup}}' 匹配的用户组。",
+    "target-user-group-required": "目标用户组为必填项。"
   },
   "role": {
     "roles": "角色",
+    "roles-required": "角色为必填项。",
     "role": "角色",
     "add": "添加角色",
     "edit": "编辑角色",

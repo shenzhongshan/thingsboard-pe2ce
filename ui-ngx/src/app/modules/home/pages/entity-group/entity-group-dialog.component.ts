@@ -22,13 +22,11 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityGroupService } from '@core/http/entity-group.service';
-import { RoleService } from '@core/http/role.service';
-import { EntityGroup } from '@shared/models/entity-group.models';
-import { PageLink } from '@shared/models/page/page-link';
+import { EntityGroup, ShareGroupRequest } from '@shared/models/entity-group.models';
+import { RoleType } from '@shared/models/role.models';
+import { EntityId } from '@shared/models/id/entity-id';
 import { mergeMap } from 'rxjs/operators';
 import { of } from 'rxjs';
-
-const idOf = (value: any): string => value?.id || value;
 
 export interface EntityGroupDialogData {
   entityGroupId?: string;
@@ -49,11 +47,11 @@ export class EntityGroupDialogComponent implements OnInit {
   @ViewChild('addEntityGroupStepper', {static: false}) stepper: MatStepper;
 
   entityType = EntityType;
+  roleType = RoleType;
   form: UntypedFormGroup;
   shareForm: UntypedFormGroup;
   isEdit = false;
   loaded = false;
-  availableUserGroups: EntityGroup[] = [];
 
   private entityGroup: EntityGroup;
 
@@ -62,7 +60,6 @@ export class EntityGroupDialogComponent implements OnInit {
               private dialogRef: MatDialogRef<EntityGroupDialogComponent, EntityGroup | false>,
               protected store: Store<AppState>,
               private entityGroupService: EntityGroupService,
-              private roleService: RoleService,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.entityGroupId;
   }
@@ -70,22 +67,15 @@ export class EntityGroupDialogComponent implements OnInit {
   ngOnInit() {
     this.shareForm = this.fb.group({
       enabled: [true],
-      customerId: [null],
-      allUsers: [true],
+      ownerId: [null],
+      allUserGroup: [false],
       userGroupId: [null],
-      permission: ['READ', [Validators.required]]
-    });
-    this.shareForm.get('customerId').valueChanges.subscribe((customer) => {
-      this.availableUserGroups = [];
-      this.shareForm.get('userGroupId').setValue(null);
-      const customerId = idOf(customer);
-      if (customerId) {
-        this.entityGroupService.getEntityGroupsByType(EntityType.USER, new PageLink(100, 0), customerId)
-          .subscribe(page => this.availableUserGroups = page.data);
-      }
+      permission: [0, [Validators.required]],
+      roleIds: [null]
     });
     this.shareForm.get('enabled').valueChanges.subscribe(() => this.updateShareValidators());
-    this.shareForm.get('allUsers').valueChanges.subscribe(() => this.updateShareValidators());
+    this.shareForm.get('allUserGroup').valueChanges.subscribe(() => this.updateShareValidators());
+    this.shareForm.get('permission').valueChanges.subscribe(() => this.updateShareValidators());
     this.updateShareValidators();
     if (this.isEdit) {
       this.entityGroupService.getEntityGroup(this.data.entityGroupId).subscribe((group) => {
@@ -112,13 +102,17 @@ export class EntityGroupDialogComponent implements OnInit {
 
   private updateShareValidators(): void {
     const enabled = this.shareForm.get('enabled').value;
-    const allUsers = this.shareForm.get('allUsers').value;
-    const customerIdCtrl = this.shareForm.get('customerId');
+    const allUserGroup = this.shareForm.get('allUserGroup').value;
+    const other = this.shareForm.get('permission').value === 2;
+    const ownerIdCtrl = this.shareForm.get('ownerId');
     const userGroupIdCtrl = this.shareForm.get('userGroupId');
-    customerIdCtrl.setValidators(enabled ? [Validators.required] : []);
-    userGroupIdCtrl.setValidators(enabled && !allUsers ? [Validators.required] : []);
-    customerIdCtrl.updateValueAndValidity({emitEvent: false});
+    const roleIdsCtrl = this.shareForm.get('roleIds');
+    ownerIdCtrl.setValidators(enabled ? [Validators.required] : []);
+    userGroupIdCtrl.setValidators(enabled && !allUserGroup ? [Validators.required] : []);
+    roleIdsCtrl.setValidators(enabled && other ? [Validators.required] : []);
+    ownerIdCtrl.updateValueAndValidity({emitEvent: false});
     userGroupIdCtrl.updateValueAndValidity({emitEvent: false});
+    roleIdsCtrl.updateValueAndValidity({emitEvent: false});
   }
 
   nextStep(): void {
@@ -160,27 +154,17 @@ export class EntityGroupDialogComponent implements OnInit {
         if (!shareValue.enabled) {
           return of(savedGroup);
         }
-        const customerId = idOf(shareValue.customerId);
-        const userGroupId$ = shareValue.allUsers
-          ? this.entityGroupService.getAllGroupId(EntityType.USER, customerId)
-          : of(idOf(shareValue.userGroupId));
-        return userGroupId$.pipe(
-          mergeMap(userGroupId => this.roleService.getRoles(new PageLink(1024, 0)).pipe(
-            mergeMap(page => {
-              const roleName = shareValue.permission === 'READ' ? 'Read Only' : 'Customer Administrator';
-              const role = page.data.find(r => r.name === roleName) || page.data[0];
-              if (!role) {
-                return of(savedGroup);
-              }
-              const permission: any = {
-                userGroupId: {entityType: 'ENTITY_GROUP', id: userGroupId},
-                roleId: {entityType: 'ROLE', id: role.id.id},
-                entityGroupId: savedGroup.id,
-                entityGroupType: savedGroup.type
-              };
-              return this.roleService.saveGroupPermission(permission).pipe(mergeMap(() => of(savedGroup)));
-            })
-          ))
+        const roleIds: string[] = shareValue.roleIds;
+        const shareGroupRequest: ShareGroupRequest = {
+          ownerId: shareValue.ownerId as EntityId,
+          allUserGroup: shareValue.allUserGroup,
+          userGroupId: shareValue.allUserGroup ? null : shareValue.userGroupId as EntityId,
+          readElseWrite: shareValue.permission === 0,
+          roleIds: shareValue.permission === 2 && roleIds?.length ?
+            roleIds.map(id => ({entityType: EntityType.ROLE, id} as EntityId)) : null
+        };
+        return this.entityGroupService.shareEntityGroup(savedGroup.id.id, shareGroupRequest).pipe(
+          mergeMap(() => of(savedGroup))
         );
       })
     ).subscribe(savedGroup => this.dialogRef.close(savedGroup));
