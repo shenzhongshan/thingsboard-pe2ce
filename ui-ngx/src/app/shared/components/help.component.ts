@@ -15,10 +15,10 @@
 ///
 
 import { Component, Input } from '@angular/core';
-import { helpBaseUrl, HelpLinks } from '@shared/models/constants';
-import { Observable } from 'rxjs';
-import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
+// Renders nothing: links to the external help-link base URL are always hidden, independent of the
+// white-labeling "enable help links" setting. The [tb-help] attribute is kept as a no-op input so the
+// many existing template bindings don't need to be touched.
 @Component({
     selector: '[tb-help]',
     templateUrl: './help.component.html',
@@ -27,26 +27,5 @@ import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.s
 export class HelpComponent {
 
   @Input('tb-help') helpLinkId: string;
-
-  readonly enableHelpLinks$: Observable<boolean>;
-
-  constructor(private wl: WhiteLabelingApplyService) {
-    this.enableHelpLinks$ = this.wl.isEnableHelpLinks$();
-  }
-
-  gotoHelpPage(): void {
-    let helpUrl = HelpLinks.linksMap[this.helpLinkId];
-    if (!helpUrl && this.helpLinkId &&
-      (this.helpLinkId.startsWith('http://') || this.helpLinkId.startsWith('https://'))) {
-      helpUrl = this.helpLinkId;
-    }
-    if (helpUrl) {
-      const wlHelpLinkBaseUrl = this.wl.getHelpLinkBaseUrl();
-      if (wlHelpLinkBaseUrl) {
-        helpUrl = helpUrl.replace(helpBaseUrl, wlHelpLinkBaseUrl);
-      }
-      window.open(helpUrl, '_blank');
-    }
-  }
 
 }

@@ -293,8 +293,11 @@ ui:
     max_datapoints_limit: "${DASHBOARD_MAX_DATAPOINTS_LIMIT:50000}"
   # Help parameters
   help:
-    # Base URL for UI help assets
-    base-url: "${UI_HELP_BASE_URL:https://raw.githubusercontent.com/thingsboard/thingsboard-ui-help/release-4.4}"
+    # Base URL for UI help assets. Defaults to the bundled offline copy (ui-ngx/src/assets/help) so
+    # in-app help works without internet access; set to an external URL (e.g. a GitHub raw mirror) to
+    # prefer fresher docs from there instead — the frontend automatically falls back to the bundled
+    # copy if that URL is unreachable (see HelpService.loadHelpContent).
+    base-url: "${UI_HELP_BASE_URL:/assets}"
 
 # Database telemetry parameters
 # Selects the storage backend (SQL, Cassandra, or TimescaleDB) for time-series and latest telemetry data.

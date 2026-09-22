@@ -15,12 +15,5 @@
     limitations under the License.
 
 -->
-@if (enableHelpLinks$ | async) {
-  <button mat-icon-button
-          type="button"
-          (click)="gotoHelpPage()"
-          matTooltip="{{'help.goto-help-page' | translate}}"
-          matTooltipPosition="above">
-    <mat-icon class="material-icons">help</mat-icon>
-  </button>
-}
+<!-- Links to the external help-link base URL are always hidden, regardless of the white-labeling
+     "enable help links" setting; only the in-app UI help popup ([tb-help-popup]) honors that toggle. -->
