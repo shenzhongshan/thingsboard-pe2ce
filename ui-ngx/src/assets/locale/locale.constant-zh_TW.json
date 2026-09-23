@@ -2907,7 +2907,7 @@
         "tenant-required": "租戶必填",
         "search": "搜尋租戶",
         "selected-tenants": "{ count, plural, =1 {1 租戶} other {# 租戶} } 已選中",
-        "isolated-tb-rule-engine": "在隔離的ThingsBoard Rule規則引擎容器中處理",
+        "isolated-tb-rule-engine": "在隔離的Fexlink Rule規則引擎容器中處理",
         "isolated-tb-rule-engine-details": "每個獨立租戶需要單獨的微服務"
     },
     "tenant-profile": {
