@@ -15,34 +15,32 @@
  */
 package org.thingsboard.server.service.edge.rpc.fetch;
 
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.thingsboard.server.common.data.Device;
-import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.edge.Edge;
-import org.thingsboard.server.common.data.edge.EdgeEvent;
-import org.thingsboard.server.common.data.edge.EdgeEventActionType;
-import org.thingsboard.server.common.data.edge.EdgeEventType;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
-import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.common.data.role.Role;
+import org.thingsboard.server.dao.role.RoleService;
 
-@AllArgsConstructor
+/**
+ * 客户自有的角色。edge 归属某个客户时，除了租户级角色，还要把该客户（及其祖先客户）
+ * 的角色一并下发，否则 edge 本地解析组权限时会找不到被引用的角色。
+ */
 @Slf4j
-public class DevicesEdgeEventFetcher extends BasePageableEdgeEventFetcher<Device> {
+public class CustomerRolesEdgeEventFetcher extends BaseRolesEdgeEventFetcher {
 
-    private final DeviceService deviceService;
+    private final CustomerId customerId;
 
-    @Override
-    PageData<Device> fetchEntities(TenantId tenantId, Edge edge, PageLink pageLink) {
-        return deviceService.findDevicesByTenantIdAndEdgeId(tenantId, edge.getId(), pageLink);
+    public CustomerRolesEdgeEventFetcher(RoleService roleService, CustomerId customerId) {
+        super(roleService);
+        this.customerId = customerId;
     }
 
     @Override
-    EdgeEvent constructEdgeEvent(TenantId tenantId, Edge edge, Device device) {
-        return EdgeUtils.constructEdgeEvent(tenantId, edge.getId(), EdgeEventType.DEVICE,
-                EdgeEventActionType.ADDED, device.getId(), null);
+    PageData<Role> fetchEntities(TenantId tenantId, Edge edge, PageLink pageLink) {
+        return roleService.findRolesByTenantIdAndCustomerId(tenantId, customerId, pageLink);
     }
 
 }

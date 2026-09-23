@@ -18,6 +18,7 @@ package org.thingsboard.server.dao.eventsourcing;
 import lombok.Builder;
 import lombok.Data;
 import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -31,4 +32,8 @@ public class ActionEntityEvent<T> {
     private final EdgeId edgeId;
     private final String body;
     private final ActionType actionType;
+    // 动作发生所在的实体分组。PE 的 edge 同步以分组为单位，这个值最终变成
+    // edge_event.entity_group_id，再变成实体消息上的 entityGroupIdMSB/LSB。
+    // 生产方（分配实体到分组的流程）在后续阶段接入，在那之前恒为 null。
+    private final EntityGroup entityGroup;
 }

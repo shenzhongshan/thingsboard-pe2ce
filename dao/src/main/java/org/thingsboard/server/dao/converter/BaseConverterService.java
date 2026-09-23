@@ -153,4 +153,11 @@ public class BaseConverterService implements ConverterService {
         return EntityType.CONVERTER;
     }
 
+
+    @Override
+    public PageData<Converter> findTenantEdgeTemplateConverters(TenantId tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(converterRepository.findByTenantIdAndIsEdgeTemplate(
+                tenantId.getId(), true, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
 }

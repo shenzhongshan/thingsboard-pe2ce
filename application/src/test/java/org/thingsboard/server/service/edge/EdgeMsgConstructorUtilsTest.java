@@ -54,6 +54,7 @@ import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
@@ -304,7 +305,7 @@ public class EdgeMsgConstructorUtilsTest {
         asset.setName("Test Asset");
         asset.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructAssetUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, asset).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructAssetUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, asset, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -332,7 +333,7 @@ public class EdgeMsgConstructorUtilsTest {
         customer.setTitle("Test Customer");
         customer.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructCustomerUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, customer).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructCustomerUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, customer, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -346,7 +347,7 @@ public class EdgeMsgConstructorUtilsTest {
         dashboard.setTitle("Test Dashboard");
         dashboard.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructDashboardUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, dashboard).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructDashboardUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, dashboard, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -360,7 +361,7 @@ public class EdgeMsgConstructorUtilsTest {
         device.setName("Test Device");
         device.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructDeviceUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, device).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructDeviceUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, device, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -386,7 +387,7 @@ public class EdgeMsgConstructorUtilsTest {
         entityView.setName("Test EntityView");
         entityView.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructEntityViewUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, entityView).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructEntityViewUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, entityView, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -440,7 +441,7 @@ public class EdgeMsgConstructorUtilsTest {
         user.setEmail("test@test.com");
         user.setVersion(42L);
 
-        String entity = EdgeMsgConstructorUtils.constructUserUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, user).getEntity();
+        String entity = EdgeMsgConstructorUtils.constructUserUpdatedMsg(UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, user, null).getEntity();
         JsonNode json = JacksonUtil.toJsonNode(entity);
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
@@ -458,5 +459,48 @@ public class EdgeMsgConstructorUtilsTest {
 
         Assertions.assertTrue(json.get("version") == null || json.get("version").isNull(),
                 "RuleChainMetaData version should be null in serialized message");
+    }
+
+    // ---- entityGroupId 透传：PE 的 edge 同步以分组为单位，实体消息必须携带
+    // entityGroupIdMSB/LSB。这些字段在 proto 里是 optional，所以 null 必须表现为"字段缺席"，
+    // 而不是写入 0 —— 后者会被 edge 当成一个 id 为全零的真实分组。
+
+    @Test
+    public void testEntityGroupIdIsCarried() {
+        EntityGroupId groupId = new EntityGroupId(UUID.randomUUID());
+        long msb = groupId.getId().getMostSignificantBits();
+        long lsb = groupId.getId().getLeastSignificantBits();
+
+        Device device = new Device();
+        device.setId(new DeviceId(UUID.randomUUID()));
+        var deviceMsg = EdgeMsgConstructorUtils.constructDeviceUpdatedMsg(
+                UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, device, groupId);
+        Assertions.assertEquals(msb, deviceMsg.getEntityGroupIdMSB());
+        Assertions.assertEquals(lsb, deviceMsg.getEntityGroupIdLSB());
+
+        Asset asset = new Asset();
+        asset.setId(new AssetId(UUID.randomUUID()));
+        var assetMsg = EdgeMsgConstructorUtils.constructAssetUpdatedMsg(
+                UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, asset, groupId);
+        Assertions.assertEquals(msb, assetMsg.getEntityGroupIdMSB());
+
+        // 删除消息同样要带分组，否则 edge 不知道该从哪个组里移除
+        var deleteMsg = EdgeMsgConstructorUtils.constructDeviceDeleteMsg(device.getId(), groupId);
+        Assertions.assertEquals(msb, deleteMsg.getEntityGroupIdMSB());
+        Assertions.assertEquals(lsb, deleteMsg.getEntityGroupIdLSB());
+    }
+
+    @Test
+    public void testEntityGroupIdAbsentWhenNull() {
+        Device device = new Device();
+        device.setId(new DeviceId(UUID.randomUUID()));
+
+        var msg = EdgeMsgConstructorUtils.constructDeviceUpdatedMsg(
+                UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE, device, null);
+
+        Assertions.assertFalse(msg.hasEntityGroupIdMSB(),
+                "entityGroupIdMSB should be absent, not 0, when the event is not group-scoped");
+        Assertions.assertFalse(msg.hasEntityGroupIdLSB(),
+                "entityGroupIdLSB should be absent, not 0, when the event is not group-scoped");
     }
 }

@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.page.PageData;
+import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 
 import java.util.List;
@@ -59,6 +61,12 @@ public interface GroupPermissionService {
     void deleteGroupPermissionsByTenantId(TenantId tenantId);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId);
+
+    /**
+     * 某个分组上的权限授予，分页。edge 全量同步按分组逐个下发 —— USER 组看的是"这个用户组被授了什么"
+     * （userGroupId），其它类型看的是"谁被授权访问这个组"（entityGroupId），两个方向不能混。
+     */
+    PageData<GroupPermission> findGroupPermissionsByTenantIdAndGroupId(TenantId tenantId, EntityGroupId groupId, boolean userGroup, PageLink pageLink);
 
     List<GroupPermission> findGroupPermissionsByTenantIdAndRoleId(TenantId tenantId, org.thingsboard.server.common.data.id.RoleId roleId);
 

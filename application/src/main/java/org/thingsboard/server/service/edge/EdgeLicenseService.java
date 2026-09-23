@@ -13,16 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.thingsboard.server.service.edge.rpc.processor.secret;
+package org.thingsboard.server.service.edge;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import org.thingsboard.server.common.data.edge.Edge;
-import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.gen.edge.v1.SecretUpdateMsg;
-import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.ResponseEntity;
 
-public interface SecretProcessor extends EdgeProcessor {
+/**
+ * 云端代 edge 向许可门户转发请求。edge 启动时校验自己的 license，但它只认识自己的云 ——
+ * 请求打到云的 /api/license/*，由云转发出去。云上没有这两个端点，PE edge 会在启动校验
+ * 阶段拿到 404 直接退出。
+ */
+public interface EdgeLicenseService {
 
-    ListenableFuture<Void> processSecretMsgFromEdge(TenantId tenantId, Edge edge, SecretUpdateMsg secretUpdateMsg);
+    ResponseEntity<JsonNode> checkInstance(JsonNode request);
+
+    ResponseEntity<JsonNode> activateInstance(String licenseSecret, String releaseDate);
 
 }

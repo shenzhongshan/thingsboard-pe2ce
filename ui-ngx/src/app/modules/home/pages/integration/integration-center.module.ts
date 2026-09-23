@@ -55,6 +55,12 @@ import {
     IntegrationCenterRoutingModule,
     EntityDebugSettingsButtonComponent,
     IntegrationActivitySparklineComponent
+  ],
+  // edge 模板路由（EdgeModule）复用同一套列表/详情组件，只靠 data.isEdgeTemplate 切命名空间。
+  exports: [
+    IntegrationsComponent,
+    ConvertersComponent,
+    IntegrationEntityDetailsPageComponent
   ]
 })
 export class IntegrationCenterModule { }

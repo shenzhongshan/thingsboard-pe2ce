@@ -34,6 +34,8 @@ import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.page.PageData;
+import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.role.RoleType;
@@ -213,6 +215,19 @@ public class BaseGroupPermissionService implements GroupPermissionService {
     public List<GroupPermission> findGroupPermissionsByTenantIdAndUserGroupId(TenantId tenantId, EntityGroupId userGroupId) {
         return groupPermissionRepository.findByTenantIdAndUserGroupId(tenantId.getId(), userGroupId.getId())
                 .stream().map(GroupPermissionEntity::toData).toList();
+    }
+
+    @Override
+    public PageData<GroupPermission> findGroupPermissionsByTenantIdAndGroupId(TenantId tenantId, EntityGroupId groupId, boolean userGroup, PageLink pageLink) {
+        List<GroupPermission> all = (userGroup
+                ? groupPermissionRepository.findByTenantIdAndUserGroupId(tenantId.getId(), groupId.getId())
+                : groupPermissionRepository.findByTenantIdAndEntityGroupId(tenantId.getId(), groupId.getId()))
+                .stream().map(GroupPermissionEntity::toData).toList();
+        int total = all.size();
+        int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
+        int to = Math.min(from + pageLink.getPageSize(), total);
+        int totalPages = pageLink.getPageSize() > 0 ? (int) Math.ceil((double) total / pageLink.getPageSize()) : 1;
+        return new PageData<>(all.subList(from, to), totalPages, total, to < total);
     }
 
     @Override

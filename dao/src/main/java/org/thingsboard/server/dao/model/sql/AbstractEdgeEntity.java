@@ -70,6 +70,13 @@ public abstract class AbstractEdgeEntity<T extends Edge> extends BaseVersionedEn
     @Column(name = EDGE_SECRET_PROPERTY)
     private String secret;
 
+    // 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）
+    @Column(name = ModelConstants.EDGE_LICENSE_KEY_PROPERTY)
+    private String edgeLicenseKey;
+
+    @Column(name = ModelConstants.EDGE_CLOUD_ENDPOINT_PROPERTY)
+    private String cloudEndpoint;
+
     @Convert(converter = JsonConverter.class)
     @Column(name = ModelConstants.EDGE_ADDITIONAL_INFO_PROPERTY)
     private JsonNode additionalInfo;
@@ -94,6 +101,8 @@ public abstract class AbstractEdgeEntity<T extends Edge> extends BaseVersionedEn
         this.label = edge.getLabel();
         this.routingKey = edge.getRoutingKey();
         this.secret = edge.getSecret();
+        this.edgeLicenseKey = edge.getEdgeLicenseKey();
+        this.cloudEndpoint = edge.getCloudEndpoint();
         this.additionalInfo = edge.getAdditionalInfo();
     }
 
@@ -107,6 +116,8 @@ public abstract class AbstractEdgeEntity<T extends Edge> extends BaseVersionedEn
         this.label = edgeEntity.getLabel();
         this.routingKey = edgeEntity.getRoutingKey();
         this.secret = edgeEntity.getSecret();
+        this.edgeLicenseKey = edgeEntity.getEdgeLicenseKey();
+        this.cloudEndpoint = edgeEntity.getCloudEndpoint();
         this.additionalInfo = edgeEntity.getAdditionalInfo();
     }
 
@@ -128,6 +139,8 @@ public abstract class AbstractEdgeEntity<T extends Edge> extends BaseVersionedEn
         edge.setLabel(label);
         edge.setRoutingKey(routingKey);
         edge.setSecret(secret);
+        edge.setEdgeLicenseKey(edgeLicenseKey);
+        edge.setCloudEndpoint(cloudEndpoint);
         edge.setAdditionalInfo(additionalInfo);
         return edge;
     }

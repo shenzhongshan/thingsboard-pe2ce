@@ -67,6 +67,11 @@ public interface EdgeService extends EntityDaoService {
 
     PageData<EdgeInfo> findEdgeInfosByTenantId(TenantId tenantId, PageLink pageLink);
 
+    /** 只含租户自己持有的 edge（未分配给客户）—— /api/edgeInfos/all 的 includeCustomers=false 分支。 */
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantId(TenantId tenantId, PageLink pageLink);
+
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantIdAndType(TenantId tenantId, String type, PageLink pageLink);
+
     ListenableFuture<List<Edge>> findEdgesByTenantIdAndIdsAsync(TenantId tenantId, List<EdgeId> edgeIds);
 
     void deleteEdgesByTenantId(TenantId tenantId);

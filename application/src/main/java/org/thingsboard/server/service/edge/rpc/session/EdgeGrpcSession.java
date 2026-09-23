@@ -60,6 +60,11 @@ import org.thingsboard.server.service.edge.EdgeContextComponent;
 import org.thingsboard.server.service.edge.EdgeMsgConstructorUtils;
 import org.thingsboard.server.service.edge.rpc.DownlinkMessageMapper;
 import org.thingsboard.server.service.edge.rpc.EdgeSessionState;
+import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.id.EntityGroupId;
+import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupEntitiesEdgeEventFetcher;
+import org.thingsboard.server.service.edge.rpc.fetch.EntityGroupPermissionsEdgeEventFetcher;
 import org.thingsboard.server.service.edge.rpc.EdgeSyncCursor;
 import org.thingsboard.server.service.edge.rpc.EdgeUplinkMessageDispatcher;
 import org.thingsboard.server.service.edge.rpc.fetch.EdgeEventFetcher;
@@ -81,6 +86,8 @@ import java.util.function.BiConsumer;
 @Slf4j
 @RequiredArgsConstructor
 public class EdgeGrpcSession implements EdgeSession {
+
+    private static final int DEFAULT_GROUP_FETCH_PAGE_SIZE = 1024;
 
     private static final int MAX_DOWNLINK_ATTEMPTS = 3;
     private static final String RATE_LIMIT_REACHED = "Rate limit reached";
@@ -180,12 +187,32 @@ public class EdgeGrpcSession implements EdgeSession {
         };
     }
 
+    /**
+     * 每次同步前幂等地确保租户用户组已分配给这台 edge。
+     *
+     * <p>用户是按分组同步的，edge 必须挂着 "All" / "Tenant Administrators" 两个用户组才能
+     * 收到用户。新建 edge 时 DefaultTbEdgeService 已经挂过，但**这个版本之前建的 edge 没有**
+     * —— 它们连上来时会一个用户都收不到，没人能登录 edge。
+     *
+     * <p>放在同步入口而不是写一次性迁移脚本：对新旧 edge 都自愈，重启/升级顺序无关，
+     * 也不需要运维记得执行某个脚本。代价是每次同步多两次分组查询 + 两次关系检查。
+     */
+    private void ensureTenantUserGroupsAssigned() {
+        try {
+            ctx.getEntityGroupService().assignTenantAdministratorsAndUsersGroupToEdge(getTenantId(), getEdgeId());
+        } catch (Exception e) {
+            // 不能因为这步失败就中断整个同步 —— 其余实体照常下发。
+            log.warn("[{}][{}] Failed to ensure tenant user groups are assigned to edge", getTenantId(), getEdgeId(), e);
+        }
+    }
+
     @Override
     public void startSyncProcess(boolean fullSync) {
         if (state.tryStartSync()) {
             saveSyncInProgressAsAttribute(true);
             log.info("[{}][{}][{}] Staring edge sync process", getTenantId(), getEdgeId(), getSessionId());
             interruptGeneralProcessingOnSync();
+            ensureTenantUserGroupsAssigned();
             doSync(new EdgeSyncCursor(ctx, state.getEdge(), fullSync));
         } else {
             log.info("[{}][{}][{}] Sync is already started, skipping starting it now", getTenantId(), getEdgeId(), getSessionId());
@@ -352,6 +379,37 @@ public class EdgeGrpcSession implements EdgeSession {
         stopCurrentSendDownlinkMsgsTask(true);
     }
 
+
+    /**
+     * 分组是"目录"，它的权限和成员是两份独立的数据。PE 的做法是：同步循环推完一批分组后，
+     * 就地为**每个**刚推下去的组追加两个 fetcher —— 游标在遍历过程中动态变长。
+     *
+     * <p>不这么做的话，edge 只会收到一堆空组：组本身到了，组里有谁、谁能访问它都没到。
+     */
+    private void appendGroupScopedFetchers(EdgeSyncCursor cursor, EdgeEventFetcher completed) {
+        if (!(completed instanceof EntityGroupEdgeEventFetcher groupFetcher)) {
+            return;
+        }
+        try {
+            EntityType groupType = groupFetcher.getGroupType();
+            PageLink pageLink = new PageLink(DEFAULT_GROUP_FETCH_PAGE_SIZE);
+            PageData<EdgeEvent> pageData;
+            do {
+                pageData = groupFetcher.fetchEdgeEvents(getTenantId(), state.getEdge(), pageLink);
+                for (EdgeEvent edgeEvent : pageData.getData()) {
+                    EntityGroupId entityGroupId = new EntityGroupId(edgeEvent.getEntityId());
+                    cursor.append(new EntityGroupPermissionsEdgeEventFetcher(
+                            ctx.getGroupPermissionService(), groupType, entityGroupId));
+                    cursor.append(new EntityGroupEntitiesEdgeEventFetcher(
+                            ctx.getEntityGroupService(), groupType, entityGroupId));
+                }
+                pageLink = pageLink.nextPageLink();
+            } while (pageData.hasNext());
+        } catch (Exception e) {
+            log.error("[{}][{}] Failed to append group-scoped fetchers", getTenantId(), getEdgeId(), e);
+        }
+    }
+
     private void doSync(EdgeSyncCursor cursor) {
         if (cursor.hasNext()) {
             EdgeEventFetcher next = cursor.getNext();
@@ -361,6 +419,7 @@ public class EdgeGrpcSession implements EdgeSession {
             Futures.addCallback(future, new FutureCallback<>() {
                 @Override
                 public void onSuccess(@Nullable Pair<Long, Long> result) {
+                    appendGroupScopedFetchers(cursor, next);
                     doSync(cursor);
                 }
 

@@ -28,6 +28,14 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.AttributeScope;
+import com.google.common.util.concurrent.MoreExecutors;
+import org.thingsboard.server.common.data.id.EntityGroupId;
+import org.thingsboard.server.common.data.page.PageData;
+import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.permission.GroupPermission;
+import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
+import org.thingsboard.server.gen.edge.v1.EntityGroupRequestMsg;
 import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.EntityView;
@@ -86,6 +94,13 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
 
     @Autowired
     private EdgeEventService edgeEventService;
+
+    @Autowired
+    private EntityGroupService entityGroupService;
+
+    @Autowired
+    private GroupPermissionService groupPermissionService;
+
 
     @Autowired
     private AttributesService attributesService;
@@ -431,6 +446,115 @@ public class DefaultEdgeRequestsService implements EdgeRequestsService {
             }
         }, dbCallbackExecutorService);
         return futureToSet;
+    }
+
+
+    /**
+     * edge 索要某个分组的成员。
+     *
+     * <p>把设备组分配给一台**已连接**的 edge 时，组本身会随 ASSIGNED_TO_EDGE 事件下发，
+     * 但组内实体只在全量同步时由 appendGroupScopedFetchers 推送。所以 edge 拿到空组后会
+     * 发这条请求来要成员 —— 不处理的话，"给运行中的 edge 分配一个分组"这个最常见的操作
+     * 就只下去一个空壳。
+     */
+    @Override
+    public ListenableFuture<Void> processEntityGroupEntitiesRequest(TenantId tenantId, Edge edge, EntityGroupRequestMsg request) {
+        log.trace("[{}] processEntityGroupEntitiesRequest [{}][{}]", tenantId, edge.getName(), request);
+        EntityGroupId entityGroupId = toEntityGroupId(request);
+        if (entityGroupId == null) {
+            return Futures.immediateFuture(null);
+        }
+        EntityType groupType;
+        try {
+            groupType = EntityType.valueOf(request.getType());
+        } catch (IllegalArgumentException e) {
+            log.warn("[{}] Unknown group type in entityGroupEntitiesRequest [{}]", tenantId, request);
+            return Futures.immediateFuture(null);
+        }
+        EdgeEventType eventType = EdgeUtils.getEdgeEventTypeByEntityType(groupType);
+        if (eventType == null) {
+            log.warn("[{}] Group type {} has no edge event type", tenantId, groupType);
+            return Futures.immediateFuture(null);
+        }
+        List<EntityId> entityIds;
+        try {
+            entityIds = entityGroupService.findAllEntityIds(tenantId, entityGroupId);
+        } catch (Exception e) {
+            log.warn("[{}] Entity group not found to process entityGroupEntitiesRequest [{}]", tenantId, request, e);
+            return Futures.immediateFuture(null);
+        }
+        if (entityIds == null || entityIds.isEmpty()) {
+            log.trace("[{}] No entities in requested group {} [{}]", tenantId, entityGroupId, request.getType());
+            return Futures.immediateFuture(null);
+        }
+        List<ListenableFuture<Void>> futures = new ArrayList<>();
+        for (EntityId entityId : entityIds) {
+            // 必须带 entityGroupId：edge 收到实体后要知道把它放进哪个组。
+            futures.add(saveEdgeEvent(tenantId, edge.getId(), eventType,
+                    EdgeEventActionType.ADDED, entityId, null, entityGroupId));
+        }
+        return Futures.transform(Futures.allAsList(futures), voids -> null, MoreExecutors.directExecutor());
+    }
+
+    /**
+     * edge 索要某个分组上的权限授予。方向按组类型分：USER 组问"这个用户组被授了什么角色"，
+     * 其它类型问"谁被授权访问这个组"，查的是 group_permission 的不同列。
+     *
+     * <p>只回被授予方也已分配给这台 edge 的那些授权 —— 否则 edge 会收到引用了它本地并不
+     * 存在的用户组/实体组的权限记录。
+     */
+    @Override
+    public ListenableFuture<Void> processEntityGroupPermissionsRequest(TenantId tenantId, Edge edge, EntityGroupRequestMsg request) {
+        log.trace("[{}] processEntityGroupPermissionsRequest [{}][{}]", tenantId, edge.getName(), request);
+        EntityGroupId groupId = toEntityGroupId(request);
+        if (groupId == null) {
+            return Futures.immediateFuture(null);
+        }
+        EntityType groupType;
+        try {
+            groupType = EntityType.valueOf(request.getType());
+        } catch (IllegalArgumentException e) {
+            log.warn("[{}] Unknown group type in entityGroupPermissionsRequest [{}]", tenantId, request);
+            return Futures.immediateFuture(null);
+        }
+        boolean userGroup = EntityType.USER.equals(groupType);
+        PageData<GroupPermission> permissions = groupPermissionService.findGroupPermissionsByTenantIdAndGroupId(
+                tenantId, groupId, userGroup, new PageLink(Integer.MAX_VALUE));
+        List<ListenableFuture<Void>> futures = new ArrayList<>();
+        for (GroupPermission permission : permissions.getData()) {
+            // 对端分组：USER 组的权限指向被授权的实体组，反之指向用户组。
+            EntityGroupId counterpartId = userGroup ? permission.getEntityGroupId() : permission.getUserGroupId();
+            EntityType counterpartType = userGroup ? permission.getEntityGroupType() : EntityType.USER;
+            if (counterpartId == null || counterpartType == null) {
+                // 通用（GENERIC）角色不绑定具体实体组，直接下发。
+                futures.add(saveEdgeEvent(tenantId, edge.getId(), EdgeEventType.GROUP_PERMISSION,
+                        EdgeEventActionType.ADDED, permission.getId(), null, null));
+                continue;
+            }
+            futures.add(Futures.transformAsync(
+                    entityGroupService.checkEntityGroupAssignedToEdgeAsync(tenantId, edge.getId(), counterpartId, counterpartType),
+                    assigned -> Boolean.TRUE.equals(assigned)
+                            ? saveEdgeEvent(tenantId, edge.getId(), EdgeEventType.GROUP_PERMISSION,
+                                    EdgeEventActionType.ADDED, permission.getId(), null, null)
+                            : Futures.immediateFuture(null),
+                    dbCallbackExecutorService));
+        }
+        return Futures.transform(Futures.allAsList(futures), voids -> null, MoreExecutors.directExecutor());
+    }
+
+    private EntityGroupId toEntityGroupId(EntityGroupRequestMsg request) {
+        if (request.getEntityGroupIdMSB() == 0L && request.getEntityGroupIdLSB() == 0L) {
+            log.warn("Received empty entity group id [{}]", request);
+            return null;
+        }
+        return new EntityGroupId(new UUID(request.getEntityGroupIdMSB(), request.getEntityGroupIdLSB()));
+    }
+
+    private ListenableFuture<Void> saveEdgeEvent(TenantId tenantId, EdgeId edgeId, EdgeEventType type,
+                                                 EdgeEventActionType action, EntityId entityId,
+                                                 JsonNode body, EntityGroupId entityGroupId) {
+        EdgeEvent edgeEvent = EdgeUtils.constructEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId);
+        return edgeEventService.saveAsync(edgeEvent);
     }
 
     private ListenableFuture<Void> saveEdgeEvent(TenantId tenantId,

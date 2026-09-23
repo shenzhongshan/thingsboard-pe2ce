@@ -74,6 +74,9 @@ public class ConverterEntity extends BaseVersionedEntity<Converter> implements B
     @Column(name = "external_id")
     private UUID externalId;
 
+    @Column(name = "is_edge_template")
+    private boolean edgeTemplate;
+
     public ConverterEntity() {
         super();
     }
@@ -93,6 +96,7 @@ public class ConverterEntity extends BaseVersionedEntity<Converter> implements B
         if (converter.getExternalId() != null) {
             this.externalId = converter.getExternalId().getId();
         }
+        this.edgeTemplate = converter.isEdgeTemplate();
     }
 
     @Override
@@ -100,6 +104,7 @@ public class ConverterEntity extends BaseVersionedEntity<Converter> implements B
         Converter converter = new Converter(new ConverterId(id));
         converter.setCreatedTime(createdTime);
         converter.setVersion(version);
+        converter.setEdgeTemplate(edgeTemplate);
         if (tenantId != null) {
             converter.setTenantId(TenantId.fromUUID(tenantId));
         }

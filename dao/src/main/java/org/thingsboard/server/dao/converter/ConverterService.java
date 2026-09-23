@@ -44,4 +44,8 @@ public interface ConverterService extends EntityDaoService {
 
     void deleteConvertersByTenantId(TenantId tenantId);
 
+
+    /** 租户下的 edge 模板转换器。 */
+    PageData<Converter> findTenantEdgeTemplateConverters(TenantId tenantId, PageLink pageLink);
+
 }

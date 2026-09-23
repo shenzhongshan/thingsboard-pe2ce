@@ -130,7 +130,8 @@ public class EntityIdFactory {
             case AI_MODEL -> new AiModelId(uuid);
             case API_KEY -> new ApiKeyId(uuid);
             case ADMIN_SETTINGS -> new AdminSettingsId(uuid);
-            case ENTITY_GROUP -> new EntityGroupId(uuid);
+            // DEVICE_GROUP_OTA 的"实体"就是它挂靠的设备分组，与 PE 一致。
+            case ENTITY_GROUP, DEVICE_GROUP_OTA -> new EntityGroupId(uuid);
             case ROLE -> new RoleId(uuid);
             case GROUP_PERMISSION -> new GroupPermissionId(uuid);
             case CONVERTER -> new ConverterId(uuid);
@@ -138,6 +139,9 @@ public class EntityIdFactory {
             case SCHEDULER_EVENT -> new SchedulerEventId(uuid);
             case REPORT_TEMPLATE -> new ReportTemplateId(uuid);
             case SECRET -> new SecretId(uuid);
+            // 设置类事件（WHITE_LABELING / CUSTOM_MENU / CUSTOM_TRANSLATION / ENCRYPTION_KEY /
+            // LOGIN_WHITE_LABELING / MAIL_TEMPLATES）entityId 恒为 null，只由 fetcher 产生、
+            // 不走 processEntityNotification，所以这里不给映射是对的 —— 与 PE 一致。
             default -> throw new IllegalArgumentException("EdgeEventType " + edgeEventType + " is not supported!");
         };
     }

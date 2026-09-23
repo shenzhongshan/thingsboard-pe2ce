@@ -15,6 +15,12 @@
  */
 package org.thingsboard.server.controller;
 
+import org.thingsboard.server.service.entitiy.UserEntitiesService;
+import org.thingsboard.server.service.edge.EdgeLicenseService;
+import org.thingsboard.server.common.data.security.Authority;
+import org.thingsboard.server.common.data.HasName;
+import org.thingsboard.server.common.data.EntityType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -101,6 +107,8 @@ public class EdgeController extends BaseController {
     private final Optional<EdgeRpcService> edgeRpcServiceOpt;
     private final Optional<EdgeInstallInstructionsService> edgeInstallServiceOpt;
     private final Optional<EdgeUpgradeInstructionsService> edgeUpgradeServiceOpt;
+    private final UserEntitiesService userEntitiesService;
+    private final EdgeLicenseService edgeLicenseService;
 
     public static final String EDGE_ID = "edgeId";
     public static final String EDGE_SECURITY_CHECK = "If the user has the authority of 'Tenant Administrator', the server checks that the edge is owned by the same tenant. " +
@@ -122,7 +130,7 @@ public class EdgeController extends BaseController {
                             @PathVariable(EDGE_ID) String strEdgeId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
         EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
-        return checkEdgeId(edgeId, Operation.READ);
+        return hideLicenseKeyIfNeeded(checkEdgeId(edgeId, Operation.READ));
     }
 
     @ApiOperation(value = "Get Edge Info (getEdgeInfoById)",
@@ -133,7 +141,7 @@ public class EdgeController extends BaseController {
                                     @PathVariable(EDGE_ID) String strEdgeId) throws ThingsboardException {
         checkParameter(EDGE_ID, strEdgeId);
         EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
-        return checkEdgeInfoId(edgeId, Operation.READ);
+        return hideLicenseKeyIfNeeded(checkEdgeInfoId(edgeId, Operation.READ));
     }
 
     @ApiOperation(value = "Create Or Update Edge (saveEdge)",
@@ -196,7 +204,7 @@ public class EdgeController extends BaseController {
                                    @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         TenantId tenantId = getCurrentUser().getTenantId();
-        return checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink));
+        return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink)));
     }
 
     @ApiOperation(value = "Assign edge to customer (assignEdgeToCustomer)",
@@ -268,9 +276,9 @@ public class EdgeController extends BaseController {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         if (type != null && !type.trim().isEmpty()) {
-            return checkNotNull(edgeService.findEdgesByTenantIdAndType(tenantId, type, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantIdAndType(tenantId, type, pageLink)));
         } else {
-            return checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgesByTenantId(tenantId, pageLink)));
         }
     }
 
@@ -295,9 +303,9 @@ public class EdgeController extends BaseController {
         TenantId tenantId = getCurrentUser().getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         if (type != null && !type.trim().isEmpty()) {
-            return checkNotNull(edgeService.findEdgeInfosByTenantIdAndType(tenantId, type, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgeInfosByTenantIdAndType(tenantId, type, pageLink)));
         } else {
-            return checkNotNull(edgeService.findEdgeInfosByTenantId(tenantId, pageLink));
+            return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgeInfosByTenantId(tenantId, pageLink)));
         }
     }
 
@@ -306,7 +314,7 @@ public class EdgeController extends BaseController {
     @GetMapping(value = "/tenant/edges", params = {"edgeName"})
     public Edge getTenantEdge(@RequestParam String edgeName) throws ThingsboardException {
         TenantId tenantId = getCurrentUser().getTenantId();
-        return checkNotNull(edgeService.findEdgeByTenantIdAndName(tenantId, edgeName));
+        return hideLicenseKeyIfNeeded(checkNotNull(edgeService.findEdgeByTenantIdAndName(tenantId, edgeName)));
     }
 
     @ApiOperation(value = "Get Tenant Edge by name (getTenantEdgeByName)",
@@ -336,6 +344,66 @@ public class EdgeController extends BaseController {
         Edge edge = checkEdgeId(edgeId, Operation.WRITE);
         accessControlService.checkPermission(getCurrentUser(), Resource.EDGE, Operation.WRITE, edge.getId(), edge);
         return tbEdgeService.setEdgeRootRuleChain(edge, ruleChainId, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Get User Edges (getUserEdges)",
+            notes = "Returns a page of edges available to the current user: their own owner scope when they hold a " +
+                    "generic role for edges, plus the members of any edge group shared with them — those may " +
+                    "belong to other owners. Users granted neither get an empty page rather than an error. " +
+                    PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/user/edges", params = {"pageSize", "page"})
+    public PageData<? extends HasName> getUserEdges(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
+            @Parameter(description = EDGE_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        PageData<? extends HasName> result = userEntitiesService.findUserEntities(getCurrentUser(), EntityType.EDGE, Operation.READ, pageLink);
+        return hideLicenseKeysIn(result);
+    }
+
+    @ApiOperation(value = "Get All Edge Infos for current user (getAllEdgeInfos)",
+            notes = "Returns a page of edge info objects owned by the tenant or the customer of the current user. " +
+                    "Tenant admins may pass includeCustomers=true to also see edges owned by their customers. " +
+                    PAGE_DATA_PARAMETERS + EDGE_INFO_DESCRIPTION + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = "/edgeInfos/all", params = {"pageSize", "page"})
+    public PageData<EdgeInfo> getAllEdgeInfos(
+            @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
+            @RequestParam int pageSize,
+            @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
+            @RequestParam int page,
+            @Parameter(description = "Include edges owned by the tenant's customers as well (tenant admins only)")
+            @RequestParam(required = false) Boolean includeCustomers,
+            @Parameter(description = EDGE_TYPE_DESCRIPTION)
+            @RequestParam(required = false) String type,
+            @Parameter(description = EDGE_TEXT_SEARCH_DESCRIPTION)
+            @RequestParam(required = false) String textSearch,
+            @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name", "type", "label", "customerTitle"}))
+            @RequestParam(required = false) String sortProperty,
+            @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        accessControlService.checkPermission(getCurrentUser(), Resource.EDGE, Operation.READ);
+        TenantId tenantId = getCurrentUser().getTenantId();
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        boolean hasType = type != null && !type.trim().isEmpty();
+        PageData<EdgeInfo> result;
+        if (Authority.TENANT_ADMIN.equals(getCurrentUser().getAuthority())) {
+            // 租户自己的 edge 与客户拥有的 edge 是两个集合；includeCustomers 决定要不要把后者并进来。
+            if (Boolean.TRUE.equals(includeCustomers)) {
+                result = hasType ? edgeService.findEdgeInfosByTenantIdAndType(tenantId, type, pageLink)
+                        : edgeService.findEdgeInfosByTenantId(tenantId, pageLink);
+            } else {
+                result = hasType ? edgeService.findTenantEdgeInfosByTenantIdAndType(tenantId, type, pageLink)
+                        : edgeService.findTenantEdgeInfosByTenantId(tenantId, pageLink);
+            }
+        } else {
+            CustomerId customerId = getCurrentUser().getCustomerId();
+            result = hasType ? edgeService.findEdgeInfosByTenantIdAndCustomerIdAndType(tenantId, customerId, type, pageLink)
+                    : edgeService.findEdgeInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
+        }
+        return hideLicenseKeyIfNeeded(checkNotNull(result));
     }
 
     @ApiOperation(value = "Get Customer Edges (getCustomerEdges)",
@@ -370,7 +438,7 @@ public class EdgeController extends BaseController {
         } else {
             result = edgeService.findEdgesByTenantIdAndCustomerId(tenantId, customerId, pageLink);
         }
-        return checkNotNull(result);
+        return hideLicenseKeyIfNeeded(checkNotNull(result));
     }
 
     @ApiOperation(value = "Get Customer Edge Infos (getCustomerEdgeInfos)",
@@ -405,7 +473,7 @@ public class EdgeController extends BaseController {
         } else {
             result = edgeService.findEdgeInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
         }
-        return checkNotNull(result);
+        return hideLicenseKeyIfNeeded(checkNotNull(result));
     }
 
     @Hidden
@@ -428,7 +496,7 @@ public class EdgeController extends BaseController {
             edgesFuture = edgeService.findEdgesByTenantIdCustomerIdAndIdsAsync(tenantId, customerId, edgeIds);
         }
         List<Edge> edges = edgesFuture.get();
-        return checkNotNull(edges);
+        return hideLicenseKeyIfNeeded(checkNotNull(edges));
     }
 
     @ApiOperation(value = "Get Edges By Ids (getEdgeList)",
@@ -463,7 +531,7 @@ public class EdgeController extends BaseController {
                 return false;
             }
         }).collect(Collectors.toList());
-        return edges;
+        return hideLicenseKeyIfNeeded(edges);
     }
 
     @ApiOperation(value = "Get Edge Types (getEdgeTypes)",
@@ -587,4 +655,91 @@ public class EdgeController extends BaseController {
         }
     }
 
+
+    /**
+     * edge_license_key 是凭据，只对能创建/修改 edge 的调用方可见。与 PE 的
+     * EdgeController.cleanUpLicenseKey 行为一致 —— 只读调用方拿到的是 null。
+     */
+    @ApiOperation(value = "Check edge license (checkInstance)",
+            notes = "Forwards an edge's license check to the license portal. Called by the edge itself, " +
+                    "not by a UI user - the edge only ever talks to its cloud.")
+    @PostMapping(value = "/license/checkInstance")
+    public ResponseEntity<JsonNode> checkInstance(@RequestBody JsonNode request) throws ThingsboardException {
+        log.debug("Checking instance [{}]", request);
+        try {
+            return edgeLicenseService.checkInstance(request);
+        } catch (Exception e) {
+            log.error("Error occurred: [{}]", e.getMessage(), e);
+            throw new ThingsboardException(e, ThingsboardErrorCode.SUBSCRIPTION_VIOLATION);
+        }
+    }
+
+    @ApiOperation(value = "Activate edge instance (activateInstance)",
+            notes = "Activates an edge license on the license portal. Called by the edge itself.")
+    @PostMapping(value = "/license/activateInstance", params = {"licenseSecret", "releaseDate"})
+    public ResponseEntity<JsonNode> activateInstance(@RequestParam String licenseSecret,
+                                                     @RequestParam String releaseDate) throws ThingsboardException {
+        log.debug("Activating instance [{}], [{}]", licenseSecret, releaseDate);
+        try {
+            return edgeLicenseService.activateInstance(licenseSecret, releaseDate);
+        } catch (Exception e) {
+            log.error("Error occurred: [{}]", e.getMessage(), e);
+            throw new ThingsboardException(e, ThingsboardErrorCode.SUBSCRIPTION_VIOLATION);
+        }
+    }
+
+    /**
+     * {@code PageData<? extends HasName>} 这一支（/user/edges）走的是通用实体查询，
+     * 元素运行时是 Edge 的子类，但静态类型已经擦成 HasName，只能在这里按实例判。
+     */
+    @SuppressWarnings("unchecked")
+    private PageData<? extends HasName> hideLicenseKeysIn(PageData<? extends HasName> page) throws ThingsboardException {
+        if (page != null && !hasPermissionEdgeCreateOrWrite(getCurrentUser())) {
+            page.getData().forEach(entity -> {
+                if (entity instanceof Edge edge) {
+                    edge.setEdgeLicenseKey(null);
+                }
+            });
+        }
+        return page;
+    }
+
+    private <T extends Edge> T hideLicenseKeyIfNeeded(T edge) throws ThingsboardException {
+        return hideLicenseKeys(edge, edge != null && !hasPermissionEdgeCreateOrWrite(getCurrentUser()));
+    }
+
+    private <T extends Edge> List<T> hideLicenseKeyIfNeeded(List<T> edges) throws ThingsboardException {
+        return hideLicenseKeys(edges, edges != null && !hasPermissionEdgeCreateOrWrite(getCurrentUser()));
+    }
+
+    private <T extends Edge> PageData<T> hideLicenseKeyIfNeeded(PageData<T> edges) throws ThingsboardException {
+        if (edges != null) {
+            hideLicenseKeys(edges.getData(), !hasPermissionEdgeCreateOrWrite(getCurrentUser()));
+        }
+        return edges;
+    }
+
+    /**
+     * 实际抹除动作，权限判断留在外层。拆出来是为了能脱离 Spring 上下文直接单测 —— 这几个
+     * 重载之前是 {@code return hideLicenseKeyIfNeeded(edges);} 形式的自我递归，泛型重载让
+     * 编译器挑不出毛病，运行时每个列表/分页端点都直接 StackOverflowError。
+     */
+    static <T extends Edge> T hideLicenseKeys(T edge, boolean hide) {
+        if (edge != null && hide) {
+            edge.setEdgeLicenseKey(null);
+        }
+        return edge;
+    }
+
+    static <T extends Edge> List<T> hideLicenseKeys(List<T> edges, boolean hide) {
+        if (edges != null && hide) {
+            edges.forEach(edge -> edge.setEdgeLicenseKey(null));
+        }
+        return edges;
+    }
+
+    private boolean hasPermissionEdgeCreateOrWrite(SecurityUser user) throws ThingsboardException {
+        return accessControlService.hasPermission(user, Resource.EDGE, Operation.CREATE)
+                || accessControlService.hasPermission(user, Resource.EDGE, Operation.WRITE);
+    }
 }

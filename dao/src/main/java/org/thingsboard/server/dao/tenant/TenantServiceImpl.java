@@ -203,7 +203,11 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
                 EntityType.NOTIFICATION_REQUEST, EntityType.NOTIFICATION_RULE, EntityType.NOTIFICATION_TEMPLATE,
                 EntityType.NOTIFICATION_TARGET, EntityType.QUEUE_STATS, EntityType.CUSTOMER,
                 EntityType.DOMAIN, EntityType.MOBILE_APP_BUNDLE, EntityType.MOBILE_APP, EntityType.OAUTH2_CLIENT,
-                EntityType.AI_MODEL, EntityType.SECRET
+                EntityType.AI_MODEL, EntityType.SECRET,
+                // 从 PE 移植过来的两个类型。它们各自都实现了 EntityDaoService（deleteByTenantId +
+                // getEntityType），注册表按 getEntityType 自动收录，唯独漏了写进这份清单 ——
+                // 于是删掉租户后这些行永久留在库里。实测活库里有 18 条集成、22 个转换器的租户已不存在。
+                EntityType.INTEGRATION, EntityType.CONVERTER
         );
     }
 
