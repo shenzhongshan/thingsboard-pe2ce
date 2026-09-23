@@ -4877,6 +4877,7 @@
     },
     "home": {
         "home": "Home",
+        "help": "Help",
         "profile": "Profile",
         "logout": "Logout",
         "menu": "Menu",
@@ -11310,19 +11311,19 @@
                     "how-to-configure-sms-provider": "How to configure SMS provider"
                 },
                 "step4": {
+                    "title": "Configure feature: White labeling",
+                    "content": "<p>Customize your company's or product's logo and color scheme in just a few clicks — no coding, no service restart required.</p><p>Follow the documentation on how to do it:</p>",
+                    "how-to-configure-white-labeling": "How to configure white labeling"
+                },
+                "step5": {
                     "title": "Configure feature: 2FA",
                     "content": "<p>Improve security of the platform accounts with two-factor authentication.</p><p>Follow the documentation on how to do it:</p>",
                     "how-to-configure-2fa": "How to configure 2FA"
                 },
-                "step5": {
+                "step6": {
                     "title": "Configure feature: OAuth 2",
                     "content": "<p>Simplify login for the tenant and customer users with Single Sign-On functionality via OAuth 2.0.</p><p>Follow the documentation on how to do it:</p>",
                     "how-to-configure-oauth2": "How to configure OAuth 2"
-                },
-                "step6": {
-                    "title": "Configure feature: Slack",
-                    "content": "<p>Distribute notifications to the tenant and customer users via Slack according to the notification rules you set.</p><p>Follow the documentation on how to do it:</p>",
-                    "how-to-configure-notifications": "How to configure Slack"
                 }
             },
             "tenant-admin": {

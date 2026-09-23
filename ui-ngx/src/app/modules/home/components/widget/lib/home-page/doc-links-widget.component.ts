@@ -40,22 +40,22 @@ const defaultDocLinksMap = new Map<Authority, DocumentationLinks>(
         {
           icon: 'rocket',
           name: 'Getting started',
-          link: 'https://allshen.org/docs/getting-started-guides/helloworld/'
+          link: '/home/help/getting-started'
         },
         {
           icon: 'title',
           name: 'Tenant profiles',
-          link: 'https://allshen.org/docs/user-guide/tenant-profiles/'
+          link: '/home/help/tenant-profiles'
         },
         {
           icon: 'insert_chart',
           name: 'API',
-          link: 'https://allshen.org/docs/api/'
+          link: '/home/help/api'
         },
         {
           icon: 'now_widgets',
           name: 'Widgets Library',
-          link: 'https://allshen.org/docs/user-guide/ui/widget-library/'
+          link: '/home/help/widget-library'
         }
       ]
     }],
@@ -64,22 +64,22 @@ const defaultDocLinksMap = new Map<Authority, DocumentationLinks>(
         {
           icon: 'rocket',
           name: 'Getting started',
-          link: 'https://allshen.org/docs/getting-started-guides/helloworld/'
+          link: '/home/help/getting-started'
         },
         {
           icon: 'settings_ethernet',
           name: 'Rule engine',
-          link: 'https://allshen.org/docs/user-guide/rule-engine-2-0/re-getting-started/'
+          link: '/home/help/rule-engine-getting-started'
         },
         {
           icon: 'insert_chart',
           name: 'API',
-          link: 'https://allshen.org/docs/api/'
+          link: '/home/help/api'
         },
         {
           icon: 'devices',
           name: 'Device profiles',
-          link: 'https://allshen.org/docs/user-guide/device-profiles/'
+          link: '/home/help/device-profiles'
         }
       ]
     }],
@@ -88,7 +88,7 @@ const defaultDocLinksMap = new Map<Authority, DocumentationLinks>(
         {
           icon: 'rocket',
           name: 'Getting started',
-          link: 'https://allshen.org/docs/getting-started-guides/helloworld/'
+          link: '/home/help/getting-started'
         }
       ]
     }]

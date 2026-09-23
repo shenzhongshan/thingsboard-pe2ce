@@ -996,6 +996,58 @@
         "row": 0,
         "col": 0,
         "id": "8e71a398-caf5-540d-cec5-6e5dc264343e"
+      },
+      "867f82cf-ecf2-2d5c-35cb-08c6f2edc3a4": {
+        "type": "static",
+        "sizeX": 7.5,
+        "sizeY": 3,
+        "config": {
+          "datasources": [],
+          "showTitle": false,
+          "backgroundColor": "rgb(255, 255, 255)",
+          "color": "rgba(0, 0, 0, 0.87)",
+          "padding": "16px",
+          "settings": {
+            "columns": 2
+          },
+          "title": "Documentation",
+          "dropShadow": false,
+          "enableFullscreen": false,
+          "widgetStyle": {},
+          "widgetCss": "",
+          "pageSize": 1024,
+          "noDataDisplayMessage": "",
+          "showLegend": false
+        },
+        "row": 0,
+        "col": 0,
+        "id": "867f82cf-ecf2-2d5c-35cb-08c6f2edc3a4",
+        "typeFullFqn": "system.home_page_widgets.documentation_links"
+      },
+      "ed33e56f-293b-aaaa-ad19-0cf499dc926f": {
+        "type": "static",
+        "sizeX": 7.5,
+        "sizeY": 6.5,
+        "config": {
+          "showTitle": false,
+          "backgroundColor": "rgb(255, 255, 255)",
+          "color": "rgba(0, 0, 0, 0.87)",
+          "padding": "16px",
+          "settings": {
+            "columns": 3
+          },
+          "title": "Getting started",
+          "dropShadow": false,
+          "enableFullscreen": false,
+          "widgetStyle": {},
+          "widgetCss": "",
+          "noDataDisplayMessage": "",
+          "datasources": []
+        },
+        "row": 0,
+        "col": 0,
+        "id": "ed33e56f-293b-aaaa-ad19-0cf499dc926f",
+        "typeFullFqn": "system.home_page_widgets.getting_started"
       }
     },
     "states": {
@@ -1051,6 +1103,22 @@
                 "row": 0,
                 "col": 43,
                 "mobileOrder": 0
+              },
+              "867f82cf-ecf2-2d5c-35cb-08c6f2edc3a4": {
+                "sizeX": 29,
+                "sizeY": 16,
+                "row": 42,
+                "col": 28,
+                "mobileHide": true
+              },
+              "ed33e56f-293b-aaaa-ad19-0cf499dc926f": {
+                "sizeX": 35,
+                "sizeY": 58,
+                "row": 0,
+                "col": 85,
+                "mobileHide": false,
+                "mobileOrder": 5,
+                "mobileHeight": 10
               }
             },
             "gridSettings": {

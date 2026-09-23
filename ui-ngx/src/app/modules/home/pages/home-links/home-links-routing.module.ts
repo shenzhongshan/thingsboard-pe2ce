@@ -18,6 +18,7 @@ import { inject, NgModule } from '@angular/core';
 import { ActivatedRouteSnapshot, ResolveFn, RouterModule, RouterStateSnapshot, Routes } from '@angular/router';
 
 import { HomeLinksComponent } from './home-links.component';
+import { HelpArticleComponent } from '../help-center/help-article.component';
 import { Authority } from '@shared/models/authority.enum';
 import { mergeMap, Observable, of } from 'rxjs';
 import { HomeDashboard } from '@shared/models/dashboard.models';
@@ -131,6 +132,17 @@ const routes: Routes = [
     },
     resolve: {
       homeDashboard: homeDashboardResolver
+    }
+  },
+  {
+    path: 'home/help/:articleId',
+    component: HelpArticleComponent,
+    data: {
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      title: 'home.help',
+      breadcrumb: {
+        skip: true
+      }
     }
   }
 ];
