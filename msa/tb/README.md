@@ -54,7 +54,7 @@ Where:
 After executing `docker run` command you can open `http://{your-host-ip}:9090` in you browser (for ex. `http://localhost:9090`). You should see ThingsBoard login page.
 Use the following default credentials:
 
-- **System Administrator**: sysadmin@flexlink.com / sysadmin
+- **System Administrator**: sysadmin@fexlink.com / sysadmin
 - **Tenant Administrator**: tenant@thingsboard.org / tenant
 - **Customer User**: customer@thingsboard.org / customer
     
