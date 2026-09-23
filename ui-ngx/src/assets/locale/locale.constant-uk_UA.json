@@ -1871,8 +1871,8 @@
     "make-private-dashboard-title": "Ви впевнені, що хочете зробити дашборд '{{dashboardTitle}}' приватним?",
     "make-private-dashboard-text": "Після підтвердження дашборд стане приватним і більше не буде доступний іншим.",
     "make-private-dashboard": "Зробити дашборд приватним",
-    "socialshare-text": "'{{dashboardTitle}}' за підтримки ThingsBoard",
-    "socialshare-title": "'{{dashboardTitle}}' за підтримки ThingsBoard",
+    "socialshare-text": "'{{dashboardTitle}}' за підтримки Fexlink",
+    "socialshare-title": "'{{dashboardTitle}}' за підтримки Fexlink",
     "select-dashboard": "Вибрати дашборд",
     "no-dashboards-matching": "Дашбордів, що відповідають '{{entity}}', не знайдено.",
     "dashboard-required": "Дашборд є обов'язковим.",
@@ -4471,9 +4471,9 @@
     "configuration-app": "Застосунок конфігурації",
     "configuration-step": {
       "prepare-environment-title": "Підготуйте середовище розробки",
-      "prepare-environment-text": "Flutter ThingsBoard Mobile Application потребує Flutter SDK. Дотримуйтеся інструкцій, щоб налаштувати Flutter SDK.",
+      "prepare-environment-text": "Flutter Fexlink Mobile Application потребує Flutter SDK. Дотримуйтеся інструкцій, щоб налаштувати Flutter SDK.",
       "get-source-code-title": "Отримайте вихідний код застосунку",
-      "get-source-code-text": "Ви можете отримати вихідний код Flutter ThingsBoard Mobile Application, клонуючи його з репозиторію GitHub:",
+      "get-source-code-text": "Ви можете отримати вихідний код Flutter Fexlink Mobile Application, клонуючи його з репозиторію GitHub:",
       "configure-app-settings-title": "Налаштуйте параметри застосунку",
       "configure-app-settings-text": "Завантажте файл конфігурації та розмістіть його в кореневому каталозі проєкту, який Ви клонували на попередньому кроці.",
       "download-file": "Завантажити файл",
@@ -6178,7 +6178,7 @@
     "tenant-required": "Тенант обов'язковий",
     "search": "Пошук тенантів",
     "selected-tenants": "{ count, plural, =1 {1 тенант} other {# тенантів} } вибрано",
-    "isolated-tb-rule-engine": "Використовувати ізольовані черги Rule Engine ThingsBoard",
+    "isolated-tb-rule-engine": "Використовувати ізольовані черги Rule Engine Fexlink",
     "isolated-tb-rule-engine-details": "Кожен тенант матиме окремі черги Rule Engine"
   },
   "tenant-profile": {
@@ -10017,7 +10017,7 @@
     },
     "functions": {
       "title": "Функції",
-      "pe-feature-tooltip": "Лише у ThingsBoard\nProfessional Edition",
+      "pe-feature-tooltip": "Лише у Fexlink\nProfessional Edition",
       "switch-to-pe": "Перемкнутися на PE",
       "alarms": "Тривоги",
       "dashboards": "Дашборди",

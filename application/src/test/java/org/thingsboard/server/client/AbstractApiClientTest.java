@@ -57,7 +57,7 @@ public abstract class AbstractApiClientTest extends AbstractControllerTest {
         client = ThingsboardClient.builder()
                 .url("http://localhost:" + wsPort)
                 .build();
-        client.login("sysadmin@flexlink.com", "sysadmin");
+        client.login("sysadmin@fexlink.com", "sysadmin");
 
         org.thingsboard.client.model.Tenant tenant = new org.thingsboard.client.model.Tenant();
         tenant.setTitle("Java client test tenant");
@@ -86,7 +86,7 @@ public abstract class AbstractApiClientTest extends AbstractControllerTest {
 
     @After
     public void tearDownJavaClient() {
-        client.login("sysadmin@flexlink.com", "sysadmin");
+        client.login("sysadmin@fexlink.com", "sysadmin");
         client.deleteTenant(savedClientTenant.getId().getId().toString());
     }
 

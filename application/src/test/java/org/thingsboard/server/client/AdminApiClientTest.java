@@ -36,7 +36,7 @@ public class AdminApiClientTest extends AbstractApiClientTest {
     @Test
     public void testAdminSettingsLifecycle() throws Exception {
         // authenticate as sysadmin for admin settings management
-        client.login("sysadmin@flexlink.com", "sysadmin");
+        client.login("sysadmin@fexlink.com", "sysadmin");
 
         // get mail settings
         AdminSettings mailSettings = client.getAdminSettings("mail");

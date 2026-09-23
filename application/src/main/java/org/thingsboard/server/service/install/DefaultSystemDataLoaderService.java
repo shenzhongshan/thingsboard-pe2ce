@@ -198,7 +198,7 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
 
     @Override
     public void createSysAdmin() {
-        createUser(Authority.SYS_ADMIN, null, null, "sysadmin@flexlink.com", "sysadmin");
+        createUser(Authority.SYS_ADMIN, null, null, "sysadmin@fexlink.com", "sysadmin");
     }
 
     @Override

@@ -5,7 +5,7 @@ This example demonstrates how to use the AI request node to analyze telemetry fr
 ##### Scenario
 
 Assume you’re monitoring a centrifugal pump that streams vibration, temperature, and acoustic readings.
-To catch problems early and avoid downtime, you can use AI to analyze the telemetry for signs of **Bearing Wear**, **Misalignment**, **Overheating**, or **Imbalance** and return an alarm object if found. Downstream nodes can use it to create a ThingsBoard alarm and notify the maintenance team.
+To catch problems early and avoid downtime, you can use AI to analyze the telemetry for signs of **Bearing Wear**, **Misalignment**, **Overheating**, or **Imbalance** and return an alarm object if found. Downstream nodes can use it to create a Fexlink alarm and notify the maintenance team.
 
 1. **Incoming message structure**
 
@@ -60,7 +60,7 @@ Message metadata:
 
 2. **Prompt configuration**
 
-As a second step, we need to explain the task to AI model. Describe the context of your device and the desired response format (in this case, minimal ThingsBoard alarm JSON object) in the system prompt. We will also put the task description in the system prompt since it does not change depending on a message. In the user prompt, we will use templates to dynamically inject telemetry data produced by the device.
+As a second step, we need to explain the task to AI model. Describe the context of your device and the desired response format (in this case, minimal Fexlink alarm JSON object) in the system prompt. We will also put the task description in the system prompt since it does not change depending on a message. In the user prompt, we will use templates to dynamically inject telemetry data produced by the device.
 
 **System prompt**
 
