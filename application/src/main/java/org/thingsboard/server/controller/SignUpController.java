@@ -43,6 +43,7 @@ import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.security.model.JwtPair;
 import org.thingsboard.server.common.data.selfregistration.AbstractCaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.CaptchaParams;
+import org.thingsboard.server.common.data.selfregistration.LocalCaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.SelfRegistrationParams;
 import org.thingsboard.server.common.data.selfregistration.SignUpField;
 import org.thingsboard.server.common.data.selfregistration.SignUpFieldId;
@@ -69,6 +70,7 @@ import org.thingsboard.server.data.RecaptchaValidationResult;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.auth.rest.RestAuthenticationDetails;
+import org.thingsboard.server.service.security.captcha.LocalCaptchaService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 import org.thingsboard.server.service.security.model.token.JwtTokenFactory;
@@ -114,6 +116,8 @@ extends BaseController {
     private GroupPermissionService groupPermissionService;
     @Autowired
     private NotificationCenter notificationCenter;
+    @Autowired
+    private LocalCaptchaService localCaptchaService;
 
     @PostConstruct
     public void init() {
@@ -133,6 +137,8 @@ extends BaseController {
         CaptchaParams captcha = selfRegistrationParams.getCaptcha();
         if (captcha instanceof V2CaptchaParams || captcha instanceof V3CaptchaParams) {
             this.validateReCaptcha(signUpRequest.getRecaptchaResponse(), request.getRemoteAddr(), ((AbstractCaptchaParams)captcha).getSecretKey());
+        } else if (captcha instanceof LocalCaptchaParams) {
+            this.validateLocalCaptcha(signUpRequest.getCaptchaId(), signUpRequest.getCaptchaAnswer());
         } else {
             throw new DataValidationException("Error validating captcha: wrong captcha version");
         }
@@ -429,6 +435,14 @@ extends BaseController {
         } catch (RestClientException ex) {
             log.error("Error validating reCAPTCHA. Verification URL: [{}]", this.signUpConfig.getRecaptchaVerificationUrl());
             throw new ThingsboardException("Error validating reCAPTCHA", ex, ThingsboardErrorCode.GENERAL);
+        }
+    }
+
+    private void validateLocalCaptcha(String captchaId, String captchaAnswer) throws ThingsboardException {
+        checkParameter("Captcha id", captchaId);
+        checkParameter("Captcha answer", captchaAnswer);
+        if (!this.localCaptchaService.verifyAndEvict(captchaId, captchaAnswer)) {
+            throw new DataValidationException("Invalid captcha response!");
         }
     }
 

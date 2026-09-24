@@ -1063,6 +1063,9 @@
     "no-group-permissions-text": "未找到组权限"
   },
   "self-registration": {
+    "captcha-version-v2": "Google reCAPTCHA v2",
+    "captcha-version-v3": "Google reCAPTCHA v3",
+    "captcha-version-local": "本地验证码",
     "notification-recipient": "通知接收者",
     "notification-recipient-required": "通知接收者为必填项。",
     "self-registration": "自助注册",
@@ -1090,6 +1093,8 @@
     "reset-to-default": "重置为默认"
   },
   "signup": {
+    "captcha-refresh": "换一张",
+    "captcha-answer": "请输入图片中的字符",
     "repeat-password": "重复您的密码",
     "resend": "重新发送",
     "email-verification": "Email 验证",

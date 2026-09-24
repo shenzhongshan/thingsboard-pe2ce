@@ -20,6 +20,7 @@ import { Observable } from 'rxjs';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { LoginResponse } from '@shared/models/login.models';
 import {
+  LocalCaptchaChallenge,
   SignUpRequest,
   SignUpResult,
   SignUpSelfRegistrationParams,
@@ -53,6 +54,11 @@ export class SelfRegistrationService {
   // --- Public (no auth): sign-up form descriptor + legal text ---
   public getSignUpSelfRegistrationParams(config?: RequestConfig): Observable<SignUpSelfRegistrationParams> {
     return this.http.get<SignUpSelfRegistrationParams>('/api/noauth/selfRegistration/signUpSelfRegistrationParams',
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public getLocalCaptcha(config?: RequestConfig): Observable<LocalCaptchaChallenge> {
+    return this.http.get<LocalCaptchaChallenge>('/api/noauth/selfRegistration/localCaptcha',
       defaultHttpOptionsFromConfig(config));
   }
 

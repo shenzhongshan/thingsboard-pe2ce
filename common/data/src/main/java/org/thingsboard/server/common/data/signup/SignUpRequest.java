@@ -12,6 +12,10 @@ public class SignUpRequest {
     protected Map<SignUpFieldId, String> fields;
     @Schema(description="Response from reCAPTCHA validation")
     private String recaptchaResponse;
+    @Schema(description="Local captcha challenge id, returned by GET /api/noauth/selfRegistration/localCaptcha. Only used when the self-registration captcha version is 'local'.")
+    private String captchaId;
+    @Schema(description="User-typed answer for the local captcha challenge. Only used when the self-registration captcha version is 'local'.")
+    private String captchaAnswer;
     @Schema(description="For mobile apps only. Mobile app package name")
     private String pkgName;
     @Schema(description="For mobile apps only. Mobile app package platform")
@@ -27,6 +31,16 @@ public class SignUpRequest {
     @Generated
     public String getRecaptchaResponse() {
         return this.recaptchaResponse;
+    }
+
+    @Generated
+    public String getCaptchaId() {
+        return this.captchaId;
+    }
+
+    @Generated
+    public String getCaptchaAnswer() {
+        return this.captchaAnswer;
     }
 
     @Generated
@@ -52,6 +66,16 @@ public class SignUpRequest {
     @Generated
     public void setRecaptchaResponse(String recaptchaResponse) {
         this.recaptchaResponse = recaptchaResponse;
+    }
+
+    @Generated
+    public void setCaptchaId(String captchaId) {
+        this.captchaId = captchaId;
+    }
+
+    @Generated
+    public void setCaptchaAnswer(String captchaAnswer) {
+        this.captchaAnswer = captchaAnswer;
     }
 
     @Generated

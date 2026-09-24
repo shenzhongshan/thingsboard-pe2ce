@@ -62,7 +62,8 @@ export interface SignUpField {
 // Values must match the backend Jackson subtype ids for CaptchaParams (@JsonTypeInfo property="version").
 export enum CaptchaVersion {
   V2 = 'v2',
-  V3 = 'v3'
+  V3 = 'v3',
+  LOCAL = 'local'
 }
 
 export interface CaptchaParams {
@@ -71,6 +72,12 @@ export interface CaptchaParams {
   secretKey?: string;
   logActionName?: string;
 }
+
+export const captchaVersionTranslations = new Map<CaptchaVersion, string>([
+  [CaptchaVersion.V2, 'self-registration.captcha-version-v2'],
+  [CaptchaVersion.V3, 'self-registration.captcha-version-v3'],
+  [CaptchaVersion.LOCAL, 'self-registration.captcha-version-local']
+]);
 
 export interface DefaultDashboardParams {
   id?: string;
@@ -116,9 +123,18 @@ export interface SignUpSelfRegistrationParams {
 export interface SignUpRequest {
   fields: { [key in SignUpFieldId]?: string };
   recaptchaResponse?: string;
+  /** Local captcha challenge id, only used when the self-registration captcha version is 'local'. */
+  captchaId?: string;
+  /** User-typed answer for the local captcha challenge. */
+  captchaAnswer?: string;
   pkgName?: string;
   platform?: string;
   appSecret?: string;
+}
+
+export interface LocalCaptchaChallenge {
+  captchaId: string;
+  image: string;
 }
 
 export enum SignUpResult {

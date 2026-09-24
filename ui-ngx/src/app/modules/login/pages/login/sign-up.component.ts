@@ -74,6 +74,9 @@ export class SignUpComponent extends PageComponent implements OnInit {
   signUpFieldIdTranslations = signUpFieldIdTranslations;
   SignUpFieldId = SignUpFieldId;
 
+  localCaptchaImage: string = null;
+  localCaptchaId: string = null;
+
   private passwordPolicy: UserPasswordPolicy;
   private submittedEmail: string = null;
   private recaptchaResponse: string = null;
@@ -114,9 +117,33 @@ export class SignUpComponent extends PageComponent implements OnInit {
           this.selfRegistrationService.getTermsOfUse({ ignoreErrors: true }).subscribe(
             (text) => this.termsOfUseText = this.unwrapText(text));
         }
-        this.loadRecaptchaScript();
+        if (this.isLocal) {
+          this.signUpForm.addControl('localCaptchaAnswer', this.fb.control('', [Validators.required]));
+          this.loadLocalCaptcha();
+        } else {
+          this.loadRecaptchaScript();
+        }
       }
     );
+  }
+
+  get isLocal(): boolean {
+    return this.params?.captcha?.version === CaptchaVersion.LOCAL;
+  }
+
+  private loadLocalCaptcha() {
+    this.selfRegistrationService.getLocalCaptcha({ ignoreErrors: true }).subscribe({
+      next: (challenge) => {
+        this.localCaptchaId = challenge.captchaId;
+        this.localCaptchaImage = challenge.image;
+      },
+      error: () => this.captchaError = this.translate.instant('signup.captcha-load-failed')
+    });
+  }
+
+  refreshLocalCaptcha() {
+    this.loadLocalCaptcha();
+    this.signUpForm.get('localCaptchaAnswer')?.setValue('');
   }
 
   /**
@@ -240,7 +267,14 @@ export class SignUpComponent extends PageComponent implements OnInit {
       this.showError(this.translate.instant('signup.accept-terms-of-use-required'));
       return;
     }
-    if (this.isV3) {
+    if (this.isLocal) {
+      const answer = this.signUpForm.get('localCaptchaAnswer')?.value;
+      if (!answer) {
+        this.captchaError = this.translate.instant('signup.captcha-required');
+        return;
+      }
+      this.doSignUp(null);
+    } else if (this.isV3) {
       if (typeof grecaptcha === 'undefined') {
         this.captchaError = this.translate.instant('signup.captcha-load-failed');
         return;
@@ -273,7 +307,9 @@ export class SignUpComponent extends PageComponent implements OnInit {
       }
     }
     this.submittedEmail = fields[SignUpFieldId.EMAIL];
-    const request: SignUpRequest = { fields, recaptchaResponse };
+    const request: SignUpRequest = this.isLocal
+      ? { fields, captchaId: this.localCaptchaId, captchaAnswer: this.signUpForm.get('localCaptchaAnswer')?.value }
+      : { fields, recaptchaResponse };
     this.selfRegistrationService.signUp(request).subscribe({
       next: (result) => {
         if (result === SignUpResult.INACTIVE_USER_EXISTS) {
@@ -283,8 +319,12 @@ export class SignUpComponent extends PageComponent implements OnInit {
         }
       },
       error: () => {
-        // Server rejected (e.g. captcha invalid) — force a fresh captcha for the next attempt.
-        if (!this.isV3 && this.recaptchaWidgetRendered && typeof grecaptcha !== 'undefined' && grecaptcha.reset) {
+        if (this.isLocal) {
+          // Server rejected (e.g. wrong answer, or the challenge already expired/was consumed) -
+          // the challenge is one-shot, so a retry always needs a fresh image.
+          this.refreshLocalCaptcha();
+        } else if (!this.isV3 && this.recaptchaWidgetRendered && typeof grecaptcha !== 'undefined' && grecaptcha.reset) {
+          // Server rejected (e.g. captcha invalid) — force a fresh captcha for the next attempt.
           grecaptcha.reset();
           this.recaptchaResponse = null;
         }

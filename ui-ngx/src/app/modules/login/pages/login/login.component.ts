@@ -25,6 +25,7 @@ import { validateEmail } from '@app/core/utils';
 import { PageComponent } from '@shared/components/page.component';
 import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 import { SelfRegistrationService } from '@core/http/self-registration.service';
+import { CaptchaVersion } from '@shared/models/self-registration.models';
 
 
 import { of, Subject } from 'rxjs';
@@ -79,9 +80,13 @@ export class LoginComponent extends PageComponent implements OnInit, OnDestroy {
 
     // The endpoint returns null when self-registration is absent or disabled for this domain,
     // so the 注册 button should only appear when a tenant has actually configured it.
+    // Also gate on the configured captcha version being one this build can actually render/validate
+    // (e.g. "enterprise" is a known backend captcha type that was never ported to the sign-up UI) —
+    // otherwise the entry point would be shown but every sign-up attempt through it would fail.
     this.selfRegistrationService.getSignUpSelfRegistrationParams({ ignoreErrors: true })
       .pipe(takeUntil(this.destroy$), catchError(() => of(null)))
-      .subscribe((params) => this.signUpAllowed = !!params);
+      .subscribe((params) => this.signUpAllowed =
+        !!params && !!params.captcha && Object.values(CaptchaVersion).includes(params.captcha.version));
   }
 
   login(): void {

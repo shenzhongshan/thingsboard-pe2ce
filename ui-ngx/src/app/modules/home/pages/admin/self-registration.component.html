@@ -59,7 +59,7 @@
                 <mat-label translate>self-registration.captcha-version</mat-label>
                 <mat-select formControlName="captchaVersion">
                   @for (version of captchaVersions; track version) {
-                    <mat-option [value]="version">{{ version }}</mat-option>
+                    <mat-option [value]="version">{{ captchaVersionTranslations.get(version) | translate }}</mat-option>
                   }
                 </mat-select>
               </mat-form-field>
@@ -70,22 +70,26 @@
                 </mat-form-field>
               }
             </section>
-            <section class="flex flex-col gt-sm:flex-row gt-sm:gap-2">
-              <mat-form-field class="flex-1">
-                <mat-label translate>self-registration.captcha-site-key</mat-label>
-                <input matInput formControlName="captchaSiteKey" required>
-                @if (selfRegistrationForm.get('captchaSiteKey').hasError('required')) {
-                  <mat-error>{{ 'self-registration.captcha-site-key-required' | translate }}</mat-error>
-                }
-              </mat-form-field>
-              <mat-form-field class="flex-1">
-                <mat-label translate>self-registration.captcha-secret-key</mat-label>
-                <input matInput formControlName="captchaSecretKey" required>
-                @if (selfRegistrationForm.get('captchaSecretKey').hasError('required')) {
-                  <mat-error>{{ 'self-registration.captcha-secret-key-required' | translate }}</mat-error>
-                }
-              </mat-form-field>
-            </section>
+            @if (selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL) {
+              <section class="flex flex-col gt-sm:flex-row gt-sm:gap-2">
+                <mat-form-field class="flex-1">
+                  <mat-label translate>self-registration.captcha-site-key</mat-label>
+                  <input matInput formControlName="captchaSiteKey"
+                         [required]="selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL">
+                  @if (selfRegistrationForm.get('captchaSiteKey').hasError('required')) {
+                    <mat-error>{{ 'self-registration.captcha-site-key-required' | translate }}</mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field class="flex-1">
+                  <mat-label translate>self-registration.captcha-secret-key</mat-label>
+                  <input matInput formControlName="captchaSecretKey"
+                         [required]="selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL">
+                  @if (selfRegistrationForm.get('captchaSecretKey').hasError('required')) {
+                    <mat-error>{{ 'self-registration.captcha-secret-key-required' | translate }}</mat-error>
+                  }
+                </mat-form-field>
+              </section>
+            }
           </fieldset>
 
           <fieldset class="tb-sr-group">

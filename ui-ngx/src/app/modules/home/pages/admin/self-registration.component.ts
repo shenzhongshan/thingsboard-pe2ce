@@ -27,6 +27,7 @@ import { EntityType } from '@shared/models/entity-type.models';
 import { PageLink } from '@shared/models/page/page-link';
 import { DomainInfo } from '@shared/models/oauth2.models';
 import {
+  captchaVersionTranslations,
   CaptchaVersion,
   SignUpFieldId,
   WebSelfRegistrationParams
@@ -42,6 +43,7 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   selfRegistrationForm: UntypedFormGroup;
   captchaVersions = Object.values(CaptchaVersion);
+  captchaVersionTranslations = captchaVersionTranslations;
   CaptchaVersion = CaptchaVersion;
   EntityType = EntityType;
   domains: DomainInfo[] = [];
@@ -93,9 +95,30 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
       showTermsOfUse: [false],
       termsOfUse: ['']
     });
+    // captchaSiteKey/captchaSecretKey are meaningless for the local (self-hosted) captcha - clear
+    // their validators when it's selected, or the form is left permanently invalid+invisible once
+    // those fields are hidden (see the project's own past "conditional required validator leak"
+    // incident: hiding a field in the template is not enough, the validator must be cleared too).
+    this.selfRegistrationForm.get('captchaVersion').valueChanges.subscribe((version: CaptchaVersion) => {
+      this.updateCaptchaValidators(version);
+    });
     this.selfRegistrationService.getSelfRegistrationParams().subscribe(
       (params) => this.setParams(params)
     );
+  }
+
+  private updateCaptchaValidators(version: CaptchaVersion): void {
+    const siteKeyCtrl = this.selfRegistrationForm.get('captchaSiteKey');
+    const secretKeyCtrl = this.selfRegistrationForm.get('captchaSecretKey');
+    if (version === CaptchaVersion.LOCAL) {
+      siteKeyCtrl.clearValidators();
+      secretKeyCtrl.clearValidators();
+    } else {
+      siteKeyCtrl.setValidators([Validators.required]);
+      secretKeyCtrl.setValidators([Validators.required]);
+    }
+    siteKeyCtrl.updateValueAndValidity({ emitEvent: false });
+    secretKeyCtrl.updateValueAndValidity({ emitEvent: false });
   }
 
   get signUpUrl(): string {
@@ -123,6 +146,10 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
       showTermsOfUse: params.showTermsOfUse === true,
       termsOfUse: params.termsOfUse || ''
     });
+    // reset() re-applies whatever validators were set at group-construction time, so the
+    // subscription above does not by itself cover "load an already-local-captcha-configured
+    // domain" - re-run it explicitly after every reset.
+    this.updateCaptchaValidators(this.selfRegistrationForm.get('captchaVersion').value);
   }
 
   private buildParams(): WebSelfRegistrationParams {
@@ -139,8 +166,8 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
       title: v.title,
       captcha: {
         version: v.captchaVersion,
-        siteKey: v.captchaSiteKey,
-        secretKey: v.captchaSecretKey,
+        siteKey: v.captchaVersion === CaptchaVersion.LOCAL ? null : v.captchaSiteKey,
+        secretKey: v.captchaVersion === CaptchaVersion.LOCAL ? null : v.captchaSecretKey,
         logActionName: v.captchaVersion === CaptchaVersion.V3 ? v.captchaLogActionName : null
       },
       notificationRecipient: v.notificationRecipient

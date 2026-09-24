@@ -1063,6 +1063,9 @@
         "no-group-permissions-text": "No group permissions found"
     },
     "self-registration": {
+        "captcha-version-v2": "Google reCAPTCHA v2",
+        "captcha-version-v3": "Google reCAPTCHA v3",
+        "captcha-version-local": "Local (self-hosted) captcha",
         "notification-recipient": "Notification recipient",
         "notification-recipient-required": "Notification recipient is required.",
         "self-registration": "Self registration",
@@ -1090,6 +1093,8 @@
         "reset-to-default": "Reset to default"
     },
     "signup": {
+        "captcha-refresh": "Refresh",
+        "captcha-answer": "Enter the characters shown in the image",
         "repeat-password": "Repeat your password",
         "resend": "Resend",
         "email-verification": "Email verification",
