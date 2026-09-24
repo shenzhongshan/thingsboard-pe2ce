@@ -1,6 +1,6 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
@@ -40,7 +40,7 @@ public class DeviceAlarmQueryServiceImpl implements DeviceAlarmQueryService {
      * @return 单页告警数据
      */
     @Override
-    public PageData<AlarmInfo> findPage(SecurityUser user, AlarmQueryV2 query) throws ThingsboardException {
+    public PageData<AlarmInfo> findPage(SecurityUser user, AlarmQueryV2 query) {
         // 查询对象为空时直接返回空页，避免下游空指针。
         if (query == null) {
             return PageData.emptyPageData();

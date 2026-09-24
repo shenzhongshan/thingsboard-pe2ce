@@ -315,6 +315,7 @@
 .analysis-detail-grid.compact { grid-template-columns: 1fr; }
 .analysis-detail-grid > div { display: flex; min-width: 0; min-height: 38px; flex-direction: column; justify-content: center; padding: 6px 8px; border: 1px solid rgba(205, 220, 231, .8); border-radius: 5px; background: rgba(255, 255, 255, .76); }
 .analysis-detail-grid dd { overflow: hidden; margin: 3px 0 0; color: #274760; font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-detail-grid dd.analysis-counts { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 .analysis-detail-grid .analysis-key-metric { border-color: #b8d8f5; background: #f5faff; cursor: help; }
 .analysis-detail-grid .analysis-key-metric dd { color: #1263bd; font-size: 15px; font-weight: 650; }
 
@@ -373,4 +374,142 @@
   .device-body { gap: 8px; padding: 10px; }
   .device-icon { width: 64px; height: 64px; }
   .device-icon tb-icon { font-size: 32px; }
+}
+
+
+/*
+ * 设备卡片暂不开放复位、漏电自检、分闸和刷新等控制操作。
+ * 这里只通过样式隐藏按钮，保留原有模板节点，后续恢复操作时无需重新接回业务代码。
+ */
+.device-card footer > button {
+  display: none;
+}
+
+
+/* 设备卡片固定展示少量实时测点；使用原生 title 查看测点键、原始值和上报时间。 */
+.device-realtime-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 10px 10px;
+}
+
+.device-realtime-metrics > div {
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid #e1eaf1;
+  border-radius: 4px;
+  background: #f6f9fc;
+  cursor: help;
+}
+
+.device-realtime-metrics dt {
+  overflow: hidden;
+  color: #718599;
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-realtime-metrics dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  color: #245b96;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-realtime-metrics dd.abnormal {
+  color: #c62828;
+}
+
+@media (max-width: 1366px) and (min-width: 981px) {
+  .device-realtime-metrics { gap: 4px; margin-right: 8px; margin-left: 8px; }
+  .device-realtime-metrics > div { padding: 5px; }
+  .device-realtime-metrics dt { font-size: 9px; }
+  .device-realtime-metrics dd { font-size: 11px; }
+}
+
+/* 离线和活动告警使用清晰可辨的卡片底色，正常设备沿用原有白色背景。 */
+.device-card.offline-card {
+  background-color: #aeb6c0;
+}
+
+.device-card.alarm-card {
+  background-color: #e77f88;
+}
+
+/* 悬浮时保留对应状态色，避免通用蓝色悬浮标题覆盖状态提示。 */
+.device-card.offline-card:hover header,
+.device-card.offline-card:focus-within header {
+  background: linear-gradient(90deg, #bbc3cb, #aeb6c0);
+}
+
+.device-card.alarm-card:hover header,
+.device-card.alarm-card:focus-within header {
+  background: linear-gradient(90deg, #ed969d, #e77f88);
+}
+
+/* 卡片状态色延伸到内部标题、图标和实时指标；正常态只着色内层，外卡片继续保持白底。 */
+.device-card:not(.offline-card):not(.alarm-card) {
+  --device-state-header: #edf7f0;
+  --device-state-header-hover: #e3f2e7;
+  --device-state-icon-bg: #dcefe2;
+  --device-state-icon-border: #a9d3b4;
+  --device-state-icon-color: #178042;
+  --device-state-metric-bg: #e4f2e7;
+  --device-state-metric-border: #bad9c3;
+}
+
+.device-card.offline-card {
+  --device-state-header: #bbc3cb;
+  --device-state-header-hover: #b1bac2;
+  --device-state-icon-bg: #c1c8cf;
+  --device-state-icon-border: #9ca8b2;
+  --device-state-icon-color: #435565;
+  --device-state-metric-bg: #bfc7ce;
+  --device-state-metric-border: #a9b3bc;
+}
+
+.device-card.alarm-card {
+  --device-state-header: #ed969d;
+  --device-state-header-hover: #e88a93;
+  --device-state-icon-bg: #f0a0a6;
+  --device-state-icon-border: #dc818a;
+  --device-state-icon-color: #8b2833;
+  --device-state-metric-bg: #ee9da3;
+  --device-state-metric-border: #dc828b;
+}
+
+.device-card header,
+.device-card footer {
+  background: var(--device-state-header);
+}
+
+.device-card .device-icon {
+  border-color: var(--device-state-icon-border);
+  color: var(--device-state-icon-color);
+  background: var(--device-state-icon-bg);
+}
+
+.device-card .device-realtime-metrics > div {
+  border-color: var(--device-state-metric-border);
+  background: var(--device-state-metric-bg);
+}
+
+.device-card:hover header,
+.device-card:focus-within header {
+  background: var(--device-state-header-hover);
+}
+
+.device-card:hover .device-icon,
+.device-card:focus-within .device-icon {
+  border-color: var(--device-state-icon-border);
+  color: var(--device-state-icon-color);
+  background: var(--device-state-icon-bg);
+  box-shadow: 0 7px 15px rgba(29, 60, 87, .16);
 }

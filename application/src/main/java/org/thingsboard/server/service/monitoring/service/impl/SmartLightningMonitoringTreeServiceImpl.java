@@ -55,6 +55,7 @@ public class SmartLightningMonitoringTreeServiceImpl
 
     @Override
     public SmartLightningMonitoringTreeDTO getTree(SecurityUser user) throws ThingsboardException {
+        // 先构建权限范围内的内部树，再转换为接口响应 DTO。
         return toDTO(buildVisibleAssetTree(user));
     }
 
@@ -64,7 +65,9 @@ public class SmartLightningMonitoringTreeServiceImpl
         return buildVisibleAssetTree(user);
     }
 
+    /** 按权限查询实体和关系，并交由树构建器统一完成可见性过滤及树结构整理。 */
     private VisibleAssetTree buildVisibleAssetTree(SecurityUser user) throws ThingsboardException {
+        // 资产和设备分别通过授权服务分页读取，不能用租户查询替代用户可见范围。
         List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleAssets = findVisibleEntities(user, EntityType.ASSET);
         List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleDevices = findVisibleEntities(user, EntityType.DEVICE);
         List<EntityRelation> relations = new ArrayList<>();
@@ -77,11 +80,13 @@ public class SmartLightningMonitoringTreeServiceImpl
         relations.addAll(relationService.findByFrom(user.getTenantId(), assetIds, RelationTypeGroup.COMMON));
         List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleEntities = new ArrayList<>(visibleAssets);
         visibleEntities.addAll(visibleDevices);
+        // 构建器只保留两端均在可见实体集合中的有效 Contains 关系。
         return treeBuilder.build(visibleEntities, relations);
     }
 
     /** 在服务边界把内部树模型转换为 DTO。 */
     private SmartLightningMonitoringTreeDTO toDTO(VisibleAssetTree source) {
+        // 从内部树的根节点开始递归映射，响应模型不暴露内部树对象。
         List<SmartLightningMonitoringTreeDTO.TreeNode> roots = new ArrayList<>();
         if (source.roots() != null) {
             for (VisibleAssetTree.Node root : source.roots()) {
@@ -91,7 +96,9 @@ public class SmartLightningMonitoringTreeServiceImpl
         return new SmartLightningMonitoringTreeDTO(roots);
     }
 
+    /** 递归转换单个节点及其子节点，保持原树的层级结构。 */
     private SmartLightningMonitoringTreeDTO.TreeNode toDTONode(VisibleAssetTree.Node source) {
+        // 先转换所有子节点，再用当前节点和已转换子节点组装 DTO。
         List<SmartLightningMonitoringTreeDTO.TreeNode> children = new ArrayList<>();
         if (source.children() != null) {
             for (VisibleAssetTree.Node child : source.children()) {

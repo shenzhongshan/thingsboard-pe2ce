@@ -7,6 +7,12 @@ import java.util.List;
 public final class SpdMonitoringCalculator {
     private SpdMonitoringCalculator() { }
 
+    /** 判断设备已有遥测键是否为温度键；仅按规范键名中的 Temp 子串识别。 */
+    public static boolean isTemperatureKey(String key) {
+        return key != null && key.contains("Temp");
+    }
+
+
     /** 参与设备数、正常设备数和异常设备数。 */
     public record StatusCount(int participating, int normal, int abnormal) { }
 
@@ -14,8 +20,8 @@ public final class SpdMonitoringCalculator {
      * 统计文本状态设备。
      *
      * <p>参与设备数按照“最新结果中存在状态键”计算，而不是只识别某几个中文状态，
-     * 这样可以保证“有 spdStatus 参数的设备总数”不因未知文本或空白字符被漏掉。
-     * 正常数只认规则链输出的“正常”，后端不把 0/1 转换成业务状态。</p>
+     * 这样可以保证“存在对应状态键的设备总数”不因未知文本或空白字符被漏掉。
+     * 0 或 0.0 表示正常，1 或 1.0 表示异常；此判断只用于统计，不改写保存的遥测值。</p>
      */
     public static StatusCount binaryStatus(List<List<String>> devices) {
         int participating = 0;
@@ -30,7 +36,7 @@ public final class SpdMonitoringCalculator {
                     continue;
                 }
                 hasValue = true;
-                if (!"正常".equals(value.trim())) {
+                if (!isNormalStatusValue(value)) {
                     hasAbnormal = true;
                 }
             }
@@ -44,6 +50,12 @@ public final class SpdMonitoringCalculator {
             }
         }
         return new StatusCount(participating, normal, abnormal);
+    }
+
+    /** 判断状态遥测是否为协议约定的正常值，不对原始遥测值进行转换。 */
+    private static boolean isNormalStatusValue(String value) {
+        String status = value.trim();
+        return "0".equals(status) || "0.0".equals(status);
     }
 
     /** 温度：至少一个有效通道才参与，任一通道达到 65℃ 即异常。 */
@@ -76,7 +88,7 @@ public final class SpdMonitoringCalculator {
         return new StatusCount(participating, normal, abnormal);
     }
 
-    /** 劣化：有效 lifePercent 大于等于 60 为正常。 */
+    /** 劣化：有效 LifeLeft 大于等于 60 为正常。 */
     public static StatusCount degradationStatus(List<Double> values) {
         int participating = 0;
         int normal = 0;

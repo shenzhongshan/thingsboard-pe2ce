@@ -2,7 +2,13 @@
 <aside class="log-drawer" role="dialog" aria-label="设备日志详情">
   <header class="drawer-header">
     <div><h2>{{device.deviceName}}</h2><p>{{device.deviceProfileName || '未配置设备类型'}}</p></div>
-    <button type="button" class="close-button" aria-label="关闭" (click)="close.emit()">×</button>
+    <div class="drawer-header-actions">
+      <!-- 原生设备详情页复制的是实体 ID；日志抽屉沿用同一语义。 -->
+      <button type="button" class="copy-device-button" matTooltip="复制设备ID"
+              aria-label="复制设备ID" (click)="copyDeviceId()">复制设备ID</button>
+      <button type="button" class="close-button" matTooltip="关闭"
+              aria-label="关闭" (click)="close.emit()">×</button>
+    </div>
   </header>
   <nav class="drawer-tabs" role="tablist">
     <button type="button" role="tab" [class.active]="activeTab === 'attributes'" (click)="activeTab = 'attributes'">服务器属性</button>
@@ -15,11 +21,77 @@
     <ng-container *ngIf="!loading && !loadError">
       <section *ngIf="activeTab === 'attributes'" class="data-section">
         <div *ngIf="!snapshot.attributes.length" class="empty-state">暂无服务器属性</div>
-        <div class="data-row" *ngFor="let item of snapshot.attributes"><span>{{item.key}}</span><strong>{{item.value}}</strong><time>{{formatTime(item.lastUpdateTs || 0)}}</time></div>
+        <div class="data-row attribute-row" *ngFor="let item of snapshot.attributes">
+          <div class="attribute-key-cell">
+            <span [title]="item.key">{{item.key}}</span>
+            <button *ngIf="editingAttributeKey !== item.key" type="button" mat-icon-button class="inline-icon-action attribute-copy-action"
+                    matTooltip="复制键名" aria-label="复制键名"
+                    (click)="copyAttributeKey(item)"><mat-icon>content_copy</mat-icon></button>
+          </div>
+          <div class="attribute-value-cell">
+          <ng-container *ngIf="editingAttributeKey === item.key; else attributeValue">
+            <div class="attribute-editor">
+              <!-- 原生属性编辑器使用 tb-value-input，保留字符串、整数、浮点、布尔和 JSON 类型选择。 -->
+              <tb-value-input [(ngModel)]="editingAttributeValue" [required]="true"
+                              [disabled]="attributeSavingKey === item.key"
+                              layout="column" [attr.aria-label]="'编辑属性：' + item.key"></tb-value-input>
+              <small *ngIf="attributeEditError" class="attribute-edit-error">{{attributeEditError}}</small>
+            </div>
+          </ng-container>
+          <ng-template #attributeValue>
+            <strong [title]="formatValue(item.value)">{{formatValue(item.value)}}</strong>
+          </ng-template>
+          <button *ngIf="editingAttributeKey !== item.key" type="button" mat-icon-button class="inline-icon-action attribute-copy-action"
+                  matTooltip="复制值" aria-label="复制属性值"
+                  (click)="copyAttributeValue(item)"><mat-icon>content_copy</mat-icon></button>
+          </div>
+          <div class="attribute-actions">
+            <ng-container *ngIf="editingAttributeKey === item.key; else attributeReadActions">
+              <button type="button" mat-icon-button class="inline-icon-action primary" matTooltip="保存"
+                      aria-label="保存属性" (click)="saveAttribute(item)"
+                      [disabled]="attributeSavingKey === item.key">
+                <mat-icon>check</mat-icon>
+              </button>
+              <button type="button" mat-icon-button class="inline-icon-action" matTooltip="取消"
+                      aria-label="取消编辑" (click)="cancelAttributeEdit()"
+                      [disabled]="attributeSavingKey === item.key">
+                <mat-icon>close</mat-icon>
+              </button>
+            </ng-container>
+            <ng-template #attributeReadActions>
+              <!-- 服务器属性允许编辑；键名和值的复制按钮分别放在对应内容旁边。 -->
+              <button type="button" mat-icon-button class="inline-icon-action" matTooltip="编辑属性"
+                      aria-label="编辑属性" (click)="startAttributeEdit(item)">
+                <mat-icon>edit</mat-icon>
+              </button>
+            </ng-template>
+          </div>
+          <time>{{formatTime(item.lastUpdateTs || 0)}}</time>
+        </div>
       </section>
       <section *ngIf="activeTab === 'telemetry'" class="data-section">
         <div *ngIf="!telemetryRows().length" class="empty-state">暂无最新遥测</div>
-        <div class="data-row" *ngFor="let item of telemetryRows()"><span>{{item.key}}</span><strong>{{item.value}}</strong><time>{{formatTime(item.timestamp)}}</time></div>
+        <div class="data-row telemetry-row" *ngFor="let item of telemetryRows(); trackBy: trackTelemetryKey">
+          <span [title]="item.key">{{item.key}}</span>
+          <strong [title]="formatValue(item.value)">{{item.value}}</strong>
+          <time>{{formatTime(item.timestamp)}}</time>
+          <button type="button" mat-icon-button class="inline-icon-action telemetry-delete-action"
+                  [disabled]="!!deletingTelemetryKey"
+                  matTooltip="删除遥测数据"
+                  [attr.aria-label]="'删除遥测键 ' + item.key"
+                  (click)="deleteTelemetry($event, item)">
+            <mat-icon>{{deletingTelemetryKey === item.key ? 'hourglass_top' : 'delete_outline'}}</mat-icon>
+          </button>
+        </div>
+        <mat-paginator *ngIf="telemetryTotal() > 0"
+                       class="telemetry-paginator"
+                       [length]="telemetryTotal()"
+                       [pageIndex]="telemetryPageIndex"
+                       [pageSize]="telemetryPageSize"
+                       [pageSizeOptions]="telemetryPageSizeOptions"
+                       (page)="onTelemetryPage($event)"
+                       showFirstLastButtons>
+        </mat-paginator>
       </section>
       <section *ngIf="activeTab === 'timeline'" class="timeline">
         <div *ngIf="!snapshot.timeline.length" class="empty-state">暂无可展示的变更记录</div>

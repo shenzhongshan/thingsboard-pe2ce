@@ -41,7 +41,7 @@ export class SmartLightningAlarmDetailsDialogComponent implements OnInit {
   private updated = false;
 
   constructor(
-    @Inject(MAT_DIALOG_DATA) private readonly data: SmartLightningAlarmDetailsDialogData,
+    @Inject(MAT_DIALOG_DATA) data: SmartLightningAlarmDetailsDialogData,
     private readonly dialogRef: MatDialogRef<SmartLightningAlarmDetailsDialogComponent, boolean>,
     private readonly alarmService: AlarmService,
     private readonly dialogService: DialogService,

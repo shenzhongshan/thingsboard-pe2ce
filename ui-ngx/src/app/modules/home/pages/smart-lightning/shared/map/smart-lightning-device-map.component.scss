@@ -1,9 +1,80 @@
-/* 文件职责：公共设备地图的尺寸、点位和弹窗样式；状态颜色由组件统一维护。 */
-:host { display: block; height: 100%; min-height: 300px; }
+/* 文件职责：公共设备地图的尺寸、点位和设备详情模态框样式；状态颜色由组件统一维护。 */
+:host { display: block; position: relative; height: 100%; min-height: 300px; }
 .smart-lightning-device-map { width: 100%; height: 100%; min-height: 300px; background: #dfeef4; }
 .smart-lightning-device-map :is(.leaflet-control-zoom a, .leaflet-control-attribution) { font-family: inherit; }
-.smart-lightning-device-map .leaflet-popup-content { margin: 0; color: #29465d; font-family: inherit; font-size: 12px; line-height: 1.6; }
 .smart-lightning-map-pin { background: transparent; border: 0; }
-.smart-lightning-map-popup { color: #29465d; }
-.smart-lightning-map-popup strong { color: #0a356a; font-size: 14px; }
-.map-status-alarm { color: #d32f2f; font-weight: 600; }.map-status-offline { color: #697586; font-weight: 600; }.map-status-online { color: #168548; font-weight: 600; }
+
+/* 点位详情使用组件模板渲染，避免 Leaflet 字符串弹窗在页面重绘后丢失。 */
+.smart-lightning-map-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(9, 35, 64, .22);
+  animation: smart-lightning-map-modal-fade-in 160ms ease-out;
+}
+.smart-lightning-map-modal {
+  width: min(430px, 100%);
+  max-height: min(88%, 520px);
+  overflow: auto;
+  border: 1px solid #cbd9e5;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(18, 53, 83, .24);
+  color: #29465d;
+  animation: smart-lightning-map-modal-rise-in 180ms ease-out;
+}
+.smart-lightning-map-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, .28);
+  color: #fff;
+  background: #195ce8;
+}
+.smart-lightning-map-modal-header.status-online { background: #168548; }
+.smart-lightning-map-modal-header.status-offline { background: #697586; }
+.smart-lightning-map-modal-header.status-alarm { background: #d32f2f; }
+.smart-lightning-map-modal-heading { min-width: 0; }
+.smart-lightning-map-modal-eyebrow { display: block; margin-bottom: 3px; font-size: 11px; opacity: .86; }
+.smart-lightning-map-modal h3 { overflow: hidden; margin: 0; font-size: 17px; font-weight: 650; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.smart-lightning-map-modal-close {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .6);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255, 255, 255, .12);
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+.smart-lightning-map-modal-close:hover, .smart-lightning-map-modal-close:focus-visible { background: rgba(255, 255, 255, .28); transform: scale(1.06); outline: none; }
+.smart-lightning-map-modal-close span { display: block; width: 18px; height: 18px; font-size: 22px; line-height: 16px; }
+.smart-lightning-map-modal-status { display: flex; align-items: center; gap: 7px; margin: 14px 16px 4px; color: #29465d; font-size: 13px; font-weight: 600; }
+.smart-lightning-map-modal-status.status-alarm { color: #c22534; }
+.smart-lightning-map-modal-status.status-offline { color: #697586; }
+.smart-lightning-map-modal-status.status-online { color: #168548; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.smart-lightning-map-modal-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 0; padding: 3px 16px 12px; }
+.smart-lightning-map-modal-details > div { min-width: 0; padding: 9px 0 8px; border-bottom: 1px dashed #dbe4eb; }
+.smart-lightning-map-modal-details dt { margin-bottom: 3px; color: #718397; font-size: 11px; }
+.smart-lightning-map-modal-details dd { overflow: hidden; margin: 0; color: #29465d; font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.smart-lightning-map-modal-details .path-value { grid-column: 1 / -1; }
+.smart-lightning-map-modal-alarm { display: flex; align-items: flex-start; gap: 12px; margin: 0 16px 16px; padding: 10px 11px; border: 1px solid #dbe4eb; border-radius: 5px; background: #f7fafc; font-size: 12px; line-height: 1.5; }
+.smart-lightning-map-modal-alarm.has-alarm { border-color: #f2b8bd; background: #fff3f3; }
+.alarm-label { flex: 0 0 auto; color: #718397; }
+.alarm-value { min-width: 0; overflow-wrap: anywhere; color: #29465d; }
+.smart-lightning-map-modal-alarm.has-alarm .alarm-value { color: #c22534; font-weight: 600; }
+
+@keyframes smart-lightning-map-modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes smart-lightning-map-modal-rise-in { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .smart-lightning-map-modal-backdrop, .smart-lightning-map-modal { animation: none; } .smart-lightning-map-modal-close { transition: none; } }
+@media (max-width: 520px) { .smart-lightning-map-modal-backdrop { align-items: flex-end; padding: 8px; }.smart-lightning-map-modal-details { grid-template-columns: 1fr; }.smart-lightning-map-modal-details .path-value { grid-column: auto; } }

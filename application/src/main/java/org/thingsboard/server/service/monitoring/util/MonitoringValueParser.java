@@ -24,7 +24,7 @@ public final class MonitoringValueParser {
     }
 
     /**
-     * 解析设备 SERVER_SCOPE 中的 active 值。
+     * 解析设备 active 最新遥测值。
      *
      * <p>平台和历史数据中可能同时存在 true/false 与 1/0 文本，所有监测页面统一按
      * 这一规则解析，避免不同页面出现在线数量不一致。</p>

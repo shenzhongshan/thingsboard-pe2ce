@@ -19,6 +19,8 @@ import org.thingsboard.server.service.alarms.dto.DeviceAlarmAnalysisOverviewDTO;
 import org.thingsboard.server.service.alarms.bo.AlarmDimensionCountBO;
 import org.thingsboard.server.service.alarms.bo.AlarmDeviceCountBO;
 import org.thingsboard.server.service.alarms.bo.AlarmOverviewAggregateBO;
+import org.thingsboard.server.service.alarms.bo.AlarmPeriodCountBO;
+import org.thingsboard.server.service.alarms.bo.AlarmTrendBucketBO;
 import org.thingsboard.server.service.alarms.dto.DeviceAlarmDeviceCoverageDTO;
 import org.thingsboard.server.service.alarms.dto.DeviceAlarmLeafAssetCountDTO;
 import org.thingsboard.server.service.alarms.dto.DeviceAlarmPeriodSummaryDTO;
@@ -40,14 +42,11 @@ import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
-import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,13 +89,28 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         Map<UUID, FocusAlarmAccumulator> focusDevicesById = new LinkedHashMap<>();
         TrendBuckets trendBuckets = new TrendBuckets(window);
         if (!visibleDeviceIds.isEmpty()) {
-            countAlarms(user, visibleDeviceIds, window, counts, trendBuckets);
+            // 先从数据库一次取得六个自然周期计数，再写入固定顺序的数组槽位。
+            AlarmPeriodCountBO periodCounts = alarmStatisticsService.countPeriodSummary(
+                    user,
+                    visibleDeviceIds,
+                    window.getDayStart(),
+                    window.getPreviousDayStart(),
+                    window.getMonthStart(),
+                    window.getPreviousMonthStart(),
+                    window.getYearStart(),
+                    window.getPreviousYearStart(),
+                    window.getNow());
+            copyPeriodCounts(periodCounts, counts);
+            // 分别读取日、月、年趋势分桶，并在内存中补齐没有告警的时间点。
+            loadTrendBuckets(user, visibleDeviceIds, window, trendBuckets);
             // 只有存在可见设备时才读取资产树，空租户无需执行额外的关系查询。
             VisibleAssetTreeIndex treeIndex = VisibleAssetTreeIndex.build(
                     monitoringTreeService.getVisibleAssetTree(user));
             Map<UUID, String> parentNodesByDevice = treeIndex.getParentNameByDevice();
+            // 严重活动告警单独查询，按设备合并后生成重点告警设备列表。
             collectActiveCriticalAlarms(user, visibleDeviceIds, parentNodesByDevice, focusDevicesById);
         }
+        // 将周期次数、趋势和重点设备合并为分析页面响应。
         return new DeviceAlarmAnalysisSummaryDTO(
                 createPeriodSummary(counts[0], counts[1]),
                 createPeriodSummary(counts[2], counts[3]),
@@ -116,10 +130,11 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     public List<DeviceAlarmLeafAssetCountDTO> getLeafAssetCounts(SecurityUser user, String period)
             throws ThingsboardException {
         MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
+        // 由权限树索引识别末级资产及其直属设备，不自行拼接资产关系。
         VisibleAssetTreeIndex treeIndex = VisibleAssetTreeIndex.build(
                 monitoringTreeService.getVisibleAssetTree(user));
         Map<UUID, ParentAssetCounter> counters = new LinkedHashMap<>();
-        Map<UUID, UUID> deviceToParentAsset = new HashMap<>(treeIndex.getParentAssetByDevice());
+        Map<UUID, UUID> deviceToParentAsset = treeIndex.getParentAssetByDevice();
         for (VisibleAssetTreeIndex.LeafAsset asset : treeIndex.getLeafAssetsById().values()) {
             counters.put(asset.id(), new ParentAssetCounter(asset.id(), asset.name(), asset.path()));
         }
@@ -128,6 +143,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         }
 
         // 数据库按设备聚合后只返回计数；这里仅负责将设备计数归并到直属父资产。
+        // 只查询末级资产直接关联的设备，避免将更深层子资产中的告警算入当前资产。
         Set<UUID> leafDeviceIds = deviceToParentAsset.keySet();
         List<AlarmDeviceCountBO> deviceCounts = alarmStatisticsService.countByDevice(
                 user, leafDeviceIds, window.getStartTs(), window.getEndTs());
@@ -137,10 +153,11 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
                 continue;
             }
             ParentAssetCounter counter = counters.get(parentAssetId);
-            counter.alarmCount += CountValueSupport.toIntCount(deviceCount.getAlarmCount());
-            counter.handledCount += CountValueSupport.toIntCount(deviceCount.getHandledCount());
+            counter.alarmCount += deviceCount.getAlarmCount();
+            counter.handledCount += deviceCount.getHandledCount();
         }
 
+        // 先按父资产汇总告警条数和已处理数，再计算处理率并按页面优先级排序。
         List<DeviceAlarmLeafAssetCountDTO> result = new ArrayList<>();
         for (ParentAssetCounter counter : counters.values()) {
             result.add(new DeviceAlarmLeafAssetCountDTO(
@@ -173,6 +190,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         // 类型聚合由 JPA 在数据库完成，只把“类型 + 数量”返回到应用层。
         List<AlarmDimensionCountBO> rows = alarmStatisticsService.countByType(
                 user, visibleDeviceIds, window.getStartTs(), window.getEndTs(), false);
+        // 将内部聚合结果映射为接口 DTO，保持数据库统计口径不变。
         List<DeviceAlarmTypeTotalDTO> result = new ArrayList<>();
         for (AlarmDimensionCountBO row : rows) {
             result.add(new DeviceAlarmTypeTotalDTO(
@@ -195,6 +213,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         List<AlarmDimensionCountBO> rows = alarmStatisticsService.countBySeverity(
                 user, visibleDeviceIds, window.getStartTs(), window.getEndTs(), false);
         Map<AlarmSeverity, Integer> counts = new EnumMap<>(AlarmSeverity.class);
+        // 将数据库维度名解析为平台严重等级；未知枚举跳过，不影响已知等级统计。
         for (AlarmDimensionCountBO row : rows) {
             try {
                 AlarmSeverity severity = AlarmSeverity.valueOf(row.getDimension());
@@ -205,17 +224,13 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
             }
         }
 
+        // 补全没有告警的严重等级，随后按告警数量降序输出。
         List<DeviceAlarmSeverityTotalDTO> result = new ArrayList<>();
         for (AlarmSeverity severity : AlarmSeverity.values()) {
             result.add(new DeviceAlarmSeverityTotalDTO(
                     severity.name(), counts.getOrDefault(severity, 0)));
         }
-        result.sort(new Comparator<DeviceAlarmSeverityTotalDTO>() {
-            @Override
-            public int compare(DeviceAlarmSeverityTotalDTO left, DeviceAlarmSeverityTotalDTO right) {
-                return Integer.compare(right.getCount(), left.getCount());
-            }
-        });
+        result.sort((left, right) -> Integer.compare(right.getCount(), left.getCount()));
         return result;
     }
 
@@ -238,6 +253,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     private DeviceAlarmAnalysisOverviewDTO buildOverviewFromAggregate(
             Set<UUID> visibleDeviceIds, AlarmOverviewAggregateBO aggregate) {
         List<DeviceAlarmStatusTotalDTO> statusDistribution = new ArrayList<>();
+        // 按平台状态枚举逐项输出，数据库没有该状态时计数补 0。
         for (AlarmStatus status : AlarmStatus.values()) {
             long count = aggregate.getStatusCounts().getOrDefault(status.name(), 0L);
             statusDistribution.add(new DeviceAlarmStatusTotalDTO(status.name(), count));
@@ -274,29 +290,34 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     }
 
     /**
-     * 查询上一年度起至今的告警，再按 startTs 精确落入日/月/年窗口，避免按 createdTime 误统计。
-     *
-     * <p>原生告警查询的时间过滤基于 createdTime（入库时间），
-     * 而业务统计要求按触发时间 startTs 分桶；因此查询窗口放宽到去年年初，
-     * 拿到全部候选告警后再逐条判断 startTs 落在哪个周期。</p>
+     * 使用 JPA 原生聚合直接读取趋势分桶，避免为趋势图加载完整告警对象。
+     * bucketUnit 分别代表日趋势小时、月趋势日期和年趋势月份。
      */
-    private void countAlarms(SecurityUser user, Set<UUID> deviceIds, AlarmPeriodWindow window,
-                             long[] counts, TrendBuckets trendBuckets) throws ThingsboardException {
-        TimePageLink pageLink = new TimePageLink(
-                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC,
-                window.getPreviousYearStart(), window.getNow());
-        AlarmQueryV2 query = new AlarmQueryV2(
-                null, pageLink, Collections.emptyList(), Collections.emptyList(),
-                Collections.emptyList(), null);
-        alarmQueryService.forEachPage(user, query, page -> {
-            for (AlarmInfo alarm : page) {
-                // 只统计可见设备的告警，排除其他实体（资产、客户等）产生的告警。
-                if (isVisibleDeviceAlarm(alarm, deviceIds)) {
-                    addToPeriods(alarm.getStartTs(), window, counts);
-                    trendBuckets.add(alarm.getStartTs());
-                }
-            }
-        });
+    private void loadTrendBuckets(SecurityUser user, Set<UUID> deviceIds,
+                                  AlarmPeriodWindow window, TrendBuckets trendBuckets) {
+        String zoneId = window.getZoneId().getId();
+        for (AlarmTrendBucketBO bucket : alarmStatisticsService.countTrendBuckets(
+                user, deviceIds, window.getDayStart(), window.getNow(), "hour", zoneId)) {
+            trendBuckets.addDayBucket(bucket.getBucketIndex(), bucket.getAlarmCount());
+        }
+        for (AlarmTrendBucketBO bucket : alarmStatisticsService.countTrendBuckets(
+                user, deviceIds, window.getMonthStart(), window.getNow(), "day", zoneId)) {
+            trendBuckets.addMonthBucket(bucket.getBucketIndex(), bucket.getAlarmCount());
+        }
+        for (AlarmTrendBucketBO bucket : alarmStatisticsService.countTrendBuckets(
+                user, deviceIds, window.getYearStart(), window.getNow(), "month", zoneId)) {
+            trendBuckets.addYearBucket(bucket.getBucketIndex(), bucket.getAlarmCount());
+        }
+    }
+
+    /** 将数据库聚合结果写入现有分析响应使用的六个计数槽位。 */
+    private void copyPeriodCounts(AlarmPeriodCountBO periodCounts, long[] counts) {
+        counts[0] = periodCounts.getDayCurrentCount();
+        counts[1] = periodCounts.getDayPreviousCount();
+        counts[2] = periodCounts.getMonthCurrentCount();
+        counts[3] = periodCounts.getMonthPreviousCount();
+        counts[4] = periodCounts.getYearCurrentCount();
+        counts[5] = periodCounts.getYearPreviousCount();
     }
 
     /**
@@ -351,12 +372,9 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     private List<DeviceAlarmFocusDeviceDTO> buildFocusDevices(
             Map<UUID, FocusAlarmAccumulator> focusDevicesById) {
         List<FocusAlarmAccumulator> accumulators = new ArrayList<>(focusDevicesById.values());
-        accumulators.sort(new Comparator<FocusAlarmAccumulator>() {
-            @Override
-            public int compare(FocusAlarmAccumulator left, FocusAlarmAccumulator right) {
-                int durationOrder = Long.compare(right.durationMs, left.durationMs);
-                return durationOrder != 0 ? durationOrder : left.deviceName.compareTo(right.deviceName);
-            }
+        accumulators.sort((left, right) -> {
+            int durationOrder = Long.compare(right.durationMs, left.durationMs);
+            return durationOrder != 0 ? durationOrder : left.deviceName.compareTo(right.deviceName);
         });
         List<DeviceAlarmFocusDeviceDTO> result = new ArrayList<>();
         for (FocusAlarmAccumulator accumulator : accumulators) {
@@ -382,12 +400,14 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
             this.parentNodeName = parentNodeName;
         }
 
+        /** 为设备追加尚未记录的告警类型，避免同一类型重复展示。 */
         private void addAlarmType(String alarmType) {
             if (!alarmTypes.contains(alarmType)) {
                 alarmTypes.add(alarmType);
             }
         }
 
+        /** 保存该设备多条活动告警中的最长持续时间。 */
         private void updateDuration(long duration) {
             durationMs = Math.max(durationMs, duration);
         }
@@ -401,67 +421,40 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
                 && deviceIds.contains(originator.getId());
     }
 
-    /** 按触发时间把告警计入今日/昨日、本月/上月、今年/去年六个统计桶。 */
-    private void addToPeriods(long triggerTime, AlarmPeriodWindow window, long[] counts) {
-        // 今日：[今天0点, 当前时刻)
-        if (triggerTime >= window.getDayStart() && triggerTime < window.getNow()) {
-            counts[0]++;
-        }
-        // 昨日：[昨天0点, 今天0点)
-        if (triggerTime >= window.getPreviousDayStart() && triggerTime < window.getDayStart()) {
-            counts[1]++;
-        }
-        // 本月：[本月1日0点, 当前时刻)
-        if (triggerTime >= window.getMonthStart() && triggerTime < window.getNow()) {
-            counts[2]++;
-        }
-        // 上月：[上月1日0点, 本月1日0点)
-        if (triggerTime >= window.getPreviousMonthStart() && triggerTime < window.getMonthStart()) {
-            counts[3]++;
-        }
-        // 今年：[今年1月1日0点, 当前时刻)
-        if (triggerTime >= window.getYearStart() && triggerTime < window.getNow()) {
-            counts[4]++;
-        }
-        // 去年：[去年1月1日0点, 今年1月1日0点)
-        if (triggerTime >= window.getPreviousYearStart() && triggerTime < window.getYearStart()) {
-            counts[5]++;
-        }
-    }
-
     /**
-     * 按自然周期把告警触发时间分配到小时、星期、日期和月份趋势数组。
-     * 查询和权限过滤复用现有告警分析流程，不新增重复的告警查询接口。
+     * 接收数据库按 start_ts 聚合后的小时、日期和月份桶，并补齐页面所需的空桶。
      */
     private static final class TrendBuckets {
-        private final AlarmPeriodWindow window;
         private final long[] day = new long[24];
         private final long[] month;
         private final long[] year = new long[12];
 
         private TrendBuckets(AlarmPeriodWindow window) {
-            this.window = window;
             this.month = new long[window.getMonthLength()];
         }
 
-        private void add(long triggerTime) {
-            if (triggerTime >= window.getDayStart() && triggerTime < window.getNow()) {
-                ZonedDateTime time = ZonedDateTime.ofInstant(
-                        Instant.ofEpochMilli(triggerTime), window.getZoneId());
-                day[time.getHour()]++;
-            }
-            if (triggerTime >= window.getMonthStart() && triggerTime < window.getNow()) {
-                ZonedDateTime time = ZonedDateTime.ofInstant(
-                        Instant.ofEpochMilli(triggerTime), window.getZoneId());
-                month[time.getDayOfMonth() - 1]++;
-            }
-            if (triggerTime >= window.getYearStart() && triggerTime < window.getNow()) {
-                ZonedDateTime time = ZonedDateTime.ofInstant(
-                        Instant.ofEpochMilli(triggerTime), window.getZoneId());
-                year[time.getMonthValue() - 1]++;
+        /** 按小时索引累加日趋势数量，越界桶不进入响应。 */
+        private void addDayBucket(int bucketIndex, long count) {
+            if (bucketIndex >= 0 && bucketIndex < day.length) {
+                day[bucketIndex] += count;
             }
         }
 
+        /** 按日期索引累加月趋势数量，越界桶不进入响应。 */
+        private void addMonthBucket(int bucketIndex, long count) {
+            if (bucketIndex >= 0 && bucketIndex < month.length) {
+                month[bucketIndex] += count;
+            }
+        }
+
+        /** 按月份索引累加年趋势数量，越界桶不进入响应。 */
+        private void addYearBucket(int bucketIndex, long count) {
+            if (bucketIndex >= 0 && bucketIndex < year.length) {
+                year[bucketIndex] += count;
+            }
+        }
+
+        /** 按 0 至 23 点顺序将日趋势数组转换成完整 DTO 列表。 */
         private List<DeviceAlarmTrendPointDTO> dayTrend() {
             List<DeviceAlarmTrendPointDTO> points = new ArrayList<>();
             for (int index = 0; index < day.length; index++) {
@@ -470,6 +463,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
             return points;
         }
 
+        /** 按当月自然日顺序将月趋势数组转换成完整 DTO 列表。 */
         private List<DeviceAlarmTrendPointDTO> monthTrend() {
             List<DeviceAlarmTrendPointDTO> points = new ArrayList<>();
             for (int index = 0; index < month.length; index++) {
@@ -478,6 +472,7 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
             return points;
         }
 
+        /** 按 1 至 12 月顺序将年趋势数组转换成完整 DTO 列表。 */
         private List<DeviceAlarmTrendPointDTO> yearTrend() {
             List<DeviceAlarmTrendPointDTO> points = new ArrayList<>();
             for (int index = 0; index < year.length; index++) {

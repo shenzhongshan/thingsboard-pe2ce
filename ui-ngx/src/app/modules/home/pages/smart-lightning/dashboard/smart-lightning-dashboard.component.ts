@@ -17,13 +17,12 @@ import { EntityRelationService } from '@core/http/entity-relation.service';
 import * as echarts from 'echarts';
 import { ECharts, EChartsOption } from 'echarts';
 import L from 'leaflet';
-import { auditTime, catchError, forkJoin, map, Observable, of, Subject, Subscription, switchMap, takeUntil, timer } from 'rxjs';
+import { auditTime, bufferTime, catchError, filter, forkJoin, map, merge, Observable, of, Subject, Subscription, switchMap, takeUntil, timer } from 'rxjs';
 import { AlarmInfo, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
 import {
-  buildSmartLightningMock,
   calculateSmartLightningDeviceSummary,
   compareSmartLightningAlarms,
   createSmartLightningAlarmQuery,
@@ -35,7 +34,6 @@ import {
   SmartLightningAlarmTypeTotal,
   SmartLightningDeviceSummary,
   SMART_LIGHTNING_ALARM_DISPLAY_LIMIT,
-  SmartLightningMock,
   SmartLightningPeriod,
   formatSmartLightningAlarm,
   formatSmartLightningResistance,
@@ -46,7 +44,7 @@ import {
   shouldScheduleSmartLightningAlarmSettleRefresh,
   isLatestSmartLightningAlarmRequest,
 } from './smart-lightning-dashboard.data';
-import { filterSmartLightningMapDevicesWithoutPoints } from './smart-lightning-map.data';
+import { filterSmartLightningMapDevicesWithoutPoints } from '../shared/map/smart-lightning-device-map.data';
 import {
   SmartLightningGroundMonitoringSummary,
   SmartLightningSpdMonitoringSummary,
@@ -58,14 +56,26 @@ import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningMonitoringAssetPaths
 } from '../monitoring/smart-lightning-monitoring.data';
-import { SmartLightningRealtimeService } from '../shared/realtime/smart-lightning-realtime.service';
+import {
+  SmartLightningDeviceTelemetryChange,
+  SmartLightningRealtimeService
+} from '../shared/realtime/smart-lightning-realtime.service';
 import {
   buildSmartLightningExtremaTooltip,
   buildSmartLightningMaximumTooltip,
-  formatSmartLightningMetric
+  formatSmartLightningMetric,
+  getSmartLightningPhaseLabel
 } from './smart-lightning-summary.data';
 import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
-import {getSmartLightningChangedSummaryTargets} from './smart-lightning-realtime-refresh';
+import {
+  doesSmartLightningPeakSampleInvalidateExtrema,
+  doesSmartLightningSampleInvalidateExtrema,
+  getSmartLightningPeriodDuration,
+  SmartLightningPeriodicExtremaSample,
+  updateSmartLightningPeakExtrema,
+  updateSmartLightningPeriodicExtrema
+} from './smart-lightning-dashboard-realtime.data';
+import {formatSmartLightningPolarityLabel} from '../monitoring/smart-lightning-device-detail.data';
 import { SmartLightningDeviceMapComponent } from '../shared/map/smart-lightning-device-map.component';
 import { SmartLightningMapDevice } from '../shared/map/smart-lightning-device-map.models';
 
@@ -78,7 +88,7 @@ interface SmartLightningPendingMapPoint {
  * 智能防雷看板页面组件。
  *
  * <p>监控大屏：设备汇总、地图点位、地网/SPD/雷电/告警等图表与告警记录表。
- * 设备数量、地网汇总、告警和地图点位接入真实接口；部分曲线仍保留演示数据。
+ * 设备数量、地网汇总、告警和地图点位接入真实接口；尚未接入历史数据的图表显示空态。
  * 每张图表拥有独立的日/周/月周期状态，切换互不影响。</p>
  */
 @Component({
@@ -96,7 +106,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   @ViewChild('deviceMap') deviceMap?: SmartLightningDeviceMapComponent;
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
 
-  data: SmartLightningMock = buildSmartLightningMock(SmartLightningPeriod.day);
   chartPeriods: SmartLightningChartPeriods = {...defaultSmartLightningChartPeriods};
   alarms: SmartLightningAlarmRow[] = [];
   alarmsLoading = true;
@@ -128,6 +137,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   private alarmLoadRequestId = 0;
   /** 告警创建通知可能早于后端落库，保存一次有界的延迟复读订阅。 */
   private alarmSettleRefreshSubscription?: Subscription;
+  /** 最值在滚动周期边界滑出时，只安排一次现有接口校准，不做轮询。 */
+  private readonly extremaRefreshSubscriptions = new Map<'ground' | 'spd' | 'lightning', Subscription>();
 
   /** 控制地图是否处于用户选点模式；坐标需在绑定设备后才会持久化。 */
   isAddingMapPoint = false;
@@ -207,6 +218,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.destroy$.next();
     this.destroy$.complete();
     this.alarmSettleRefreshSubscription?.unsubscribe();
+    this.extremaRefreshSubscriptions.forEach((subscription) => subscription.unsubscribe());
+    this.extremaRefreshSubscriptions.clear();
     this.realtimeService.release();
     this.resizeObserver?.disconnect();
     this.charts.forEach(chart => chart.dispose());
@@ -236,10 +249,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.cd.markForCheck();
   }
 
-  /** 点击公共地图中的设备时不改变筛选，只保留统一弹窗交互。 */
-  onDeviceMapClick(_device: SmartLightningMapDevice): void {
-    // 设备详情仍由地图弹窗负责展示，页面无需重复发起请求。
-  }
+
 
   /** 记录用户在绑定面板中选择的设备。 */
   selectMapDevice(event: Event): void {
@@ -333,9 +343,9 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return formatSmartLightningResistance(value);
   }
 
-  /** 地网报警率展示格式；接口按告警设备去重计算，空值显示占位符。 */
+  /** 地网报警率展示格式；接口按告警设备去重计算，前端不截断接口返回的小数位。 */
   formatGroundAlarmRate(value: number | null | undefined): string {
-    return value === null || value === undefined || !Number.isFinite(value) ? '--' : `${value.toFixed(2)}%`;
+    return value === null || value === undefined || !Number.isFinite(value) ? '--' : `${value}%`;
   }
 
   /** 生成地网本周期告警数字的悬浮详情；告警类型按数量降序展示。 */
@@ -382,9 +392,9 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return `告警类型统计（合计：${summary.alarmCount}）\n${lines.join('\n')}`;
   }
 
-  /** SPD 卡片 DIV 中的周期数值只显示一位小数；悬浮详情仍保留原有两位精度。 */
+  /** SPD 卡片周期数值保留接口返回的原始小数位；单位只负责展示，不做精度处理。 */
   formatSpdPeriodicValue(value: number | null | undefined, unit: string): string {
-    return formatSmartLightningMetric(value, unit, 1);
+    return formatSmartLightningMetric(value, unit);
   }
 
   /** 生成 SPD 周期最值的原生悬浮提示文本。 */
@@ -515,29 +525,39 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   }
 
   /**
-   * 监听共享实时服务的失效通知。
-   * WebSocket 只负责通知变化，页面仍复用原有 HTTP 聚合接口读取完整数据，
-   * 因此不会改变当前用户权限、资产过滤和统计口径。
+   * 订阅看板依赖的实时事件。
+   * 周期最值由当前可见设备的 WebSocket 增量更新；HTTP 继续提供首屏/周期基线、
+   * 设备上下文变化后的校准，以及告警统计和窗口边界校准。
    */
   private subscribeToRealtimeChanges(): void {
-    this.realtimeService.deviceChanged$.pipe(
-      auditTime(600),
+    this.realtimeService.deviceTelemetryChanged$.pipe(
+      bufferTime(100),
+      filter((changes) => changes.length > 0),
       takeUntil(this.destroy$)
-    ).subscribe((changedDeviceIds) => {
-      // 先使用当前设备上下文确定受影响分类，再刷新设备总览。
-      // 避免一台 SPD 设备上报数据时，同时重算地网和雷电流的整段周期数据。
-      const changedTargets = getSmartLightningChangedSummaryTargets(this.mapDevices, changedDeviceIds);
-      this.loadDeviceSummary();
-      for (const target of changedTargets) {
-        if (target === 'ground') {
-          this.loadGroundSummary();
-        } else if (target === 'spd') {
-          this.loadSpdSummary();
-        } else {
-          this.loadLightningSummary();
-        }
-      }
+    ).subscribe((changes) => {
+      this.applyDashboardTelemetryChanges(changes);
     });
+
+    // 完整首帧可能先于设备上下文 HTTP 到达；上下文加载完成后再从共享缓存补应用一次。
+    this.realtimeService.entitySnapshotReady$.pipe(
+      filter((ready) => ready),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.applyLatestTelemetrySnapshot());
+
+    // 只在设备业务属性/实体字段真正增量变化时重载上下文和服务端聚合。
+    this.realtimeService.deviceContextIncrementalChanged$.pipe(
+      auditTime(500),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.reloadDashboardSnapshots());
+
+    // 设备或资产集合数量发生变化时重新读取权限范围内的完整集合与聚合结果。
+    merge(
+      this.realtimeService.deviceMembershipChanged$,
+      this.realtimeService.assetMembershipChanged$
+    ).pipe(
+      auditTime(500),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.reloadDashboardSnapshots());
 
     this.realtimeService.alarmChanged$.pipe(
       auditTime(600),
@@ -563,13 +583,21 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       }
       this.loadLatestAlarms();
       this.loadAlarmSummary();
-      // 地网、SPD、雷电卡片包含周期内告警/设备汇总，活动告警变化后同步刷新。
+      // 分类卡片还包含周期告警数，告警变化后用原接口重新校准这些告警字段。
       this.loadGroundSummary();
       this.loadSpdSummary();
       this.loadLightningSummary();
     });
 
     this.realtimeService.acquire();
+  }
+
+  /** 设备业务上下文或可见设备范围变化后，沿用原接口刷新授权范围内的数据。 */
+  private reloadDashboardSnapshots(): void {
+    this.loadDeviceSummary();
+    this.loadGroundSummary();
+    this.loadSpdSummary();
+    this.loadLightningSummary();
   }
 
   /**
@@ -602,17 +630,17 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         this.mapAssetPaths = getSmartLightningMonitoringAssetPaths(assetTree);
         // 设备上下文已经包含 SERVER_SCOPE 经纬度，读取完成后立即恢复持久化点位。
         this.deviceMap?.refresh();
-        const activeValues: unknown[] = [];
-        for (const device of pageData.devices.data) {
-          activeValues.push(device.active);
-        }
-        return activeValues;
+        return pageData.devices.data;
       }),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: (activeValues) => {
-        this.deviceSummary = calculateSmartLightningDeviceSummary(activeValues);
+      next: (devices) => {
+        this.deviceSummary = calculateSmartLightningDeviceSummary(devices.map((device) =>
+          this.realtimeService.getLatestTelemetryValues(device.deviceId).get('active')?.value ?? device.active
+        ));
         this.devicesLoading = false;
+        // HTTP 与 WS 并发时，接口响应之后再应用最新缓存，避免首屏请求覆盖刚到达的实时值。
+        this.applyLatestTelemetrySnapshot();
         this.cd.markForCheck();
       },
       error: () => {
@@ -633,6 +661,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       next: (summary) => {
         this.groundSummary = summary;
         this.groundLoading = false;
+        this.scheduleGroundExtremaRefresh();
         this.cd.markForCheck();
       },
       error: () => {
@@ -654,6 +683,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       next: (summary) => {
         this.spdSummary = summary;
         this.spdLoading = false;
+        this.scheduleSpdExtremaRefresh();
         this.cd.markForCheck();
       },
       error: () => {
@@ -675,6 +705,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       next: (summary) => {
         this.lightningSummary = summary;
         this.lightningLoading = false;
+        this.scheduleLightningExtremaRefresh();
         this.cd.markForCheck();
       },
       error: () => {
@@ -684,6 +715,288 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         this.cd.markForCheck();
       }
     });
+  }
+
+  /**
+   * 把当前已加载的可见设备及本次 WebSocket 遥测增量合并后更新周期极值。
+   * 未在当前设备上下文中的实体不会参与，权限/产品分类边界仍由原接口提供。
+   */
+  private applyDashboardTelemetryChanges(changes: readonly SmartLightningDeviceTelemetryChange[]): void {
+    if (!this.mapDevices.length || !changes.length) {
+      return;
+    }
+
+    const devicesById = new Map(this.mapDevices.map((device) => [device.deviceId, device]));
+    const activeUpdates = new Map<string, boolean>();
+    const groundSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const temperatureSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const leakageSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const voltageSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const peakSamples: Array<SmartLightningPeriodicExtremaSample & {polarity?: string | null}> = [];
+    const temperatureKeys = new Set(['Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp']);
+    const leakageKeys = new Set(['LeakCurrA', 'LeakCurrB', 'LeakCurrC']);
+    const voltageKeys = new Set(['PhAVolt', 'PhBVolt', 'PhCVolt']);
+
+    for (const change of changes) {
+      const device = devicesById.get(change.deviceId);
+      if (!device) {
+        continue;
+      }
+      const latestValues = this.realtimeService.getLatestTelemetryValues(device.deviceId);
+      const active = this.parseActiveTelemetry(
+        change.values.has('active') ? latestValues.get('active')?.value : undefined
+      );
+      if (active !== undefined) {
+        activeUpdates.set(device.deviceId, active);
+      }
+
+      const functionCategory = String(device.functionCategory || '').trim().toLowerCase();
+      for (const [key, incoming] of change.values) {
+        // 服务层可能收到乱序帧；始终采用共享缓存中时间戳最新的该键。
+        const telemetry = latestValues.get(key) || incoming;
+        if (functionCategory === 'ground_resistance' && key === 'GndGridRes') {
+          const sample = this.createPeriodicSample(device.deviceName, key, telemetry);
+          if (sample) {
+            groundSamples.push(sample);
+          }
+        } else if (functionCategory === 'spd_monitor') {
+          const sample = this.createPeriodicSample(device.deviceName, key, telemetry);
+          if (!sample) {
+            continue;
+          }
+          if (temperatureKeys.has(key)) {
+            temperatureSamples.push(sample);
+          } else if (leakageKeys.has(key)) {
+            leakageSamples.push(sample);
+          } else if (voltageKeys.has(key)) {
+            voltageSamples.push(sample);
+          }
+        }
+      }
+
+      if (functionCategory === 'lightning_current' &&
+        (change.values.has('PeakValue') || change.values.has('Polarity'))) {
+        // 峰值和极性可能分别到达；仅时间戳一致时才将极性绑定到该峰值，避免误配来源。
+        const peak = change.values.get('PeakValue') || latestValues.get('PeakValue');
+        const polarity = latestValues.get('Polarity');
+        if (peak && (change.values.has('PeakValue') || change.values.has('Polarity'))) {
+          const sample = this.createPeriodicSample(device.deviceName, 'PeakValue', peak);
+          if (sample) {
+            peakSamples.push({
+              ...sample,
+              polarity: polarity?.ts === peak.ts ? this.normalizeDashboardPolarity(polarity.value) : null
+            });
+          }
+        }
+      }
+    }
+
+    if (activeUpdates.size) {
+      this.mapDevices = this.mapDevices.map((device) => activeUpdates.has(device.deviceId)
+        ? {...device, active: activeUpdates.get(device.deviceId)}
+        : device);
+      this.deviceSummary = calculateSmartLightningDeviceSummary(this.mapDevices.map((device) => device.active));
+    }
+
+    let changed = activeUpdates.size > 0;
+    if (groundSamples.length && this.groundSummary) {
+      const current = this.groundSummary.resistanceExtrema;
+      if (doesSmartLightningSampleInvalidateExtrema(
+        current, groundSamples, false, this.groundAlarmPeriod, Date.now()
+      )) {
+        this.loadGroundSummary();
+      } else {
+        const extrema = updateSmartLightningPeriodicExtrema(
+          current, groundSamples, this.groundAlarmPeriod, Date.now()
+        );
+        if (extrema !== current) {
+          this.groundSummary = {
+            ...this.groundSummary,
+            maxResistance: extrema.maximum,
+            minResistance: extrema.minimum,
+            resistanceExtrema: extrema
+          };
+          this.scheduleGroundExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if ((temperatureSamples.length || leakageSamples.length || voltageSamples.length) && this.spdSummary) {
+      const temperature = this.spdSummary.temperatureExtrema;
+      const leakage = this.spdSummary.leakageExtrema;
+      const voltage = this.spdSummary.voltageExtrema;
+      const sourceWasOverwritten =
+        doesSmartLightningSampleInvalidateExtrema(temperature, temperatureSamples, false, this.chartPeriods.spd, Date.now()) ||
+        doesSmartLightningSampleInvalidateExtrema(leakage, leakageSamples, true, this.chartPeriods.spd, Date.now()) ||
+        doesSmartLightningSampleInvalidateExtrema(voltage, voltageSamples, false, this.chartPeriods.spd, Date.now());
+      if (sourceWasOverwritten) {
+        this.loadSpdSummary();
+      } else {
+        const nextTemperature = updateSmartLightningPeriodicExtrema(
+          temperature, temperatureSamples, this.chartPeriods.spd, Date.now()
+        );
+        const nextLeakage = updateSmartLightningPeriodicExtrema(
+          leakage, leakageSamples, this.chartPeriods.spd, Date.now(), true
+        );
+        const nextVoltage = updateSmartLightningPeriodicExtrema(
+          voltage, voltageSamples, this.chartPeriods.spd, Date.now()
+        );
+        if (nextTemperature !== temperature || nextLeakage !== leakage || nextVoltage !== voltage) {
+          this.spdSummary = {
+            ...this.spdSummary,
+            temperatureExtrema: nextTemperature,
+            leakageExtrema: nextLeakage,
+            voltageExtrema: nextVoltage,
+            maxLeakage: nextLeakage.maximum,
+            maxLeakageDeviceName: nextLeakage.maximumDeviceName,
+            maxLeakageKey: nextLeakage.maximumParameter,
+            maxLeakagePhase: getSmartLightningPhaseLabel(nextLeakage.maximumParameter),
+            maxLeakageTime: nextLeakage.maximumTime
+          };
+          this.scheduleSpdExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if (peakSamples.length && this.lightningSummary) {
+      if (doesSmartLightningPeakSampleInvalidateExtrema(
+        this.lightningSummary, peakSamples, this.chartPeriods.lightning, Date.now()
+      )) {
+        this.loadLightningSummary();
+      } else {
+        const summary = updateSmartLightningPeakExtrema(
+          this.lightningSummary, peakSamples, this.chartPeriods.lightning, Date.now()
+        );
+        if (summary !== this.lightningSummary) {
+          this.lightningSummary = summary;
+          this.scheduleLightningExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.cd.markForCheck();
+    }
+  }
+
+  /** 完整首帧或设备上下文响应较晚时，从共享实时缓存补应用当前设备快照。 */
+  private applyLatestTelemetrySnapshot(): void {
+    const changes = this.mapDevices.map((device) => ({
+      deviceId: device.deviceId,
+      values: this.realtimeService.getLatestTelemetryValues(device.deviceId)
+    }));
+    this.applyDashboardTelemetryChanges(changes);
+  }
+
+  /** 从原始 WebSocket 字符串解析有效数值，不进行小数截断或单位换算。 */
+  private createPeriodicSample(
+    deviceName: string,
+    parameter: string,
+    telemetry: {readonly ts: number; readonly value: string} | undefined
+  ): SmartLightningPeriodicExtremaSample | null {
+    if (!telemetry) {
+      return null;
+    }
+    const value = Number(String(telemetry.value ?? '').trim());
+    return Number.isFinite(value)
+      ? {value, deviceName, parameter, timestamp: telemetry.ts}
+      : null;
+  }
+
+  /** 统一解析设备 active 遥测，只接受明确的在线/离线编码。 */
+  private parseActiveTelemetry(value: string | undefined): boolean | undefined {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0') {
+      return false;
+    }
+    return undefined;
+  }
+
+  /** 看板周期最值接口返回“正/负极性”，增量也统一为相同中文标签。 */
+  private normalizeDashboardPolarity(value: string): string {
+    const normalized = String(value ?? '').trim();
+    const numeric = Number(normalized);
+    if (Number.isFinite(numeric) && numeric === 1) {
+      return '正极性';
+    }
+    if (Number.isFinite(numeric) && numeric === 0) {
+      return '负极性';
+    }
+    const label = formatSmartLightningPolarityLabel(normalized);
+    if (label === '正极') {
+      return '正极性';
+    }
+    if (label === '负极') {
+      return '负极性';
+    }
+    return label;
+  }
+
+  /** 根据最值源时间计算滚动窗口过期时刻，到期后使用原聚合接口重新校准一次。 */
+  private scheduleExtremaRefresh(
+    target: 'ground' | 'spd' | 'lightning',
+    period: SmartLightningPeriod,
+    timestamps: Array<number | null | undefined>
+  ): void {
+    this.extremaRefreshSubscriptions.get(target)?.unsubscribe();
+    this.extremaRefreshSubscriptions.delete(target);
+    const duration = getSmartLightningPeriodDuration(period);
+    const sourceTimes = timestamps.filter((timestamp): timestamp is number =>
+      timestamp != null && Number.isFinite(timestamp)
+    );
+    if (duration == null || !sourceTimes.length) {
+      return;
+    }
+
+    const refreshAt = Math.min(...sourceTimes.map((timestamp) => timestamp + duration + 1));
+    const delay = Math.max(0, Math.min(refreshAt - Date.now(), 2_147_000_000));
+    const subscription = timer(delay).pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.extremaRefreshSubscriptions.delete(target);
+      if (Date.now() < refreshAt) {
+        // 月周期超过浏览器单次定时器上限时，分段等待到真实过期时间。
+        this.scheduleExtremaRefresh(target, period, sourceTimes);
+        return;
+      }
+      if (target === 'ground') {
+        this.loadGroundSummary();
+      } else if (target === 'spd') {
+        this.loadSpdSummary();
+      } else {
+        this.loadLightningSummary();
+      }
+    });
+    this.extremaRefreshSubscriptions.set(target, subscription);
+  }
+
+  /** 为地网周期阻值最值安排一次性滚动窗口校准。 */
+  private scheduleGroundExtremaRefresh(): void {
+    const extrema = this.groundSummary?.resistanceExtrema;
+    this.scheduleExtremaRefresh('ground', this.groundAlarmPeriod, [
+      extrema?.maximumTime, extrema?.minimumTime
+    ]);
+  }
+
+  /** 为 SPD 温度、漏电流、电压的周期最值安排一次性滚动窗口校准。 */
+  private scheduleSpdExtremaRefresh(): void {
+    const summary = this.spdSummary;
+    this.scheduleExtremaRefresh('spd', this.chartPeriods.spd, [
+      summary?.temperatureExtrema.maximumTime, summary?.temperatureExtrema.minimumTime,
+      summary?.leakageExtrema.maximumTime, summary?.leakageExtrema.minimumTime,
+      summary?.voltageExtrema.maximumTime, summary?.voltageExtrema.minimumTime
+    ]);
+  }
+
+  /** 为雷电流周期峰值最值安排一次性滚动窗口校准。 */
+  private scheduleLightningExtremaRefresh(): void {
+    this.scheduleExtremaRefresh('lightning', this.chartPeriods.lightning, [
+      this.lightningSummary?.maxPeakTime, this.lightningSummary?.minPeakTime
+    ]);
   }
 
   private resolveAlarmRows(alarms: AlarmInfo[]): Observable<SmartLightningAlarmRow[]> {
@@ -758,22 +1071,21 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       return;
     }
     const chart = this.getChart(chartId, host);
-    const data = buildSmartLightningMock(this.chartPeriods[chartId]);
     switch (chartId) {
       case 'ground':
-        chart.setOption(this.lineOption(data, data.groundSeries, SMART_LIGHTNING_UNITS.resistance));
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'spd':
-        chart.setOption(this.lineOption(data, data.spdSeries, SMART_LIGHTNING_UNITS.leakageCurrent));
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'alarm':
-        chart.setOption(this.alarmOption());
+        chart.setOption(this.alarmOption(), true);
         break;
       case 'orders':
-        chart.setOption(this.orderOption(data));
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'lightning':
-        chart.setOption(this.lightningOption(data));
+        chart.setOption(this.emptyChartOption(), true);
         break;
     }
   }
@@ -792,29 +1104,13 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return chart;
   }
 
-  /** 折线图通用配置：平滑曲线 + 统一坐标轴样式。 */
-  private lineOption(data: SmartLightningMock, series: SmartLightningMock['spdSeries'], unit: string): EChartsOption {
+  /** 未接入真实趋势数据时显示空态，避免把开发阶段样例值误认为设备数据。 */
+  private emptyChartOption(): EChartsOption {
     return {
-      animationDuration: 380,
-      animationEasing: 'cubicOut',
-      tooltip: {trigger: 'axis', confine: true, borderColor: '#dbe5ef', textStyle: {color: '#183653'}},
-      legend: {top: 0, right: 0, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 11, color: '#5f7488'}},
-      grid: {top: 34, right: 10, bottom: 24, left: 32, containLabel: true},
-      xAxis: {
-        type: 'category', boundaryGap: false, data: data.axisLabels,
-        axisLine: {lineStyle: {color: '#d7e0e9'}},
-        axisLabel: {color: '#7890a4', fontSize: 10}, axisTick: {show: false}
-      },
-      yAxis: {
-        type: 'value', name: unit, nameTextStyle: {color: '#7890a4', fontSize: 10},
-        splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}
-      },
-      series: series.map(item => ({
-        name: item.name, type: 'line', smooth: true, showSymbol: false, data: item.data,
-        lineStyle: {width: 2, color: item.color},
-        areaStyle: {color: item.color, opacity: 0.06},
-        emphasis: {focus: 'series'}
-      }))
+      title: {text: '暂无数据', left: 'center', top: 'middle', textStyle: {color: '#7890a4', fontSize: 12, fontWeight: 'normal'}},
+      xAxis: {type: 'category', show: false, data: []},
+      yAxis: {type: 'value', show: false},
+      series: []
     };
   }
 
@@ -845,39 +1141,4 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     };
   }
 
-  /** 运维工单柱状图配置。 */
-  private orderOption(data: SmartLightningMock): EChartsOption {
-    return {
-      animationDuration: 380,
-      tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
-      legend: {top: 0, right: 0, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 11, color: '#5f7488'}},
-      grid: {top: 34, right: 8, bottom: 25, left: 28},
-      xAxis: {type: 'category', data: data.axisLabels, axisLabel: {color: '#7890a4', fontSize: 10}, axisTick: {show: false}},
-      yAxis: {type: 'value', splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}},
-      series: data.workOrderSeries.map(item => ({
-        name: item.name, type: 'bar', data: item.data, barMaxWidth: 12,
-        itemStyle: {color: item.color, borderRadius: [3, 3, 0, 0]}
-      }))
-    };
-  }
-
-  /** 雷电监测横向条形图配置。 */
-  private lightningOption(data: SmartLightningMock): EChartsOption {
-    return {
-      animationDuration: 380,
-      grid: {top: 10, right: 16, bottom: 8, left: 72},
-      xAxis: {type: 'value', max: 100, show: false},
-      yAxis: {
-        type: 'category', inverse: true, data: data.lightningMetrics.map(item => item.name),
-        axisTick: {show: false}, axisLine: {show: false}, axisLabel: {color: '#526a80', fontSize: 11}
-      },
-      series: [{
-        type: 'bar', data: data.lightningMetrics.map(item => item.value), barWidth: 18,
-        showBackground: true, backgroundStyle: {color: '#edf2f6', borderRadius: 9},
-        itemStyle: {borderRadius: 9, color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          {offset: 0, color: '#0a4965'}, {offset: 1, color: '#20e66b'}
-        ])}, label: {show: true, position: 'right', color: '#567087', fontSize: 10, formatter: '{c}'}
-      }]
-    };
-  }
 }

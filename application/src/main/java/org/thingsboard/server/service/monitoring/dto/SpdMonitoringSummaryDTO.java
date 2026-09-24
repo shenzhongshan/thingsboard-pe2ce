@@ -1,6 +1,6 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  */
 package org.thingsboard.server.service.monitoring.dto;
@@ -17,7 +17,7 @@ public class SpdMonitoringSummaryDTO {
 
     /** 可见 SPD 设备总数。 */
     private final int totalDevices;
-    /** 在线设备数（active 属性为 true/1）。 */
+    /** 在线设备数（最新 active 遥测为 true/1）。 */
     private final int onlineDevices;
     /** 离线设备数。 */
     private final int offlineDevices;
@@ -31,7 +31,7 @@ public class SpdMonitoringSummaryDTO {
     private final String maxLeakageDeviceName;
     /** 最大漏电流对应的相位（A相/B相/C相），由规范遥测键最后一个字符判定。 */
     private final String maxLeakagePhase;
-    /** 产生最大漏电流的规范遥测键，例如 leakageB；前端详情据此显示相位。 */
+    /** 产生最大漏电流的规范遥测键，例如 LeakCurrB；前端详情据此显示相位。 */
     private final String maxLeakageKey;
     /** 最大漏电流发生时间（毫秒时间戳）。 */
     private final Long maxLeakageTime;
@@ -41,10 +41,10 @@ public class SpdMonitoringSummaryDTO {
     private final int groundStatusNormalCount;
     /** 至少上报过接地状态的设备数。 */
     private final int groundStatusDeviceCount;
-    /** SPD 状态为正常的设备数。 */
-    private final int spdStatusNormalCount;
-    /** 至少上报过 SPD 状态的设备数。 */
-    private final int spdStatusDeviceCount;
+    /** McbStatus 为空开正常状态的设备数。 */
+    private final int breakerStatusNormalCount;
+    /** 至少上报过 McbStatus 的设备数。 */
+    private final int breakerStatusDeviceCount;
     /** 温度未达到 65℃ 阈值的设备数。 */
     private final int temperatureNormalCount;
     /** 至少上报过温度的设备数。 */
@@ -53,7 +53,7 @@ public class SpdMonitoringSummaryDTO {
     private final int degradationNormalCount;
     /** 至少上报过寿命的设备数。 */
     private final int degradationDeviceCount;
-    /** 周期内 lightningCount 累计增量。 */
+    /** 周期内 StrikeCnt 累计增量。 */
     private final long lightningCount;
     /** 周期温度最大值和最小值。 */
     private final SpdMetricExtremaDTO temperatureExtrema;

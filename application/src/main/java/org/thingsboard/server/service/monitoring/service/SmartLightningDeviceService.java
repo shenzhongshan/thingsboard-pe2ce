@@ -50,4 +50,13 @@ public interface SmartLightningDeviceService extends VisibleDeviceScopeService {
     List<MonitoringDeviceContextBO> getAllLightningDeviceContexts(SecurityUser user)
             throws ThingsboardException;
 
+    /**
+     * 返回当前用户可见的全部设备上下文，不按 productCategory 过滤。
+     *
+     * <p>供平台总览首页使用，分类必须以设备 SERVER_SCOPE 的 productCategory 为准；
+     * 缺失分类的设备保留为 null，不能被默认归入防雷。</p>
+     */
+    List<MonitoringDeviceContextBO> getAllVisibleDeviceContexts(SecurityUser user)
+            throws ThingsboardException;
+
 }

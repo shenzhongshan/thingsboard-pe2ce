@@ -18,7 +18,7 @@ public class SmartLightningRealtimeGroundVO {
     private final int onlineDevices;
     private final int offlineDevices;
     private final int alarmDeviceCount;
-    /** 最新快照中存在 groundResistance 键的设备数。 */
+    /** 最新快照中存在 GndGridRes 键的设备数。 */
     private final int reportingDeviceCount;
     private final Double maximumResistance;
     private final String maximumResistanceDeviceName;

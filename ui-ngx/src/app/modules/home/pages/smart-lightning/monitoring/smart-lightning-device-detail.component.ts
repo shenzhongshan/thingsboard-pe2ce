@@ -14,11 +14,11 @@ import {TimePageLink} from '@shared/models/page/page-link';
 import {Direction} from '@shared/models/page/sort-order';
 import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningDefaultExpandedAssetIds, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
 import {SmartLightningMonitoringApiService} from './smart-lightning-monitoring-api.service';
-import {buildSmartLightningDeviceDetailMock, buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailMock} from './smart-lightning-device-detail.data';
+import {createSmartLightningDeviceDetailState, buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailState} from './smart-lightning-device-detail.data';
 import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, buildSmartLightningYAxisBounds, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
 import {SmartLightningDeviceDetailApiService} from './smart-lightning-device-detail-api.service';
 import {getSmartLightningProductSpecification, SmartLightningProductSpecification} from './smart-lightning-product-specifications';
-import {SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
+import {SmartLightningDeviceTelemetryChange, SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
 
 /** 资产树和遥测均使用真实接口；图表只展示型号定义且设备实际存在的数值测点。 */
 @Component({selector: 'tb-smart-lightning-device-detail', templateUrl: './smart-lightning-device-detail.component.html', styleUrls: ['./smart-lightning-device-detail.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: false})
@@ -27,12 +27,14 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   assetTree: SmartLightningMonitoringAssetTree = {roots: [], nodes: new Map()};
   expandedAssetIds = new Set<string>(); selectedAssetIds = new Set<string>(); selectedAssetName = '未选择资产';
   assetSearch = ''; assetsLoading = true; assetsLoadError = false;
-  detail: SmartLightningDeviceDetailMock = buildSmartLightningDeviceDetailMock();
+  detail: SmartLightningDeviceDetailState = createSmartLightningDeviceDetailState();
   productName = '未配置产品名称';
   /** 当前设备配置对应的静态产品参数；没有资料的型号保持为空。 */
   productSpecification?: SmartLightningProductSpecification;
   deviceName = '--';
   instrumentAddress = '--';
+  /** 当前实时数据中最新一条遥测的时间；不再使用固定演示时间。 */
+  realtimeUpdatedAt = '--';
   alarmsLoading = false;
   alarmsLoadError = false;
   /** 资产树告警状态：共享树同时标记当前告警设备及其直属上级资产。 */
@@ -56,16 +58,30 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   chartsLoading = false;
   showAllChartsDialog = false;
   selectedChartPeriods: Record<string, SmartLightningChartPeriod> = {};
+  /** 当前处于浏览器全屏的图卡元素；通过元素而不是图卡 id 区分主页面和弹窗中的同名图卡。 */
+  fullscreenChartCard?: HTMLElement;
+  /** 当前设备已收到的最新遥测快照；按时间戳合并，防止旧 HTTP 响应覆盖新 WebSocket 数据。 */
+  private readonly latestRealtimeValues = new Map<string, {ts: number; value: string}>();
+  private currentDeviceProfileName?: string;
+  /** 浏览器窗口变化时重新测量工作区，保证放大图卡仍避开顶部和左侧导航。 */
+  private readonly onWindowResize = (): void => {
+    if (this.fullscreenChartCard) {
+      this.updateFullscreenBounds(this.fullscreenChartCard);
+      setTimeout(() => this.charts.forEach((chart) => chart.resize()));
+    }
+  };
   private requestedDeviceId?: string; private readonly charts = new Map<string, ECharts>(); private readonly destroy$ = new Subject<void>(); private resizeObserver?: ResizeObserver;
   constructor(private readonly monitoringApi: SmartLightningMonitoringApiService, private readonly detailApi: SmartLightningDeviceDetailApiService, private readonly attributeService: AttributeService, private readonly deviceService: DeviceService, private readonly alarmService: AlarmService, private readonly realtimeService: SmartLightningRealtimeService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly cd: ChangeDetectorRef) {}
   ngAfterViewInit(): void {
-    // 详情页只在当前设备变化时重读最新数据；历史曲线仍由用户选择周期后通过 HTTP 查询。
-    this.realtimeService.deviceChanged$.pipe(
-      auditTime(600),
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.onWindowResize);
+    }
+    // 直接消费 WebSocket 帧中的当前设备遥测，不再依赖二次 HTTP 查询才能刷新页面。
+    this.realtimeService.deviceTelemetryChanged$.pipe(
       takeUntil(this.destroy$)
-    ).subscribe((deviceIds) => {
-      if (this.requestedDeviceId && (!deviceIds.size || deviceIds.has(this.requestedDeviceId))) {
-        this.loadRealtimeMetrics(this.requestedDeviceId, false);
+    ).subscribe((change) => {
+      if (this.requestedDeviceId === change.deviceId) {
+        this.applyRealtimeTelemetry(change);
       }
     });
     this.realtimeService.alarmChanged$.pipe(
@@ -80,10 +96,15 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     this.returnUrl = this.resolveReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
     this.route.paramMap.pipe(
       switchMap((params) => {
+        // 切换设备详情时先恢复普通布局，避免上一台设备的放大状态残留。
+        this.exitChartFullscreen();
         this.requestedDeviceId = params.get('deviceId') || undefined;
-        this.detail = buildSmartLightningDeviceDetailMock(this.requestedDeviceId);
+        this.detail = createSmartLightningDeviceDetailState(this.requestedDeviceId);
         this.productName = '未配置产品名称';
         this.productSpecification = undefined;
+        this.realtimeUpdatedAt = '--';
+        this.currentDeviceProfileName = undefined;
+        this.latestRealtimeValues.clear();
         this.resetCharts();
         this.loadRealtimeMetrics(this.requestedDeviceId);
         this.loadDeviceAlarms(this.requestedDeviceId);
@@ -104,10 +125,70 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       setTimeout(() => this.renderCharts());
     });
   }
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.realtimeService.release(); this.resizeObserver?.disconnect(); this.charts.forEach((chart) => chart.dispose()); }
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.onWindowResize);
+    }
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.realtimeService.release();
+    this.resizeObserver?.disconnect();
+    this.charts.forEach((chart) => chart.dispose());
+  }
+
+  /**
+   * 将单张图表放大到应用内容工作区。
+   * 工作区边界取自 .tb-main-content，因此左侧导航和顶部工具栏始终保留可见。
+   */
+  toggleChartFullscreen(card: HTMLElement): void {
+    if (this.fullscreenChartCard === card) {
+      this.exitChartFullscreen();
+      return;
+    }
+    this.exitChartFullscreen();
+    this.fullscreenChartCard = card;
+    this.updateFullscreenBounds(card);
+    this.cd.markForCheck();
+    setTimeout(() => this.charts.forEach((chart) => chart.resize()));
+  }
+
+  /** 清理放大状态和动态尺寸，供按钮及弹窗切换前调用。 */
+  private exitChartFullscreen(): void {
+    if (!this.fullscreenChartCard) {
+      return;
+    }
+    this.fullscreenChartCard.style.removeProperty('--chart-fullscreen-top');
+    this.fullscreenChartCard.style.removeProperty('--chart-fullscreen-left');
+    this.fullscreenChartCard.style.removeProperty('--chart-fullscreen-width');
+    this.fullscreenChartCard.style.removeProperty('--chart-fullscreen-height');
+    this.fullscreenChartCard = undefined;
+    this.cd.markForCheck();
+  }
+
+  /** 根据主内容容器的视口矩形设置放大图卡边界，自动适配导航栏宽度和工具栏高度。 */
+  private updateFullscreenBounds(card: HTMLElement): void {
+    const content = card.closest('.tb-main-content') as HTMLElement | null;
+    const bounds = content?.getBoundingClientRect();
+    if (!bounds) {
+      return;
+    }
+    card.style.setProperty('--chart-fullscreen-top', `${Math.max(0, bounds.top)}px`);
+    card.style.setProperty('--chart-fullscreen-left', `${Math.max(0, bounds.left)}px`);
+    card.style.setProperty('--chart-fullscreen-width', `${Math.max(0, bounds.width)}px`);
+    card.style.setProperty('--chart-fullscreen-height', `${Math.max(0, bounds.height)}px`);
+  }
   /** 根据来源页返回；未携带来源参数时默认回到数据监测。 */
   goBack(event: MouseEvent): void {
     event.preventDefault();
+    if (this.returnUrl === '/smart-lightning/monitoring') {
+      const queryParams: Record<string, string> = {};
+      const selectedAssetId = this.route.snapshot.queryParamMap.get('returnAssetId');
+      const selectedRootAssetId = this.route.snapshot.queryParamMap.get('returnRootAssetId');
+      if (selectedAssetId) { queryParams['selectedAssetId'] = selectedAssetId; }
+      if (selectedRootAssetId) { queryParams['selectedRootAssetId'] = selectedRootAssetId; }
+      this.router.navigate(['/smart-lightning/monitoring'], {queryParams});
+      return;
+    }
     this.router.navigateByUrl(this.returnUrl);
   }
   /** 校验 returnUrl 是否为受支持的来源页，防止跳转到任意地址。 */
@@ -169,17 +250,17 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   }
   /**
    * 先读取设备所属配置，再按该配置定义的 key 批量读取最新遥测。
-   * 任意一项缺失时由 buildSmartLightningRealtimeMetrics 保留对应模拟值，而不是清空整组卡片。
+   * 任意一项缺失时由 buildSmartLightningRealtimeMetrics 显示占位符，不使用模拟数值。
    */
-  /** 按设备档案读取实时遥测指标；读到的真实值替换演示默认值。 */
+  /** 按设备档案读取实时遥测指标；没有上报的测点继续展示占位符。 */
   private loadRealtimeMetrics(deviceId?: string, configureCharts = true): void {
     if (!deviceId) { return; }
     this.deviceService.getDeviceInfo(deviceId).pipe(
       switchMap((device) => {
         const definitions = getSmartLightningRealtimeMetricDefinitions(device.deviceProfileName);
         if (!definitions.length) { return of({deviceProfileName: device.deviceProfileName, latest: {}}); }
-        // 规则链可能已经输出规范键，也可能仍保存设备原始键；两类键都查询，映射层按规范键优先取值。
-        const readKeys = Array.from(new Set(definitions.flatMap((definition) => [definition.key, ...(definition.sourceKeys || [])])));
+        // 只查询规则链输出的规范键，避免新旧键并存造成统计口径不一致。
+        const readKeys = Array.from(new Set(definitions.map((definition) => definition.key)));
         return this.attributeService.getEntityTimeseriesLatest(new DeviceId(deviceId), readKeys).pipe(
           catchError(() => of({})),
           switchMap((latest) => of({deviceProfileName: device.deviceProfileName, latest}))
@@ -188,19 +269,53 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       catchError(() => of({deviceProfileName: undefined, latest: {}})),
       takeUntil(this.destroy$)
     ).subscribe(({deviceProfileName, latest}) => {
+      this.currentDeviceProfileName = deviceProfileName;
       if (configureCharts) {
         this.configureCharts(this.requestedDeviceId, deviceProfileName);
       }
-      const latestValues = new Map<string, unknown>();
       Object.entries(latest).forEach(([key, values]) => {
-        const firstValue = Array.isArray(values) ? values[0]?.value : undefined;
-        if (firstValue !== undefined) { latestValues.set(key, firstValue); }
+        const firstValue = Array.isArray(values) ? values[0] : undefined;
+        if (firstValue?.value !== undefined) {
+          this.mergeRealtimeValue(key, Number(firstValue.ts), String(firstValue.value));
+        }
       });
-      this.detail = {...this.detail, metrics: buildSmartLightningRealtimeMetrics(deviceProfileName, latestValues, this.detail.metrics)};
+      this.updateRealtimePresentation();
       this.productSpecification = getSmartLightningProductSpecification(deviceProfileName);
       this.cd.markForCheck();
     });
   }
+
+  /** 将当前设备的 WebSocket 遥测直接合并进卡片、时间和趋势图。 */
+  private applyRealtimeTelemetry(change: SmartLightningDeviceTelemetryChange): void {
+    change.values.forEach((item, key) => this.mergeRealtimeValue(key, item.ts, item.value));
+    this.updateRealtimePresentation();
+    this.appendRealtimeChartPoints(change);
+    this.cd.markForCheck();
+  }
+
+  /** 仅接受时间更新或相同的值，防止并发 HTTP 响应把 WebSocket 新值覆盖成旧值。 */
+  private mergeRealtimeValue(key: string, timestamp: number, value: string): void {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) { return; }
+    const current = this.latestRealtimeValues.get(key);
+    if (!current || timestamp >= current.ts) {
+      this.latestRealtimeValues.set(key, {ts: timestamp, value});
+    }
+  }
+
+  /** 根据合并后的最新快照统一更新实时数据卡片与页面时间。 */
+  private updateRealtimePresentation(): void {
+    const rawValues = new Map<string, unknown>();
+    this.latestRealtimeValues.forEach((item, key) => rawValues.set(key, item.value));
+    this.detail = {
+      ...this.detail,
+      metrics: buildSmartLightningRealtimeMetrics(this.currentDeviceProfileName, rawValues, this.detail.metrics)
+    };
+    const latestTimestamp = Math.max(0, ...Array.from(this.latestRealtimeValues.values()).map((item) => item.ts));
+    this.realtimeUpdatedAt = latestTimestamp > 0
+      ? new Date(latestTimestamp).toLocaleString('zh-CN', {hour12: false})
+      : '--';
+  }
+
   /** 当前版本按实体告警查询的原生路由是 /api/alarm/{entityType}/{entityId}。 */
   private loadDeviceAlarms(deviceId?: string): void {
     if (!deviceId) { return; }
@@ -297,6 +412,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     if (this.allChartDefinitions.length <= this.chartDefinitions.length) {
       return;
     }
+    this.exitChartFullscreen();
     this.disposeCharts();
     this.showAllChartsDialog = true;
     this.cd.markForCheck();
@@ -305,6 +421,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
 
   /** 关闭全部参数趋势弹窗并恢复主页面的四张优先图卡。 */
   closeAllChartsDialog(): void {
+    this.exitChartFullscreen();
     this.disposeCharts();
     this.showAllChartsDialog = false;
     this.cd.markForCheck();
@@ -326,6 +443,46 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       this.cd.markForCheck();
       setTimeout(() => this.renderCharts());
     });
+  }
+
+  /** 把 WebSocket 最新数值直接追加到每张图当前周期内，避免等待切换周期后重新查询。 */
+  private appendRealtimeChartPoints(change: SmartLightningDeviceTelemetryChange): void {
+    let changed = false;
+    const nextChartData = {...this.chartSeriesData};
+    this.allChartDefinitions.forEach((definition) => {
+      const period = this.selectedChartPeriods[definition.id] || 'day';
+      const window = getSmartLightningChartWindow(period);
+      const currentSeries = (nextChartData[definition.id] || []).map((item) => ({
+        definition: item.definition,
+        points: [...item.points]
+      }));
+      let definitionChanged = false;
+      definition.series.forEach((seriesDefinition) => {
+        const latest = change.values.get(seriesDefinition.key);
+        const value = Number(latest?.value);
+        if (!latest || !Number.isFinite(value) || latest.ts < window.startTs || latest.ts > window.endTs + 60_000) {
+          return;
+        }
+        let seriesData = currentSeries.find((item) => item.definition.key === seriesDefinition.key);
+        if (!seriesData) {
+          seriesData = {definition: seriesDefinition, points: []};
+          currentSeries.push(seriesData);
+        }
+        seriesData.points = seriesData.points
+          .filter((point) => point[0] >= window.startTs && point[0] !== latest.ts)
+          .concat([[latest.ts, value]])
+          .sort((left, right) => left[0] - right[0]);
+        definitionChanged = true;
+      });
+      if (definitionChanged) {
+        nextChartData[definition.id] = currentSeries;
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.chartSeriesData = nextChartData;
+      setTimeout(() => this.renderCharts());
+    }
   }
 
   /** 切换指定趋势图的统计周期，只影响该图表自身。 */
@@ -367,6 +524,18 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   private createChartOption(id: string): EChartsOption {
     const definition = this.chartDefinitions.find((item) => item.id === id);
     const chartData = this.chartSeriesData[id] || [];
+    const period = this.selectedChartPeriods[id] || 'day';
+    const chartWindow = getSmartLightningChartWindow(period);
+    const isDayChart = period === 'day';
+    // 日图只从当前图中最早的遥测点开始展示；没有数据时仍回退到当天 0 点。
+    // 查询窗口依旧从 0 点开始，因此不会因为调整显示范围而漏掉当天数据。
+    const dataTimestamps = chartData.flatMap((item) => item.points.map((point) => point[0]));
+    const firstDataTimestamp = dataTimestamps.length
+      ? Math.min(...dataTimestamps)
+      : chartWindow.startTs;
+    const xAxisStart = isDayChart
+      ? Math.max(chartWindow.startTs, Math.min(firstDataTimestamp, chartWindow.endTs))
+      : chartWindow.startTs;
     const colors = ['#ff5656', '#814ce3', '#11a94d', '#195ce8'];
     const series = chartData.map((item, index) => ({
       name: item.definition.label,
@@ -383,7 +552,27 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       tooltip: {trigger: 'axis'},
       legend: {top: 4, right: 8, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 10, color: '#61778b'}},
       grid: {top: 42, left: 40, right: 16, bottom: 38},
-      xAxis: {type: 'time', axisTick: {show: false}, axisLine: {lineStyle: {color: '#cfdae3'}}, axisLabel: {fontSize: 9, color: '#71859a', hideOverlap: true}},
+      xAxis: {
+        type: 'time',
+        min: xAxisStart,
+        max: chartWindow.endTs,
+        minInterval: isDayChart ? 60 * 60 * 1000 : undefined,
+        maxInterval: isDayChart ? 60 * 60 * 1000 : undefined,
+        axisTick: {show: false},
+        axisLine: {lineStyle: {color: '#cfdae3'}},
+        axisLabel: {
+          fontSize: 9,
+          color: '#71859a',
+          hideOverlap: true,
+          // 日图只显示整点，避免出现 10:30、11:45 等零散刻度。
+          formatter: isDayChart ? ((value: number) => {
+            const time = new Date(value);
+            return time.getMinutes() === 0 && time.getSeconds() === 0
+              ? `${String(time.getHours()).padStart(2, '0')}:00`
+              : '';
+          }) : undefined
+        }
+      },
       yAxis: {type: 'value', ...(yAxisBounds || {}), scale: true, name: definition?.series[0]?.unit || '', nameTextStyle: {fontSize: 10, color: '#71859a'}, axisLabel: {fontSize: 9, color: '#71859a'}, splitLine: {lineStyle: {color: '#eef2f5'}}},
       series,
       ...(series.length ? {} : {graphic: {type: 'text', left: 'center', top: 'middle', style: {text: '暂无遥测数据', fill: '#8a9aaa', fontSize: 12}}})

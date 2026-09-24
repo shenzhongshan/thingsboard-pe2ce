@@ -24,10 +24,29 @@
           <tr *ngIf="loading"><td colspan="3" class="table-state">正在读取设备列表…</td></tr>
           <tr *ngIf="!loading && loadError"><td colspan="3" class="table-state error">设备列表读取失败，请稍后重试</td></tr>
           <tr *ngIf="!loading && !loadError && !devices.length"><td colspan="3" class="table-state">当前用户暂无可见设备</td></tr>
-          <tr *ngFor="let device of devices; trackBy: trackByDeviceId">
-            <td class="device-name" [title]="device.deviceName">{{device.deviceName}}</td>
+          <!-- 整行都可切换当前设备；具体操作按钮阻止冒泡，避免复制等操作误触发详情切换。 -->
+          <tr *ngFor="let device of devices; trackBy: trackByDeviceId"
+              class="device-row"
+              (click)="openDevice(device)"
+              [class.selected-row]="selectedDevice?.deviceId === device.deviceId">
+            <td class="device-name" [title]="device.deviceName">
+              <!-- 设备名称直接作为选择入口，抽屉打开时也可切换当前详情设备。 -->
+              <button type="button" class="device-select-button"
+                      [class.selected]="selectedDevice?.deviceId === device.deviceId"
+                        [attr.aria-pressed]="selectedDevice?.deviceId === device.deviceId">{{device.deviceName}}</button>
+            </td>
             <td class="profile-name" [title]="device.deviceProfileName || '未配置'">{{device.deviceProfileName || '未配置'}}</td>
-            <td class="operation-column"><button type="button" class="detail-button" (click)="openDevice(device)">查看日志</button></td>
+            <td class="operation-column">
+              <div class="operation-actions">
+                <button type="button" mat-icon-button class="icon-action" matTooltip="查看日志"
+                         [attr.aria-label]="'查看日志：' + device.deviceName" (click)="$event.stopPropagation(); openDevice(device)">
+                  <mat-icon>history</mat-icon>
+                </button>
+                <!-- 参考原生设备页的“复制 ID”操作，仅复制设备标识，不修改设备数据。 -->
+                <button type="button" class="copy-device-button" matTooltip="复制设备ID"
+                         [attr.aria-label]="'复制设备ID：' + device.deviceName" (click)="$event.stopPropagation(); copyDeviceId(device)">复制设备ID</button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -41,6 +60,5 @@
     </nav>
   </section>
 
-  <div class="drawer-mask" *ngIf="selectedDevice" (click)="closeDrawer()"></div>
   <tb-device-log-detail-drawer *ngIf="selectedDevice" [device]="selectedDevice" (close)="closeDrawer()"></tb-device-log-detail-drawer>
 </main>

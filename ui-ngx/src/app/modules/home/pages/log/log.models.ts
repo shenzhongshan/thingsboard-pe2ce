@@ -16,7 +16,7 @@ export interface LogDevicePage {
 
 export interface LogTimelineItem {
   timestamp: number;
-  category: '服务器属性' | '最新遥测' | '审计事件' | '告警事件';
+  category: '服务器属性' | '最新遥测' | '审计事件' | '告警事件' | '设备状态';
   key: string;
   value: unknown;
   /** 审计事件解析后的字段，普通属性和遥测事件不填写。 */

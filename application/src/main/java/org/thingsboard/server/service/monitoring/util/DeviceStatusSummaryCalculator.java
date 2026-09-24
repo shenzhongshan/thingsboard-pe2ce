@@ -10,7 +10,7 @@ import java.util.UUID;
 /**
  * 顶部设备状态统计的纯计算逻辑。
  *
- * <p>正常设备必须同时满足服务器属性 active 为 true/1，且没有未清除告警；
+ * <p>正常设备必须同时满足最新 active 遥测为 true/1，且没有未清除告警；
  * 异常设备为“存在未清除告警”与“已经离线”两组设备的并集，按设备 ID 去重。</p>
  */
 public final class DeviceStatusSummaryCalculator {

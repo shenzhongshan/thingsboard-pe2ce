@@ -60,10 +60,10 @@
               <div><dt>告警</dt><dd class="critical">{{analysis.spd.alarmDeviceCount}}</dd></div>
             </dl>
             <dl class="analysis-detail-grid">
-              <div><dt>SPD 状态</dt><dd>{{analysis.spd.spdStatusNormalCount}} / {{analysis.spd.spdStatusDeviceCount}} 正常</dd></div>
-              <div><dt>接地状态</dt><dd>{{analysis.spd.groundStatusNormalCount}} / {{analysis.spd.groundStatusDeviceCount}} 正常</dd></div>
-              <div><dt>温度状态</dt><dd>{{analysis.spd.temperatureNormalCount}} / {{analysis.spd.temperatureDeviceCount}} 正常</dd></div>
-              <div><dt>寿命状态</dt><dd>{{analysis.spd.lifeNormalCount}} / {{analysis.spd.lifeDeviceCount}} 正常</dd></div>
+              <div><dt>空开状态</dt><dd class="analysis-counts" title="正常设备数 / 有 McbStatus 参数的设备总数">{{analysis.spd.breakerStatusNormalCount}}/{{analysis.spd.breakerStatusDeviceCount}}</dd></div>
+              <div><dt>接地状态</dt><dd class="analysis-counts" title="正常设备数 / 有 GndStatus 参数的设备总数">{{analysis.spd.groundStatusNormalCount}}/{{analysis.spd.groundStatusDeviceCount}}</dd></div>
+              <div><dt>温度状态</dt><dd class="analysis-counts" title="正常设备数 / 有温度键（键名包含 Temp）的设备总数；同一设备任一温度达到 65℃ 即不计为正常">{{analysis.spd.temperatureNormalCount}}/{{analysis.spd.temperatureDeviceCount}}</dd></div>
+              <div><dt>寿命状态</dt><dd class="analysis-counts" title="正常设备数 / 有 LifeLeft 参数的设备总数（LifeLeft 不低于 60%）">{{analysis.spd.lifeNormalCount}}/{{analysis.spd.lifeDeviceCount}}</dd></div>
               <div class="analysis-key-metric" [title]="'设备：' + (analysis.spd.maximumLeakageDeviceName || '--') + '\n参数：' + realtimeParameterLabel(analysis.spd.maximumLeakageParameter) + '\n时间：' + formatRealtimeTime(analysis.spd.maximumLeakageTime)"><dt>最大漏流</dt><dd>{{formatRealtimeValue(analysis.spd.maximumLeakage, units.leakageCurrent)}}</dd></div>
             </dl>
           </article>
@@ -93,7 +93,7 @@
             </dl>
             <dl class="analysis-detail-grid compact">
               <div><dt>累计雷击次数</dt><dd>{{formatRealtimeCount(analysis.lightningCurrent.totalSurgeCount)}}</dd></div>
-              <div class="analysis-key-metric" [title]="'设备：' + (analysis.lightningCurrent.latestPeakDeviceName || '--') + '\n极性：' + (analysis.lightningCurrent.latestPeakPolarity || '--') + '\n时间：' + formatRealtimeTime(analysis.lightningCurrent.latestPeakTime)"><dt>最近峰值</dt><dd>{{formatRealtimeValue(analysis.lightningCurrent.latestPeakCurrent, analysis.lightningCurrent.peakCurrentUnit || 'kA')}}</dd></div>
+              <div class="analysis-key-metric" [title]="'设备：' + (analysis.lightningCurrent.latestPeakDeviceName || '--') + '\n极性：' + formatRealtimePolarity(analysis.lightningCurrent.latestPeakPolarity) + '\n时间：' + formatRealtimeTime(analysis.lightningCurrent.latestPeakTime)"><dt>最近峰值</dt><dd>{{formatRealtimeValue(analysis.lightningCurrent.latestPeakCurrent, analysis.lightningCurrent.peakCurrentUnit || 'kA')}}</dd></div>
             </dl>
           </article>
 
@@ -126,7 +126,39 @@
           <div class="device-grid-state">当前节点及下属节点没有符合条件的设备</div>
         } @else {
           @for (card of pagedMonitoringCards; track card.id) {
-            <article class="device-card" [class.selected-range]="selectedAssetIds.size > 0" [class.alarm-card]="card.status === '报警'"><header><h3 [title]="card.productName === '--' ? card.name : card.name + '/' + card.productName">{{card.productName === '--' ? card.name : card.name + '/' + card.productName}}</h3><span [class]="'device-status ' + card.status">{{card.status === '报警' ? '告警' : card.status}}</span></header><div class="device-body"><div class="device-icon"><tb-icon>{{card.icon}}</tb-icon></div><div class="device-details"><p><span>设备地址：</span><strong [title]="card.assetPath">{{card.assetPath}}</strong></p><p><span>产品型号：</span><strong [title]="card.productType">{{card.productType}}</strong></p><p><span>最近活跃时间：</span><strong>{{card.lastActiveTime}}</strong></p></div></div><footer><a class="detail" [routerLink]="['/smart-lightning/monitoring/device', card.id]" [queryParams]="{returnUrl: '/smart-lightning/monitoring'}">详情</a><button type="button">复位</button><button type="button">漏电自检</button><button type="button">分闸</button><button type="button">刷新</button></footer></article>
+            <article class="device-card" [class.selected-range]="selectedAssetIds.size > 0" [class.alarm-card]="card.status === '报警'" [class.offline-card]="card.status === '离线'">
+              <header>
+                <h3 [title]="card.productName === '--' ? card.name : card.name + '/' + card.productName">
+                  {{card.productName === '--' ? card.name : card.name + '/' + card.productName}}
+                </h3>
+                <span [class]="'device-status ' + card.status">{{card.status === '报警' ? '告警' : card.status}}</span>
+              </header>
+              <div class="device-body">
+                <div class="device-icon"><tb-icon>{{card.icon}}</tb-icon></div>
+                <div class="device-details">
+                  <p><span>设备地址：</span><strong [title]="card.assetPath">{{card.assetPath}}</strong></p>
+                  <p><span>产品型号：</span><strong [title]="card.productType">{{card.productType}}</strong></p>
+                  <p><span>最近活跃时间：</span><strong>{{card.lastActiveTime}}</strong></p>
+                </div>
+              </div>
+              @if (card.realtimeMetrics.length) {
+                <dl class="device-realtime-metrics" aria-label="实时遥测">
+                  @for (metric of card.realtimeMetrics; track metric.key) {
+                    <div [title]="metric.title">
+                      <dt>{{metric.label}}</dt>
+                      <dd [class.abnormal]="metric.abnormal">{{metric.value}}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+              <footer>
+                <a class="detail" [routerLink]="['/smart-lightning/monitoring/device', card.id]" [queryParams]="{returnUrl: '/smart-lightning/monitoring', returnAssetId: selectedTreeNodeId || null, returnRootAssetId: selectedRootAssetId || null}">详情</a>
+                <button type="button">复位</button>
+                <button type="button">漏电自检</button>
+                <button type="button">分闸</button>
+                <button type="button">刷新</button>
+              </footer>
+            </article>
           }
         }
       </div>

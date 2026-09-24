@@ -7,7 +7,7 @@ import {DeviceInfo} from '@shared/models/device.models';
 import {EntityType} from '@shared/models/entity-type.models';
 import {DeviceId} from '@shared/models/id/device-id';
 import {MAX_SAFE_PAGE_SIZE} from '@shared/models/page/page-link';
-import {auditTime, catchError, forkJoin, map, of, Subject, takeUntil} from 'rxjs';
+import {auditTime, bufferTime, catchError, filter, merge, map, of, Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningDefaultExpandedAssetIds,
@@ -27,7 +27,10 @@ import {
   SmartLightningQueryStatus
 } from './smart-lightning-data-query.data';
 import {SmartLightningHistoryReviewDialogComponent} from './smart-lightning-history-review-dialog.component';
-import {SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
+import {
+  SmartLightningDeviceTelemetryChange,
+  SmartLightningRealtimeService
+} from '../shared/realtime/smart-lightning-realtime.service';
 
 interface QueryDeviceContext {
   devices: DeviceInfo[];
@@ -53,6 +56,8 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   expandedAssetIds = new Set<string>();
   selectedAssetIds = new Set<string>();
   selectedRootAssetId = '';
+  private selectedTreeNodeId = '';
+  private selectionSource: 'root' | 'node' = 'root';
   selectedRowIds = new Set<string>();
   assetSearch = '';
   selectedAssetName = '全部资产';
@@ -86,8 +91,19 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // 设备/告警变化只触发一次现有的设备与告警联合查询，保留资产树过滤逻辑。
-    this.realtimeService.deviceChanged$.pipe(
+    // 只将 active 与最近活跃时间的遥测增量应用到当前设备行，不重查整张设备表。
+    this.realtimeService.deviceTelemetryChanged$.pipe(
+      bufferTime(100),
+      filter((changes) => changes.length > 0),
+      takeUntil(this.destroy$)
+    ).subscribe((changes) => this.applyQueryRealtimeChanges(changes));
+    this.realtimeService.entitySnapshotReady$.pipe(
+      filter((ready) => ready),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.applyLatestTelemetrySnapshot());
+
+    // 设备名称、产品标签、协议等上下文变化时才重新读取设备列表。
+    this.realtimeService.deviceContextIncrementalChanged$.pipe(
       auditTime(600),
       takeUntil(this.destroy$)
     ).subscribe(() => {
@@ -95,12 +111,24 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
         this.loadDevices();
       }
     });
+    // 集合成员变化时更新资产树、设备表与活动告警标记，并保留当前树选择。
+    merge(
+      this.realtimeService.deviceMembershipChanged$,
+      this.realtimeService.assetMembershipChanged$
+    ).pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadAssetTree(true);
+      }
+    });
     this.realtimeService.alarmChanged$.pipe(
       auditTime(600),
       takeUntil(this.destroy$)
     ).subscribe(() => {
       if (!this.assetsLoading) {
-        this.loadDevices();
+        this.loadActiveAlarms();
       }
     });
     this.realtimeService.acquire();
@@ -178,6 +206,8 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   /** 选中资产节点：选中集合包含其全部后代，作为设备表格的数据范围。 */
   selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
     this.selectedAssetIds = new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
+    this.selectedTreeNodeId = node.id;
+    this.selectionSource = 'node';
     this.selectedAssetName = node.name;
     this.openDescendants(node.id);
     this.selectedRowIds.clear();
@@ -188,6 +218,8 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   /** 根资产筛选与节点选择共用同一套递归下属节点逻辑，确保右侧列表同步更新。 */
   selectRootAsset(rootAssetId: string, expandDescendants = true): void {
     this.selectedRootAssetId = rootAssetId;
+    this.selectedTreeNodeId = rootAssetId;
+    this.selectionSource = 'root';
     const roots = getSmartLightningQueryVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningQueryRootAssetIds(this.assetTree, rootAssetId));
     this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
@@ -284,15 +316,30 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
   }
 
   /** 加载共享资产树并初始化展开状态与根资产选择，失败时标记错误状态。 */
-  private loadAssetTree(): void {
+  private loadAssetTree(preserveSelection = false): void {
+    const previousExpandedIds = new Set(this.expandedAssetIds);
+    const previousSelectedTreeNodeId = this.selectedTreeNodeId;
+    const previousSelectionSource = this.selectionSource;
+    this.assetsLoading = true;
     this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
         this.buildDevicePaths();
-        this.expandedAssetIds = getSmartLightningDefaultExpandedAssetIds(this.assetTree);
-        this.selectRootAsset('', false);
+        this.expandedAssetIds = preserveSelection
+          ? new Set([...previousExpandedIds].filter((id) => this.assetTree.nodes.has(id)))
+          : getSmartLightningDefaultExpandedAssetIds(this.assetTree);
+        const previousSelectedNode = this.assetTree.nodes.get(previousSelectedTreeNodeId);
+        if (preserveSelection && previousSelectionSource === 'node' && previousSelectedNode) {
+          this.selectAssetNode(previousSelectedNode);
+        } else if (preserveSelection && previousSelectionSource === 'root' &&
+          (!previousSelectedTreeNodeId || this.assetTree.roots.some((root) => root.id === previousSelectedTreeNodeId))) {
+          this.selectRootAsset(previousSelectedTreeNodeId, false);
+        } else {
+          this.selectRootAsset('', false);
+        }
         this.assetsLoading = false;
         this.loadDevices();
+        this.loadActiveAlarms();
         this.cd.markForCheck();
       },
       error: () => {
@@ -304,42 +351,105 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 后端批量返回设备上下文，并一次读取当前活动告警用于设备状态标记。 */
+  /** 后端批量读取设备上下文；活动告警由独立查询及告警事件订阅维护。 */
   private loadDevices(): void {
     this.devicesLoading = true;
     this.devicesLoadError = false;
-    const deviceContexts$ = this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0);
-    const activeAlarms$ = this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
-      map((pageData) => this.toActiveAlarmContext(pageData.data)),
-      // 告警请求失败不应阻断设备查询；此时设备先按正常/离线显示。
-      catchError(() => of({deviceIds: new Set<string>(), severityByDeviceId: new Map<string, string>()}))
-    );
-    forkJoin({devicePage: deviceContexts$, activeAlarms: activeAlarms$}).pipe(
-      map(({devicePage, activeAlarms}) => ({
-        devices: this.toQueryDeviceContext(devicePage.data),
-        activeAlarms
-      })),
+    this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0).pipe(
+      map((devicePage) => this.toQueryDeviceContext(devicePage.data)),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: ({devices, activeAlarms}) => {
+      next: (devices) => {
         this.devices = devices.devices;
         this.deviceAttributes = devices.attributesByDeviceId;
-        this.activeAlarmDeviceIds = activeAlarms.deviceIds;
-        this.alarmSeverityByDeviceId = activeAlarms.severityByDeviceId;
         this.devicesLoading = false;
         this.page = 1;
+        // 若遥测首帧先于设备 HTTP 响应到达，从共享缓存补齐 active 和最近活跃时间。
+        this.applyLatestTelemetrySnapshot();
         this.cd.markForCheck();
       },
       error: () => {
         this.devices = [];
         this.deviceAttributes = new Map();
-        this.activeAlarmDeviceIds = new Set();
-        this.alarmSeverityByDeviceId = new Map();
         this.devicesLoading = false;
         this.devicesLoadError = true;
         this.cd.markForCheck();
       }
     });
+  }
+
+  /** 活动告警变化只刷新告警标记，不连带重查设备上下文。 */
+  private loadActiveAlarms(): void {
+    this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
+      map((pageData) => this.toActiveAlarmContext(pageData.data)),
+      // 告警请求失败不应阻断设备查询；此时设备先按正常/离线显示。
+      catchError(() => of({deviceIds: new Set<string>(), severityByDeviceId: new Map<string, string>()})),
+      takeUntil(this.destroy$)
+    ).subscribe(({deviceIds, severityByDeviceId}) => {
+      this.activeAlarmDeviceIds = deviceIds;
+      this.alarmSeverityByDeviceId = severityByDeviceId;
+      this.cd.markForCheck();
+    });
+  }
+
+  /** 直接把实时 active 与 lastActivityTime 应用到当前资产树范围内的设备上下文。 */
+  private applyQueryRealtimeChanges(changes: readonly SmartLightningDeviceTelemetryChange[]): void {
+    if (!this.devices.length || !changes.length) {
+      return;
+    }
+    const visibleDeviceIds = new Set(this.devices.map((device) => device.id.id));
+    const activeUpdates = new Map<string, boolean>();
+    const activityUpdates = new Map<string, number>();
+    for (const change of changes) {
+      if (!visibleDeviceIds.has(change.deviceId)) {
+        continue;
+      }
+      const latestValues = this.realtimeService.getLatestTelemetryValues(change.deviceId);
+      const activeValue = String(
+        change.values.has('active') ? latestValues.get('active')?.value ?? '' : ''
+      ).trim().toLowerCase();
+      if (activeValue === 'true' || activeValue === '1') {
+        activeUpdates.set(change.deviceId, true);
+      } else if (activeValue === 'false' || activeValue === '0') {
+        activeUpdates.set(change.deviceId, false);
+      }
+      const activityTime = change.lastActivityTime == null
+        ? undefined
+        : this.realtimeService.getLatestActivityTime(change.deviceId);
+      if (activityTime != null && Number.isFinite(activityTime) && activityTime > 0) {
+        activityUpdates.set(change.deviceId, activityTime);
+      }
+    }
+    if (!activeUpdates.size && !activityUpdates.size) {
+      return;
+    }
+
+    if (activeUpdates.size) {
+      this.devices = this.devices.map((device) => activeUpdates.has(device.id.id)
+        ? {...device, active: activeUpdates.get(device.id.id)} as DeviceInfo
+        : device);
+    }
+    const nextAttributes = new Map(this.deviceAttributes);
+    for (const deviceId of new Set([...activeUpdates.keys(), ...activityUpdates.keys()])) {
+      const current = nextAttributes.get(deviceId) || {};
+      nextAttributes.set(deviceId, {
+        ...current,
+        ...(activeUpdates.has(deviceId) ? {active: activeUpdates.get(deviceId)} : {}),
+        ...(activityUpdates.has(deviceId) ? {lastActivityTime: activityUpdates.get(deviceId)} : {})
+      });
+    }
+    this.deviceAttributes = nextAttributes;
+    this.cd.markForCheck();
+  }
+
+  /** 设备列表 HTTP 加载较慢时，使用共享 WebSocket 缓存补齐已经到达的首帧。 */
+  private applyLatestTelemetrySnapshot(): void {
+    const changes = this.devices.map((device) => ({
+      deviceId: device.id.id,
+      values: this.realtimeService.getLatestTelemetryValues(device.id.id),
+      lastActivityTime: this.realtimeService.getLatestActivityTime(device.id.id)
+    }));
+    this.applyQueryRealtimeChanges(changes);
   }
 
   private toActiveAlarmContext(alarms: AlarmInfo[]): {

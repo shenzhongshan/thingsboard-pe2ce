@@ -1,6 +1,8 @@
 /** 文件职责：告警分析使用的自然日、自然月和自然年时间窗口。 */
 package org.thingsboard.server.service.alarms.util;
 
+import lombok.Getter;
+
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -10,6 +12,7 @@ import java.time.ZonedDateTime;
  * <p>与监测页面的“向前回溯 N 天”窗口不同，告警分析按系统时区的自然日、月、年
  * 计算当前周期和上一周期，避免统计口径混用。</p>
  */
+@Getter
 public final class AlarmPeriodWindow {
 
     private final ZoneId zoneId;
@@ -55,41 +58,5 @@ public final class AlarmPeriodWindow {
                 year.toInstant().toEpochMilli(),
                 previousYear.toInstant().toEpochMilli(),
                 current.toLocalDate().lengthOfMonth());
-    }
-
-    public ZoneId getZoneId() {
-        return zoneId;
-    }
-
-    public long getNow() {
-        return now;
-    }
-
-    public long getDayStart() {
-        return dayStart;
-    }
-
-    public long getPreviousDayStart() {
-        return previousDayStart;
-    }
-
-    public long getMonthStart() {
-        return monthStart;
-    }
-
-    public long getPreviousMonthStart() {
-        return previousMonthStart;
-    }
-
-    public long getYearStart() {
-        return yearStart;
-    }
-
-    public long getPreviousYearStart() {
-        return previousYearStart;
-    }
-
-    public int getMonthLength() {
-        return monthLength;
     }
 }

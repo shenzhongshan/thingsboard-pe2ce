@@ -34,6 +34,7 @@ public class SmartLightningDataQueryServiceImpl implements SmartLightningDataQue
 
     private final SmartLightningDeviceService smartLightningDeviceService;
 
+    /** 查询当前用户可见的防雷设备页，筛选和分页规则由公共设备服务统一处理。 */
     @Override
     public PageData<DeviceInfo> getDevices(SecurityUser user, PageLink pageLink) throws ThingsboardException {
         return smartLightningDeviceService.getLightningDevices(user, pageLink);
@@ -42,12 +43,14 @@ public class SmartLightningDataQueryServiceImpl implements SmartLightningDataQue
     @Override
     public PageData<SmartLightningDeviceContextDTO> getDeviceContexts(SecurityUser user, PageLink pageLink)
             throws ThingsboardException {
+        // 先批量取得设备上下文页，再逐项转换为接口 DTO。
         PageData<MonitoringDeviceContextBO> contexts =
                 smartLightningDeviceService.getLightningDeviceContexts(user, pageLink);
         List<SmartLightningDeviceContextDTO> response = new ArrayList<>();
         for (MonitoringDeviceContextBO context : contexts.getData()) {
             response.add(MonitoringDeviceDTOConverter.toDTO(context));
         }
+        // 转换数据时保留原页的分页元信息，避免前端分页状态发生变化。
         return new PageData<>(
                 response, contexts.getTotalPages(), contexts.getTotalElements(), contexts.hasNext());
     }

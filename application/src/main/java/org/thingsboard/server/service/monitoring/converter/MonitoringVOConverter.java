@@ -78,8 +78,8 @@ public final class MonitoringVOConverter {
                 source.getLeakageReportingDeviceCount(),
                 source.getGroundStatusNormalCount(),
                 source.getGroundStatusDeviceCount(),
-                source.getSpdStatusNormalCount(),
-                source.getSpdStatusDeviceCount(),
+                source.getBreakerStatusNormalCount(),
+                source.getBreakerStatusDeviceCount(),
                 source.getTemperatureNormalCount(),
                 source.getTemperatureDeviceCount(),
                 source.getDegradationNormalCount(),
@@ -128,6 +128,18 @@ public final class MonitoringVOConverter {
                 toVO(source.getGround()),
                 toVO(source.getLightningCurrent()),
                 toVO(source.getArcFault()));
+    }
+
+    /** 将首页设备上下文列表转换为 HTTP VO，Controller 不直接拼装字段。 */
+    public static List<SmartLightningDeviceContextVO> toDeviceContextList(
+            List<SmartLightningDeviceContextDTO> sources) {
+        List<SmartLightningDeviceContextVO> result = new ArrayList<>();
+        if (sources != null) {
+            for (SmartLightningDeviceContextDTO source : sources) {
+                result.add(toVO(source));
+            }
+        }
+        return result;
     }
 
     public static PageData<SmartLightningDeviceContextVO> toDeviceContextPage(
@@ -233,8 +245,8 @@ public final class MonitoringVOConverter {
                 source.getOnlineDevices(),
                 source.getOfflineDevices(),
                 source.getAlarmDeviceCount(),
-                source.getSpdStatusNormalCount(),
-                source.getSpdStatusDeviceCount(),
+                source.getBreakerStatusNormalCount(),
+                source.getBreakerStatusDeviceCount(),
                 source.getGroundStatusNormalCount(),
                 source.getGroundStatusDeviceCount(),
                 source.getTemperatureNormalCount(),

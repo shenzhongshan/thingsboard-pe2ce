@@ -56,8 +56,8 @@ export interface SmartLightningRealtimeSpd {
   onlineDevices: number;
   offlineDevices: number;
   alarmDeviceCount: number;
-  spdStatusNormalCount: number;
-  spdStatusDeviceCount: number;
+  breakerStatusNormalCount: number;
+  breakerStatusDeviceCount: number;
   groundStatusNormalCount: number;
   groundStatusDeviceCount: number;
   temperatureNormalCount: number;
@@ -174,23 +174,23 @@ export interface SmartLightningSpdMonitoringSummary {
   maxLeakage: number | null;
   maxLeakageDeviceName?: string | null;
   maxLeakagePhase?: string | null;
-  /** 周期最大漏流对应的规范遥测键，例如 leakageB。 */
+  /** 周期最大漏流对应的规范遥测键，例如 LeakCurrB。 */
   maxLeakageKey?: string | null;
   maxLeakageTime?: number | null;
   leakageReportingDeviceCount: number;
-  /** 接地状态正常数量 / 有接地状态参数的设备总数。 */
+  /** 接地状态正常设备数，以及有 GndStatus 参数的设备总数。 */
   groundStatusNormalCount: number;
   groundStatusDeviceCount: number;
-  /** SPD 状态正常数量 / 有 SPD 状态参数的设备总数。 */
-  spdStatusNormalCount: number;
-  spdStatusDeviceCount: number;
-  /** 温度正常数量 / 有温度参数的设备总数。 */
+  /** 空开状态正常设备数，以及有 McbStatus 参数的设备总数。 */
+  breakerStatusNormalCount: number;
+  breakerStatusDeviceCount: number;
+  /** 温度正常设备数，以及有任意 Temp 键的设备总数；同一设备任一温度异常即不计为正常。 */
   temperatureNormalCount: number;
   temperatureDeviceCount: number;
-  /** 寿命正常数量 / 有寿命参数的设备总数。 */
+  /** LifeLeft 不低于 60% 的设备数，以及有 LifeLeft 参数的设备总数。 */
   degradationNormalCount: number;
   degradationDeviceCount: number;
-  /** 所选周期内 lightningCount 的累计增量。 */
+  /** 所选周期内 StrikeCnt 的累计增量。 */
   lightningCount: number;
   /** 所选周期内温度的最大值和最小值。 */
   temperatureExtrema: SmartLightningSpdMetricExtrema;
@@ -329,7 +329,7 @@ export class SmartLightningMonitoringApiService {
 
   /**
    * 查询当前用户全部可见设备的状态汇总。
-   * active 的解释由后端统一读取 SERVER_SCOPE 属性，避免误用 DeviceInfo.active。
+   * active 的解释由后端统一读取最新遥测，避免误用服务器属性或 DeviceInfo.active。
    */
   getDeviceStatusSummary(): Observable<SmartLightningDeviceStatusSummary> {
     return this.http.get<SmartLightningDeviceStatusSummary>('/api/smart-lightning/monitoring/device-status-summary');

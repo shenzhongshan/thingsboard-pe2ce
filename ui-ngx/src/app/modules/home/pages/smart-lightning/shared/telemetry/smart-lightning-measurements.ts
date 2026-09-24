@@ -7,7 +7,7 @@
  */
 export const SMART_LIGHTNING_UNITS = {
   resistance: 'Ω',
-  leakageCurrent: 'mA',
+  leakageCurrent: 'μA',
   lightningCurrent: 'kA',
   voltage: 'V',
   highVoltage: 'kV',
@@ -15,20 +15,8 @@ export const SMART_LIGHTNING_UNITS = {
   percentage: '%',
   count: '次',
   interval: 'min',
+  duration: 'μs',
+  charge: 'As',
+  specificEnergy: 'kJ/Ω',
   empty: ''
 } as const;
-
-export type SmartLightningMeasurementUnit = typeof SMART_LIGHTNING_UNITS[keyof typeof SMART_LIGHTNING_UNITS];
-
-/**
- * 统一格式化监测数值。
- *
- * @param value 待展示数值
- * @param unit 已由 SMART_LIGHTNING_UNITS 提供的单位
- * @param separator 单位前的分隔符；详情指标保持原有无空格格式
- */
-export const formatSmartLightningMeasurement = (
-  value: number | string,
-  unit: SmartLightningMeasurementUnit | string = SMART_LIGHTNING_UNITS.empty,
-  separator = ''
-): string => `${value}${separator}${unit}`;

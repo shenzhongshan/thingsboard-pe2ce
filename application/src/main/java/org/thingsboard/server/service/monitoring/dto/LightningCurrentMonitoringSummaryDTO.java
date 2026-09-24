@@ -1,6 +1,6 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  */
 package org.thingsboard.server.service.monitoring.dto;
@@ -17,7 +17,7 @@ public class LightningCurrentMonitoringSummaryDTO {
 
     /** 可见雷电流设备总数。 */
     private final int totalDevices;
-    /** 在线设备数（active 属性为 true/1）。 */
+    /** 在线设备数（最新 active 遥测为 true/1）。 */
     private final int onlineDevices;
     /** 离线设备数。 */
     private final int offlineDevices;
@@ -25,7 +25,7 @@ public class LightningCurrentMonitoringSummaryDTO {
     private final int alarmCount;
     /** 统计周期内按告警类型汇总的数量，按数量降序排列。 */
     private final List<AlarmTypeTotalDTO> alarmTypeTotals;
-    /** 各雷电流设备在所选周期内的 surgeCount 增量之和；单条记录直接采用该值。 */
+    /** 各雷电流设备在所选周期内的 SurgeCnt 增量之和；单条记录直接采用该值。 */
     private final long eventCount;
     /** 周期内最大峰值电流；没有任何设备上报时为 null。 */
     private final Double maxPeakCurrent;

@@ -1,6 +1,6 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
@@ -18,9 +18,9 @@ public class SmartLightningRealtimeCurrentDTO {
     private final int onlineDevices;
     private final int offlineDevices;
     private final int alarmDeviceCount;
-    /** 各设备最新 surgeCount 累计值之和。 */
+    /** 各设备最新 SurgeCnt 累计值之和。 */
     private final long totalSurgeCount;
-    /** 所有设备中时间戳最新的一条 surgePeak。 */
+    /** 所有设备中时间戳最新的一条 PeakValue。 */
     private final Double latestPeakCurrent;
     private final String latestPeakDeviceName;
     private final String latestPeakPolarity;

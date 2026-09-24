@@ -1,6 +1,6 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
@@ -18,7 +18,7 @@ public class SmartLightningRealtimeGroundDTO {
     private final int onlineDevices;
     private final int offlineDevices;
     private final int alarmDeviceCount;
-    /** 最新快照中存在 groundResistance 键的设备数。 */
+    /** 最新快照中存在 GndGridRes 键的设备数。 */
     private final int reportingDeviceCount;
     private final Double maximumResistance;
     private final String maximumResistanceDeviceName;

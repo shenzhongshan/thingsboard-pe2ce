@@ -2,10 +2,11 @@
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { SmartLightningDeviceMapComponent } from './smart-lightning-device-map.component';
+import { SharedModule } from '@app/shared/shared.module';
 
 @NgModule({
   declarations: [SmartLightningDeviceMapComponent],
-  imports: [CommonModule],
+  imports: [CommonModule, SharedModule],
   exports: [SmartLightningDeviceMapComponent]
 })
 export class SmartLightningDeviceMapModule {}

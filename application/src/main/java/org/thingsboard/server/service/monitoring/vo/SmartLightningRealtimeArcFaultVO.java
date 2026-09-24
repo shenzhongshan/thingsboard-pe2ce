@@ -19,7 +19,7 @@ public class SmartLightningRealtimeArcFaultVO {
     private final int offlineDevices;
     private final int alarmDeviceCount;
     private final int normalStatusCount;
-    /** 最新快照中存在 deviceStatus 键的设备数。 */
+    /** 最新快照中存在 DevStatus 键的设备数。 */
     private final int statusDeviceCount;
     /** 各设备最新 arcFaultCount 累计值之和。 */
     private final long totalArcFaultCount;

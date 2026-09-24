@@ -20,7 +20,8 @@
       treeAriaLabel="报警资产范围"
       (searchChange)="assetSearch = $event"
       (selectNode)="selectAssetNode($event)"
-      (toggleNode)="toggleAssetNode($event)">
+      (toggleNode)="toggleAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()">
     </tb-smart-lightning-asset-tree>
   </aside>
 

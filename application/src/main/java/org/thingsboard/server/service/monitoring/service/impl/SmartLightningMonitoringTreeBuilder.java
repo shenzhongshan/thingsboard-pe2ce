@@ -49,6 +49,7 @@ public class SmartLightningMonitoringTreeBuilder {
      */
     public VisibleAssetTree build(Collection<VisibleEntity> visibleEntities,
                                   Collection<EntityRelation> relations) {
+        // 先只创建可见资产和设备节点，后续关系无法把不可见实体引入结果。
         Map<UUID, NodeDraft> nodesById = new HashMap<>();
         for (VisibleEntity entity : visibleEntities) {
             if (entity.id() != null && (entity.entityType() == EntityType.ASSET || entity.entityType() == EntityType.DEVICE)) {
@@ -67,10 +68,12 @@ public class SmartLightningMonitoringTreeBuilder {
         // 多父级关系并不适用于树；排序保证始终选择同一条可用关系。
         sortedRelations.sort(Comparator.comparing((EntityRelation relation) -> relation.getFrom().getId().toString())
                 .thenComparing(relation -> relation.getTo().getId().toString()));
+        // 按稳定顺序逐条关联父子节点，过滤非法类型、不可见节点和会形成环的关系。
         for (EntityRelation relation : sortedRelations) {
             addTreeRelation(relation, nodesById, parentIdsByChildId);
         }
 
+        // 只把没有父资产的资产作为根节点，并稳定排序每层子节点和根节点。
         List<NodeDraft> rootDrafts = new ArrayList<>();
         for (NodeDraft node : nodesById.values()) {
             node.children.sort(Comparator.comparing(child -> child.entity.name()));
@@ -80,6 +83,7 @@ public class SmartLightningMonitoringTreeBuilder {
         }
         rootDrafts.sort(Comparator.comparing(node -> node.entity.name()));
         List<VisibleAssetTree.Node> roots = new ArrayList<>();
+        // 将内部可变构建节点转换为对外不可变树节点。
         for (NodeDraft rootDraft : rootDrafts) {
             roots.add(toTreeNode(rootDraft, new HashSet<>()));
         }
@@ -95,6 +99,7 @@ public class SmartLightningMonitoringTreeBuilder {
                 && relation.getTo().getId() != null;
     }
 
+    /** 校验 Contains 关系两端及父子约束，通过后才写入树的父子索引。 */
     private void addTreeRelation(EntityRelation relation, Map<UUID, NodeDraft> nodesById,
                                  Map<UUID, UUID> parentIdsByChildId) {
         if (!CONTAINS_RELATION.equals(relation.getType()) || relation.getFrom() == null || relation.getTo() == null ||
@@ -115,6 +120,7 @@ public class SmartLightningMonitoringTreeBuilder {
         parentIdsByChildId.put(childId, parentId);
     }
 
+    /** 沿父节点链回溯，判断新增关系是否会让子节点成为自身祖先。 */
     private boolean wouldCreateCycle(UUID parentId, UUID childId, Map<UUID, UUID> parentIdsByChildId) {
         UUID ancestorId = parentId;
         while (ancestorId != null) {

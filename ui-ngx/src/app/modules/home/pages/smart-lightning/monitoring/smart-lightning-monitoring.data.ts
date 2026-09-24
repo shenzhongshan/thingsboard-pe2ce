@@ -1,8 +1,12 @@
 /** 文件职责：数据监测模块的 smart-lightning-monitoring.data，定义数据模型、接口结果映射与纯函数。 */
-import { AssetInfo } from '@shared/models/asset.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityRelation } from '@shared/models/relation.models';
+import {
+  formatSmartLightningRealtimeMetricValue,
+  getSmartLightningRealtimeMetricDefinitions,
+  resolveSmartLightningDeviceModel,
+  SmartLightningRealtimeMetricDefinition
+} from './smart-lightning-device-detail.data';
 
 export interface SmartLightningMonitoringAssetNode {
   id: string;
@@ -16,16 +20,27 @@ export interface SmartLightningMonitoringAssetTree {
   nodes: Map<string, SmartLightningMonitoringAssetNode>;
 }
 
-/**
- * 格式化实时分析数值。null/undefined 表示没有遥测，零必须作为真实值显示。
- */
+/** 格式化实时分析数值；null/undefined 表示没有遥测，数值小数位保持原样。 */
 export const formatSmartLightningRealtimeValue = (
   value: number | null | undefined,
-  unit = '',
-  precision = 2
-): string => value == null || !Number.isFinite(value) ? '--' : `${value.toFixed(precision)}${unit}`;
+  unit = ''
+): string => value == null || !Number.isFinite(value) ? '--' : `${value}${unit}`;
 
-/** 设备总览卡片仅使用当前用户可见设备与服务器属性 active，不伪造告警状态。 */
+/** 设备总览卡片仅使用当前用户可见设备与 active 最新遥测，不伪造告警状态。 */
+export interface SmartLightningMonitoringTelemetryValue {
+  ts: number;
+  value: string;
+}
+
+/** 卡片固定显示的实时遥测项；title 中保留测点键和上报时间便于悬浮查看。 */
+export interface SmartLightningMonitoringRealtimeMetric {
+  key: string;
+  label: string;
+  value: string;
+  title: string;
+  abnormal: boolean;
+}
+
 export interface SmartLightningMonitoringDeviceCard {
   id: string;
   name: string;
@@ -36,6 +51,7 @@ export interface SmartLightningMonitoringDeviceCard {
   productName: string;
   productType: string;
   lastActiveTime: string;
+  realtimeMetrics: SmartLightningMonitoringRealtimeMetric[];
 }
 
 /** 设备总览卡片的业务排序：报警优先，其次离线，最后正常。 */
@@ -45,7 +61,7 @@ const smartLightningDeviceStatusOrder: Record<SmartLightningMonitoringDeviceCard
   正常: 2
 };
 
-/** 当前设备卡片需要的服务器属性。functionCategory 是业务分类，不使用设备型号替代。 */
+/** 当前设备卡片需要的状态和业务属性。functionCategory 是业务分类，不使用设备型号替代。 */
 export interface SmartLightningMonitoringDeviceAttributes {
   active?: unknown;
   functionCategory?: unknown;
@@ -82,7 +98,128 @@ export const formatSmartLightningMonitoringLastActivityTime = (value: unknown): 
     `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
-/** 兼容服务器属性返回的布尔值、数字值和字符串值，并回退到设备实体的 active 字段。 */
+/**
+ * 设备卡片只挑选职责相关的少量测点；每种型号最多显示三项。
+ * 直接测点沿用详情页测点定义，复合项仅用于把同类状态合并为一个摘要。
+ */
+type SmartLightningCardMetricLayout =
+  | {kind: 'key'; key: string}
+  | {kind: 'maximum'; keys: readonly string[]; label: string}
+  | {kind: 'all-status'; keys: readonly string[]; label: string};
+
+const cardMetric = (key: string): SmartLightningCardMetricLayout => ({kind: 'key', key});
+const cardMaximum = (keys: readonly string[], label: string): SmartLightningCardMetricLayout =>
+  ({kind: 'maximum', keys, label});
+const cardCombinedStatus = (keys: readonly string[], label: string): SmartLightningCardMetricLayout =>
+  ({kind: 'all-status', keys, label});
+
+const SMART_LIGHTNING_CARD_METRICS: Readonly<Record<string, readonly SmartLightningCardMetricLayout[]>> = {
+  DES4: [cardMetric('RemoteSig'), cardMetric('McbStatus'), cardMetric('GndStatus')],
+  DES9: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流')],
+  DESA: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  DEM2: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2'], '脱扣状态'), cardMetric('LifeLeft')],
+  DEM4: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2', 'Trip3', 'Trip4'], '脱扣状态'), cardMetric('LifeLeft')],
+  DEA2: [cardMetric('GndStatus'), cardMetric('LeakCurrA'), cardMetric('LifeLeft')],
+  DEA4: [cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  ESM0: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMetric('StrikeCnt')],
+  ESM3: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  DEP4: [cardMetric('RemoteSig'), cardMetric('StrikeCnt'), cardMetric('Temp')],
+  G1A3: [cardMetric('GndGridRes')],
+  M1AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
+  L2AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
+  LDH1: [cardMetric('DevStatus')],
+  FAP1: [cardMetric('DevStatus')]
+};
+
+/** 将遥测记录转为卡片提示文本，同时保留原始键、原始值与时间戳。 */
+const getCardMetricTooltip = (
+  entries: Array<{definition: SmartLightningRealtimeMetricDefinition; sample?: SmartLightningMonitoringTelemetryValue}>
+): string => entries.map(({definition, sample}) =>
+  '测点：' + definition.key + '；原始值：' + (sample?.value ?? '--') +
+  '；时间：' + formatSmartLightningMonitoringLastActivityTime(sample?.ts)
+).join('\n');
+
+/** 按设备型号读取最多三项职责相关的实时指标，不改变 WebSocket 中的原始值。 */
+const buildSmartLightningCardRealtimeMetrics = (
+  deviceProfileName: string,
+  latestValues: ReadonlyMap<string, SmartLightningMonitoringTelemetryValue>
+): SmartLightningMonitoringRealtimeMetric[] => {
+  const model = resolveSmartLightningDeviceModel(deviceProfileName);
+  const layout = model ? SMART_LIGHTNING_CARD_METRICS[model] : undefined;
+  if (!layout?.length) {
+    return [];
+  }
+  const definitions = getSmartLightningRealtimeMetricDefinitions(deviceProfileName);
+  const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
+  const result: SmartLightningMonitoringRealtimeMetric[] = [];
+
+  layout.forEach((item) => {
+    if (item.kind === 'key') {
+      const definition = definitionByKey.get(item.key);
+      if (!definition) {
+        return;
+      }
+      const sample = latestValues.get(item.key);
+      const value = formatSmartLightningRealtimeMetricValue(definition, sample?.value);
+      result.push({
+        key: item.key,
+        label: definition.label,
+        value,
+        title: getCardMetricTooltip([{definition, sample}]),
+        abnormal: definition.valueType === 'status' && value === '异常'
+      });
+      return;
+    }
+
+    const entries = item.keys
+      .map((key) => ({definition: definitionByKey.get(key), sample: latestValues.get(key)}))
+      .filter((entry): entry is {definition: SmartLightningRealtimeMetricDefinition; sample: SmartLightningMonitoringTelemetryValue} =>
+        !!entry.definition && !!entry.sample);
+
+    if (item.kind === 'maximum') {
+      const maximum = entries
+        .filter((entry) => Number.isFinite(Number(entry.sample.value)))
+        .reduce<{definition: SmartLightningRealtimeMetricDefinition; sample: SmartLightningMonitoringTelemetryValue} | undefined>(
+          (current, entry) => !current || Number(entry.sample.value) > Number(current.sample.value) ? entry : current,
+          undefined
+        );
+      const displayEntry = maximum || entries[0];
+      const definition = displayEntry?.definition || definitionByKey.get(item.keys[0]);
+      if (!definition) {
+        return;
+      }
+      result.push({
+        key: displayEntry?.definition.key || definition.key,
+        label: item.label,
+        value: displayEntry ? formatSmartLightningRealtimeMetricValue(definition, displayEntry.sample.value) : '--',
+        title: getCardMetricTooltip(displayEntry ? [displayEntry] : [{definition}]),
+        abnormal: false
+      });
+      return;
+    }
+
+    const definitionsForGroup = item.keys
+      .map((key) => definitionByKey.get(key))
+      .filter((definition): definition is SmartLightningRealtimeMetricDefinition => !!definition);
+    const abnormal = entries.some((entry) =>
+      formatSmartLightningRealtimeMetricValue(entry.definition, entry.sample.value) === '异常');
+    const complete = entries.length === item.keys.length;
+    const value = abnormal ? '异常' : complete ? '正常' : entries.length ? '数据不全' : '--';
+    result.push({
+      key: item.keys.join(', '),
+      label: item.label,
+      value,
+      title: getCardMetricTooltip(entries.length
+        ? entries
+        : definitionsForGroup.map((definition) => ({definition}))),
+      abnormal
+    });
+  });
+
+  return result.slice(0, 3);
+};
+
+/** 兼容 active 遥测返回的布尔值、数字值和字符串值，并回退到设备实体状态。 */
 export const isSmartLightningDeviceActive = (value: unknown, fallbackValue?: unknown): boolean => {
   const candidate = value === undefined || value === null ? fallbackValue : value;
   if (candidate === true || candidate === 1) {
@@ -90,16 +227,6 @@ export const isSmartLightningDeviceActive = (value: unknown, fallbackValue?: unk
   }
   return typeof candidate === 'string' && ['true', '1'].includes(candidate.trim().toLowerCase());
 };
-
-/** 仅统计选中资产子树内设备产生的告警，避免把其他项目的告警混入当前节点。 */
-export interface SmartLightningMonitoringAlarmSummary {
-  active: number;
-  todayTotal: number;
-  unhandled: number;
-  assigned: number;
-  handled: number;
-}
-
 /** 与 AlarmInfo 对应的最小字段集，保持统计函数可脱离 Angular 服务单独测试。 */
 export interface SmartLightningMonitoringAlarmRecord {
   originator?: {id: string; entityType: EntityType | string};
@@ -201,58 +328,6 @@ export interface SmartLightningMonitoringTreeResponseNode {
   entityType: EntityType.ASSET | EntityType.DEVICE;
   children: SmartLightningMonitoringTreeResponseNode[];
 }
-
-/** 以防环方式构建资产分支及其设备叶子节点的层级树。 */
-export const buildSmartLightningMonitoringAssetTree = (
-  assets: AssetInfo[],
-  devices: DeviceInfo[],
-  relations: EntityRelation[]
-): SmartLightningMonitoringAssetTree => {
-  const nodes = new Map<string, SmartLightningMonitoringAssetNode>();
-  const childToParent = new Map<string, string>();
-  assets.forEach((asset) => {
-    if (asset.id?.id) {
-      nodes.set(asset.id.id, {id: asset.id.id, name: asset.name, entityType: EntityType.ASSET, childIds: []});
-    }
-  });
-  devices.forEach((device) => {
-    if (device.id?.id) {
-      nodes.set(device.id.id, {id: device.id.id, name: device.name, entityType: EntityType.DEVICE, childIds: []});
-    }
-  });
-
-  const wouldCreateCycle = (parentId: string, childId: string): boolean => {
-    let ancestorId: string | undefined = parentId;
-    while (ancestorId) {
-      if (ancestorId === childId) {
-        return true;
-      }
-      ancestorId = childToParent.get(ancestorId);
-    }
-    return false;
-  };
-
-  relations.forEach((relation) => {
-    const parentId = relation.from?.id;
-    const childId = relation.to?.id;
-    if (relation.type !== 'Contains' || relation.from?.entityType !== EntityType.ASSET ||
-      (relation.to?.entityType !== EntityType.ASSET && relation.to?.entityType !== EntityType.DEVICE) || !parentId || !childId || parentId === childId ||
-      !nodes.has(parentId) || !nodes.has(childId) || childToParent.has(childId) || wouldCreateCycle(parentId, childId)) {
-      return;
-    }
-    nodes.get(parentId)?.childIds.push(childId);
-    childToParent.set(childId, parentId);
-  });
-
-  nodes.forEach((node) => node.childIds.sort((left, right) =>
-    (nodes.get(left)?.name || '').localeCompare(nodes.get(right)?.name || '')
-  ));
-  const roots = [...nodes.values()]
-    .filter((node) => !childToParent.has(node.id))
-    .sort((left, right) => left.name.localeCompare(right.name));
-  return {roots, nodes};
-};
-
 /**
  * 将专用接口的嵌套响应转为组件使用的索引树。
  * 后端已完成权限过滤；前端仍保留环路保护，以免异常历史关系导致页面递归卡死。
@@ -362,7 +437,7 @@ export const getSmartLightningMonitoringRootAssetIds = (
 };
 
 /**
- * 由设备实体信息和 active 服务器属性生成节点设备卡片。
+ * 由设备实体信息和 active 最新遥测生成节点设备卡片。
  * selectedIds 由资产树递归计算得出，因此选中资产会自然包含其全部下属设备。
  */
 export const buildSmartLightningMonitoringDeviceCards = (
@@ -370,7 +445,8 @@ export const buildSmartLightningMonitoringDeviceCards = (
   selectedIds: Set<string>,
   attributesByDeviceId: Map<string, SmartLightningMonitoringDeviceAttributes>,
   activeAlarmDeviceIds: Set<string> = new Set(),
-  assetPathByDeviceId: ReadonlyMap<string, string> = new Map()
+  assetPathByDeviceId: ReadonlyMap<string, string> = new Map(),
+  telemetryByDeviceId: ReadonlyMap<string, ReadonlyMap<string, SmartLightningMonitoringTelemetryValue>> = new Map()
 ): SmartLightningMonitoringDeviceCard[] => devices
   .filter((device) => !!device.id?.id && selectedIds.has(device.id.id))
   .map((device) => {
@@ -395,38 +471,17 @@ export const buildSmartLightningMonitoringDeviceCards = (
         ? attributes.productName.trim()
         : '--',
       productType: deviceProfileName,
-      lastActiveTime: formatSmartLightningMonitoringLastActivityTime(attributes?.lastActivityTime)
+      lastActiveTime: formatSmartLightningMonitoringLastActivityTime(attributes?.lastActivityTime),
+      realtimeMetrics: buildSmartLightningCardRealtimeMetrics(
+        deviceProfileName,
+        telemetryByDeviceId.get(id) || new Map()
+      )
     };
   })
   .sort((left, right) => {
     const statusOrder = smartLightningDeviceStatusOrder[left.status] - smartLightningDeviceStatusOrder[right.status];
     return statusOrder || left.name.localeCompare(right.name);
   });
-
-/**
- * 通过 ThingsBoard 原生告警字段形成设备节点统计。
- * 未处理 = ACTIVE_UNACK；已派发 = 当前活动且已有 assignTs；已处理 = 当天已清除。
- */
-export const calculateSmartLightningMonitoringAlarmSummary = (
-  alarms: SmartLightningMonitoringAlarmRecord[],
-  selectedDeviceIds: Set<string>,
-  startOfToday: number
-): SmartLightningMonitoringAlarmSummary => {
-  const nodeAlarms = alarms.filter((alarm) =>
-    alarm.originator?.entityType === EntityType.DEVICE && selectedDeviceIds.has(alarm.originator.id)
-  );
-  const activeAlarms = nodeAlarms.filter((alarm) =>
-    alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK'
-  );
-  return {
-    active: activeAlarms.length,
-    todayTotal: nodeAlarms.filter((alarm) => alarm.startTs >= startOfToday).length,
-    unhandled: activeAlarms.filter((alarm) => alarm.status === 'ACTIVE_UNACK').length,
-    assigned: activeAlarms.filter((alarm) => alarm.assignTs > 0).length,
-    handled: nodeAlarms.filter((alarm) => alarm.cleared && alarm.clearTs >= startOfToday).length
-  };
-};
-
 /** 前端分页统一钳制页码，筛选后页数减少时不会落入空白页。 */
 export const getSmartLightningMonitoringPage = <T>(items: T[], requestedPage: number, pageSize: number) => {
   const safePageSize = Math.max(1, pageSize);

@@ -11,6 +11,7 @@ import { AttributeService } from '@core/http/attribute.service';
 import { AttributeData, AttributeScope, TimeseriesData } from '@shared/models/telemetry/telemetry.models';
 import { EntityId } from '@shared/models/id/entity-id';
 import { LogDevicePage, LogTimelinePage } from './log.models';
+import { LogTelemetryDeleteOptions } from './log-telemetry-delete.util';
 
 @Injectable({providedIn: 'root'})
 export class LogApiService {
@@ -32,12 +33,35 @@ export class LogApiService {
     return this.attributeService.getEntityAttributes(entityId, AttributeScope.SERVER_SCOPE);
   }
 
+  /**
+   * 更新设备的一项服务器属性。
+   *
+   * <p>日志页只开放属性值编辑，不允许通过此页面修改设备名称、设备配置等实体信息，
+   * 因此统一复用平台的属性保存接口，保持和原生属性页相同的权限校验与审计行为。</p>
+   */
+  updateServerAttribute(entityId: EntityId, attribute: AttributeData): Observable<any> {
+    return this.attributeService.saveEntityAttributes(entityId, AttributeScope.SERVER_SCOPE, [attribute]);
+  }
+
   /** 读取设备最新遥测快照，不在列表页预取，避免无关设备产生额外时序查询。 */
   getLatestTelemetry(entityId: EntityId): Observable<TimeseriesData> {
     return this.attributeService.getEntityTimeseriesLatest(entityId);
   }
 
-  /** 读取最近窗口内的审计和告警事件，遥测逐条更新不在此时间线中。 */
+  /** 删除单个遥测键的历史数据，复用平台原生删除端点及其 WRITE_TELEMETRY 权限校验。 */
+  deleteTelemetryKey(entityId: EntityId, key: string, options: LogTelemetryDeleteOptions): Observable<any> {
+    return this.attributeService.deleteEntityTimeseries(
+      entityId,
+      [{key, value: null}],
+      options.deleteAllDataForKeys,
+      options.startTs,
+      options.endTs,
+      options.rewriteLatestIfDeleted,
+      options.deleteLatest
+    );
+  }
+
+  /** 读取最近窗口内的审计、告警和设备状态事件，普通遥测逐条更新不在此时间线中。 */
   getRecentTimeline(deviceId: string, days = 30): Observable<LogTimelinePage> {
     return this.http.get<LogTimelinePage>(`/api/device-log/devices/${deviceId}/timeline/recent`, {
       params: {days, pageSize: 50}

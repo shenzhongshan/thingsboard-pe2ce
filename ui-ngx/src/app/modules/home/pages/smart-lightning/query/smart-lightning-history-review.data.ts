@@ -61,6 +61,10 @@ export const getSmartLightningTelemetryParameterUnit = (deviceProfileName: strin
 export const filterSmartLightningTelemetryParameters = (deviceProfileName: string, keys: string[]): string[] => {
   const definitions = getSmartLightningRealtimeMetricDefinitions(deviceProfileName);
   return keys.filter((key) => {
+    // 在线状态和活跃时间不是历史指标，不放入设备数据查询参数列表。
+    if (['active', 'inactivityAlarmTime', 'lastActivityTime'].includes(key)) {
+      return false;
+    }
     const definition = definitions.find((item) => item.key === key);
     return definition?.valueType !== 'status' && !/(status|state)$/i.test(key);
   });

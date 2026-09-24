@@ -92,6 +92,73 @@ public interface AlarmStatisticsRepository extends Repository<AlarmInfoEntity, U
             @Param("tenantId") UUID tenantId,
             @Param("deviceIds") Collection<UUID> deviceIds);
 
+    /**
+     * 一次聚合返回告警分析页的六个自然周期计数。
+     *
+     * <p>查询按 alarm_info.start_ts（告警触发时间）过滤，避免使用告警入库时间
+     * created_time 造成跨周期统计偏差。六个 CASE 聚合由数据库完成，应用层不再
+     * 为汇总数字读取和遍历告警明细。</p>
+     */
+    @Query(value = "SELECT "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :dayStart AND a.start_ts < :now "
+            + "THEN 1 ELSE 0 END), 0) AS \"dayCurrentCount\", "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :previousDayStart AND a.start_ts < :dayStart "
+            + "THEN 1 ELSE 0 END), 0) AS \"dayPreviousCount\", "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :monthStart AND a.start_ts < :now "
+            + "THEN 1 ELSE 0 END), 0) AS \"monthCurrentCount\", "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :previousMonthStart AND a.start_ts < :monthStart "
+            + "THEN 1 ELSE 0 END), 0) AS \"monthPreviousCount\", "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :yearStart AND a.start_ts < :now "
+            + "THEN 1 ELSE 0 END), 0) AS \"yearCurrentCount\", "
+            + "COALESCE(SUM(CASE WHEN a.start_ts >= :previousYearStart AND a.start_ts < :yearStart "
+            + "THEN 1 ELSE 0 END), 0) AS \"yearPreviousCount\" "
+            + "FROM alarm_info a "
+            + "WHERE a.tenant_id = :tenantId "
+            + "AND a.originator_type = 5 "
+            + "AND a.originator_id IN (:deviceIds) "
+            + "AND a.start_ts >= :previousYearStart "
+            + "AND a.start_ts < :now",
+            nativeQuery = true)
+    AlarmPeriodCountProjection countPeriodSummary(
+            @Param("tenantId") UUID tenantId,
+            @Param("deviceIds") Collection<UUID> deviceIds,
+            @Param("dayStart") Long dayStart,
+            @Param("previousDayStart") Long previousDayStart,
+            @Param("monthStart") Long monthStart,
+            @Param("previousMonthStart") Long previousMonthStart,
+            @Param("yearStart") Long yearStart,
+            @Param("previousYearStart") Long previousYearStart,
+            @Param("now") Long now);
+
+    /**
+     * 按告警触发时间分桶统计趋势数量。
+     *
+     * <p>bucketUnit 只允许 hour、day、month 三个内部常量，分别对应日趋势的小时、
+     * 月趋势的日期和年趋势的月份。timezone 函数保证分桶使用应用传入的系统时区。</p>
+     */
+    @Query(value = "SELECT CAST(CASE "
+            + "WHEN :bucketUnit = 'hour' THEN EXTRACT(HOUR FROM timezone(:zoneId, to_timestamp(a.start_ts / 1000.0))) "
+            + "WHEN :bucketUnit = 'day' THEN EXTRACT(DAY FROM timezone(:zoneId, to_timestamp(a.start_ts / 1000.0))) - 1 "
+            + "ELSE EXTRACT(MONTH FROM timezone(:zoneId, to_timestamp(a.start_ts / 1000.0))) - 1 "
+            + "END AS INTEGER) AS \"bucketIndex\", "
+            + "COUNT(*) AS \"alarmCount\" "
+            + "FROM alarm_info a "
+            + "WHERE a.tenant_id = :tenantId "
+            + "AND a.originator_type = 5 "
+            + "AND a.originator_id IN (:deviceIds) "
+            + "AND a.start_ts >= :startTs "
+            + "AND a.start_ts < :endTs "
+            + "GROUP BY 1 "
+            + "ORDER BY 1",
+            nativeQuery = true)
+    List<AlarmTrendBucketProjection> countTrendBuckets(
+            @Param("tenantId") UUID tenantId,
+            @Param("deviceIds") Collection<UUID> deviceIds,
+            @Param("startTs") Long startTs,
+            @Param("endTs") Long endTs,
+            @Param("bucketUnit") String bucketUnit,
+            @Param("zoneId") String zoneId);
+
     /** 返回指定周期内的状态分布、告警设备数和未清除告警设备数。 */
     @Query(value = "SELECT "
             + "COALESCE(SUM(CASE WHEN a.status = 'ACTIVE_UNACK' THEN 1 ELSE 0 END), 0) AS \"activeUnackCount\", "

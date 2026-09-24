@@ -456,7 +456,8 @@ h2, p { margin: 0; }
   font-size: 12px;
   font-weight: 500;
   line-height: 1.1;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* SPD 周期统计保留在原指标区域内，不新增外层卡片。 */

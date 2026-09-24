@@ -5,9 +5,13 @@
  * 右侧抽屉后按需加载，避免页面初始化时为所有设备发起时序请求。</p>
  */
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { Store } from '@ngrx/store';
 import { Subject, takeUntil } from 'rxjs';
+import { AppState } from '@core/core.state';
+import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { LogApiService } from './log-api.service';
 import { LogDevice } from './log.models';
+import { copyTextToClipboard } from './log-clipboard.util';
 
 @Component({
   selector: 'tb-device-log',
@@ -30,7 +34,9 @@ export class LogComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
 
-  constructor(private readonly logApi: LogApiService, private readonly cd: ChangeDetectorRef) {}
+  constructor(private readonly logApi: LogApiService,
+              private readonly cd: ChangeDetectorRef,
+              private readonly store: Store<AppState>) {}
 
   ngOnInit(): void {
     this.loadDevices();
@@ -79,6 +85,19 @@ export class LogComponent implements OnInit, OnDestroy {
   openDevice(device: LogDevice): void {
     this.selectedDevice = device;
     this.cd.markForCheck();
+  }
+
+  /** 复制设备 ID，保持与原生设备详情页相同的复制目标和交互语义。 */
+  copyDeviceId(device: LogDevice): void {
+    copyTextToClipboard(device.deviceId).then((copied) => {
+      this.store.dispatch(new ActionNotificationShow({
+        message: copied ? '设备 ID 已复制' : '设备 ID 复制失败',
+        type: copied ? 'success' : 'error',
+        duration: 1200,
+        verticalPosition: 'bottom',
+        horizontalPosition: 'right'
+      }));
+    });
   }
 
   closeDrawer(): void {

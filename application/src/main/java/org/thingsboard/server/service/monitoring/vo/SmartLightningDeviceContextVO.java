@@ -29,7 +29,7 @@ public class SmartLightningDeviceContextVO {
     private final String functionCategory;
     /** 传输协议类型，来自 device_data.transportConfiguration.type（如 DEFAULT、MQTT）。 */
     private final String deviceProtocol;
-    /** 在线状态：优先取 SERVER_SCOPE 的 active（true/1），无该属性时回退设备实体的 active。 */
+    /** 在线状态：取最新 active 遥测（true/1）；缺少该遥测时按离线处理。 */
     private final Boolean active;
     /** 最近活跃时间（毫秒时间戳）服务器属性；无有效值时为 null。 */
     private final Long lastActivityTime;

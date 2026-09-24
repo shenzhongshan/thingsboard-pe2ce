@@ -28,11 +28,12 @@
     <section class="detail-grid">
       <article class="surface device-summary">
         <div class="summary-top"><div class="device-mark" aria-label="设备图片占位"><tb-icon>electric_meter</tb-icon></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
+        <!-- 设备名称和仪表地址置于产品参数上方，作为详情页首要识别信息。 -->
+        <dl class="device-fields"><div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div><div><dt>仪表地址</dt><dd [title]="instrumentAddress">{{instrumentAddress}}</dd></div></dl>
         @if (productSpecification; as specification) {
           <section class="product-specification" aria-label="产品参数">
             <header>
               <h2>产品参数</h2>
-              <span [title]="specification.model">{{specification.model}}</span>
             </header>
             <dl>
               <div>
@@ -48,8 +49,6 @@
             </dl>
           </section>
         }
-        <!-- 原有摘要字段只保留设备名称和仪表地址；其余状态/控制字段由实时指标区承载。 -->
-        <dl class="device-fields"><div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div><div><dt>仪表地址</dt><dd [title]="instrumentAddress">{{instrumentAddress}}</dd></div></dl>
       </article>
       @if (!showAllChartsDialog) {
         <section class="chart-grid" aria-label="设备趋势图">
@@ -64,14 +63,22 @@
             <div class="chart-state">当前设备暂无可绘制的数值遥测</div>
           } @else {
             @for (chart of chartDefinitions; track chart.id) {
-              <article class="surface chart-card">
+              <article #chartCard class="surface chart-card" [class.chart-card-fullscreen]="fullscreenChartCard === chartCard" [attr.data-chart-card]="chart.id">
                 <header>
                   <h2>{{chart.title}}</h2>
-                  <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
-                    <button *ngFor="let period of chartPeriodOptions" type="button"
-                            [class.active]="selectedChartPeriods[chart.id] === period.value"
-                            [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
-                            (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                  <div class="chart-header-actions">
+                    <button type="button" class="chart-fullscreen-button"
+                            [attr.aria-label]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                            [attr.title]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                            (click)="toggleChartFullscreen(chartCard)">
+                      <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
+                    </button>
+                    <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                      <button *ngFor="let period of chartPeriodOptions" type="button"
+                              [class.active]="selectedChartPeriods[chart.id] === period.value"
+                              [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                              (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                    </div>
                   </div>
                 </header>
                 <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
@@ -89,14 +96,22 @@
             </header>
             <div class="chart-dialog-grid">
               @for (chart of allChartDefinitions; track chart.id) {
-                <article class="surface chart-card">
+                <article #chartCard class="surface chart-card" [class.chart-card-fullscreen]="fullscreenChartCard === chartCard" [attr.data-chart-card]="chart.id">
                   <header>
                     <h2>{{chart.title}}</h2>
-                    <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
-                      <button *ngFor="let period of chartPeriodOptions" type="button"
-                              [class.active]="selectedChartPeriods[chart.id] === period.value"
-                              [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
-                              (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                    <div class="chart-header-actions">
+                      <button type="button" class="chart-fullscreen-button"
+                              [attr.aria-label]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              [attr.title]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              (click)="toggleChartFullscreen(chartCard)">
+                        <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
+                      </button>
+                      <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                        <button *ngFor="let period of chartPeriodOptions" type="button"
+                                [class.active]="selectedChartPeriods[chart.id] === period.value"
+                                [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                                (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                      </div>
                     </div>
                   </header>
                   <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
@@ -107,10 +122,10 @@
         </div>
       }
       <article class="surface realtime-panel">
-        <header><h2>实时数据</h2><time>2026-09-02 10:30:00</time></header>
+        <header><h2>实时数据</h2><time>{{realtimeUpdatedAt}}</time></header>
         <div class="metric-grid">
-          <div class="metric" *ngFor="let metric of detail.metrics">
-            <span>{{metric.label}}</span><strong [class.ok]="metric.value === '正常'">{{metric.value}}</strong>
+          <div class="metric" *ngFor="let metric of detail.metrics" [class.abnormal]="metric.value === '异常'">
+            <span>{{metric.label}}</span><strong [class.ok]="metric.value === '正常'" [class.abnormal]="metric.value === '异常'">{{metric.value}}</strong>
           </div>
         </div>
       </article>

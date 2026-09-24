@@ -48,14 +48,15 @@ public class DeviceAlarmSummaryServiceImpl implements DeviceAlarmSummaryService 
         }
         List<AlarmDimensionCountBO> rows = alarmStatisticsService.countByType(
                 user, visibleDeviceIds, null, null, true);
+        // 保留 long 总数累加精度；每种类型和总数在 DTO 边界转换为 int。
         List<DeviceAlarmTypeTotalDTO> typeTotals = new ArrayList<>();
-        int activeCount = 0;
+        long activeCount = 0L;
         for (AlarmDimensionCountBO row : rows) {
             int count = CountValueSupport.toIntCount(row.getCount());
-            activeCount += count;
+            activeCount += row.getCount();
             typeTotals.add(new DeviceAlarmTypeTotalDTO(row.getDimension(), count));
         }
-        return new DeviceAlarmSummaryDTO(activeCount, typeTotals);
+        return new DeviceAlarmSummaryDTO(CountValueSupport.toIntCount(activeCount), typeTotals);
     }
 
 }

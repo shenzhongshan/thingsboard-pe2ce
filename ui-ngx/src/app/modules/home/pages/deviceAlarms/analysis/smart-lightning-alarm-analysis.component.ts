@@ -439,12 +439,12 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
     };
   }
 
-  /** 环比百分比展示文本：正数带 + 号，非法值显示 --。 */
+  /** 环比百分比展示文本：正数带 + 号，保留接口返回的小数位，非法值显示 --。 */
   private formatChangePercent(value: number): string {
     if (!Number.isFinite(value)) {
       return '--';
     }
-    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+    return `${value > 0 ? '+' : ''}${value}%`;
   }
 
   /** 初始化两张 ECharts 实例并注册容器尺寸监听。 */

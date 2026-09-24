@@ -1,12 +1,12 @@
 /**
  * Copyright © 2016-2026 The Thingsboard Authors
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,7 @@ import java.util.List;
  *
  * <p>设备数和在线状态是当前快照；告警数仅统计请求的日、周或月窗口内，
  * 且以告警创建（触发）时间为准；告警类型列表按数量降序返回。阻值使用同一
- * 日/周/月窗口内全部有效的 groundResistance 遥测，汇总最大值、最小值及其来源。</p>
+ * 日/周/月窗口内全部有效的 GndGridRes 遥测，汇总最大值、最小值及其来源。</p>
  */
 @Getter
 @RequiredArgsConstructor

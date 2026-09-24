@@ -127,11 +127,11 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 订阅所有可见设备的 SERVER_SCOPE.active 属性变化。
+   * 订阅所有可见设备的 active 最新遥测变化。
    * ENTITY_DATA 订阅只用来触发重新聚合，具体正常/异常数量仍由后端统一计算。
    */
   private subscribeToActiveStatusChanges(): void {
-    const activeKey = {key: 'active', type: EntityKeyType.SERVER_ATTRIBUTE};
+    const activeKey = {key: 'active', type: EntityKeyType.TIME_SERIES};
     const command = new EntityDataCmd();
     command.query = {
       entityFilter: {type: AliasFilterType.entityType, entityType: EntityType.DEVICE},

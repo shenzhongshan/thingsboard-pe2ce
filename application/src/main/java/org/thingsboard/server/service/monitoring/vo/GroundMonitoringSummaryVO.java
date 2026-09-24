@@ -25,7 +25,7 @@ import java.util.List;
  *
  * <p>设备数和在线状态是当前快照；告警数仅统计请求的日、周或月窗口内，
  * 且以告警创建（触发）时间为准；告警类型列表按数量降序返回。阻值使用同一
- * 日/周/月窗口内全部有效的 groundResistance 遥测，汇总最大值、最小值及其来源。</p>
+ * 日/周/月窗口内全部有效的 GndGridRes 遥测，汇总最大值、最小值及其来源。</p>
  */
 @Getter
 @RequiredArgsConstructor

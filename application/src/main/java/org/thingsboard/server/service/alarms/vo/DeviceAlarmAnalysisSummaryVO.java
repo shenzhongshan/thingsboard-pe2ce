@@ -25,13 +25,6 @@ public class DeviceAlarmAnalysisSummaryVO {
     /** 当前仍未清除且严重等级为 CRITICAL 的重点设备。 */
     private final List<DeviceAlarmFocusDeviceVO> focusDevices;
 
-    /** 兼容原有三周期调用方；未提供趋势时返回空列表。 */
-    public DeviceAlarmAnalysisSummaryVO(DeviceAlarmPeriodSummaryVO day,
-                                                 DeviceAlarmPeriodSummaryVO month,
-                                                 DeviceAlarmPeriodSummaryVO year) {
-        this(day, month, year, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-    }
-
     /** 组装周期卡片与日/月/年趋势数据。 */
     public DeviceAlarmAnalysisSummaryVO(DeviceAlarmPeriodSummaryVO day,
                                                  DeviceAlarmPeriodSummaryVO month,
@@ -47,5 +40,15 @@ public class DeviceAlarmAnalysisSummaryVO {
         this.monthTrend = monthTrend;
         this.yearTrend = yearTrend;
         this.focusDevices = focusDevices;
+    }
+    /**
+     * 兼容只需要日、月、年三张统计卡片的旧调用方。
+     * 趋势和重点设备没有参与旧接口契约时统一返回空列表，避免删除兼容构造器后旧调用失败。
+     */
+    public DeviceAlarmAnalysisSummaryVO(DeviceAlarmPeriodSummaryVO day,
+                                        DeviceAlarmPeriodSummaryVO month,
+                                        DeviceAlarmPeriodSummaryVO year) {
+        this(day, month, year, Collections.emptyList(), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList());
     }
 }

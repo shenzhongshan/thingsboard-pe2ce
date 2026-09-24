@@ -1,17 +1,13 @@
 /** 文件职责：看板模块的 smart-lightning-summary.data，定义数据模型、接口结果映射与纯函数。 */
-/**
- * 格式化可为空的摘要指标；没有有效遥测时显示占位符，而不是误显示为 0。
- * fractionDigits 只控制页面直接显示的精度，默认仍为两位，避免影响现有悬浮详情和其他监测模块。
- */
+/** 格式化可为空的摘要指标；保留接口返回的原始数值，不在前端截断小数位。 */
 export const formatSmartLightningMetric = (
   value: number | null | undefined,
-  unit: string,
-  fractionDigits = 2
+  unit: string
 ): string => {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '--';
   }
-  return `${value.toFixed(fractionDigits)} ${unit}`;
+  return `${value} ${unit}`;
 };
 
 const padTimePart = (value: number): string => String(value).padStart(2, '0');
@@ -30,18 +26,19 @@ export const formatSmartLightningTimestamp = (timestamp: number | null | undefin
 };
 
 /**
- * 按参数键最后一个字符转换相位名称。
- * 例如 leakageA、leakageB、leakageC 分别显示为 A相、B相、C相。
- * 键名不带有效相位后缀时使用后端兼容值，避免旧数据详情变为空。
+ * 按规范测点键解析悬浮信息中的相位。
+ * 电压键 PhAVolt、PhBVolt、PhCVolt 从第三个字符读取相位；
+ * 漏流键 LeakCurrA、LeakCurrB、LeakCurrC 则从末尾读取相位。
  */
 export const getSmartLightningPhaseLabel = (
   parameterKey: string | null | undefined,
   fallback: string | null | undefined = null
 ): string => {
   const normalizedKey = String(parameterKey || '').trim();
-  const suffix = normalizedKey.slice(-1).toUpperCase();
-  if (suffix === 'A' || suffix === 'B' || suffix === 'C') {
-    return `${suffix}相`;
+  const phaseMatch = normalizedKey.match(/^(?:Ph([ABC])Volt|LeakCurr([ABC]))$/i);
+  const phase = phaseMatch?.[1] || phaseMatch?.[2];
+  if (phase) {
+    return phase.toUpperCase() + '相';
   }
   return fallback || '--';
 };
@@ -58,7 +55,7 @@ export const buildSmartLightningMaximumTooltip = (
 ): string => {
   const formattedValue = value === null || value === undefined || !Number.isFinite(value)
     ? '--'
-    : `${value.toFixed(2)}${unit}`;
+    : `${value}${unit}`;
   return [
     `${label}：${formattedValue}`,
     `所属设备：${deviceName || '--'}`,
@@ -81,7 +78,7 @@ export const buildSmartLightningExtremaTooltip = (
 ): string => {
   const formattedValue = value === null || value === undefined || !Number.isFinite(value)
     ? '--'
-    : `${value.toFixed(2)}${unit}`;
+    : `${value}${unit}`;
   const phase = getSmartLightningPhaseLabel(parameter);
   const parameterLine = phase === '--'
     ? `参数：${parameter || '--'}`

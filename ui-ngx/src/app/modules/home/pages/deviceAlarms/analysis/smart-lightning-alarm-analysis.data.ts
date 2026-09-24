@@ -111,14 +111,12 @@ export function mapAlarmAnalysisSiteRows(items: readonly AlarmAnalysisLeafAssetC
       || right.count - left.count
       || left.name.localeCompare(right.name, 'zh-CN'));
 }
-
+/** 把后端告警类型统计转换为排行榜输入；数量排序交给统一条形图构建函数。 */
 /** 取周期对应的中文标签，未匹配时回退为“日”。 */
 export function getAlarmAnalysisPeriodLabel(period: AlarmAnalysisPeriod): string {
   const item = ALERT_ANALYSIS_PERIODS.find((candidate) => candidate.key === period);
   return item?.label || '日';
 }
-
-/** 把后端告警类型统计转换为排行榜输入；数量排序交给统一条形图构建函数。 */
 export function mapAlarmAnalysisTypeRows(items: readonly AlarmAnalysisTypeTotal[]): AlarmAnalysisBarInput[] {
   return items.map((item) => ({
     name: item.type?.trim() || '未分类',
