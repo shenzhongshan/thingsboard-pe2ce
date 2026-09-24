@@ -43,7 +43,11 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
   selfRegistrationForm: UntypedFormGroup;
   captchaVersions = Object.values(CaptchaVersion);
   CaptchaVersion = CaptchaVersion;
+  EntityType = EntityType;
   domains: DomainInfo[] = [];
+
+  /** Last loaded params, kept so buildParams() can preserve fields this page does not expose. */
+  private loadedParams: WebSelfRegistrationParams = {} as WebSelfRegistrationParams;
 
   tinyMceOptions: Partial<EditorOptions> = {
     base_url: '/assets/tinymce',
@@ -79,9 +83,11 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
       captchaLogActionName: [''],
       captchaSiteKey: ['', [Validators.required]],
       captchaSecretKey: ['', [Validators.required]],
+      notificationRecipient: [null, [Validators.required]],
       title: ['', [Validators.maxLength(200)]],
       defaultDashboardId: [null],
       defaultDashboardFullscreen: [false],
+      permissions: [[]],
       showPrivacyPolicy: [false],
       privacyPolicy: [''],
       showTermsOfUse: [false],
@@ -100,15 +106,18 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   private setParams(params: WebSelfRegistrationParams) {
     params = params || {} as WebSelfRegistrationParams;
+    this.loadedParams = params;
     this.selfRegistrationForm.reset({
       domainId: params.domainId?.id || null,
       captchaVersion: params.captcha?.version || CaptchaVersion.V2,
       captchaLogActionName: params.captcha?.logActionName || '',
       captchaSiteKey: params.captcha?.siteKey || '',
       captchaSecretKey: params.captcha?.secretKey || '',
+      notificationRecipient: params.notificationRecipient?.id || null,
       title: params.title || '',
       defaultDashboardId: params.defaultDashboard?.id || null,
       defaultDashboardFullscreen: params.defaultDashboard?.fullscreen === true,
+      permissions: params.permissions || [],
       showPrivacyPolicy: params.showPrivacyPolicy === true,
       privacyPolicy: params.privacyPolicy || '',
       showTermsOfUse: params.showTermsOfUse === true,
@@ -118,7 +127,12 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   private buildParams(): WebSelfRegistrationParams {
     const v = this.selfRegistrationForm.value;
+    // Spread what was loaded first: this page deliberately exposes only the fields PE's tenant
+    // self-registration page has, but the backend model also carries customerGroupId,
+    // customMenuId, customerTitlePrefix, homeDashboard and a configurable signUpFields list.
+    // Rebuilding from scratch would silently wipe any of those set through the REST API.
     const params: WebSelfRegistrationParams = {
+      ...this.loadedParams,
       type: 'WEB',
       enabled: true,
       domainId: v.domainId ? { entityType: EntityType.DOMAIN, id: v.domainId } as any : null,
@@ -129,11 +143,14 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
         secretKey: v.captchaSecretKey,
         logActionName: v.captchaVersion === CaptchaVersion.V3 ? v.captchaLogActionName : null
       },
+      notificationRecipient: v.notificationRecipient
+        ? { entityType: EntityType.NOTIFICATION_TARGET, id: v.notificationRecipient } as any : null,
+      permissions: v.permissions || [],
       showPrivacyPolicy: v.showPrivacyPolicy,
       privacyPolicy: v.privacyPolicy,
       showTermsOfUse: v.showTermsOfUse,
       termsOfUse: v.termsOfUse,
-      signUpFields: [
+      signUpFields: this.loadedParams?.signUpFields?.length ? this.loadedParams.signUpFields : [
         { id: SignUpFieldId.EMAIL, required: true },
         { id: SignUpFieldId.FIRST_NAME, required: true },
         { id: SignUpFieldId.LAST_NAME, required: true },
@@ -145,6 +162,8 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
         id: v.defaultDashboardId,
         fullscreen: v.defaultDashboardFullscreen === true
       };
+    } else {
+      delete params.defaultDashboard;
     }
     return params;
   }

@@ -198,6 +198,9 @@ export class EntityService {
       case EntityType.AI_MODEL:
         observable = this.aiModelService.getAiModelById(entityId, config);
         break;
+      case EntityType.NOTIFICATION_TARGET:
+        observable = this.notificationService.getNotificationTargetById(entityId, config);
+        break;
       case EntityType.DEVICE_PROFILE:
         observable = this.deviceProfileService.getDeviceProfile(entityId, config);
         break;

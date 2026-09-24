@@ -5,9 +5,11 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.io.Serializable;
 import java.util.List;
-import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.NotificationTargetId;
 import org.thingsboard.server.common.data.oauth2.PlatformType;
+import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.selfregistration.CaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.DefaultDashboardParams;
 import org.thingsboard.server.common.data.selfregistration.HomeDashboardParams;
@@ -44,9 +46,11 @@ extends Serializable {
 
     public HomeDashboardParams getHomeDashboard();
 
-    // CE adaptation: PE assigned new self-registered users to an EntityGroup; CE has flat
-    // customers, so we reference the target CustomerId directly instead.
-    public CustomerId getCustomerId();
+    public List<GroupPermission> getPermissions();
+
+    public EntityGroupId getCustomerGroupId();
+
+    public CustomMenuId getCustomMenuId();
 
     public SignUpSelfRegistrationParams toSignUpSelfRegistrationParams(PlatformType var1);
 }

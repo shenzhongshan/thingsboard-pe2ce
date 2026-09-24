@@ -47,6 +47,7 @@ import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.util.ImageUtils;
 import org.thingsboard.server.dao.widget.WidgetTypeService;
 import org.thingsboard.server.dao.widget.WidgetsBundleService;
+import org.thingsboard.server.dao.wl.WhiteLabelingService;
 import org.thingsboard.server.service.install.update.ResourcesUpdater;
 
 import java.io.IOException;
@@ -84,6 +85,8 @@ public class InstallScripts {
     public static final String WIDGET_BUNDLES_DIR = "widget_bundles";
     public static final String SCADA_SYMBOLS_DIR = "scada_symbols";
     public static final String OAUTH2_CONFIG_TEMPLATES_DIR = "oauth2_config_templates";
+    public static final String MAIL_TEMPLATES_DIR = "mail_templates";
+    public static final String MAIL_TEMPLATES_JSON = "mail_templates.json";
     public static final String DASHBOARDS_DIR = "dashboards";
     public static final String MODELS_LWM2M_DIR = "lwm2m-registry";
     public static final String RESOURCES_DIR = "resources";
@@ -118,6 +121,9 @@ public class InstallScripts {
 
     @Autowired
     private ImageService imageService;
+
+    @Autowired
+    private WhiteLabelingService whiteLabelingService;
 
     Path getTenantRuleChainsDir() {
         return Paths.get(getDataDir(), JSON_DIR, TENANT_DIR, RULE_CHAINS_DIR);
@@ -475,6 +481,22 @@ public class InstallScripts {
                         }
                     }
             );
+        }
+    }
+
+    /**
+     * Seeds the system-level MAIL_TEMPLATES white labeling from the shipped defaults, so that the
+     * "White labeling -> Mail templates" editor has content and {@code DefaultMailService} resolves
+     * real templates instead of falling back to the bundled .ftl files.
+     */
+    public void loadMailTemplates() {
+        Path mailTemplatesFile = Paths.get(getDataDir(), JSON_DIR, SYSTEM_DIR, MAIL_TEMPLATES_DIR, MAIL_TEMPLATES_JSON);
+        try {
+            JsonNode mailTemplates = JacksonUtil.toJsonNode(mailTemplatesFile.toFile());
+            whiteLabelingService.saveMailTemplates(TenantId.SYS_TENANT_ID, mailTemplates);
+        } catch (Exception e) {
+            log.error("Unable to load mail templates from json: [{}]", mailTemplatesFile);
+            throw new RuntimeException("Unable to load mail templates from json", e);
         }
     }
 

@@ -4,9 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.Data;
-import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.NotificationTargetId;
 import org.thingsboard.server.common.data.oauth2.PlatformType;
+import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.selfregistration.CaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.DefaultDashboardParams;
 import org.thingsboard.server.common.data.selfregistration.HomeDashboardParams;
@@ -35,10 +37,13 @@ implements SelfRegistrationParams {
     protected NotificationTargetId notificationRecipient;
     @Schema(description="Prefix to add to created customer")
     protected String customerTitlePrefix;
-    // CE adaptation: PE used EntityGroupId customerGroupId (group membership). CE is flat,
-    // so the new self-registered user is added directly to this customer.
-    @Schema(description="Id of the customer the new user will be added to.")
-    protected CustomerId customerId;
+    @Schema(description="Id of the customer group the created customer will be added to.")
+    protected EntityGroupId customerGroupId;
+    @Schema(description="Group permissions to assign to the self-registered user's group.")
+    @NotNull
+    protected List<GroupPermission> permissions;
+    @Schema(description="Custom menu id to assign to the created customer.")
+    protected CustomMenuId customMenuId;
     @Schema(description="Default dashboard params")
     protected DefaultDashboardParams defaultDashboard;
     @Schema(description="Home dashboard params")
@@ -50,6 +55,7 @@ implements SelfRegistrationParams {
 
     @Override
     public SignUpSelfRegistrationParams toSignUpSelfRegistrationParams(PlatformType platformType) {
-        return this.enabled != null && this.enabled ? new SignUpSelfRegistrationParams(this.title, this.captcha.toInfo(platformType), this.signUpFields, this.showPrivacyPolicy, this.showTermsOfUse) : null;
+        // PE semantics: a null 'enabled' counts as enabled, matching validateSelfRegistrationAllowed.
+        return this.enabled != Boolean.FALSE ? new SignUpSelfRegistrationParams(this.title, this.captcha.toInfo(platformType), this.signUpFields, this.showPrivacyPolicy, this.showTermsOfUse) : null;
     }
 }

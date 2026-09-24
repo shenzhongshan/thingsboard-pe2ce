@@ -1052,7 +1052,19 @@
         "mail-template-apiUsageStateWarning": "API usage warning",
         "mail-template-apiUsageStateDisabled": "API usage disabled"
     },
+    "group-permission": {
+        "user-group-roles": "User group roles",
+        "role-name": "Role name",
+        "role-type": "Role type",
+        "group-type": "Group type",
+        "group-name": "Group name",
+        "add-group-permission": "Add group permission",
+        "delete-group-permission": "Delete group permission",
+        "no-group-permissions-text": "No group permissions found"
+    },
     "self-registration": {
+        "notification-recipient": "Notification recipient",
+        "notification-recipient-required": "Notification recipient is required.",
         "self-registration": "Self registration",
         "domain-settings": "Domain settings",
         "domain": "Domain",
@@ -1078,6 +1090,12 @@
         "reset-to-default": "Reset to default"
     },
     "signup": {
+        "repeat-password": "Repeat your password",
+        "resend": "Resend",
+        "email-verification": "Email verification",
+        "email-verification-message": "An email with verification details was sent to the specified email address.<br>Please follow instructions provided in the email in order to complete your sign up procedure.<br>Note: if you haven't seen the email for a while, please check your 'spam' folder or try to resend email by clicking 'Resend' button.",
+        "inactive-user-exists-title": "Inactive user already exists",
+        "inactive-user-exists-text": "There is already registered user with unverified email address.<br>Click 'Resend' button if you wish to resend verification email.",
         "sign-up": "Sign up",
         "field-email": "Email",
         "field-first-name": "First name",
@@ -2158,6 +2176,7 @@
         "status-expired": "Expired"
     },
     "audit-log": {
+        "type-added-to-entity-group": "Added to entity group",
         "audit": "Audit",
         "audit-logs": "Audit logs",
         "timestamp": "Timestamp",
@@ -5908,6 +5927,8 @@
         "template-name": "Template name",
         "template-required": "Template is required",
         "template-type": {
+            "type-user-registered": "User registered",
+            "type-user-activated": "User activated",
             "alarm": "Alarm",
             "alarm-assignment": "Alarm assignment",
             "alarm-comment": "Alarm comment",

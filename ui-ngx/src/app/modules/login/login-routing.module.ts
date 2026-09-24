@@ -61,7 +61,10 @@ const routes: Routes = [
       title: 'signup.sign-up',
       module: 'public'
     },
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard],
+    resolve: {
+      passwordPolicy: passwordPolicyResolver
+    }
   },
   {
     path: 'signup/emailVerified',

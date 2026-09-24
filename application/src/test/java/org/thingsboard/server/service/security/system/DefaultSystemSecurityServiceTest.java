@@ -35,6 +35,7 @@ import org.thingsboard.server.dao.audit.AuditLogService;
 import org.thingsboard.server.dao.settings.AdminSettingsService;
 import org.thingsboard.server.dao.settings.SecuritySettingsService;
 import org.thingsboard.server.dao.user.UserService;
+import org.thingsboard.server.dao.wl.WhiteLabelingService;
 
 import java.util.UUID;
 
@@ -60,6 +61,8 @@ public class DefaultSystemSecurityServiceTest {
     private AuditLogService auditLogService;
     @Mock
     private SecuritySettingsService securitySettingsService;
+    @Mock
+    private WhiteLabelingService whiteLabelingService;
 
     private DefaultSystemSecurityService systemSecurityService;
 
@@ -73,7 +76,7 @@ public class DefaultSystemSecurityServiceTest {
 
     @Before
     public void setUp() {
-        systemSecurityService = new DefaultSystemSecurityService(adminSettingsService, encoder, userService, mailService, auditLogService, securitySettingsService);
+        systemSecurityService = new DefaultSystemSecurityService(adminSettingsService, encoder, userService, mailService, auditLogService, securitySettingsService, whiteLabelingService);
 
         tenantId = TenantId.fromUUID(UUID.randomUUID());
         userId = new UserId(UUID.randomUUID());

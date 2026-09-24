@@ -219,7 +219,12 @@ public enum ActionType {
     /**
      * SMS sent. Does not push to rule engine.
      */
-    SMS_SENT;
+    SMS_SENT,
+    /**
+     * Entity added to an entity group. Does not push to rule engine - PE has no TbMsgType for this
+     * either, so the no-arg constructor is used deliberately to avoid a TbMsgType ripple.
+     */
+    ADDED_TO_ENTITY_GROUP;
 
     @Getter
     private final boolean read;

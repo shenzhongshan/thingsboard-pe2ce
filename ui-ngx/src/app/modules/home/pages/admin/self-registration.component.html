@@ -90,6 +90,12 @@
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.general-settings</legend>
+            <tb-entity-autocomplete
+              class="w-full"
+              required
+              [entityType]="EntityType.NOTIFICATION_TARGET"
+              formControlName="notificationRecipient">
+            </tb-entity-autocomplete>
             <mat-form-field class="w-full">
               <mat-label translate>self-registration.signup-text-message</mat-label>
               <input matInput formControlName="title" maxlength="200">
@@ -108,6 +114,8 @@
               </mat-checkbox>
             </section>
           </fieldset>
+
+          <tb-self-registration-permissions formControlName="permissions"></tb-self-registration-permissions>
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.privacy-policy-text</legend>

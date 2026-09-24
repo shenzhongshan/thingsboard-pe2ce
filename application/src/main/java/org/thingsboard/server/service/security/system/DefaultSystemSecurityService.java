@@ -32,6 +32,7 @@ import org.passay.WhitespaceRule;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,7 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.UserId;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.security.model.SecuritySettings;
 import org.thingsboard.server.common.data.security.model.UserPasswordPolicy;
@@ -57,6 +59,8 @@ import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.dao.user.UserServiceImpl;
 import org.thingsboard.server.service.security.auth.rest.RestAuthenticationDetails;
 import org.thingsboard.server.service.security.exception.UserPasswordExpiredException;
+import org.thingsboard.server.common.data.wl.LoginWhiteLabelingParams;
+import org.thingsboard.server.dao.wl.WhiteLabelingService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.utils.MiscUtils;
 import ua_parser.Client;
@@ -77,6 +81,10 @@ public class DefaultSystemSecurityService implements SystemSecurityService {
     private final MailService mailService;
     private final AuditLogService auditLogService;
     private final SecuritySettingsService securitySettingsService;
+    // @Lazy mirrors DefaultMailService: white labeling is only consulted when building
+    // user-facing links, and lazy init keeps it out of the security bootstrap graph.
+    @Lazy
+    private final WhiteLabelingService whiteLabelingService;
 
     @Override
     public void validateUserCredentials(TenantId tenantId, UserCredentials userCredentials, String username, String password) throws AuthenticationException {
@@ -199,6 +207,50 @@ public class DefaultSystemSecurityService implements SystemSecurityService {
     }
 
     @Override
+    public String getBaseUrl(Authority authority, TenantId tenantId, CustomerId customerId, HttpServletRequest httpServletRequest) {
+        LoginWhiteLabelingParams loginWhiteLabelingParams = null;
+        if (Authority.CUSTOMER_USER.equals(authority)) {
+            try {
+                loginWhiteLabelingParams = whiteLabelingService.getCustomerLoginWhiteLabelingParams(tenantId, customerId);
+            } catch (Exception e) {
+                log.warn("Failed to fetch CustomerLoginWhiteLabelingParams.");
+            }
+        }
+        // NB: the operator precedence below is PE's, reproduced as-is. For TENANT_ADMIN the tenant
+        // lookup always runs and overwrites; for CUSTOMER_USER it only runs when the customer-level
+        // base URL came back empty.
+        if (!isBaseUrlSet(loginWhiteLabelingParams) && Authority.CUSTOMER_USER.equals(authority) || Authority.TENANT_ADMIN.equals(authority)) {
+            try {
+                loginWhiteLabelingParams = whiteLabelingService.getTenantLoginWhiteLabelingParams(tenantId);
+            } catch (Exception e) {
+                log.warn("Failed to fetch TenantLoginWhiteLabelingParams.");
+            }
+        }
+        if (!isBaseUrlSet(loginWhiteLabelingParams)) {
+            try {
+                loginWhiteLabelingParams = whiteLabelingService.getSystemLoginWhiteLabelingParams();
+            } catch (Exception e) {
+                log.warn("Failed to fetch SystemLoginWhiteLabelingParams.");
+            }
+        }
+        if (!isBaseUrlSet(loginWhiteLabelingParams) || !loginWhiteLabelingParams.isProhibitDifferentUrl()) {
+            return getBaseUrl(tenantId, customerId, httpServletRequest);
+        }
+        return formatBaseUrl(loginWhiteLabelingParams.getBaseUrl());
+    }
+
+    private boolean isBaseUrlSet(LoginWhiteLabelingParams loginWhiteLabelingParams) {
+        return loginWhiteLabelingParams != null && org.apache.commons.lang3.StringUtils.isNoneEmpty(loginWhiteLabelingParams.getBaseUrl());
+    }
+
+    private static String formatBaseUrl(String baseUrl) {
+        if (!org.apache.commons.lang3.StringUtils.startsWithAny(baseUrl, "http://", "https://")) {
+            baseUrl = "https://" + baseUrl;
+        }
+        return baseUrl;
+    }
+
+    @Override
     public String getBaseUrl(TenantId tenantId, CustomerId customerId, HttpServletRequest httpServletRequest) {
         String baseUrl = null;
         AdminSettings generalSettings = adminSettingsService.findAdminSettingsByKey(TenantId.SYS_TENANT_ID, "general");
@@ -213,7 +265,7 @@ public class DefaultSystemSecurityService implements SystemSecurityService {
             baseUrl = MiscUtils.constructBaseUrl(httpServletRequest);
         }
 
-        return baseUrl;
+        return formatBaseUrl(baseUrl);
     }
 
     @Override

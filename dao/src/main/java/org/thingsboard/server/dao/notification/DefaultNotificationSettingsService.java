@@ -205,6 +205,10 @@ public class DefaultNotificationSettingsService implements NotificationSettingsS
         defaultNotifications.create(tenantId, DefaultNotifications.ruleEngineComponentLifecycleFailure, tenantAdmins.getId());
         defaultNotifications.create(tenantId, DefaultNotifications.edgeConnection, tenantAdmins.getId());
         defaultNotifications.create(tenantId, DefaultNotifications.edgeCommunicationFailures, tenantAdmins.getId());
+        // No target args: these are fired imperatively by SignUpController against the notification
+        // target configured in the tenant's self-registration settings, not by a rule.
+        defaultNotifications.create(tenantId, DefaultNotifications.userRegistered);
+        defaultNotifications.create(tenantId, DefaultNotifications.userActivated);
     }
 
     @Override
@@ -230,6 +234,15 @@ public class DefaultNotificationSettingsService implements NotificationSettingsS
                 defaultNotifications.create(tenantId, DefaultNotifications.entitiesLimitIncreaseRequest, sysAdmins.getId());
             }
         } else {
+            // Must come before the edge-types early return below, otherwise existing tenants that
+            // already have both edge templates would never get the self-registration ones.
+            if (!isNotificationConfigured(tenantId, NotificationType.USER_REGISTERED)) {
+                defaultNotifications.create(tenantId, DefaultNotifications.userRegistered);
+            }
+            if (!isNotificationConfigured(tenantId, NotificationType.USER_ACTIVATED)) {
+                defaultNotifications.create(tenantId, DefaultNotifications.userActivated);
+            }
+
             var requiredNotificationTypes = List.of(NotificationType.EDGE_CONNECTION, NotificationType.EDGE_COMMUNICATION_FAILURE);
             var existingNotificationTypes = notificationTemplateService.findNotificationTemplatesByTenantIdAndNotificationTypes(
                             tenantId, requiredNotificationTypes, new PageLink(2))

@@ -24,10 +24,11 @@ import { OAuth2ClientLoginInfo } from '@shared/models/oauth2.models';
 import { validateEmail } from '@app/core/utils';
 import { PageComponent } from '@shared/components/page.component';
 import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
+import { SelfRegistrationService } from '@core/http/self-registration.service';
 
 
-import { Subject } from 'rxjs';
-import { finalize, takeUntil } from 'rxjs/operators';
+import { of, Subject } from 'rxjs';
+import { catchError, finalize, takeUntil } from 'rxjs/operators';
 
 @Component({
     selector: 'tb-login',
@@ -43,6 +44,8 @@ export class LoginComponent extends PageComponent implements OnInit, OnDestroy {
 
   passwordViolation = false;
   isLoading = false;
+  /** Whether self-registration is configured and enabled for the domain being served. */
+  signUpAllowed = false;
 
   loginFormGroup = this.fb.group({
     username: ['', [Validators.required, validateEmail]],
@@ -54,6 +57,7 @@ export class LoginComponent extends PageComponent implements OnInit, OnDestroy {
   constructor(private authService: AuthService,
               public fb: UntypedFormBuilder,
               private whiteLabelingApplyService: WhiteLabelingApplyService,
+              private selfRegistrationService: SelfRegistrationService,
               private router: Router) {
     super();
   }
@@ -72,6 +76,12 @@ export class LoginComponent extends PageComponent implements OnInit, OnDestroy {
     this.whiteLabelingApplyService.loadAndApplyLogin()
       .pipe(takeUntil(this.destroy$))
       .subscribe();
+
+    // The endpoint returns null when self-registration is absent or disabled for this domain,
+    // so the 注册 button should only appear when a tenant has actually configured it.
+    this.selfRegistrationService.getSignUpSelfRegistrationParams({ ignoreErrors: true })
+      .pipe(takeUntil(this.destroy$), catchError(() => of(null)))
+      .subscribe((params) => this.signUpAllowed = !!params);
   }
 
   login(): void {

@@ -20,6 +20,7 @@ import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SelfRegistrationService } from '@core/http/self-registration.service';
+import { AuthService } from '@core/auth/auth.service';
 
 @Component({
   selector: 'tb-sign-up-email-verified',
@@ -34,6 +35,7 @@ export class SignUpEmailVerifiedComponent extends PageComponent implements OnIni
 
   constructor(protected store: Store<AppState>,
               private selfRegistrationService: SelfRegistrationService,
+              private authService: AuthService,
               private route: ActivatedRoute,
               private router: Router) {
     super(store);
@@ -46,7 +48,14 @@ export class SignUpEmailVerifiedComponent extends PageComponent implements OnIni
       return;
     }
     this.selfRegistrationService.activateUserByEmailCode(emailCode, { ignoreErrors: true }).subscribe({
-      next: () => this.activated = true,
+      next: (jwtPair) => {
+        this.activated = true;
+        // The endpoint returns a token pair precisely so the freshly activated user does not
+        // have to log in again; discarding it would send them back to the login form.
+        if (jwtPair?.token && jwtPair?.refreshToken) {
+          this.authService.setUserFromJwtToken(jwtPair.token, jwtPair.refreshToken, true).subscribe();
+        }
+      },
       error: () => this.failed = true
     });
   }

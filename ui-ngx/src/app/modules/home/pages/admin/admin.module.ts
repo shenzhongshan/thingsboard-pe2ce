@@ -49,6 +49,12 @@ import {
   CustomMenuDefaultItemDialogComponent
 } from '@home/pages/admin/custom-menu-default-item-dialog.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
+import {
+  SelfRegistrationPermissionsComponent
+} from '@home/pages/admin/self-registration-permissions.component';
+import {
+  SelfRegistrationPermissionDialogComponent
+} from '@home/pages/admin/self-registration-permission-dialog.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
 import { CustomMenuInfoDialogComponent } from '@home/pages/admin/custom-menu-info-dialog.component';
@@ -92,6 +98,8 @@ import {
       CustomMenuItemDialogComponent,
       CustomMenuDefaultItemDialogComponent,
       SelfRegistrationComponent,
+      SelfRegistrationPermissionsComponent,
+      SelfRegistrationPermissionDialogComponent,
       CustomMenuComponent,
       CustomMenuListComponent,
       CustomMenuInfoDialogComponent,

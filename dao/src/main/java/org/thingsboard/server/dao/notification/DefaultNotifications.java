@@ -76,6 +76,7 @@ public class DefaultNotifications {
 
     private static final String YELLOW_COLOR = "#F9D916";
     private static final String RED_COLOR = "#e91a1a";
+    private static final String BLUE_COLOR = "#348eda";
 
     public static final DefaultNotification maintenanceWork = DefaultNotification.builder()
             .name("Maintenance work notification")
@@ -421,6 +422,46 @@ public class DefaultNotifications {
                     .description("Send notification to system admins on resource shortage")
                     .build())
             .color(RED_COLOR)
+            .build();
+
+    /*
+     * Self-registration notifications. Unlike the others these carry no rule: they are fired
+     * imperatively by SignUpController via NotificationCenter#sendSystemNotification, which
+     * requires the template to exist or it throws.
+     */
+
+    public static final DefaultNotification userRegistered = DefaultNotification.builder()
+            .name("User registered notification")
+            .type(NotificationType.USER_REGISTERED)
+            .subject("New user registered on ThingsBoard")
+            .text("User with name \"${userFullName}\" and email \"${userEmail}\" registered on ThingsBoard.")
+            .icon("person_add").color(BLUE_COLOR)
+            .emailTemplate(DefaultEmailTemplate.builder()
+                    .subject("Thingsboard: user registered")
+                    .body("""
+                            <h2>New user registered on ThingsBoard</h2>
+                            <p>User with name "${userFullName}" and email "${userEmail}" registered on ThingsBoard.</p>
+                            <p>&mdash; The ThingsBoard</p>
+                            <p style="color: #999999; font-size: 12px;">This email was sent to <a style="color: #999999;" href="mailto:${recipientEmail}">${recipientEmail}</a> by ThingsBoard.</p>
+                            """)
+                    .build())
+            .build();
+
+    public static final DefaultNotification userActivated = DefaultNotification.builder()
+            .name("User activated notification")
+            .type(NotificationType.USER_ACTIVATED)
+            .subject("User activated on ThingsBoard")
+            .text("User with name \"${userFullName}\" and email \"${userEmail}\" activated his/her account.")
+            .icon("how_to_reg").color(BLUE_COLOR)
+            .emailTemplate(DefaultEmailTemplate.builder()
+                    .subject("Thingsboard: user activated")
+                    .body("""
+                            <h2>User activated on ThingsBoard</h2>
+                            <p>User with name "${userFullName}" and email "${userEmail}" activated his/her account.</p>
+                            <p>&mdash; The ThingsBoard</p>
+                            <p style="color: #999999; font-size: 12px;">This email was sent to <a style="color: #999999;" href="mailto:${recipientEmail}">${recipientEmail}</a> by ThingsBoard.</p>
+                            """)
+                    .build())
             .build();
 
     private final NotificationTemplateService templateService;

@@ -534,7 +534,9 @@ export enum NotificationType {
   EDGE_CONNECTION = 'EDGE_CONNECTION',
   EDGE_COMMUNICATION_FAILURE = 'EDGE_COMMUNICATION_FAILURE',
   TASK_PROCESSING_FAILURE = 'TASK_PROCESSING_FAILURE',
-  RESOURCES_SHORTAGE = 'RESOURCES_SHORTAGE'
+  RESOURCES_SHORTAGE = 'RESOURCES_SHORTAGE',
+  USER_REGISTERED = 'USER_REGISTERED',
+  USER_ACTIVATED = 'USER_ACTIVATED'
 }
 
 export const NotificationTypeIcons = new Map<NotificationType, string | null>([
@@ -548,7 +550,9 @@ export const NotificationTypeIcons = new Map<NotificationType, string | null>([
   [NotificationType.ENTITIES_LIMIT_INCREASE_REQUEST, 'mdi:file-cog'],
   [NotificationType.API_USAGE_LIMIT, 'insert_chart'],
   [NotificationType.TASK_PROCESSING_FAILURE, 'warning'],
-  [NotificationType.RESOURCES_SHORTAGE, 'warning']
+  [NotificationType.RESOURCES_SHORTAGE, 'warning'],
+  [NotificationType.USER_REGISTERED, 'person_add'],
+  [NotificationType.USER_ACTIVATED, 'how_to_reg']
 ]);
 
 export enum ActionButtonLinkType {
@@ -667,6 +671,16 @@ export const NotificationTemplateTypeTranslateMap = new Map<NotificationType, No
     {
       name: 'notification.template-type.resources-shortage',
       helpId: 'notification/resources_shortage'
+    }
+  ],
+  [NotificationType.USER_REGISTERED,
+    {
+      name: 'notification.template-type.type-user-registered'
+    }
+  ],
+  [NotificationType.USER_ACTIVATED,
+    {
+      name: 'notification.template-type.type-user-activated'
     }
   ]
 ]);

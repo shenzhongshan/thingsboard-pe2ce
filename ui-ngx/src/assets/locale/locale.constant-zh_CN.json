@@ -1052,7 +1052,19 @@
     "mail-template-apiUsageStateWarning": "API 使用警告",
     "mail-template-apiUsageStateDisabled": "API 使用已禁用"
   },
+  "group-permission": {
+    "user-group-roles": "用户组角色",
+    "role-name": "角色名称",
+    "role-type": "角色类型",
+    "group-type": "组类型",
+    "group-name": "组名称",
+    "add-group-permission": "添加组权限",
+    "delete-group-permission": "删除组权限",
+    "no-group-permissions-text": "未找到组权限"
+  },
   "self-registration": {
+    "notification-recipient": "通知接收者",
+    "notification-recipient-required": "通知接收者为必填项。",
     "self-registration": "自助注册",
     "domain-settings": "域名设置",
     "domain": "域名",
@@ -1078,6 +1090,12 @@
     "reset-to-default": "重置为默认"
   },
   "signup": {
+    "repeat-password": "重复您的密码",
+    "resend": "重新发送",
+    "email-verification": "Email 验证",
+    "email-verification-message": "一封包含验证信息的 Email 已发送到指定的 Email 地址。<br>请按照 Email 中的说明完成注册流程。<br>注意：如果长时间未收到 Email，请检查“垃圾邮件”文件夹或点击“重新发送”按钮重新发送 Email。",
+    "inactive-user-exists-title": "未激活的用户已存在",
+    "inactive-user-exists-text": "已有一个 Email 地址未验证的注册用户。<br>如需重新发送验证 Email，请点击“重新发送”按钮。",
     "sign-up": "注册",
     "field-email": "邮箱",
     "field-first-name": "名",
@@ -2151,6 +2169,7 @@
     "status-expired": "已过期"
   },
   "audit-log": {
+    "type-added-to-entity-group": "已添加到实体组",
     "audit": "审计",
     "audit-logs": "审计日志",
     "timestamp": "时间戳",
@@ -5891,6 +5910,8 @@
     "template-name": "模板名称",
     "template-required": "模板为必填项",
     "template-type": {
+        "type-user-registered": "用户已注册",
+        "type-user-activated": "用户已激活",
       "alarm": "告警",
       "alarm-assignment": "告警分配",
       "alarm-comment": "告警评论",

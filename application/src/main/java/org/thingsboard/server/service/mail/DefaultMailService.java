@@ -216,51 +216,61 @@ public class DefaultMailService implements MailService {
         sendMail(testMailSender, mailFrom, email, subject, message, timeoutOf(jsonConfig));
     }
 
+    /**
+     * Sends one of the user-facing account mails through the tenant's own mail configuration,
+     * falling back to the system one when the tenant has none (or opted into the system settings).
+     */
+    private void sendAccountMail(TenantId tenantId, String email, String subject, String message) throws ThingsboardException {
+        ConfigEntry entry = getConfig(tenantId, true);
+        JsonNode jsonConfig = entry.jsonConfig();
+        sendMail(senderFor(entry, tenantId), mailFromOf(jsonConfig), email, subject, message, timeoutOf(jsonConfig));
+    }
+
     @Override
-    public void sendActivationEmail(String activationLink, long ttlMs, String email) throws ThingsboardException {
+    public void sendActivationEmail(TenantId tenantId, String activationLink, long ttlMs, String email) throws ThingsboardException {
         Map<String, Object> model = new HashMap<>();
         model.put("activationLink", activationLink);
         model.put("activationLinkTtlInHours", (int) Math.ceil(ttlMs / 3600000.0));
         model.put(TARGET_EMAIL, email);
 
-        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.ACTIVATION, messages.getMessage("activation.subject", null, Locale.US));
-        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.ACTIVATION, "activation.ftl", model);
+        String subject = wlSubject(tenantId, MailTemplates.ACTIVATION, messages.getMessage("activation.subject", null, Locale.US));
+        String message = wlBody(tenantId, MailTemplates.ACTIVATION, "activation.ftl", model);
 
-        sendMail(mailSender, mailFrom, email, subject, message, timeout);
+        sendAccountMail(tenantId, email, subject, message);
     }
 
     @Override
-    public void sendAccountActivatedEmail(String loginLink, String email) throws ThingsboardException {
+    public void sendAccountActivatedEmail(TenantId tenantId, String loginLink, String email) throws ThingsboardException {
 
         Map<String, Object> model = new HashMap<>();
         model.put("loginLink", loginLink);
         model.put(TARGET_EMAIL, email);
 
-        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_ACTIVATED, messages.getMessage("account.activated.subject", null, Locale.US));
-        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.ACCOUNT_ACTIVATED, "account.activated.ftl", model);
+        String subject = wlSubject(tenantId, MailTemplates.ACCOUNT_ACTIVATED, messages.getMessage("account.activated.subject", null, Locale.US));
+        String message = wlBody(tenantId, MailTemplates.ACCOUNT_ACTIVATED, "account.activated.ftl", model);
 
-        sendMail(mailSender, mailFrom, email, subject, message, timeout);
+        sendAccountMail(tenantId, email, subject, message);
     }
 
     @Override
-    public void sendResetPasswordEmail(String passwordResetLink, long ttlMs, String email) throws ThingsboardException {
+    public void sendResetPasswordEmail(TenantId tenantId, String passwordResetLink, long ttlMs, String email) throws ThingsboardException {
 
         Map<String, Object> model = new HashMap<>();
         model.put("passwordResetLink", passwordResetLink);
         model.put("passwordResetLinkTtlInHours", (int) Math.ceil(ttlMs / 3600000.0));
         model.put(TARGET_EMAIL, email);
 
-        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.RESET_PASSWORD, messages.getMessage("reset.password.subject", null, Locale.US));
-        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.RESET_PASSWORD, "reset.password.ftl", model);
+        String subject = wlSubject(tenantId, MailTemplates.RESET_PASSWORD, messages.getMessage("reset.password.subject", null, Locale.US));
+        String message = wlBody(tenantId, MailTemplates.RESET_PASSWORD, "reset.password.ftl", model);
 
-        sendMail(mailSender, mailFrom, email, subject, message, timeout);
+        sendAccountMail(tenantId, email, subject, message);
     }
 
     @Override
-    public void sendResetPasswordEmailAsync(String passwordResetLink, long ttlMs, String email) {
+    public void sendResetPasswordEmailAsync(TenantId tenantId, String passwordResetLink, long ttlMs, String email) {
         passwordResetExecutorService.execute(() -> {
             try {
-                this.sendResetPasswordEmail(passwordResetLink, ttlMs, email);
+                this.sendResetPasswordEmail(tenantId, passwordResetLink, ttlMs, email);
             } catch (Exception e) {
                 log.error("Error occurred: {} ", e.getMessage());
             }
@@ -268,16 +278,16 @@ public class DefaultMailService implements MailService {
     }
 
     @Override
-    public void sendPasswordWasResetEmail(String loginLink, String email) throws ThingsboardException {
+    public void sendPasswordWasResetEmail(TenantId tenantId, String loginLink, String email) throws ThingsboardException {
 
         Map<String, Object> model = new HashMap<>();
         model.put("loginLink", loginLink);
         model.put(TARGET_EMAIL, email);
 
-        String subject = wlSubject(TenantId.SYS_TENANT_ID, MailTemplates.PASSWORD_WAS_RESET, messages.getMessage("password.was.reset.subject", null, Locale.US));
-        String message = wlBody(TenantId.SYS_TENANT_ID, MailTemplates.PASSWORD_WAS_RESET, "password.was.reset.ftl", model);
+        String subject = wlSubject(tenantId, MailTemplates.PASSWORD_WAS_RESET, messages.getMessage("password.was.reset.subject", null, Locale.US));
+        String message = wlBody(tenantId, MailTemplates.PASSWORD_WAS_RESET, "password.was.reset.ftl", model);
 
-        sendMail(mailSender, mailFrom, email, subject, message, timeout);
+        sendAccountMail(tenantId, email, subject, message);
     }
 
     @Override

@@ -18,6 +18,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
+import { LoginResponse } from '@shared/models/login.models';
 import {
   SignUpRequest,
   SignUpResult,
@@ -75,8 +76,9 @@ export class SelfRegistrationService {
       defaultHttpOptionsFromConfig(config));
   }
 
-  public activateUserByEmailCode(emailCode: string, config?: RequestConfig): Observable<any> {
-    return this.http.post<any>(`/api/noauth/activateByEmailCode?emailCode=${encodeURIComponent(emailCode)}`, null,
+  /** Returns a JWT pair so the activated user lands logged in rather than back at the login form. */
+  public activateUserByEmailCode(emailCode: string, config?: RequestConfig): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`/api/noauth/activateByEmailCode?emailCode=${encodeURIComponent(emailCode)}`, null,
       defaultHttpOptionsFromConfig(config));
   }
 
