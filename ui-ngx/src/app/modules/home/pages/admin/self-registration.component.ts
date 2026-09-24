@@ -26,6 +26,8 @@ import { DomainService } from '@core/http/domain.service';
 import { EntityType } from '@shared/models/entity-type.models';
 import { PageLink } from '@shared/models/page/page-link';
 import { DomainInfo } from '@shared/models/oauth2.models';
+import { MatDialog } from '@angular/material/dialog';
+import { CreateDomainDialogComponent } from '@home/pages/admin/create-domain-dialog.component';
 import {
   captchaVersionTranslations,
   CaptchaVersion,
@@ -71,6 +73,7 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
   constructor(protected store: Store<AppState>,
               private selfRegistrationService: SelfRegistrationService,
               private domainService: DomainService,
+              private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     super(store);
   }
@@ -119,6 +122,20 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
     }
     siteKeyCtrl.updateValueAndValidity({ emitEvent: false });
     secretKeyCtrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  createDomain(): void {
+    this.dialog.open<CreateDomainDialogComponent, any, DomainInfo>(CreateDomainDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog'],
+      data: {}
+    }).afterClosed().subscribe((domain) => {
+      if (domain) {
+        this.domains = [...this.domains, domain];
+        this.selfRegistrationForm.get('domainId').setValue(domain.id.id);
+        this.selfRegistrationForm.get('domainId').markAsDirty();
+      }
+    });
   }
 
   get signUpUrl(): string {

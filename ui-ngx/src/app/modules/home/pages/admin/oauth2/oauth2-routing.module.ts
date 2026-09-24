@@ -66,7 +66,7 @@ export const oAuth2Routes: Routes = [
         path: 'domains',
         component: EntitiesTableComponent,
         data: {
-          auth: [Authority.SYS_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
           title: 'admin.oauth2.domains',
           breadcrumb: {
             menuId: MenuId.domains

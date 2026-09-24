@@ -33,6 +33,8 @@ import {
   CustomCssDialogComponent,
   CustomCssDialogData
 } from '@home/pages/admin/custom-css-dialog.component';
+import { CreateDomainDialogComponent } from '@home/pages/admin/create-domain-dialog.component';
+import { DomainInfo } from '@shared/models/oauth2.models';
 
 @Component({
   selector: 'tb-login-white-labeling',
@@ -115,6 +117,19 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
       showNameBottom: v.showNameBottom,
       customCss: this.customCss
     };
+  }
+
+  createDomain(): void {
+    this.dialog.open<CreateDomainDialogComponent, any, DomainInfo>(CreateDomainDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog'],
+      data: {}
+    }).afterClosed().subscribe((domain) => {
+      if (domain) {
+        this.loginWhiteLabelingForm.get('baseUrl').setValue(`http://${domain.name}`);
+        this.loginWhiteLabelingForm.get('baseUrl').markAsDirty();
+      }
+    });
   }
 
   openCustomCss() {
