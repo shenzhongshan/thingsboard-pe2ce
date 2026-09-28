@@ -1073,6 +1073,7 @@
     "domain": "域名",
     "domain-required": "域名为必填项。",
     "domain-hint": "域名由系统管理员统一管理。",
+    "no-domains-matching": "没有匹配的域名",
     "signup-url": "自助注册 URL",
     "captcha-version": "Captcha 版本",
     "captcha-action-name": "Captcha 日志操作名称",

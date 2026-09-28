@@ -31,18 +31,18 @@
     <mat-card-content style="padding-top: 16px;">
       <form [formGroup]="loginWhiteLabelingForm" (ngSubmit)="save()">
         <fieldset [disabled]="isLoading$ | async" class="flex flex-col">
-          <div class="flex flex-row items-start gap-2">
-            <mat-form-field class="w-full">
-              <mat-label translate>white-labeling.base-url</mat-label>
-              <input matInput formControlName="baseUrl" required>
-              @if (loginWhiteLabelingForm.get('baseUrl').hasError('required')) {
-                <mat-error>{{ 'white-labeling.base-url-required' | translate }}</mat-error>
-              }
-            </mat-form-field>
-            <button mat-button color="primary" type="button" style="margin-top: 4px;" (click)="createDomain()">
-              {{ 'admin.oauth2.add-domain' | translate }}
-            </button>
-          </div>
+          @if (!isSysAdmin) {
+            <tb-domain-autocomplete formControlName="domainId" labelText="self-registration.domain"
+                                    requiredText="self-registration.domain-required">
+            </tb-domain-autocomplete>
+          }
+          <mat-form-field class="w-full">
+            <mat-label translate>white-labeling.base-url</mat-label>
+            <input matInput formControlName="baseUrl" required>
+            @if (loginWhiteLabelingForm.get('baseUrl').hasError('required')) {
+              <mat-error>{{ 'white-labeling.base-url-required' | translate }}</mat-error>
+            }
+          </mat-form-field>
           <mat-checkbox formControlName="prohibitDifferentUrl">
             {{ 'white-labeling.prohibit-different-url' | translate }}
           </mat-checkbox>

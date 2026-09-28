@@ -22,14 +22,8 @@ import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms
 import { HasConfirmForm } from '@core/guards/confirm-on-exit.guard';
 import { EditorOptions } from 'tinymce';
 import { SelfRegistrationService } from '@core/http/self-registration.service';
-import { DomainService } from '@core/http/domain.service';
 import { EntityType } from '@shared/models/entity-type.models';
-import { PageLink } from '@shared/models/page/page-link';
 import { DomainInfo } from '@shared/models/oauth2.models';
-import { MatDialog } from '@angular/material/dialog';
-import { AddEntityDialogComponent } from '@home/components/entity/add-entity-dialog.component';
-import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
-import { DomainTableConfigResolver } from '@home/pages/admin/oauth2/domains/domain-table-config.resolver';
 import {
   captchaVersionTranslations,
   CaptchaVersion,
@@ -50,7 +44,7 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
   captchaVersionTranslations = captchaVersionTranslations;
   CaptchaVersion = CaptchaVersion;
   EntityType = EntityType;
-  domains: DomainInfo[] = [];
+  selectedDomain: DomainInfo = null;
 
   /** Last loaded params, kept so buildParams() can preserve fields this page does not expose. */
   private loadedParams: WebSelfRegistrationParams = {} as WebSelfRegistrationParams;
@@ -74,17 +68,11 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   constructor(protected store: Store<AppState>,
               private selfRegistrationService: SelfRegistrationService,
-              private domainService: DomainService,
-              private domainTableConfigResolver: DomainTableConfigResolver,
-              private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     super(store);
   }
 
   ngOnInit() {
-    this.domainService.getTenantDomainInfos(new PageLink(100), { ignoreErrors: true }).subscribe(
-      (page) => this.domains = page.data || []
-    );
     this.selfRegistrationForm = this.fb.group({
       domainId: [null, [Validators.required]],
       captchaVersion: [CaptchaVersion.V2],
@@ -127,29 +115,12 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
     secretKeyCtrl.updateValueAndValidity({ emitEvent: false });
   }
 
-  createDomain(): void {
-    // Reuses the exact same add-domain form as Security > OAuth 2.0 > Domains (same
-    // EntityTableConfig, via the root-provided DomainTableConfigResolver) rather than a
-    // bespoke name-only dialog, per PE parity.
-    this.dialog.open<AddEntityDialogComponent, AddEntityDialogData<DomainInfo>, DomainInfo>(AddEntityDialogComponent, {
-      disableClose: true,
-      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-      data: {
-        entitiesTableConfig: this.domainTableConfigResolver.resolve(null as any)
-      }
-    }).afterClosed().subscribe((domain) => {
-      if (domain) {
-        this.domains = [...this.domains, domain];
-        this.selfRegistrationForm.get('domainId').setValue(domain.id.id);
-        this.selfRegistrationForm.get('domainId').markAsDirty();
-      }
-    });
+  onDomainChanged(domain: DomainInfo): void {
+    this.selectedDomain = domain;
   }
 
   get signUpUrl(): string {
-    const domainId = this.selfRegistrationForm?.get('domainId').value;
-    const domain = this.domains.find((d) => d.id.id === domainId);
-    return domain ? `https://${domain.name}/signup` : '';
+    return this.selectedDomain ? `https://${this.selectedDomain.name}/signup` : '';
   }
 
   private setParams(params: WebSelfRegistrationParams) {

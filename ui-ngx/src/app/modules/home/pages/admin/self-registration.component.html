@@ -34,23 +34,10 @@
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.domain-settings</legend>
-            <div class="flex flex-row items-start gap-2">
-              <mat-form-field class="w-full">
-                <mat-label translate>self-registration.domain</mat-label>
-                <mat-select formControlName="domainId" required>
-                  @for (domain of domains; track domain.id.id) {
-                    <mat-option [value]="domain.id.id">{{ domain.name }}</mat-option>
-                  }
-                </mat-select>
-                <mat-hint translate>self-registration.domain-hint</mat-hint>
-                @if (selfRegistrationForm.get('domainId').hasError('required')) {
-                  <mat-error>{{ 'self-registration.domain-required' | translate }}</mat-error>
-                }
-              </mat-form-field>
-              <button mat-button color="primary" type="button" style="margin-top: 4px;" (click)="createDomain()">
-                {{ 'admin.oauth2.add-domain' | translate }}
-              </button>
-            </div>
+            <tb-domain-autocomplete formControlName="domainId" labelText="self-registration.domain"
+                                    requiredText="self-registration.domain-required"
+                                    (domainChanged)="onDomainChanged($event)">
+            </tb-domain-autocomplete>
             <mat-form-field class="w-full">
               <mat-label translate>self-registration.signup-url</mat-label>
               <input matInput readonly [value]="signUpUrl">

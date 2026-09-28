@@ -1073,6 +1073,7 @@
         "domain": "Domain",
         "domain-required": "Domain is required.",
         "domain-hint": "Domains are managed by the system administrator.",
+        "no-domains-matching": "No domains matching",
         "signup-url": "Self registration URL",
         "captcha-version": "Captcha version",
         "captcha-action-name": "Captcha log action name",

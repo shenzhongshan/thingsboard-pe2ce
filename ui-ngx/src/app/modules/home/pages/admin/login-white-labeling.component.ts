@@ -22,21 +22,14 @@ import { PageComponent } from '@shared/components/page.component';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { HasConfirmForm } from '@core/guards/confirm-on-exit.guard';
 import { MatDialog } from '@angular/material/dialog';
-import { TranslateService } from '@ngx-translate/core';
-import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { Authority } from '@shared/models/authority.enum';
 import { EntityType } from '@shared/models/entity-type.models';
-import { DomainService } from '@core/http/domain.service';
 import { WhiteLabelingService } from '@core/http/white-labeling.service';
 import { LoginWhiteLabelingParams } from '@shared/models/white-labeling.models';
 import {
   CustomCssDialogComponent,
   CustomCssDialogData
 } from '@home/pages/admin/custom-css-dialog.component';
-import { AddEntityDialogComponent } from '@home/components/entity/add-entity-dialog.component';
-import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
-import { DomainTableConfigResolver } from '@home/pages/admin/oauth2/domains/domain-table-config.resolver';
-import { DomainInfo } from '@shared/models/oauth2.models';
 
 @Component({
   selector: 'tb-login-white-labeling',
@@ -49,13 +42,10 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
   loginWhiteLabelingForm: UntypedFormGroup;
 
   private customCss: string = null;
-  private readonly isSysAdmin = getCurrentAuthState(this.store).authUser.authority === Authority.SYS_ADMIN;
+  readonly isSysAdmin = getCurrentAuthState(this.store).authUser.authority === Authority.SYS_ADMIN;
 
   constructor(protected store: Store<AppState>,
               private whiteLabelingService: WhiteLabelingService,
-              private domainService: DomainService,
-              private domainTableConfigResolver: DomainTableConfigResolver,
-              private translate: TranslateService,
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
     super(store);
@@ -63,6 +53,9 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
 
   ngOnInit() {
     this.loginWhiteLabelingForm = this.fb.group({
+      // SYS_ADMIN's login white-labeling is the platform-wide default and isn't tied to any one
+      // Domain; TENANT_ADMIN/CUSTOMER_USER must pick which of their own domains this applies to.
+      domainId: [null, this.isSysAdmin ? [] : [Validators.required]],
       baseUrl: [null, [Validators.required]],
       prohibitDifferentUrl: [false],
       appTitle: [null],
@@ -88,6 +81,7 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
     params = params || {};
     this.customCss = params.customCss || null;
     this.loginWhiteLabelingForm.reset({
+      domainId: params.domainId?.id || null,
       baseUrl: params.baseUrl,
       prohibitDifferentUrl: params.prohibitDifferentUrl || false,
       appTitle: params.appTitle,
@@ -105,6 +99,7 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
   private buildParams(): LoginWhiteLabelingParams {
     const v = this.loginWhiteLabelingForm.value;
     return {
+      domainId: v.domainId ? { entityType: EntityType.DOMAIN, id: v.domainId } as any : null,
       baseUrl: v.baseUrl,
       prohibitDifferentUrl: v.prohibitDifferentUrl,
       appTitle: v.appTitle,
@@ -120,22 +115,6 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
       showNameBottom: v.showNameBottom,
       customCss: this.customCss
     };
-  }
-
-  createDomain(): void {
-    // Reuses the exact same add-domain form as Security > OAuth 2.0 > Domains, per PE parity.
-    this.dialog.open<AddEntityDialogComponent, AddEntityDialogData<DomainInfo>, DomainInfo>(AddEntityDialogComponent, {
-      disableClose: true,
-      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-      data: {
-        entitiesTableConfig: this.domainTableConfigResolver.resolve(null as any)
-      }
-    }).afterClosed().subscribe((domain) => {
-      if (domain) {
-        this.loginWhiteLabelingForm.get('baseUrl').setValue(`http://${domain.name}`);
-        this.loginWhiteLabelingForm.get('baseUrl').markAsDirty();
-      }
-    });
   }
 
   openCustomCss() {
@@ -156,30 +135,7 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
       this.loginWhiteLabelingForm.markAllAsTouched();
       return;
     }
-    const params = this.buildParams();
-    if (this.isSysAdmin) {
-      this.doSave(params);
-    } else {
-      // Tenant/customer login white labeling is resolved by domain: the backend requires a
-      // domainId matching the base URL host (domains are created by the system administrator).
-      let host: string;
-      try {
-        host = new URL(params.baseUrl).host?.split(':')[0];
-      } catch (e) {
-        host = null;
-      }
-      if (!host) {
-        this.showError(this.translate.instant('white-labeling.base-url-required'));
-        return;
-      }
-      this.domainService.resolveDomainByName(host, { ignoreErrors: true }).subscribe({
-        next: (domain) => {
-          params.domainId = { entityType: EntityType.DOMAIN, id: domain.id.id };
-          this.doSave(params);
-        },
-        error: () => this.showError(this.translate.instant('white-labeling.domain-not-found', { domain: host }))
-      });
-    }
+    this.doSave(this.buildParams());
   }
 
   private doSave(params: LoginWhiteLabelingParams) {
@@ -189,10 +145,6 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
         this.loginWhiteLabelingForm.markAsPristine();
       }
     );
-  }
-
-  private showError(message: string) {
-    this.store.dispatch(new ActionNotificationShow({ message, type: 'error' }));
   }
 
   reset(): void {
