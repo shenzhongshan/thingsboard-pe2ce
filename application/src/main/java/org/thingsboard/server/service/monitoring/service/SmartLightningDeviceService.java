@@ -59,4 +59,8 @@ public interface SmartLightningDeviceService extends VisibleDeviceScopeService {
     List<MonitoringDeviceContextBO> getAllVisibleDeviceContexts(SecurityUser user)
             throws ThingsboardException;
 
+    /** 按 SERVER_SCOPE productCategory 过滤当前用户可见设备，空筛选值表示不过滤。 */
+    List<MonitoringDeviceContextBO> getVisibleDeviceContexts(SecurityUser user, String productCategory)
+            throws ThingsboardException;
+
 }

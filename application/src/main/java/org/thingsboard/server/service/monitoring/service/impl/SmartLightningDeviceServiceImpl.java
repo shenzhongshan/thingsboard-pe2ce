@@ -66,6 +66,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
     private static final int TELEMETRY_BATCH_SIZE = 50;
     private static final String PRODUCT_CATEGORY_ATTRIBUTE = "productCategory";
+    private static final String FUNCTION_CATEGORY_ATTRIBUTE = "functionCategory";
     private static final String LIGHTNING_PRODUCT_CATEGORY = "lightning";
     private static final String ACTIVE_TELEMETRY_KEY = "active";
     private static final List<String> DEVICE_ATTRIBUTES = List.of(PRODUCT_CATEGORY_ATTRIBUTE);
@@ -76,7 +77,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     private static final List<String> DEVICE_CONTEXT_ATTRIBUTES = List.of(
             PRODUCT_CATEGORY_ATTRIBUTE,
             "productName",
-            "functionCategory",
+            FUNCTION_CATEGORY_ATTRIBUTE,
             "lastActivityTime",
             "gatewayIdentifier",
             "gatewayId",
@@ -119,7 +120,8 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     public PageData<MonitoringDeviceContextBO> getLightningDeviceContexts(
             SecurityUser user, PageLink pageLink) throws ThingsboardException {
         List<DeviceInfo> visibleDevices = findVisibleDevices(user, pageLink.getTextSearch());
-        List<MonitoringDeviceContextBO> contexts = buildDeviceContexts(user, visibleDevices, LIGHTNING_PRODUCT_CATEGORY);
+        List<MonitoringDeviceContextBO> contexts = buildDeviceContexts(
+                user, visibleDevices, LIGHTNING_PRODUCT_CATEGORY, null);
         return createPageData(contexts, pageLink);
     }
 
@@ -130,7 +132,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     @Override
     public List<MonitoringDeviceContextBO> getAllLightningDeviceContexts(SecurityUser user)
             throws ThingsboardException {
-        return buildDeviceContexts(user, findVisibleDevices(user, null), LIGHTNING_PRODUCT_CATEGORY);
+        return buildDeviceContexts(user, findVisibleDevices(user, null), LIGHTNING_PRODUCT_CATEGORY, null);
     }
 
     /**
@@ -142,30 +144,56 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     @Override
     public List<MonitoringDeviceContextBO> getAllVisibleDeviceContexts(SecurityUser user)
             throws ThingsboardException {
-        return buildDeviceContexts(user, findVisibleDevices(user, null), null);
+        return buildDeviceContexts(user, findVisibleDevices(user, null), null, null);
     }
 
-    /** 将已完成权限过滤的设备批量转换为防雷设备上下文。 */
-    private List<MonitoringDeviceContextBO> buildDeviceContexts(
-            SecurityUser user, List<DeviceInfo> visibleDevices, String expectedProductCategory)
+    /** 返回按 SERVER_SCOPE productCategory 筛选后的当前用户可见设备上下文。 */
+    @Override
+    public List<MonitoringDeviceContextBO> getVisibleDeviceContexts(SecurityUser user, String productCategory)
             throws ThingsboardException {
-        // 批量读取服务器属性和设备配置，避免在设备循环中逐项访问数据库。
+        return buildDeviceContexts(user, findVisibleDevices(user, null), productCategory, null);
+    }
+
+    /** 将权限过滤后的设备按可选分类筛选，并批量转换为设备上下文。 */
+    private List<MonitoringDeviceContextBO> buildDeviceContexts(
+            SecurityUser user,
+            List<DeviceInfo> visibleDevices,
+            String expectedProductCategory,
+            String expectedFunctionCategory)
+            throws ThingsboardException {
+        // 先批量读取服务器属性以识别分类，再按匹配设备批量读取配置与在线遥测。
         Map<UUID, Map<String, String>> attributesByDevice = findDeviceAttributes(
                 user, visibleDevices, DEVICE_CONTEXT_ATTRIBUTES);
-        Map<UUID, String> activeValuesByDevice = findActiveTelemetry(user, visibleDevices);
-        Map<UUID, Device> devicesById = findDevicesWithConfiguration(visibleDevices);
+        List<DeviceInfo> matchingDevices = filterDeviceContexts(
+                visibleDevices, attributesByDevice, expectedProductCategory, expectedFunctionCategory);
+        Map<UUID, String> activeValuesByDevice = findActiveTelemetry(user, matchingDevices);
+        Map<UUID, Device> devicesById = findDevicesWithConfiguration(matchingDevices);
         List<MonitoringDeviceContextBO> contexts = new ArrayList<>();
-        // 先按产品分类收窄范围，再组合设备信息、属性和配置生成内部上下文。
-        for (DeviceInfo device : visibleDevices) {
+        // 只为匹配分类的设备组合属性、在线状态和设备配置。
+        for (DeviceInfo device : matchingDevices) {
             Map<String, String> attributes = attributesByDevice.get(device.getId().getId());
-            if (!matchesProductCategory(attributes, expectedProductCategory)) {
-                continue;
-            }
             UUID deviceId = device.getId().getId();
             contexts.add(toDeviceContext(
                     device, devicesById.get(deviceId), attributes, activeValuesByDevice.get(deviceId)));
         }
         return contexts;
+    }
+
+    /** 根据服务器属性筛选设备，未指定的分类维度不参与过滤。 */
+    private List<DeviceInfo> filterDeviceContexts(
+            List<DeviceInfo> devices,
+            Map<UUID, Map<String, String>> attributesByDevice,
+            String expectedProductCategory,
+            String expectedFunctionCategory) {
+        List<DeviceInfo> matchingDevices = new ArrayList<>();
+        for (DeviceInfo device : devices) {
+            Map<String, String> attributes = attributesByDevice.get(device.getId().getId());
+            if (matchesProductCategory(attributes, expectedProductCategory)
+                    && matchesFunctionCategory(attributes, expectedFunctionCategory)) {
+                matchingDevices.add(device);
+            }
+        }
+        return matchingDevices;
     }
 
     /** 返回当前用户有 READ 权限的全部设备 ID，不按产品分类过滤（告警分析页“全体设备”口径）。 */
@@ -409,6 +437,18 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
         }
         String category = attributes.get(PRODUCT_CATEGORY_ATTRIBUTE);
         return category != null && expectedProductCategory.equalsIgnoreCase(category.trim());
+    }
+
+    /** 严格按 SERVER_SCOPE functionCategory 判断功能分类，空白筛选值表示不过滤。 */
+    private boolean matchesFunctionCategory(Map<String, String> attributes, String expectedFunctionCategory) {
+        if (expectedFunctionCategory == null || expectedFunctionCategory.isBlank()) {
+            return true;
+        }
+        if (attributes == null) {
+            return false;
+        }
+        String functionCategory = attributes.get(FUNCTION_CATEGORY_ATTRIBUTE);
+        return functionCategory != null && expectedFunctionCategory.trim().equalsIgnoreCase(functionCategory.trim());
     }
 
     /** productCategory 过滤完成后再分页，totalElements 才是防雷设备总数。 */

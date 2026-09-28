@@ -1,4 +1,11 @@
 <div #mapHost class="smart-lightning-device-map" aria-label="设备天地图"></div>
+<button type="button"
+        class="smart-lightning-map-layer-toggle"
+        [attr.aria-label]="'切换到底图：' + nextBaseLayerLabel"
+        [title]="'切换到底图：' + nextBaseLayerLabel"
+        (click)="toggleBaseLayer()">
+  <tb-icon aria-hidden="true">{{nextBaseLayerIcon}}</tb-icon>
+</button>
 
 @if (selectedDevice; as device) {
   <div class="smart-lightning-map-modal-backdrop" role="presentation" (click)="closeDeviceDetails()">

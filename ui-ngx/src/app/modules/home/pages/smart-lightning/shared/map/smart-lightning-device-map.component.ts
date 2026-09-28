@@ -1,5 +1,5 @@
 /**
- * 文件职责：公共设备地图组件，统一负责天地图初始化、点位筛选、状态颜色、详情模态框和选点事件。
+ * 文件职责：公共设备地图组件，统一负责天地图底图切换、点位筛选、状态颜色、详情模态框和选点事件。
  * 业务页面只提供设备数据与筛选函数，不再自行拼接地图弹窗或处理点位点击展示。
  */
 import {
@@ -58,9 +58,15 @@ export class SmartLightningDeviceMapComponent implements AfterViewInit, OnChange
 
   /** 当前点位详情，使用 Angular 模板渲染，避免拼接 HTML 后详情层丢失。 */
   selectedDevice: SmartLightningMapDevice | null = null;
+  /** 按钮显示单击后将切换到的底图名称。 */
+  nextBaseLayerLabel = '卫星影像';
+  /** 图标表示按钮单击后将切换到的底图类型。 */
+  nextBaseLayerIcon = 'mdi:satellite-variant';
   private map?: L.Map;
   private mapReady = false;
   private draftMarker?: L.CircleMarker;
+  private vectorBaseLayer?: L.LayerGroup;
+  private satelliteBaseLayer?: L.LayerGroup;
   private readonly markers = new Map<string, L.Marker>();
 
   constructor(
@@ -92,6 +98,8 @@ export class SmartLightningDeviceMapComponent implements AfterViewInit, OnChange
   ngOnDestroy(): void {
     this.map?.remove();
     this.markers.clear();
+    this.vectorBaseLayer = undefined;
+    this.satelliteBaseLayer = undefined;
   }
 
   /** 让页面在保存设备坐标后立即重建地图图层。 */
@@ -143,6 +151,25 @@ export class SmartLightningDeviceMapComponent implements AfterViewInit, OnChange
     return this.selectedDevice ? this.getAlarmNames(this.selectedDevice) : [];
   }
 
+  /** 单击在矢量地图和卫星影像间切换，设备点位图层保持不变。 */
+  toggleBaseLayer(): void {
+    if (!this.map || !this.vectorBaseLayer || !this.satelliteBaseLayer) {
+      return;
+    }
+    const satelliteLayerIsActive = this.map.hasLayer(this.satelliteBaseLayer);
+    if (satelliteLayerIsActive) {
+      this.satelliteBaseLayer.removeFrom(this.map);
+      this.vectorBaseLayer.addTo(this.map);
+      this.nextBaseLayerLabel = '卫星影像';
+      this.nextBaseLayerIcon = 'mdi:satellite-variant';
+    } else {
+      this.vectorBaseLayer.removeFrom(this.map);
+      this.satelliteBaseLayer.addTo(this.map);
+      this.nextBaseLayerLabel = '矢量地图';
+      this.nextBaseLayerIcon = 'mdi:map-outline';
+    }
+  }
+
   /** 当前详情设备的绝对资产路径。 */
   selectedDeviceAssetPath(): string {
     if (!this.selectedDevice) {
@@ -161,8 +188,14 @@ export class SmartLightningDeviceMapComponent implements AfterViewInit, OnChange
       maxZoom: 21,
       attribution: '&copy; 天地图 Tianditu'
     };
-    L.tileLayer('https://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + config.token, tileOptions).addTo(this.map);
-    L.tileLayer('https://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + config.token, tileOptions).addTo(this.map);
+    const createTileLayer = (layer: 'vec' | 'cva' | 'img' | 'cia'): L.TileLayer => L.tileLayer(
+      `https://t{s}.tianditu.gov.cn/${layer}_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${config.token}`,
+      {...tileOptions}
+    );
+    // 底图和对应注记放在同一组中，按钮切换时保持矢量标注与卫星标注匹配。
+    this.vectorBaseLayer = L.layerGroup([createTileLayer('vec'), createTileLayer('cva')]);
+    this.satelliteBaseLayer = L.layerGroup([createTileLayer('img'), createTileLayer('cia')]);
+    this.vectorBaseLayer.addTo(this.map);
     this.mapReady = true;
     this.renderMarkers();
     this.updateMapClickMode();
