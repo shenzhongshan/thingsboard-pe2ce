@@ -33,7 +33,8 @@
         <fieldset [disabled]="isLoading$ | async" class="flex flex-col">
           @if (!isSysAdmin) {
             <tb-domain-autocomplete formControlName="domainId" labelText="self-registration.domain"
-                                    requiredText="self-registration.domain-required">
+                                    requiredText="self-registration.domain-required"
+                                    (domainChanged)="onDomainChanged($event)">
             </tb-domain-autocomplete>
           }
           <mat-form-field class="w-full">

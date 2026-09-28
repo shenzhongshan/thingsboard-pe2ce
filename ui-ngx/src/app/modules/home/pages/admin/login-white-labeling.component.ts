@@ -30,6 +30,7 @@ import {
   CustomCssDialogComponent,
   CustomCssDialogData
 } from '@home/pages/admin/custom-css-dialog.component';
+import { DomainInfo } from '@shared/models/oauth2.models';
 
 @Component({
   selector: 'tb-login-white-labeling',
@@ -115,6 +116,16 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
       showNameBottom: v.showNameBottom,
       customCss: this.customCss
     };
+  }
+
+  onDomainChanged(domain: DomainInfo): void {
+    // Mirrors PE: picking (or creating) a domain prefills the base URL from its name. Guarded by
+    // dirty so this only fires on a genuine user-driven change, not while setParams() is loading
+    // the already-saved, already-consistent domainId/baseUrl pair on initial page load.
+    if (domain && this.loginWhiteLabelingForm.get('domainId').dirty) {
+      this.loginWhiteLabelingForm.get('baseUrl').setValue(`http://${domain.name}`);
+      this.loginWhiteLabelingForm.get('baseUrl').markAsDirty();
+    }
   }
 
   openCustomCss() {
