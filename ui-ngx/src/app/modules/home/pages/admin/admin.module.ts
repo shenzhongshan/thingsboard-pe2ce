@@ -69,7 +69,6 @@ import { SecretChangeValueDialogComponent } from '@home/pages/admin/secret-chang
 import {
   SecretEditDescriptionDialogComponent
 } from '@home/pages/admin/secret-edit-description-dialog.component';
-import { CreateDomainDialogComponent } from '@home/pages/admin/create-domain-dialog.component';
 
 @NgModule({
   declarations:
@@ -110,8 +109,7 @@ import { CreateDomainDialogComponent } from '@home/pages/admin/create-domain-dia
       SecretsComponent,
       SecretDialogComponent,
       SecretChangeValueDialogComponent,
-      SecretEditDescriptionDialogComponent,
-      CreateDomainDialogComponent
+      SecretEditDescriptionDialogComponent
     ],
   imports: [
     CommonModule,

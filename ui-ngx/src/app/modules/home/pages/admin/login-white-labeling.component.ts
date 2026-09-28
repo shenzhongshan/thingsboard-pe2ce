@@ -33,7 +33,9 @@ import {
   CustomCssDialogComponent,
   CustomCssDialogData
 } from '@home/pages/admin/custom-css-dialog.component';
-import { CreateDomainDialogComponent } from '@home/pages/admin/create-domain-dialog.component';
+import { AddEntityDialogComponent } from '@home/components/entity/add-entity-dialog.component';
+import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
+import { DomainTableConfigResolver } from '@home/pages/admin/oauth2/domains/domain-table-config.resolver';
 import { DomainInfo } from '@shared/models/oauth2.models';
 
 @Component({
@@ -52,6 +54,7 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
   constructor(protected store: Store<AppState>,
               private whiteLabelingService: WhiteLabelingService,
               private domainService: DomainService,
+              private domainTableConfigResolver: DomainTableConfigResolver,
               private translate: TranslateService,
               private dialog: MatDialog,
               public fb: UntypedFormBuilder) {
@@ -120,10 +123,13 @@ export class LoginWhiteLabelingComponent extends PageComponent implements OnInit
   }
 
   createDomain(): void {
-    this.dialog.open<CreateDomainDialogComponent, any, DomainInfo>(CreateDomainDialogComponent, {
+    // Reuses the exact same add-domain form as Security > OAuth 2.0 > Domains, per PE parity.
+    this.dialog.open<AddEntityDialogComponent, AddEntityDialogData<DomainInfo>, DomainInfo>(AddEntityDialogComponent, {
       disableClose: true,
-      panelClass: ['tb-dialog'],
-      data: {}
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+      data: {
+        entitiesTableConfig: this.domainTableConfigResolver.resolve(null as any)
+      }
     }).afterClosed().subscribe((domain) => {
       if (domain) {
         this.loginWhiteLabelingForm.get('baseUrl').setValue(`http://${domain.name}`);
