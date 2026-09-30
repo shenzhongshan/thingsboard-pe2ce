@@ -203,6 +203,10 @@ import org.thingsboard.server.service.ota.OtaPackageStateService;
 import org.thingsboard.server.service.profile.TbAssetProfileCache;
 import org.thingsboard.server.service.profile.TbDeviceProfileCache;
 import org.thingsboard.server.service.security.model.SecurityUser;
+import org.thingsboard.server.service.security.model.UserPrincipal;
+import org.thingsboard.server.service.security.permission.MergedUserPermissions;
+import org.thingsboard.server.service.security.permission.UserPermissionsService;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.thingsboard.server.service.security.permission.AccessControlService;
 import org.thingsboard.server.service.security.permission.Operation;
 import org.thingsboard.server.service.security.permission.Resource;
@@ -251,6 +255,9 @@ public abstract class BaseController {
 
     @Autowired
     protected AccessControlService accessControlService;
+
+    @Autowired
+    protected UserPermissionsService userPermissionsService;
 
     @Autowired
     protected TenantService tenantService;
@@ -606,6 +613,25 @@ public abstract class BaseController {
             return (SecurityUser) authentication.getPrincipal();
         } else {
             throw new ThingsboardException("You aren't authorized to perform this operation!", ThingsboardErrorCode.AUTHENTICATION);
+        }
+    }
+
+    /**
+     * Resolves the effective permissions for a plain {@link User} - used on the no-auth flows
+     * (password reset, sign-up activation) that build a {@link SecurityUser} before any
+     * authentication has happened, so that the issued JWT carries real permissions.
+     * <p>
+     * {@link UserPermissionsService#getMergedPermissions} takes a {@code SecurityUser}, so a
+     * throwaway wrapper is used when needed; the computation only reads authority/tenant/customer/id,
+     * all inherited from {@link User}, and caches under the real user id.
+     */
+    protected MergedUserPermissions getMergedUserPermissions(User user, boolean isPublic) {
+        try {
+            SecurityUser securityUser = (user instanceof SecurityUser su) ? su
+                    : new SecurityUser(user, true, new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail()));
+            return userPermissionsService.getMergedPermissions(securityUser, isPublic);
+        } catch (Exception e) {
+            throw new BadCredentialsException("Failed to get user permissions", e);
         }
     }
 

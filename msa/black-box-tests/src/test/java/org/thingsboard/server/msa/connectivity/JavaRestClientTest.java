@@ -150,7 +150,7 @@ public class JavaRestClientTest extends AbstractContainerTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        restClient.login("sysadmin@thingsboard.org", "sysadmin");
+        restClient.login("sysadmin@fexlink.com", "sysadmin");
 
         // create tenant 1 and tenant admin 1
         tenant1 = new Tenant();
@@ -176,7 +176,7 @@ public class JavaRestClientTest extends AbstractContainerTest {
 
     @AfterMethod
     public void tearDown() {
-        restClient.login("sysadmin@thingsboard.org", "sysadmin");
+        restClient.login("sysadmin@fexlink.com", "sysadmin");
         if (tenant1 != null) {
             restClient.deleteTenant(tenant1.getId());
         }
@@ -339,7 +339,7 @@ public class JavaRestClientTest extends AbstractContainerTest {
 
     @Test
     public void testSaveDomain() {
-        restClient.login("sysadmin@thingsboard.org", "sysadmin");
+        restClient.login("sysadmin@fexlink.com", "sysadmin");
 
         Domain domain = new Domain();
         String prefix = RandomStringUtils.insecure().randomAlphabetic(5).toLowerCase();
@@ -353,7 +353,7 @@ public class JavaRestClientTest extends AbstractContainerTest {
 
     @Test
     public void testSaveMobileApp() {
-        restClient.login("sysadmin@thingsboard.org", "sysadmin");
+        restClient.login("sysadmin@fexlink.com", "sysadmin");
 
         MobileApp mobileApp = new MobileApp();
         String prefix = RandomStringUtils.insecure().randomAlphabetic(5).toLowerCase();

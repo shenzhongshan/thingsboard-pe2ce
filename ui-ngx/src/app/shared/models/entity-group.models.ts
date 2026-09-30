@@ -139,3 +139,15 @@ export interface EntityGroupAction {
   dashboardState?: string;
   customFunction?: string;
 }
+
+// Body of POST /api/entityGroup/{id}/share — PE parity, see ShareGroupRequest.java.
+export interface ShareGroupRequest {
+  // Either Tenant or Customer id. Only used when allUserGroup is true.
+  ownerId?: EntityId;
+  allUserGroup: boolean;
+  // Only used when allUserGroup is false.
+  userGroupId?: EntityId;
+  // Used only if roleIds is empty: true creates/reuses a read-only role, false a read-write role.
+  readElseWrite: boolean;
+  roleIds?: EntityId[];
+}

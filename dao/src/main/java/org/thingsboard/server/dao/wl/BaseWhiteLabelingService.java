@@ -348,7 +348,9 @@ implements WhiteLabelingService {
             }
             // CE adaptation: flat customers, no sub-customer parent chain to check.
             if (this.isCustomerWhiteLabelingAllowed(customer.getTenantId())) {
-                JsonNode allowWhiteLabelJsonNode = customer.getAdditionalInfo().get(ALLOW_WHITE_LABELING);
+                // additionalInfo is nullable; this check now also runs for every /api/system/params.
+                JsonNode allowWhiteLabelJsonNode = customer.getAdditionalInfo() != null
+                        ? customer.getAdditionalInfo().get(ALLOW_WHITE_LABELING) : null;
                 if (allowWhiteLabelJsonNode == null) {
                     return true;
                 }

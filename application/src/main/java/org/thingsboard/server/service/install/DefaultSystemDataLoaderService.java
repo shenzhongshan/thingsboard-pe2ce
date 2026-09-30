@@ -198,7 +198,7 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
 
     @Override
     public void createSysAdmin() {
-        createUser(Authority.SYS_ADMIN, null, null, "sysadmin@thingsboard.org", "sysadmin");
+        createUser(Authority.SYS_ADMIN, null, null, "sysadmin@fexlink.com", "sysadmin");
     }
 
     @Override
@@ -279,6 +279,8 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         connectivitySettings.setKey("connectivity");
         connectivitySettings.setJsonValue(JacksonUtil.valueToTree(connectivityConfiguration.getConnectivity()));
         adminSettingsService.saveAdminSettings(TenantId.SYS_TENANT_ID, connectivitySettings);
+
+        installScripts.loadMailTemplates();
     }
 
     @Override

@@ -15,7 +15,7 @@
     limitations under the License.
 
 -->
-@if (!textMode) {
+@if ((enableHelpLinks$ | async) && !textMode) {
   <fieldset class="tb-help-popup-button-container">
     <div #toggleHelpButton
          class="tb-toggle-help-popup-button"
@@ -38,7 +38,7 @@
     </div>
   </fieldset>
 }
-@if (textMode) {
+@if ((enableHelpLinks$ | async) && textMode) {
   <fieldset class="tb-help-popup-button-container">
     <div #toggleHelpTextButton
          class="tb-toggle-help-popup-text-button"

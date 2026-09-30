@@ -28,6 +28,7 @@ import { getCurrentAuthState } from '@core/auth/auth.selectors';
 import { AuthState } from '@core/auth/auth.models';
 import { CountryData } from '@shared/models/country.models';
 import { EntityType } from '@shared/models/entity-type.models';
+import { WhiteLabelingService } from '@core/http/white-labeling.service';
 
 @Component({
     selector: 'tb-customer',
@@ -43,14 +44,25 @@ export class CustomerComponent extends ContactBasedComponent<Customer> {
 
   authState: AuthState = getCurrentAuthState(this.store);
 
+  // Per-customer white labeling can only be granted when the tenant itself is allowed to delegate
+  // it (Tenant additionalInfo.allowCustomerWhiteLabeling); PE hides the checkbox otherwise.
+  allowCustomerWhiteLabeling = false;
+
   constructor(protected store: Store<AppState>,
               protected translate: TranslateService,
               @Inject('entity') protected entityValue: Customer,
               @Inject('entitiesTableConfig') protected entitiesTableConfigValue: EntityTableConfig<Customer>,
               protected fb: UntypedFormBuilder,
               protected cd: ChangeDetectorRef,
-              protected countryData: CountryData) {
+              protected countryData: CountryData,
+              private whiteLabelingService: WhiteLabelingService) {
     super(store, fb, entityValue, entitiesTableConfigValue, cd, countryData);
+    this.whiteLabelingService.isCustomerWhiteLabelingAllowed({ignoreErrors: true}).subscribe(
+      (allowed) => {
+        this.allowCustomerWhiteLabeling = allowed;
+        this.cd.markForCheck();
+      }
+    );
   }
 
   hideDelete() {
@@ -69,6 +81,8 @@ export class CustomerComponent extends ContactBasedComponent<Customer> {
         additionalInfo: this.fb.group(
           {
             description: [entity && entity.additionalInfo ? entity.additionalInfo.description : ''],
+            allowWhiteLabeling: [entity && entity.additionalInfo &&
+            isDefinedAndNotNull(entity.additionalInfo.allowWhiteLabeling) ? entity.additionalInfo.allowWhiteLabeling : true],
             homeDashboardId: [entity && entity.additionalInfo ? entity.additionalInfo.homeDashboardId : null],
             homeDashboardHideToolbar: [entity && entity.additionalInfo &&
             isDefinedAndNotNull(entity.additionalInfo.homeDashboardHideToolbar) ? entity.additionalInfo.homeDashboardHideToolbar : true]
@@ -83,6 +97,9 @@ export class CustomerComponent extends ContactBasedComponent<Customer> {
     this.entityForm.patchValue({title: entity.title});
     this.entityForm.patchValue({parentCustomerId: entity.parentCustomerId});
     this.entityForm.patchValue({additionalInfo: {description: entity.additionalInfo ? entity.additionalInfo.description : ''}});
+    this.entityForm.patchValue({additionalInfo:
+        {allowWhiteLabeling: entity.additionalInfo &&
+          isDefinedAndNotNull(entity.additionalInfo.allowWhiteLabeling) ? entity.additionalInfo.allowWhiteLabeling : true}});
     this.entityForm.patchValue({additionalInfo:
         {homeDashboardId: entity.additionalInfo ? entity.additionalInfo.homeDashboardId : null}});
     this.entityForm.patchValue({additionalInfo:

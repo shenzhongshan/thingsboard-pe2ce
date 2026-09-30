@@ -43,6 +43,7 @@ import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.security.model.JwtPair;
 import org.thingsboard.server.common.data.selfregistration.AbstractCaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.CaptchaParams;
+import org.thingsboard.server.common.data.selfregistration.LocalCaptchaParams;
 import org.thingsboard.server.common.data.selfregistration.SelfRegistrationParams;
 import org.thingsboard.server.common.data.selfregistration.SignUpField;
 import org.thingsboard.server.common.data.selfregistration.SignUpFieldId;
@@ -57,9 +58,19 @@ import org.thingsboard.server.config.SignUpConfig;
 import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.dao.service.DataValidator;
 import org.thingsboard.server.dao.wl.WhiteLabelingService;
+import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.NotificationTargetId;
+import org.thingsboard.server.common.data.notification.NotificationType;
+import org.thingsboard.server.common.data.notification.info.NotificationInfo;
+import org.thingsboard.server.common.data.permission.GroupPermission;
+import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
+import org.thingsboard.rule.engine.api.NotificationCenter;
+import org.thingsboard.server.data.RecaptchaValidationResult;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.queue.util.TbCoreComponent;
 import org.thingsboard.server.service.security.auth.rest.RestAuthenticationDetails;
+import org.thingsboard.server.service.security.captcha.LocalCaptchaService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.model.UserPrincipal;
 import org.thingsboard.server.service.security.model.token.JwtTokenFactory;
@@ -67,10 +78,12 @@ import org.thingsboard.server.service.security.system.SystemSecurityService;
 import org.thingsboard.server.utils.MiscUtils;
 
 /**
- * CE port of the PE self-registration sign-up flow. Web self-registration only:
- * the PE mobile sign-up path (mobile app bundle self-registration params), reCaptcha
- * Enterprise, EntityGroup provisioning, custom menus and admin notifications are dropped
- * because the corresponding subsystems do not exist in the Community Edition.
+ * CE port of the PE self-registration sign-up flow, at PE parity for the web path: entity group
+ * provisioning, group permissions, custom menu assignment and admin notifications are all wired.
+ * <p>
+ * Deliberately not ported: the PE mobile sign-up path (mobile app bundle self-registration params,
+ * app secret validation, deep-link redirects) and reCaptcha Enterprise - the latter only ever
+ * applies to ANDROID/IOS platforms in PE, so it is bound to the mobile path.
  */
 @RestController
 @TbCoreComponent
@@ -97,6 +110,14 @@ extends BaseController {
     private SystemSecurityService systemSecurityService;
     @Autowired
     private WhiteLabelingService whiteLabelingService;
+    @Autowired
+    private EntityGroupService entityGroupService;
+    @Autowired
+    private GroupPermissionService groupPermissionService;
+    @Autowired
+    private NotificationCenter notificationCenter;
+    @Autowired
+    private LocalCaptchaService localCaptchaService;
 
     @PostConstruct
     public void init() {
@@ -116,6 +137,8 @@ extends BaseController {
         CaptchaParams captcha = selfRegistrationParams.getCaptcha();
         if (captcha instanceof V2CaptchaParams || captcha instanceof V3CaptchaParams) {
             this.validateReCaptcha(signUpRequest.getRecaptchaResponse(), request.getRemoteAddr(), ((AbstractCaptchaParams)captcha).getSecretKey());
+        } else if (captcha instanceof LocalCaptchaParams) {
+            this.validateLocalCaptcha(signUpRequest.getCaptchaId(), signUpRequest.getCaptchaAnswer());
         } else {
             throw new DataValidationException("Error validating captcha: wrong captcha version");
         }
@@ -129,25 +152,104 @@ extends BaseController {
             return SignUpResult.INACTIVE_USER_EXISTS;
         }
         this.systemSecurityService.validatePassword(password, null);
+        String firstName = signUpRequest.getFields().get(SignUpFieldId.FIRST_NAME);
+        String lastName = signUpRequest.getFields().get(SignUpFieldId.LAST_NAME);
+
         Customer savedCustomer = this.createCustomer(signUpRequest, selfRegistrationParams, tenantId);
+        EntityGroup savedUsersGroup = this.createCustomerUserGroup(selfRegistrationParams, savedCustomer);
         User savedUser = this.createUser(signUpRequest, selfRegistrationParams, savedCustomer);
+        this.entityGroupService.addEntityToEntityGroup(tenantId, savedUsersGroup.getId(), savedUser.getId());
+        this.userPermissionsService.onUserGroupMembershipChanged(tenantId, savedUsersGroup.getId());
         UserCredentials savedUserCredentials = this.saveUserCredentials(savedUser, signUpRequest);
         try {
-            this.sendEmailVerification(request, savedUserCredentials, email);
+            this.sendEmailVerification(tenantId, request, savedUserCredentials, email);
         } catch (ThingsboardException e) {
+            // deleteCustomer cascades to its users, entity groups and their group permissions
             this.customerService.deleteCustomer(tenantId, savedCustomer.getId());
             throw e;
         }
+        this.sendUserActivityNotification(tenantId, NotificationType.USER_REGISTERED,
+                Optional.ofNullable(firstName).orElse("") + " " + Optional.ofNullable(lastName).orElse(""),
+                email, selfRegistrationParams.getNotificationRecipient());
+
         this.logEntityActionService.logEntityAction(tenantId, savedCustomer.getId(), savedCustomer, savedCustomer.getId(), ActionType.ADDED, null);
         this.logEntityActionService.logEntityAction(tenantId, savedUser.getId(), savedUser, savedUser.getCustomerId(), ActionType.ADDED, null);
+        this.logEntityActionService.logEntityAction(tenantId, savedUser.getId(), savedUser, savedCustomer.getId(),
+                ActionType.ADDED_TO_ENTITY_GROUP, (User) null, savedUsersGroup.getId().toString(), savedUsersGroup.getName());
         return SignUpResult.SUCCESS;
     }
 
-    private void sendEmailVerification(HttpServletRequest request, UserCredentials userCredentials, String targetEmail) throws ThingsboardException {
+    /**
+     * PE parity: provisions the "Self Registration Users" group under the freshly created customer
+     * and persists the configured {@link GroupPermission}s against it.
+     * <p>
+     * Deliberate CE divergence: {@code UserServiceImpl.saveUser} additionally places every new user
+     * in the owner's "All" and "Customer Users" groups (bound to the default Customer User role),
+     * which PE does not do. The memberships are independent relation rows and permissions merge as a
+     * union, so the configured roles here add to that baseline rather than replacing it. The upside
+     * is that an empty {@code permissions} list still yields a usable account, whereas PE-exact
+     * behaviour would leave the user with no permissions at all.
+     */
+    private EntityGroup createCustomerUserGroup(SelfRegistrationParams selfRegistrationParams, Customer savedCustomer) {
+        TenantId tenantId = savedCustomer.getTenantId();
+        EntityGroup usersEntityGroup = this.entityGroupService.findOrCreateUserGroup(tenantId, savedCustomer.getId(),
+                "Self Registration Users", "Autogenerated Self Registration group");
+        List<GroupPermission> permissions = selfRegistrationParams.getPermissions();
+        if (permissions == null) {
+            return usersEntityGroup;
+        }
+        for (GroupPermission permission : permissions) {
+            // the configured entries are templates stored inside the settings blob; never reuse an id
+            permission.setId(null);
+            permission.setTenantId(tenantId);
+            permission.setUserGroupId(usersEntityGroup.getId());
+            if (permission.getEntityGroupId() != null) {
+                EntityGroup entityGroup = this.entityGroupService.findEntityGroupById(tenantId, permission.getEntityGroupId());
+                if (entityGroup == null) {
+                    continue; // PE: silently skip permissions pointing at a deleted group
+                }
+                permission.setEntityGroupType(entityGroup.getType());
+            }
+            this.groupPermissionService.saveGroupPermission(tenantId, permission);
+        }
+        return usersEntityGroup;
+    }
+
+    /**
+     * Notifies the configured notification target that a user registered / activated.
+     * Never fails the sign-up: a missing notification template must not roll back the account.
+     */
+    private void sendUserActivityNotification(TenantId tenantId, NotificationType notificationType,
+                                              String userFullName, String userEmail, NotificationTargetId recipient) {
+        if (recipient == null) {
+            return;
+        }
+        try {
+            NotificationInfo info;
+            if (notificationType == NotificationType.USER_ACTIVATED) {
+                info = NotificationInfo.userActivated(userFullName, userEmail);
+            } else if (notificationType == NotificationType.USER_REGISTERED) {
+                info = NotificationInfo.userRegistered(userFullName, userEmail);
+            } else {
+                return;
+            }
+            this.notificationCenter.sendSystemNotification(tenantId, recipient, notificationType, info);
+        } catch (Exception e) {
+            log.error("Failed to send {} notification about user {}", notificationType, userEmail, e);
+        }
+    }
+
+    /**
+     * Deliberately uses the raw request host rather than {@code systemSecurityService.getBaseUrl}:
+     * the activation link must point at the self-registration domain the user actually visited,
+     * which is exactly what login white labeling's {@code prohibitDifferentUrl} would override.
+     * PE does the same. The tenant is only used to resolve the mail template and sender.
+     */
+    private void sendEmailVerification(TenantId tenantId, HttpServletRequest request, UserCredentials userCredentials, String targetEmail) throws ThingsboardException {
         String baseUrl = MiscUtils.constructBaseUrl(request);
         String activationLink = String.format("%s/api/noauth/activateEmail?emailCode=%s", baseUrl, userCredentials.getActivateToken());
         try {
-            this.mailService.sendActivationEmail(activationLink, userCredentials.getActivationTokenTtl(), targetEmail);
+            this.mailService.sendActivationEmail(tenantId, activationLink, userCredentials.getActivationTokenTtl(), targetEmail);
         } catch (Exception e) {
             throw new ThingsboardException("Temporarily unable to send activation email", ThingsboardErrorCode.GENERAL);
         }
@@ -169,7 +271,7 @@ extends BaseController {
             throw new DataValidationException("User with email '" + email + "'  is not registered!");
         }
         credentials = this.userService.checkUserActivationToken(tenantId, credentials);
-        this.sendEmailVerification(request, credentials, email);
+        this.sendEmailVerification(tenantId, request, credentials, email);
     }
 
     @ApiOperation(value="Activate User using code from Email (activateEmail)", notes="Activate the user using code(link) from the activation email. Validates the code and redirects according to the signup flow.")
@@ -213,15 +315,19 @@ extends BaseController {
         this.setTermsOfUseAccepted(user);
         user = this.userService.saveUser(tenantId, user);
         UserPrincipal principal = new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail());
-        SecurityUser securityUser = new SecurityUser(user, credentials.isEnabled(), principal);
+        SecurityUser securityUser = new SecurityUser(user, credentials.isEnabled(), principal, this.getMergedUserPermissions(user, false));
         String baseUrl = MiscUtils.constructBaseUrl(request);
         String loginUrl = String.format("%s/login", baseUrl);
         String email = user.getEmail();
         try {
-            this.mailService.sendAccountActivatedEmail(loginUrl, email);
+            this.mailService.sendAccountActivatedEmail(tenantId, loginUrl, email);
         } catch (Exception e) {
             log.warn("Unable to send account activated email for {}: {}", email, e.getMessage());
         }
+        SelfRegistrationParams selfRegistrationParams = JacksonUtil.treeToValue(whiteLabeling.getSettings(), WebSelfRegistrationParams.class);
+        this.sendUserActivityNotification(tenantId, NotificationType.USER_ACTIVATED,
+                Optional.ofNullable(user.getFirstName()).orElse("") + " " + Optional.ofNullable(user.getLastName()).orElse(""),
+                email, selfRegistrationParams.getNotificationRecipient());
         this.systemSecurityService.logLoginAction(user, new RestAuthenticationDetails(request), ActionType.LOGIN, null);
         return this.tokenFactory.createTokenPair(securityUser);
     }
@@ -262,7 +368,7 @@ extends BaseController {
         this.setPrivacyPolicyAccepted(user);
         user = this.userService.saveUser(securityUser.getTenantId(), user);
         UserPrincipal principal = new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail());
-        securityUser = new SecurityUser(user, true, principal);
+        securityUser = new SecurityUser(user, true, principal, this.getMergedUserPermissions(user, false));
         return this.buildTokenObject(securityUser);
     }
 
@@ -302,7 +408,7 @@ extends BaseController {
         this.setTermsOfUseAccepted(user);
         user = this.userService.saveUser(securityUser.getTenantId(), user);
         UserPrincipal principal = new UserPrincipal(UserPrincipal.Type.USER_NAME, user.getEmail());
-        securityUser = new SecurityUser(user, true, principal);
+        securityUser = new SecurityUser(user, true, principal, this.getMergedUserPermissions(user, false));
         return this.buildTokenObject(securityUser);
     }
 
@@ -321,14 +427,22 @@ extends BaseController {
         parameters.add("response", userResponse);
         parameters.add("remoteip", ipAddress);
         try {
-            JsonNode result = this.restTemplate.postForEntity(this.signUpConfig.getRecaptchaVerificationUrl(), parameters, JsonNode.class).getBody();
-            if (result == null || !result.path("success").asBoolean(false)) {
+            RecaptchaValidationResult result = this.restTemplate.postForEntity(this.signUpConfig.getRecaptchaVerificationUrl(), parameters, RecaptchaValidationResult.class).getBody();
+            if (result == null || result.isFailure()) {
                 log.error("reCAPTCHA validation failed: {}", result);
                 throw new DataValidationException("Invalid reCaptcha response!");
             }
         } catch (RestClientException ex) {
             log.error("Error validating reCAPTCHA. Verification URL: [{}]", this.signUpConfig.getRecaptchaVerificationUrl());
             throw new ThingsboardException("Error validating reCAPTCHA", ex, ThingsboardErrorCode.GENERAL);
+        }
+    }
+
+    private void validateLocalCaptcha(String captchaId, String captchaAnswer) throws ThingsboardException {
+        checkParameter("Captcha id", captchaId);
+        checkParameter("Captcha answer", captchaAnswer);
+        if (!this.localCaptchaService.verifyAndEvict(captchaId, captchaAnswer)) {
+            throw new DataValidationException("Invalid captcha response!");
         }
     }
 
@@ -386,7 +500,12 @@ extends BaseController {
         customer.setAddress2(signUpRequestFields.get(SignUpFieldId.ADDRESS2));
         customer.setZip(signUpRequestFields.get(SignUpFieldId.ZIP));
         customer.setPhone(signUpRequestFields.get(SignUpFieldId.PHONE));
-        return this.checkNotNull(this.customerService.saveCustomer(customer));
+        customer.setCustomMenuId(selfRegistrationParams.getCustomMenuId());
+        Customer savedCustomer = this.checkNotNull(this.customerService.saveCustomer(customer));
+        if (selfRegistrationParams.getCustomerGroupId() != null) {
+            this.entityGroupService.addEntityToEntityGroup(tenantId, selfRegistrationParams.getCustomerGroupId(), savedCustomer.getId());
+        }
+        return savedCustomer;
     }
 
     private UserCredentials saveUserCredentials(User savedUser, SignUpRequest signUpRequest) {

@@ -49,6 +49,12 @@ import {
   CustomMenuDefaultItemDialogComponent
 } from '@home/pages/admin/custom-menu-default-item-dialog.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
+import {
+  SelfRegistrationPermissionsComponent
+} from '@home/pages/admin/self-registration-permissions.component';
+import {
+  SelfRegistrationPermissionDialogComponent
+} from '@home/pages/admin/self-registration-permission-dialog.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
 import { CustomMenuInfoDialogComponent } from '@home/pages/admin/custom-menu-info-dialog.component';
@@ -63,6 +69,7 @@ import { SecretChangeValueDialogComponent } from '@home/pages/admin/secret-chang
 import {
   SecretEditDescriptionDialogComponent
 } from '@home/pages/admin/secret-edit-description-dialog.component';
+import { DomainAutocompleteComponent } from '@home/pages/admin/domain-autocomplete.component';
 
 @NgModule({
   declarations:
@@ -92,6 +99,8 @@ import {
       CustomMenuItemDialogComponent,
       CustomMenuDefaultItemDialogComponent,
       SelfRegistrationComponent,
+      SelfRegistrationPermissionsComponent,
+      SelfRegistrationPermissionDialogComponent,
       CustomMenuComponent,
       CustomMenuListComponent,
       CustomMenuInfoDialogComponent,
@@ -101,7 +110,8 @@ import {
       SecretsComponent,
       SecretDialogComponent,
       SecretChangeValueDialogComponent,
-      SecretEditDescriptionDialogComponent
+      SecretEditDescriptionDialogComponent,
+      DomainAutocompleteComponent
     ],
   imports: [
     CommonModule,

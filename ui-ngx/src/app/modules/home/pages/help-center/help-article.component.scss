@@ -1,0 +1,33 @@
+.tb-help-article-container {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.tb-help-article-card {
+  width: 100%;
+  max-width: 900px;
+
+  mat-card-header {
+    align-items: center;
+    gap: 8px;
+
+    mat-card-title {
+      margin-bottom: 0;
+    }
+  }
+}
+
+::ng-deep .tb-help-article-content {
+  .tb-markdown-view {
+    line-height: 1.6;
+
+    h2 {
+      margin-top: 24px;
+    }
+
+    code {
+      white-space: pre-wrap;
+    }
+  }
+}

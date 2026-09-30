@@ -83,9 +83,13 @@
           <button mat-flat-button color="accent" [disabled]="isLoading || (isLoading$ | async)"
           class="tb-action-button" type="submit">{{ 'login.sign-in' | translate }}</button>
           <div class="forgot-password flex items-center justify-between gap-5">
-            <button mat-button type="button" routerLink="/signup">
-              {{ 'signup.sign-up' | translate }}
-            </button>
+            @if (signUpAllowed) {
+              <button mat-button type="button" routerLink="/signup">
+                {{ 'signup.sign-up' | translate }}
+              </button>
+            } @else {
+              <span></span>
+            }
             <button class="tb-reset-password" mat-button type="button" routerLink="/login/resetPasswordRequest">
               {{ (passwordViolation ? 'login.reset-password' : 'login.forgot-password') | translate }}
             </button>

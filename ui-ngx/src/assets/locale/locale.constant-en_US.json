@@ -131,10 +131,15 @@
         "permissions-user-group-owner": "User group owner",
         "permissions-no-permissions-text": "No group permissions found",
         "owner-tenant": "Tenant",
-        "owner-customer": "Customer"
+        "owner-customer": "Customer",
+        "all-users": "All users",
+        "select-user-group": "Select user group",
+        "no-user-groups-matching": "No user groups matching '{{entityGroup}}' were found.",
+        "target-user-group-required": "Target user group is required."
     },
     "role": {
         "roles": "Roles",
+        "roles-required": "Roles are required.",
         "role": "Role",
         "add": "Add role",
         "edit": "Edit role",
@@ -1056,12 +1061,28 @@
         "mail-template-apiUsageStateWarning": "API usage warning",
         "mail-template-apiUsageStateDisabled": "API usage disabled"
     },
+    "group-permission": {
+        "user-group-roles": "User group roles",
+        "role-name": "Role name",
+        "role-type": "Role type",
+        "group-type": "Group type",
+        "group-name": "Group name",
+        "add-group-permission": "Add group permission",
+        "delete-group-permission": "Delete group permission",
+        "no-group-permissions-text": "No group permissions found"
+    },
     "self-registration": {
+        "captcha-version-v2": "Google reCAPTCHA v2",
+        "captcha-version-v3": "Google reCAPTCHA v3",
+        "captcha-version-local": "Local (self-hosted) captcha",
+        "notification-recipient": "Notification recipient",
+        "notification-recipient-required": "Notification recipient is required.",
         "self-registration": "Self registration",
         "domain-settings": "Domain settings",
         "domain": "Domain",
         "domain-required": "Domain is required.",
         "domain-hint": "Domains are managed by the system administrator.",
+        "no-domains-matching": "No domains matching",
         "signup-url": "Self registration URL",
         "captcha-version": "Captcha version",
         "captcha-action-name": "Captcha log action name",
@@ -1082,6 +1103,14 @@
         "reset-to-default": "Reset to default"
     },
     "signup": {
+        "captcha-refresh": "Refresh",
+        "captcha-answer": "Enter the characters shown in the image",
+        "repeat-password": "Repeat your password",
+        "resend": "Resend",
+        "email-verification": "Email verification",
+        "email-verification-message": "An email with verification details was sent to the specified email address.<br>Please follow instructions provided in the email in order to complete your sign up procedure.<br>Note: if you haven't seen the email for a while, please check your 'spam' folder or try to resend email by clicking 'Resend' button.",
+        "inactive-user-exists-title": "Inactive user already exists",
+        "inactive-user-exists-text": "There is already registered user with unverified email address.<br>Click 'Resend' button if you wish to resend verification email.",
         "sign-up": "Sign up",
         "field-email": "Email",
         "field-first-name": "First name",
@@ -2162,6 +2191,7 @@
         "status-expired": "Expired"
     },
     "audit-log": {
+        "type-added-to-entity-group": "Added to entity group",
         "audit": "Audit",
         "audit-logs": "Audit logs",
         "timestamp": "Timestamp",
@@ -3024,8 +3054,8 @@
         "make-private-dashboard-title": "Are you sure you want to make the dashboard '{{dashboardTitle}}' private?",
         "make-private-dashboard-text": "After the confirmation the dashboard will be made private and won't be accessible by others.",
         "make-private-dashboard": "Make dashboard private",
-        "socialshare-text": "'{{dashboardTitle}}' powered by ThingsBoard",
-        "socialshare-title": "'{{dashboardTitle}}' powered by ThingsBoard",
+        "socialshare-text": "'{{dashboardTitle}}' powered by Fexlink",
+        "socialshare-title": "'{{dashboardTitle}}' powered by Fexlink",
         "select-dashboard": "Select dashboard",
         "no-dashboards-matching": "No dashboards matching '{{entity}}' were found.",
         "dashboard-required": "Dashboard is required.",
@@ -4876,6 +4906,7 @@
     },
     "home": {
         "home": "Home",
+        "help": "Help",
         "profile": "Profile",
         "logout": "Logout",
         "menu": "Menu",
@@ -5671,9 +5702,9 @@
         "configuration-app": "Configuration app",
         "configuration-step": {
             "prepare-environment-title": "Prepare development environment",
-            "prepare-environment-text": "Flutter ThingsBoard Mobile Application requires Flutter SDK. Follow instructions to set up Flutter SDK.",
+            "prepare-environment-text": "Flutter Fexlink Mobile Application requires Flutter SDK. Follow instructions to set up Flutter SDK.",
             "get-source-code-title": "Get app source code",
-            "get-source-code-text": "You can get Flutter ThingsBoard Mobile Application source code by cloning it from the GitHub repository:",
+            "get-source-code-text": "You can get Flutter Fexlink Mobile Application source code by cloning it from the GitHub repository:",
             "configure-app-settings-title": "Configure app settings",
             "configure-app-settings-text": "Download the configuration file and place it into the root directory of the project you cloned in the previous step.",
             "download-file": "Download file",
@@ -5911,6 +5942,8 @@
         "template-name": "Template name",
         "template-required": "Template is required",
         "template-type": {
+            "type-user-registered": "User registered",
+            "type-user-activated": "User activated",
             "alarm": "Alarm",
             "alarm-assignment": "Alarm assignment",
             "alarm-comment": "Alarm comment",
@@ -7374,6 +7407,8 @@
         "entities-limit-exceeded": "Entities limit exceeded"
     },
     "tenant": {
+        "allow-white-labeling": "Allow white labeling",
+        "allow-customer-white-labeling": "Allow customer white labeling",
         "tenant": "Tenant",
         "tenants": "Tenants",
         "management": "Tenant management",
@@ -7402,7 +7437,7 @@
         "tenant-required": "Tenant is required",
         "search": "Search tenants",
         "selected-tenants": "{ count, plural, =1 {1 tenant} other {# tenants} } selected",
-        "isolated-tb-rule-engine": "Use isolated ThingsBoard Rule Engine queues",
+        "isolated-tb-rule-engine": "Use isolated Fexlink Rule Engine queues",
         "isolated-tb-rule-engine-details": "Each tenant will have dedicated Rule Engine queues"
     },
     "tenant-profile": {
@@ -11256,7 +11291,7 @@
         },
         "functions": {
             "title": "Functions",
-            "pe-feature-tooltip": "Only on ThingsBoard\nProfessional Edition",
+            "pe-feature-tooltip": "Only on Fexlink\nProfessional Edition",
             "switch-to-pe": "Switch to PE",
             "alarms": "Alarms",
             "dashboards": "Dashboards",
@@ -11307,19 +11342,19 @@
                     "how-to-configure-sms-provider": "How to configure SMS provider"
                 },
                 "step4": {
+                    "title": "Configure feature: White labeling",
+                    "content": "<p>Customize your company's or product's logo and color scheme in just a few clicks — no coding, no service restart required.</p><p>Follow the documentation on how to do it:</p>",
+                    "how-to-configure-white-labeling": "How to configure white labeling"
+                },
+                "step5": {
                     "title": "Configure feature: 2FA",
                     "content": "<p>Improve security of the platform accounts with two-factor authentication.</p><p>Follow the documentation on how to do it:</p>",
                     "how-to-configure-2fa": "How to configure 2FA"
                 },
-                "step5": {
+                "step6": {
                     "title": "Configure feature: OAuth 2",
                     "content": "<p>Simplify login for the tenant and customer users with Single Sign-On functionality via OAuth 2.0.</p><p>Follow the documentation on how to do it:</p>",
                     "how-to-configure-oauth2": "How to configure OAuth 2"
-                },
-                "step6": {
-                    "title": "Configure feature: Slack",
-                    "content": "<p>Distribute notifications to the tenant and customer users via Slack according to the notification rules you set.</p><p>Follow the documentation on how to do it:</p>",
-                    "how-to-configure-notifications": "How to configure Slack"
                 }
             },
             "tenant-admin": {

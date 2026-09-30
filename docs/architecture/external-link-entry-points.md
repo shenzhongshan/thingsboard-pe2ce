@@ -12,9 +12,9 @@
 
 | 位置 | URL | 说明 |
 |------|-----|------|
-| `ui-ngx/src/app/shared/models/constants.ts:90` | `https://allshen.org` | 前端帮助链接基础 URL |
-| `application/src/main/resources/thingsboard.yml:297` | `https://raw.githubusercontent.com/thingsboard/thingsboard-ui-help/release-4.4` | 后端 `UI_HELP_BASE_URL`，可在 YAML 中覆盖 |
-| `ui-ngx/src/app/shared/components/help.component.ts:36` | 动态拼接 | `window.open(helpUrl, '_blank')` 打开帮助 |
+| `ui-ngx/src/app/shared/models/constants.ts:90` | `https://allshen.org` | 前端帮助链接基础 URL（`[tb-help]` 已始终隐藏，不再可从 UI 触发，见下） |
+| `application/src/main/resources/thingsboard.yml:297` | 默认 `/assets`（本地内置离线帮助文档），可通过 `UI_HELP_BASE_URL` 覆盖为外部 URL；外部 URL 不可用时前端自动回退到 `/assets` | 后端 `ui.help.base-url`，供 `HelpService` 加载帮助弹窗 Markdown 内容 |
+| `ui-ngx/src/app/shared/components/help.component.ts` | 已禁用（组件恒不渲染） | 原用于 `window.open(helpUrl, '_blank')` 打开外部帮助页的按钮，现始终隐藏，不再发起该请求 |
 
 ### 2.2 首页/仪表板文档链接
 
@@ -282,7 +282,7 @@ connect-src:
 | `updates.allshen.org` | 版本更新检查 |
 | `img.allshen.org` | CSP 图片白名单 |
 | `github.com` / `api.github.com` | 源码链接 / OAuth2 / Star API |
-| `raw.githubusercontent.com` | 帮助系统资源 |
+| `raw.githubusercontent.com` | 帮助系统资源（默认不再使用，仅当管理员将 `UI_HELP_BASE_URL` / 白标 "UI 帮助基础 URL" 显式配置为该域名时才会请求） |
 | `tile.openstreetmap.org` | 地图瓦片 |
 | `basemaps.arcgis.com` / `cdn.arcgis.com` | 地图服务 |
 | `maps.googleapis.com` | Google Maps SDK |

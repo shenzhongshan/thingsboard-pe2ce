@@ -21,6 +21,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, mergeMap, tap } from 'rxjs/operators';
 import { docPlatformPrefix, helpBaseUrl as siteBaseUrl } from '@shared/models/constants';
 import { UiSettingsService } from '@core/http/ui-settings.service';
+import { WhiteLabelingApplyService } from '@core/services/white-labeling-apply.service';
 
 const localHelpBaseUrl = '/assets';
 
@@ -34,15 +35,23 @@ const NOT_FOUND_CONTENT: HelpData = {
 })
 export class HelpService {
 
-  private siteBaseUrl = siteBaseUrl;
   private docPlatformPrefix = docPlatformPrefix;
   private helpCache: {[lang: string]: {[key: string]: string}} = {};
+  private wlHelpBaseUrl: string;
 
   constructor(
     private translate: TranslateService,
     private http: HttpClient,
-    private uiSettingsService: UiSettingsService
-  ) {}
+    private uiSettingsService: UiSettingsService,
+    private wl: WhiteLabelingApplyService
+  ) {
+    this.wl.getUiHelpBaseUrl$().subscribe((wlHelpBaseUrl) => {
+      if (this.wlHelpBaseUrl !== wlHelpBaseUrl) {
+        this.wlHelpBaseUrl = wlHelpBaseUrl;
+        this.helpCache = {};
+      }
+    });
+  }
 
   getHelpContent(key: string): Observable<string> {
     const lang = this.translate.currentLang;
@@ -77,8 +86,12 @@ export class HelpService {
     }
   }
 
+  private getHelpBaseUrl(): Observable<string> {
+    return this.wlHelpBaseUrl ? of(this.wlHelpBaseUrl) : this.uiSettingsService.getHelpBaseUrl();
+  }
+
   private loadHelpContent(lang: string, key: string): Observable<HelpData> {
-    return this.uiSettingsService.getHelpBaseUrl().pipe(
+    return this.getHelpBaseUrl().pipe(
       mergeMap((helpBaseUrl) => {
         return this.loadHelpContentFromBaseUrl(helpBaseUrl, lang, key).pipe(
           catchError((e) => {
@@ -106,7 +119,7 @@ export class HelpService {
 
   private processVariables(helpData: HelpData): string {
     const variables = {
-      siteBaseUrl: this.siteBaseUrl,
+      siteBaseUrl: this.wl.getHelpLinkBaseUrl() || siteBaseUrl,
       docPlatformPrefix: this.docPlatformPrefix,
       helpBaseUrl: helpData.helpBaseUrl
     };

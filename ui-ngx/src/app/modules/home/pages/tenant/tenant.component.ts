@@ -60,6 +60,12 @@ export class TenantComponent extends ContactBasedComponent<TenantInfo> {
         additionalInfo: this.fb.group(
           {
             description: [entity && entity.additionalInfo ? entity.additionalInfo.description : ''],
+            // White labeling permissions; the backend treats a missing flag as allowed
+            // (BaseWhiteLabelingService.isWhiteLabelingAllowed), so the form default is true.
+            allowWhiteLabeling: [entity && entity.additionalInfo &&
+            isDefinedAndNotNull(entity.additionalInfo.allowWhiteLabeling) ? entity.additionalInfo.allowWhiteLabeling : true],
+            allowCustomerWhiteLabeling: [entity && entity.additionalInfo &&
+            isDefinedAndNotNull(entity.additionalInfo.allowCustomerWhiteLabeling) ? entity.additionalInfo.allowCustomerWhiteLabeling : true],
             homeDashboardId: [entity && entity.additionalInfo ? entity.additionalInfo.homeDashboardId : null],
             homeDashboardHideToolbar: [entity && entity.additionalInfo &&
             isDefinedAndNotNull(entity.additionalInfo.homeDashboardHideToolbar) ? entity.additionalInfo.homeDashboardHideToolbar : true]
@@ -73,6 +79,12 @@ export class TenantComponent extends ContactBasedComponent<TenantInfo> {
     this.entityForm.patchValue({title: entity.title});
     this.entityForm.patchValue({tenantProfileId: entity.tenantProfileId});
     this.entityForm.patchValue({additionalInfo: {description: entity.additionalInfo ? entity.additionalInfo.description : ''}});
+    this.entityForm.patchValue({additionalInfo:
+        {allowWhiteLabeling: entity.additionalInfo &&
+          isDefinedAndNotNull(entity.additionalInfo.allowWhiteLabeling) ? entity.additionalInfo.allowWhiteLabeling : true}});
+    this.entityForm.patchValue({additionalInfo:
+        {allowCustomerWhiteLabeling: entity.additionalInfo &&
+          isDefinedAndNotNull(entity.additionalInfo.allowCustomerWhiteLabeling) ? entity.additionalInfo.allowCustomerWhiteLabeling : true}});
     this.entityForm.patchValue({additionalInfo:
         {homeDashboardId: entity.additionalInfo ? entity.additionalInfo.homeDashboardId : null}});
     this.entityForm.patchValue({additionalInfo:

@@ -15,8 +15,10 @@
 ///
 
 import { Component, Input } from '@angular/core';
-import { HelpLinks } from '@shared/models/constants';
 
+// Renders nothing: links to the external help-link base URL are always hidden, independent of the
+// white-labeling "enable help links" setting. The [tb-help] attribute is kept as a no-op input so the
+// many existing template bindings don't need to be touched.
 @Component({
     selector: '[tb-help]',
     templateUrl: './help.component.html',
@@ -25,16 +27,5 @@ import { HelpLinks } from '@shared/models/constants';
 export class HelpComponent {
 
   @Input('tb-help') helpLinkId: string;
-
-  gotoHelpPage(): void {
-    let helpUrl = HelpLinks.linksMap[this.helpLinkId];
-    if (!helpUrl && this.helpLinkId &&
-      (this.helpLinkId.startsWith('http://') || this.helpLinkId.startsWith('https://'))) {
-      helpUrl = this.helpLinkId;
-    }
-    if (helpUrl) {
-      window.open(helpUrl, '_blank');
-    }
-  }
 
 }

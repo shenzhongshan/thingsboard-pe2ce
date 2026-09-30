@@ -196,6 +196,16 @@ security:
     path: "${SECURITY_JAVA_CACERTS_PATH:${java.home}/lib/security/cacerts}"
     # The password of the cacerts keystore file
     password: "${SECURITY_JAVA_CACERTS_PASSWORD:changeit}"
+  # Self-registration captcha configuration.
+  captcha:
+    # Self-hosted ("local") captcha, used when a self-registration's captcha version is 'local' -
+    # an alternative to Google reCAPTCHA for deployments that cannot reliably reach Google.
+    local:
+      # Which library renders the image: kaptcha (com.github.penggle:kaptcha) or hutool (cn.hutool:hutool-captcha)
+      provider: "${SECURITY_CAPTCHA_LOCAL_PROVIDER:kaptcha}"
+      width: "${SECURITY_CAPTCHA_LOCAL_WIDTH:160}"
+      height: "${SECURITY_CAPTCHA_LOCAL_HEIGHT:60}"
+      length: "${SECURITY_CAPTCHA_LOCAL_LENGTH:5}"
   # HTTP security response headers configuration.
   # These headers are set on responses from the ThingsBoard backend (tb-node).
   # In microservice deployments, the web-ui (Express.js) has its own header configuration
@@ -293,8 +303,11 @@ ui:
     max_datapoints_limit: "${DASHBOARD_MAX_DATAPOINTS_LIMIT:50000}"
   # Help parameters
   help:
-    # Base URL for UI help assets
-    base-url: "${UI_HELP_BASE_URL:https://raw.githubusercontent.com/thingsboard/thingsboard-ui-help/release-4.4}"
+    # Base URL for UI help assets. Defaults to the bundled offline copy (ui-ngx/src/assets/help) so
+    # in-app help works without internet access; set to an external URL (e.g. a GitHub raw mirror) to
+    # prefer fresher docs from there instead — the frontend automatically falls back to the bundled
+    # copy if that URL is unreachable (see HelpService.loadHelpContent).
+    base-url: "${UI_HELP_BASE_URL:/assets}"
 
 # Database telemetry parameters
 # Selects the storage backend (SQL, Cassandra, or TimescaleDB) for time-series and latest telemetry data.
@@ -869,6 +882,9 @@ cache:
     mobileSecretKey:
       timeToLiveInMinutes: "${CACHE_MOBILE_SECRET_KEY_TTL:2}" # QR secret key cache TTL
       maxSize: "${CACHE_MOBILE_SECRET_KEY_MAX_SIZE:10000}" # 0 means the cache is disabled
+    captchaAnswers:
+      timeToLiveInMinutes: "${CACHE_CAPTCHA_ANSWERS_TTL:2}" # Local (self-hosted) captcha answer cache TTL
+      maxSize: "${CACHE_CAPTCHA_ANSWERS_MAX_SIZE:10000}" # 0 means the cache is disabled
     trendzSettings:
       timeToLiveInMinutes: "${CACHE_SPECS_TRENDZ_SETTINGS_TTL:1440}" # Trendz settings cache TTL
       maxSize: "${CACHE_SPECS_TRENDZ_SETTINGS_MAX_SIZE:10000}" # 0 means the cache is disabled

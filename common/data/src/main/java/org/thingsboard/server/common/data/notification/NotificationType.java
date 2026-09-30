@@ -39,7 +39,11 @@ public enum NotificationType {
     EDGE_CONNECTION,
     EDGE_COMMUNICATION_FAILURE,
     TASK_PROCESSING_FAILURE,
-    RESOURCES_SHORTAGE;
+    RESOURCES_SHORTAGE,
+    /** A user completed the self-registration sign-up form. */
+    USER_REGISTERED(true),
+    /** A self-registered user confirmed their email address and activated the account. */
+    USER_ACTIVATED(true);
 
     @Getter
     private boolean system; // for future use and compatibility with PE

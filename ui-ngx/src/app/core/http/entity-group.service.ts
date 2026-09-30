@@ -22,7 +22,7 @@ import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { PageData } from '@shared/models/page/page-data';
 import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityGroup } from '@shared/models/entity-group.models';
+import { EntityGroup, ShareGroupRequest } from '@shared/models/entity-group.models';
 import { EntityInfoData } from '@shared/models/entity.models';
 import { EntityId } from '@shared/models/id/entity-id';
 import { OtaUpdateType } from '@shared/models/ota-package.models';
@@ -98,6 +98,12 @@ export class EntityGroupService {
   public makeEntityGroupPrivate(entityGroupId: string,
                                 config?: RequestConfig): Observable<EntityGroup> {
     return this.http.post<EntityGroup>(`/api/entityGroup/${entityGroupId}/makePrivate`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public shareEntityGroup(entityGroupId: string, shareGroupRequest: ShareGroupRequest,
+                          config?: RequestConfig): Observable<void> {
+    return this.http.post<void>(`/api/entityGroup/${entityGroupId}/share`, shareGroupRequest,
       defaultHttpOptionsFromConfig(config));
   }
 

@@ -34,18 +34,10 @@
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.domain-settings</legend>
-            <mat-form-field class="w-full">
-              <mat-label translate>self-registration.domain</mat-label>
-              <mat-select formControlName="domainId" required>
-                @for (domain of domains; track domain.id.id) {
-                  <mat-option [value]="domain.id.id">{{ domain.name }}</mat-option>
-                }
-              </mat-select>
-              <mat-hint translate>self-registration.domain-hint</mat-hint>
-              @if (selfRegistrationForm.get('domainId').hasError('required')) {
-                <mat-error>{{ 'self-registration.domain-required' | translate }}</mat-error>
-              }
-            </mat-form-field>
+            <tb-domain-autocomplete formControlName="domainId" labelText="self-registration.domain"
+                                    requiredText="self-registration.domain-required"
+                                    (domainChanged)="onDomainChanged($event)">
+            </tb-domain-autocomplete>
             <mat-form-field class="w-full">
               <mat-label translate>self-registration.signup-url</mat-label>
               <input matInput readonly [value]="signUpUrl">
@@ -59,7 +51,7 @@
                 <mat-label translate>self-registration.captcha-version</mat-label>
                 <mat-select formControlName="captchaVersion">
                   @for (version of captchaVersions; track version) {
-                    <mat-option [value]="version">{{ version }}</mat-option>
+                    <mat-option [value]="version">{{ captchaVersionTranslations.get(version) | translate }}</mat-option>
                   }
                 </mat-select>
               </mat-form-field>
@@ -70,26 +62,36 @@
                 </mat-form-field>
               }
             </section>
-            <section class="flex flex-col gt-sm:flex-row gt-sm:gap-2">
-              <mat-form-field class="flex-1">
-                <mat-label translate>self-registration.captcha-site-key</mat-label>
-                <input matInput formControlName="captchaSiteKey" required>
-                @if (selfRegistrationForm.get('captchaSiteKey').hasError('required')) {
-                  <mat-error>{{ 'self-registration.captcha-site-key-required' | translate }}</mat-error>
-                }
-              </mat-form-field>
-              <mat-form-field class="flex-1">
-                <mat-label translate>self-registration.captcha-secret-key</mat-label>
-                <input matInput formControlName="captchaSecretKey" required>
-                @if (selfRegistrationForm.get('captchaSecretKey').hasError('required')) {
-                  <mat-error>{{ 'self-registration.captcha-secret-key-required' | translate }}</mat-error>
-                }
-              </mat-form-field>
-            </section>
+            @if (selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL) {
+              <section class="flex flex-col gt-sm:flex-row gt-sm:gap-2">
+                <mat-form-field class="flex-1">
+                  <mat-label translate>self-registration.captcha-site-key</mat-label>
+                  <input matInput formControlName="captchaSiteKey"
+                         [required]="selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL">
+                  @if (selfRegistrationForm.get('captchaSiteKey').hasError('required')) {
+                    <mat-error>{{ 'self-registration.captcha-site-key-required' | translate }}</mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field class="flex-1">
+                  <mat-label translate>self-registration.captcha-secret-key</mat-label>
+                  <input matInput formControlName="captchaSecretKey"
+                         [required]="selfRegistrationForm.get('captchaVersion').value !== CaptchaVersion.LOCAL">
+                  @if (selfRegistrationForm.get('captchaSecretKey').hasError('required')) {
+                    <mat-error>{{ 'self-registration.captcha-secret-key-required' | translate }}</mat-error>
+                  }
+                </mat-form-field>
+              </section>
+            }
           </fieldset>
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.general-settings</legend>
+            <tb-entity-autocomplete
+              class="w-full"
+              required
+              [entityType]="EntityType.NOTIFICATION_TARGET"
+              formControlName="notificationRecipient">
+            </tb-entity-autocomplete>
             <mat-form-field class="w-full">
               <mat-label translate>self-registration.signup-text-message</mat-label>
               <input matInput formControlName="title" maxlength="200">
@@ -108,6 +110,8 @@
               </mat-checkbox>
             </section>
           </fieldset>
+
+          <tb-self-registration-permissions formControlName="permissions"></tb-self-registration-permissions>
 
           <fieldset class="tb-sr-group">
             <legend translate>self-registration.privacy-policy-text</legend>

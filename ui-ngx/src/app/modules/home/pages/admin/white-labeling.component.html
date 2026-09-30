@@ -47,10 +47,12 @@
             <mat-label translate>white-labeling.logo-image-height</mat-label>
             <input matInput type="number" min="0" formControlName="logoImageHeight">
           </mat-form-field>
-          <mat-checkbox formControlName="enableHelpLinks">
-            {{ 'white-labeling.enable-help-links' | translate }}
-          </mat-checkbox>
-          @if (whiteLabelingForm.get('enableHelpLinks').value) {
+          @if (isSysAdmin) {
+            <mat-checkbox formControlName="enableHelpLinks">
+              {{ 'white-labeling.enable-help-links' | translate }}
+            </mat-checkbox>
+          }
+          @if (isSysAdmin && whiteLabelingForm.get('enableHelpLinks').value) {
             <mat-form-field class="w-full">
               <mat-label translate>white-labeling.help-link-base-url</mat-label>
               <input matInput formControlName="helpLinkBaseUrl">

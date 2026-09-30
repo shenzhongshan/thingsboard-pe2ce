@@ -22,11 +22,10 @@ import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms
 import { HasConfirmForm } from '@core/guards/confirm-on-exit.guard';
 import { EditorOptions } from 'tinymce';
 import { SelfRegistrationService } from '@core/http/self-registration.service';
-import { DomainService } from '@core/http/domain.service';
 import { EntityType } from '@shared/models/entity-type.models';
-import { PageLink } from '@shared/models/page/page-link';
 import { DomainInfo } from '@shared/models/oauth2.models';
 import {
+  captchaVersionTranslations,
   CaptchaVersion,
   SignUpFieldId,
   WebSelfRegistrationParams
@@ -42,8 +41,13 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   selfRegistrationForm: UntypedFormGroup;
   captchaVersions = Object.values(CaptchaVersion);
+  captchaVersionTranslations = captchaVersionTranslations;
   CaptchaVersion = CaptchaVersion;
-  domains: DomainInfo[] = [];
+  EntityType = EntityType;
+  selectedDomain: DomainInfo = null;
+
+  /** Last loaded params, kept so buildParams() can preserve fields this page does not expose. */
+  private loadedParams: WebSelfRegistrationParams = {} as WebSelfRegistrationParams;
 
   tinyMceOptions: Partial<EditorOptions> = {
     base_url: '/assets/tinymce',
@@ -64,76 +68,112 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
 
   constructor(protected store: Store<AppState>,
               private selfRegistrationService: SelfRegistrationService,
-              private domainService: DomainService,
               public fb: UntypedFormBuilder) {
     super(store);
   }
 
   ngOnInit() {
-    this.domainService.getTenantDomainInfos(new PageLink(100), { ignoreErrors: true }).subscribe(
-      (page) => this.domains = page.data || []
-    );
     this.selfRegistrationForm = this.fb.group({
       domainId: [null, [Validators.required]],
       captchaVersion: [CaptchaVersion.V2],
       captchaLogActionName: [''],
       captchaSiteKey: ['', [Validators.required]],
       captchaSecretKey: ['', [Validators.required]],
+      notificationRecipient: [null, [Validators.required]],
       title: ['', [Validators.maxLength(200)]],
       defaultDashboardId: [null],
       defaultDashboardFullscreen: [false],
+      permissions: [[]],
       showPrivacyPolicy: [false],
       privacyPolicy: [''],
       showTermsOfUse: [false],
       termsOfUse: ['']
+    });
+    // captchaSiteKey/captchaSecretKey are meaningless for the local (self-hosted) captcha - clear
+    // their validators when it's selected, or the form is left permanently invalid+invisible once
+    // those fields are hidden (see the project's own past "conditional required validator leak"
+    // incident: hiding a field in the template is not enough, the validator must be cleared too).
+    this.selfRegistrationForm.get('captchaVersion').valueChanges.subscribe((version: CaptchaVersion) => {
+      this.updateCaptchaValidators(version);
     });
     this.selfRegistrationService.getSelfRegistrationParams().subscribe(
       (params) => this.setParams(params)
     );
   }
 
+  private updateCaptchaValidators(version: CaptchaVersion): void {
+    const siteKeyCtrl = this.selfRegistrationForm.get('captchaSiteKey');
+    const secretKeyCtrl = this.selfRegistrationForm.get('captchaSecretKey');
+    if (version === CaptchaVersion.LOCAL) {
+      siteKeyCtrl.clearValidators();
+      secretKeyCtrl.clearValidators();
+    } else {
+      siteKeyCtrl.setValidators([Validators.required]);
+      secretKeyCtrl.setValidators([Validators.required]);
+    }
+    siteKeyCtrl.updateValueAndValidity({ emitEvent: false });
+    secretKeyCtrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  onDomainChanged(domain: DomainInfo): void {
+    this.selectedDomain = domain;
+  }
+
   get signUpUrl(): string {
-    const domainId = this.selfRegistrationForm?.get('domainId').value;
-    const domain = this.domains.find((d) => d.id.id === domainId);
-    return domain ? `https://${domain.name}/signup` : '';
+    return this.selectedDomain ? `https://${this.selectedDomain.name}/signup` : '';
   }
 
   private setParams(params: WebSelfRegistrationParams) {
     params = params || {} as WebSelfRegistrationParams;
+    this.loadedParams = params;
     this.selfRegistrationForm.reset({
       domainId: params.domainId?.id || null,
       captchaVersion: params.captcha?.version || CaptchaVersion.V2,
       captchaLogActionName: params.captcha?.logActionName || '',
       captchaSiteKey: params.captcha?.siteKey || '',
       captchaSecretKey: params.captcha?.secretKey || '',
+      notificationRecipient: params.notificationRecipient?.id || null,
       title: params.title || '',
       defaultDashboardId: params.defaultDashboard?.id || null,
       defaultDashboardFullscreen: params.defaultDashboard?.fullscreen === true,
+      permissions: params.permissions || [],
       showPrivacyPolicy: params.showPrivacyPolicy === true,
       privacyPolicy: params.privacyPolicy || '',
       showTermsOfUse: params.showTermsOfUse === true,
       termsOfUse: params.termsOfUse || ''
     });
+    // reset() re-applies whatever validators were set at group-construction time, so the
+    // subscription above does not by itself cover "load an already-local-captcha-configured
+    // domain" - re-run it explicitly after every reset.
+    this.updateCaptchaValidators(this.selfRegistrationForm.get('captchaVersion').value);
   }
 
   private buildParams(): WebSelfRegistrationParams {
     const v = this.selfRegistrationForm.value;
+    // Spread what was loaded first: this page deliberately exposes only the fields PE's tenant
+    // self-registration page has, but the backend model also carries customerGroupId,
+    // customMenuId, customerTitlePrefix, homeDashboard and a configurable signUpFields list.
+    // Rebuilding from scratch would silently wipe any of those set through the REST API.
     const params: WebSelfRegistrationParams = {
+      ...this.loadedParams,
       type: 'WEB',
       enabled: true,
       domainId: v.domainId ? { entityType: EntityType.DOMAIN, id: v.domainId } as any : null,
       title: v.title,
       captcha: {
         version: v.captchaVersion,
-        siteKey: v.captchaSiteKey,
-        secretKey: v.captchaSecretKey,
+        siteKey: v.captchaVersion === CaptchaVersion.LOCAL ? null : v.captchaSiteKey,
+        secretKey: v.captchaVersion === CaptchaVersion.LOCAL ? null : v.captchaSecretKey,
         logActionName: v.captchaVersion === CaptchaVersion.V3 ? v.captchaLogActionName : null
       },
+      notificationRecipient: v.notificationRecipient
+        ? { entityType: EntityType.NOTIFICATION_TARGET, id: v.notificationRecipient } as any : null,
+      permissions: v.permissions || [],
       showPrivacyPolicy: v.showPrivacyPolicy,
       privacyPolicy: v.privacyPolicy,
       showTermsOfUse: v.showTermsOfUse,
       termsOfUse: v.termsOfUse,
-      signUpFields: [
+      signUpFields: this.loadedParams?.signUpFields?.length ? this.loadedParams.signUpFields : [
         { id: SignUpFieldId.EMAIL, required: true },
         { id: SignUpFieldId.FIRST_NAME, required: true },
         { id: SignUpFieldId.LAST_NAME, required: true },
@@ -145,6 +185,8 @@ export class SelfRegistrationComponent extends PageComponent implements OnInit, 
         id: v.defaultDashboardId,
         fullscreen: v.defaultDashboardFullscreen === true
       };
+    } else {
+      delete params.defaultDashboard;
     }
     return params;
   }

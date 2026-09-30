@@ -31,6 +31,10 @@ public class SysAdminPermissions extends AbstractPermissions {
     public SysAdminPermissions() {
         super();
         put(Resource.ADMIN_SETTINGS, PermissionChecker.allowAllPermissionChecker);
+        // Own-profile operations (change password, request password reset). Without this entry
+        // DefaultAccessControlService denies on the missing key and every sysadmin password
+        // change / reset request would 403.
+        put(Resource.PROFILE, PermissionChecker.allowAllPermissionChecker);
         put(Resource.WHITE_LABELING, PermissionChecker.allowAllPermissionChecker);
         put(Resource.DASHBOARD, new PermissionChecker.GenericPermissionChecker(Operation.READ));
         put(Resource.TENANT, PermissionChecker.allowAllPermissionChecker);

@@ -219,7 +219,7 @@ public abstract class AbstractWebTest extends AbstractInMemoryStorageTest {
     protected static final String TEST_TENANT_NAME = "TEST TENANT";
     protected static final String TEST_DIFFERENT_TENANT_NAME = "TEST DIFFERENT TENANT";
 
-    protected static final String SYS_ADMIN_EMAIL = "sysadmin@thingsboard.org";
+    protected static final String SYS_ADMIN_EMAIL = "sysadmin@fexlink.com";
     protected static final String SYS_ADMIN_PASSWORD = "sysadmin";
 
     protected static final String TENANT_ADMIN_EMAIL = "testtenant@thingsboard.org";
@@ -412,24 +412,24 @@ public abstract class AbstractWebTest extends AbstractInMemoryStorageTest {
     }
 
     private void setupMailServiceMock() throws ThingsboardException {
-        Mockito.doNothing().when(mailService).sendAccountActivatedEmail(anyString(), anyString());
+        Mockito.doNothing().when(mailService).sendAccountActivatedEmail(any(), anyString(), anyString());
         Mockito.doAnswer(new Answer<Void>() {
             public Void answer(InvocationOnMock invocation) {
                 Object[] args = invocation.getArguments();
-                String activationLink = (String) args[0];
+                String activationLink = (String) args[1];
                 currentActivateToken = activationLink.split("=")[1];
                 return null;
             }
-        }).when(mailService).sendActivationEmail(anyString(), anyLong(), anyString());
+        }).when(mailService).sendActivationEmail(any(), anyString(), anyLong(), anyString());
 
         Mockito.doAnswer(new Answer<Void>() {
             public Void answer(InvocationOnMock invocation) {
                 Object[] args = invocation.getArguments();
-                String passwordResetLink = (String) args[0];
+                String passwordResetLink = (String) args[1];
                 currentResetPasswordToken = passwordResetLink.split("=")[1];
                 return null;
             }
-        }).when(mailService).sendResetPasswordEmailAsync(anyString(), anyLong(), anyString());
+        }).when(mailService).sendResetPasswordEmailAsync(any(), anyString(), anyLong(), anyString());
     }
 
     @After

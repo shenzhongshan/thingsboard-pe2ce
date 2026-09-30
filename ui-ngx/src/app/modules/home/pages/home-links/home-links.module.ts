@@ -21,11 +21,13 @@ import { HomeLinksRoutingModule } from './home-links-routing.module';
 import { HomeLinksComponent } from './home-links.component';
 import { SharedModule } from '@app/shared/shared.module';
 import { HomeComponentsModule } from '@home/components/home-components.module';
+import { HelpArticleComponent } from '../help-center/help-article.component';
 
 @NgModule({
   declarations:
     [
-      HomeLinksComponent
+      HomeLinksComponent,
+      HelpArticleComponent
     ],
   imports: [
     CommonModule,

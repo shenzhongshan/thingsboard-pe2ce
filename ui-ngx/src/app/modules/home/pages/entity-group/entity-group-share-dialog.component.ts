@@ -18,24 +18,17 @@ import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { EntityGroupService } from '@core/http/entity-group.service';
-import { RoleService } from '@core/http/role.service';
-import { EntityGroup } from '@shared/models/entity-group.models';
+import { EntityGroup, ShareGroupRequest } from '@shared/models/entity-group.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { PageLink } from '@shared/models/page/page-link';
-import { mergeMap } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { RoleType } from '@shared/models/role.models';
+import { EntityId } from '@shared/models/id/entity-id';
 
 export interface EntityGroupShareDialogData {
   entityGroup: EntityGroup;
 }
 
-// PE's 共享实体组 grants a customer's users access to this entity group. CE has no dedicated
-// sharing/ACL table for this — reuses the same GroupPermission+Role mechanism the 权限 tab is built
-// on, targeting the customer's "All" user group (auto-seeded per customer, see
-// project_whitelabeling_ce_port.md's Entity Groups / customer-hierarchy notes) with a role picked to
-// approximate the 读取/写入/其他 permission level. Simplification: 写入/其他 both map to the
-// "Customer Administrator" default role (broader access) since CE doesn't have a distinct write-only
-// default role the way PE's granular permission model does.
+// PE parity: mirrors tb-share-entity-group + the wrapping dialog recovered from the running PE
+// instance's bundle (chunk-IYCLUE5W.js). permission: 0 = READ, 1 = WRITE, 2 = OTHER (explicit roles).
 @Component({
     selector: 'tb-entity-group-share-dialog',
     templateUrl: './entity-group-share-dialog.component.html',
@@ -44,18 +37,32 @@ export interface EntityGroupShareDialogData {
 export class EntityGroupShareDialogComponent {
 
   entityType = EntityType;
+  roleType = RoleType;
   form: UntypedFormGroup;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: EntityGroupShareDialogData,
               private dialogRef: MatDialogRef<EntityGroupShareDialogComponent, boolean>,
               private entityGroupService: EntityGroupService,
-              private roleService: RoleService,
               public fb: UntypedFormBuilder) {
     this.form = this.fb.group({
-      customerId: [null, [Validators.required]],
-      allUsers: [true],
-      permission: ['READ', [Validators.required]]
+      ownerId: [null, [Validators.required]],
+      allUserGroup: [false],
+      userGroupId: [null],
+      permission: [0, [Validators.required]],
+      roleIds: [null]
     });
+    this.form.get('allUserGroup').valueChanges.subscribe(() => this.updateValidators());
+    this.form.get('permission').valueChanges.subscribe(() => this.updateValidators());
+    this.updateValidators();
+  }
+
+  private updateValidators(): void {
+    const allUserGroup = this.form.get('allUserGroup').value;
+    this.form.get('userGroupId').setValidators(allUserGroup ? [] : [Validators.required]);
+    this.form.get('userGroupId').updateValueAndValidity({emitEvent: false});
+    const other = this.form.get('permission').value === 2;
+    this.form.get('roleIds').setValidators(other ? [Validators.required] : []);
+    this.form.get('roleIds').updateValueAndValidity({emitEvent: false});
   }
 
   share(): void {
@@ -64,25 +71,17 @@ export class EntityGroupShareDialogComponent {
       return;
     }
     const v = this.form.value;
-    const customerId = v.customerId?.id || v.customerId;
-    this.entityGroupService.getAllGroupId(EntityType.USER, customerId).pipe(
-      mergeMap(userGroupId => this.roleService.getRoles(new PageLink(1024, 0)).pipe(
-        mergeMap(page => {
-          const roleName = v.permission === 'READ' ? 'Read Only' : 'Customer Administrator';
-          const role = page.data.find(r => r.name === roleName) || page.data[0];
-          if (!role) {
-            return of(null);
-          }
-          const permission: any = {
-            userGroupId: {entityType: 'ENTITY_GROUP', id: userGroupId},
-            roleId: {entityType: 'ROLE', id: role.id.id},
-            entityGroupId: this.data.entityGroup.id,
-            entityGroupType: this.data.entityGroup.type
-          };
-          return this.roleService.saveGroupPermission(permission);
-        })
-      ))
-    ).subscribe(() => this.dialogRef.close(true));
+    const roleIds: string[] = v.roleIds;
+    const shareGroupRequest: ShareGroupRequest = {
+      ownerId: v.ownerId as EntityId,
+      allUserGroup: v.allUserGroup,
+      userGroupId: v.allUserGroup ? null : v.userGroupId as EntityId,
+      readElseWrite: v.permission === 0,
+      roleIds: v.permission === 2 && roleIds?.length ?
+        roleIds.map(id => ({entityType: EntityType.ROLE, id} as EntityId)) : null
+    };
+    this.entityGroupService.shareEntityGroup(this.data.entityGroup.id.id, shareGroupRequest)
+      .subscribe(() => this.dialogRef.close(true));
   }
 
   cancel(): void {

@@ -77,7 +77,7 @@ public class UserServiceTest extends AbstractServiceTest {
 
     @Test
     public void testFindUserByEmail() {
-        User user = userService.findUserByEmail(SYSTEM_TENANT_ID, "sysadmin@thingsboard.org");
+        User user = userService.findUserByEmail(SYSTEM_TENANT_ID, "sysadmin@fexlink.com");
         Assert.assertNotNull(user);
         Assert.assertEquals(Authority.SYS_ADMIN, user.getAuthority());
         user = userService.findUserByEmail(tenantId, "tenant@thingsboard.org");
@@ -92,7 +92,7 @@ public class UserServiceTest extends AbstractServiceTest {
 
     @Test
     public void testFindUserByTenantIdAndEmail() {
-        User user = userService.findUserByTenantIdAndEmail(SYSTEM_TENANT_ID, "sysadmin@thingsboard.org");
+        User user = userService.findUserByTenantIdAndEmail(SYSTEM_TENANT_ID, "sysadmin@fexlink.com");
         Assert.assertNotNull(user);
         Assert.assertEquals(Authority.SYS_ADMIN, user.getAuthority());
         user = userService.findUserByTenantIdAndEmail(tenantId, "tenant@thingsboard.org");
@@ -107,7 +107,7 @@ public class UserServiceTest extends AbstractServiceTest {
 
     @Test
     public void testFindUserById() {
-        User user = userService.findUserByEmail(SYSTEM_TENANT_ID, "sysadmin@thingsboard.org");
+        User user = userService.findUserByEmail(SYSTEM_TENANT_ID, "sysadmin@fexlink.com");
         Assert.assertNotNull(user);
         User foundUser = userService.findUserById(SYSTEM_TENANT_ID, user.getId());
         Assert.assertNotNull(foundUser);
@@ -116,7 +116,7 @@ public class UserServiceTest extends AbstractServiceTest {
 
     @Test
     public void testFindUserCredentials() {
-        User user = userService.findUserByEmail(SYSTEM_TENANT_ID,"sysadmin@thingsboard.org");
+        User user = userService.findUserByEmail(SYSTEM_TENANT_ID,"sysadmin@fexlink.com");
         Assert.assertNotNull(user);
         UserCredentials userCredentials = userService.findUserCredentialsByUserId(SYSTEM_TENANT_ID, user.getId());
         Assert.assertNotNull(userCredentials);
@@ -156,10 +156,10 @@ public class UserServiceTest extends AbstractServiceTest {
     @Test
     public void testSaveUserWithSameEmail() {
         User tenantAdminUser = userService.findUserByEmail(tenantId, "tenant@thingsboard.org");
-        tenantAdminUser.setEmail("sysadmin@thingsboard.org");
+        tenantAdminUser.setEmail("sysadmin@fexlink.com");
         Assertions.assertThatThrownBy(() -> userService.saveUser(tenantId, tenantAdminUser))
                 .isInstanceOf(DataValidationException.class)
-                .hasMessage("User with email 'sysadmin@thingsboard.org' already present in database!");
+                .hasMessage("User with email 'sysadmin@fexlink.com' already present in database!");
     }
 
     @Test

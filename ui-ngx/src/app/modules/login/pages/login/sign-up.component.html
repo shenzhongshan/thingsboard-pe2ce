@@ -34,33 +34,75 @@
       @if (emailSent) {
         <div class="flex flex-col items-center justify-center gap-4">
           <mat-icon color="primary" style="font-size: 48px; width: 48px; height: 48px;">mark_email_read</mat-icon>
-          <span class="text-center">{{ 'signup.email-verification-sent' | translate }}</span>
-          <button mat-flat-button color="primary" type="button" (click)="gotoLogin()">
-            {{ 'action.close' | translate }}
-          </button>
+          <div class="text-center" [innerHTML]="'signup.email-verification-message' | translate"></div>
+          <div class="flex flex-row items-center gap-2">
+            <button mat-stroked-button color="primary" type="button"
+                    [disabled]="resending" (click)="resendActivationEmail()">
+              {{ 'signup.resend' | translate }}
+            </button>
+            <button mat-flat-button color="primary" type="button" (click)="gotoLogin()">
+              {{ 'action.close' | translate }}
+            </button>
+          </div>
+        </div>
+      } @else if (inactiveUserExists) {
+        <div class="flex flex-col items-center justify-center gap-4">
+          <mat-icon color="warn" style="font-size: 48px; width: 48px; height: 48px;">mark_email_unread</mat-icon>
+          <span class="text-center font-medium">{{ 'signup.inactive-user-exists-title' | translate }}</span>
+          <div class="text-center" [innerHTML]="'signup.inactive-user-exists-text' | translate"></div>
+          <div class="flex flex-row items-center gap-2">
+            <button mat-flat-button color="primary" type="button"
+                    [disabled]="resending" (click)="resendActivationEmail()">
+              {{ 'signup.resend' | translate }}
+            </button>
+            <button mat-button type="button" (click)="gotoLogin()">
+              {{ 'action.close' | translate }}
+            </button>
+          </div>
         </div>
       } @else {
         <form [formGroup]="signUpForm" (ngSubmit)="signUp()">
-          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
-            <mat-label translate>signup.field-email</mat-label>
-            <input matInput type="email" formControlName="email" autocomplete="email"/>
-            <mat-icon class="material-icons" matPrefix>email</mat-icon>
-          </mat-form-field>
-          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
-            <mat-label translate>signup.field-first-name</mat-label>
-            <input matInput formControlName="firstName"/>
-          </mat-form-field>
-          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
-            <mat-label translate>signup.field-last-name</mat-label>
-            <input matInput formControlName="lastName"/>
-          </mat-form-field>
-          <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
-            <mat-label translate>signup.field-password</mat-label>
-            <input matInput type="password" formControlName="password" autocomplete="new-password"/>
-            <mat-icon class="material-icons" matPrefix>lock</mat-icon>
-          </mat-form-field>
-          @if (!isV3) {
+          @for (field of fields; track field.id) {
+            <mat-form-field class="mat-block" appearance="outline" hideRequiredMarker>
+              <mat-label>{{ fieldLabel(field) }}</mat-label>
+              <input matInput
+                     [type]="fieldInputType(field)"
+                     [formControlName]="field.id"
+                     [autocomplete]="field.id === SignUpFieldId.EMAIL ? 'email' :
+                                     (fieldInputType(field) === 'password' ? 'new-password' : 'off')"/>
+              @if (field.id === SignUpFieldId.EMAIL) {
+                <mat-icon class="material-icons" matPrefix>email</mat-icon>
+              }
+              @if (fieldInputType(field) === 'password') {
+                <mat-icon class="material-icons" matPrefix>lock</mat-icon>
+              }
+            </mat-form-field>
+          }
+          @if (signUpForm.get(SignUpFieldId.REPEAT_PASSWORD)?.hasError('passwordsNotMatch') &&
+               signUpForm.get(SignUpFieldId.REPEAT_PASSWORD)?.touched) {
+            <div class="tb-captcha-error" style="color: #d32f2f; font-size: 12px; margin-bottom: 8px;">
+              {{ 'security.password-requirement.new-passwords-not-match' | translate }}
+            </div>
+          }
+          @if (!isV3 && !isLocal) {
             <div #recaptchaContainer class="flex justify-center" style="margin-bottom: 8px;"></div>
+          }
+          @if (isLocal) {
+            <div class="flex flex-col items-center gap-2" style="margin-bottom: 8px;">
+              <div class="flex flex-row items-center gap-2">
+                @if (localCaptchaImage) {
+                  <img [src]="localCaptchaImage" alt="captcha" style="border-radius: 4px;"/>
+                }
+                <button mat-icon-button type="button" (click)="refreshLocalCaptcha()"
+                        [matTooltip]="'signup.captcha-refresh' | translate">
+                  <mat-icon>refresh</mat-icon>
+                </button>
+              </div>
+              <mat-form-field class="w-full" appearance="outline" hideRequiredMarker>
+                <mat-label translate>signup.captcha-answer</mat-label>
+                <input matInput formControlName="localCaptchaAnswer" autocomplete="off">
+              </mat-form-field>
+            </div>
           }
           @if (captchaError) {
             <div class="tb-captcha-error" style="color: #d32f2f; font-size: 12px; text-align: center; margin-bottom: 8px;">

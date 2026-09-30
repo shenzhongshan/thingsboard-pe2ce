@@ -17,7 +17,8 @@
 import { Injectable, Inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { BehaviorSubject, Observable, of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, tap } from 'rxjs/operators';
+import tinycolor from 'tinycolor2';
 import { WhiteLabelingService } from '@core/http/white-labeling.service';
 import { ImageService } from '@core/http/image.service';
 import { materialColorPalette } from '@shared/models/material.models';
@@ -33,6 +34,47 @@ const WL_LOGIN_FG_STYLE_ID = 'tb-white-labeling-login-foreground';
 
 const TB_IMAGE_PREFIX = 'tb-image;';
 const IMAGES_API_PREFIX = '/api/images/';
+
+type PaletteColors = {[hue: string]: string};
+
+/**
+ * Colors to swap while re-emitting the compiled theme: keyed by the lowercase hex literal and by
+ * the `r,g,b` triple, since the Sass output writes the same color in both notations.
+ */
+interface ColorSubstitutions {
+  hex: Map<string, string>;
+  rgb: Map<string, string>;
+}
+
+/** A `#rrggbb` literal, or the color part of an `rgb()`/`rgba()` literal. */
+const colorLiteralRegex = /#[0-9a-f]{6}(?![0-9a-f])|(rgba?\()\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?=[,)])/gi;
+
+/**
+ * The palettes `theme.scss` compiles the Material theme with: `$tb-mat-indigo` for primary and the
+ * stock Material deep-orange for accent. Every color below appears literally in the generated
+ * stylesheet, which is what makes runtime re-theming by substitution possible.
+ */
+const defaultPrimaryPaletteColors: PaletteColors = {
+  50: '#e8eaf6',
+  100: '#c5cae9',
+  200: '#9fa8da',
+  300: '#7986cb',
+  400: '#5c6bc0',
+  500: '#305680',
+  600: '#527dad',
+  700: '#303f9f',
+  800: '#283593',
+  900: '#1a237e',
+  A100: '#a7c1de',
+  A200: '#536dfe',
+  A400: '#3d5afe',
+  A700: '#304ffe'
+};
+
+const defaultAccentPaletteColors: PaletteColors = materialColorPalette['deep-orange'];
+
+const contrastColor = (color: string): string =>
+  tinycolor(color).isLight() ? 'rgba(0, 0, 0, 0.87)' : '#ffffff';
 
 /**
  * Applies white-labeling params to the running application at runtime.
@@ -52,8 +94,16 @@ export class WhiteLabelingApplyService {
   private readonly logoSubject = new BehaviorSubject<string>(null);
   public readonly logo$: Observable<string> = this.logoSubject.asObservable();
 
+  // Emits every time white-labeling params are (re)applied, so that components bound to
+  // white-labeling driven flags (help links, ...) refresh without a page reload.
+  private readonly paramsSubject = new BehaviorSubject<WhiteLabelingParams>(null);
+  public readonly params$: Observable<WhiteLabelingParams> = this.paramsSubject.asObservable();
+
   private currentParams: WhiteLabelingParams = null;
   private appTitleValue: string = null;
+  private appliedPalettes: { primary: Palette; accent: Palette } = null;
+  private stylesheetObserver: MutationObserver = null;
+  private recolorScheduled = false;
 
   constructor(private whiteLabelingService: WhiteLabelingService,
               private imageService: ImageService,
@@ -94,6 +144,7 @@ export class WhiteLabelingApplyService {
     this.applyLogo(params.logoImageUrl);
     this.applyPalette(params.paletteSettings?.primaryPalette, params.paletteSettings?.accentPalette);
     this.applyCustomCss(params.customCss);
+    this.paramsSubject.next(params);
   }
 
   public applyLoginWhiteLabeling(params: LoginWhiteLabelingParams): void {
@@ -118,6 +169,39 @@ export class WhiteLabelingApplyService {
       root.style.setProperty('--tb-login-logo-height', `${params.logoImageHeight}px`);
     }
     this.applyLoginForeground(!!params.darkForeground);
+    this.paramsSubject.next(params);
+  }
+
+  /**
+   * White labeling "Enable help links" flag. Defaults to true when white labeling has not been
+   * loaded yet or the flag was never configured (the system-level params always carry it).
+   */
+  public isEnableHelpLinks(): boolean {
+    return this.currentParams ? this.currentParams.enableHelpLinks !== false : true;
+  }
+
+  public isEnableHelpLinks$(): Observable<boolean> {
+    return this.params$.pipe(
+      map(() => this.isEnableHelpLinks()),
+      distinctUntilChanged()
+    );
+  }
+
+  // Base URL that replaces the built-in documentation host in every help link.
+  public getHelpLinkBaseUrl(): string {
+    return this.currentParams?.helpLinkBaseUrl || '';
+  }
+
+  // Base URL the in-app help (markdown) content is loaded from.
+  public getUiHelpBaseUrl(): string {
+    return this.currentParams?.uiHelpBaseUrl || '';
+  }
+
+  public getUiHelpBaseUrl$(): Observable<string> {
+    return this.params$.pipe(
+      map(() => this.getUiHelpBaseUrl()),
+      distinctUntilChanged()
+    );
   }
 
   private noauthLoginImageUrl(url: string, faviconElseLogo: boolean): string {
@@ -208,41 +292,168 @@ export class WhiteLabelingApplyService {
     this.injectStyle(WL_LOGIN_FG_STYLE_ID, css);
   }
 
-  private paletteColor(palette: Palette, hue: string): string {
-    if (!palette) {
-      return null;
+  /**
+   * Full hue spectrum of a configured palette: a custom palette is its `extends` base with the
+   * edited hues applied on top, a predefined one is the Material palette itself, and anything
+   * unset falls back to the palette the theme was compiled with.
+   */
+  private resolvePaletteColors(palette: Palette, fallback: PaletteColors): PaletteColors {
+    if (!palette?.type || palette.type === 'tb-primary' || palette.type === 'tb-accent') {
+      return fallback;
     }
-    if (palette.colors && palette.colors[hue]) {
-      return palette.colors[hue];
+    if (palette.type === 'custom') {
+      const base = materialColorPalette[palette.extends] || fallback;
+      return { ...base, ...(palette.colors || {}) };
     }
-    // Predefined Material palette, or a custom palette falling back to its base.
-    const paletteKey = palette.type === 'custom' ? palette.extends : palette.type;
-    return materialColorPalette[paletteKey]?.[hue] || null;
+    return materialColorPalette[palette.type] || fallback;
   }
 
   private applyPalette(primary: Palette, accent: Palette): void {
-    const primaryColor = this.paletteColor(primary, '500');
-    const accentColor = this.paletteColor(accent, '500');
-    const root = this.document.documentElement;
+    this.appliedPalettes = { primary, accent };
+    const primaryColors = this.resolvePaletteColors(primary, defaultPrimaryPaletteColors);
+    const accentColors = this.resolvePaletteColors(accent, defaultAccentPaletteColors);
+    // PE exposes the whole spectrum as CSS variables (--tb-primary-<hue>/--tb-primary-contrast-<hue>);
+    // keep that contract so component styles can consume them.
+    this.applyPaletteVariables('--tb-primary-', primaryColors);
+    this.applyPaletteVariables('--tb-accent-', accentColors);
+    const substitutions: ColorSubstitutions = { hex: new Map(), rgb: new Map() };
+    this.collectPaletteSubstitutions(substitutions, defaultPrimaryPaletteColors, primaryColors);
+    this.collectPaletteSubstitutions(substitutions, defaultAccentPaletteColors, accentColors);
     let css = '';
-    if (primaryColor) {
-      root.style.setProperty('--tb-primary-500', primaryColor);
-      css += `
-        .mat-toolbar.mat-primary { background-color: ${primaryColor} !important; }
-        .mat-mdc-raised-button.mat-primary, .mat-mdc-unelevated-button.mat-primary,
-        .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary { background-color: ${primaryColor} !important; }
-        .mat-mdc-button.mat-primary, .mat-mdc-icon-button.mat-primary { --mdc-text-button-label-text-color: ${primaryColor}; color: ${primaryColor} !important; }
-        .tb-login-content mat-card { background-color: ${primaryColor} !important; }
-      `;
-    }
-    if (accentColor) {
-      root.style.setProperty('--tb-accent-500', accentColor);
-      css += `
-        .mat-mdc-raised-button.mat-accent, .mat-mdc-unelevated-button.mat-accent,
-        .mat-mdc-fab.mat-accent, .mat-mdc-mini-fab.mat-accent { background-color: ${accentColor} !important; }
-      `;
+    if (substitutions.hex.size) {
+      // CE compiles the Material theme with Sass (m2-define-palette), so every themed component
+      // carries the default palette colors as literal values in ~90 rules of styles.css. Re-emit
+      // exactly those declarations with the configured colors substituted; the generated sheet is
+      // appended last, so at equal specificity it wins over the compiled theme.
+      css = this.recolorThemeCss(substitutions) + this.paletteContrastCss(primaryColors, accentColors);
+      // Lazy-loaded feature modules bring their own stylesheets, dozens of which hardcode the
+      // brand color; re-run the substitution whenever new ones are appended.
+      this.observeStylesheets();
     }
     this.injectStyle(WL_THEME_STYLE_ID, css);
+  }
+
+  private observeStylesheets(): void {
+    if (this.stylesheetObserver) {
+      return;
+    }
+    this.stylesheetObserver = new MutationObserver((mutations) => {
+      const themeStylesAdded = mutations.some((mutation) =>
+        Array.from(mutation.addedNodes).some((node) => {
+          const element = node as HTMLElement;
+          return (element.tagName === 'STYLE' || element.tagName === 'LINK') &&
+            !(element.id || '').startsWith('tb-white-labeling');
+        }));
+      if (themeStylesAdded && !this.recolorScheduled) {
+        this.recolorScheduled = true;
+        setTimeout(() => {
+          this.recolorScheduled = false;
+          if (this.appliedPalettes) {
+            this.applyPalette(this.appliedPalettes.primary, this.appliedPalettes.accent);
+          }
+        });
+      }
+    });
+    this.stylesheetObserver.observe(this.document.head, { childList: true });
+  }
+
+  private applyPaletteVariables(prefix: string, colors: PaletteColors): void {
+    const root = this.document.documentElement;
+    for (const hue of Object.keys(colors)) {
+      root.style.setProperty(`${prefix}${hue}`, colors[hue]);
+      root.style.setProperty(`${prefix}contrast-${hue}`, contrastColor(colors[hue]));
+    }
+  }
+
+  private collectPaletteSubstitutions(substitutions: ColorSubstitutions,
+                                      defaults: PaletteColors, colors: PaletteColors): void {
+    for (const hue of Object.keys(defaults)) {
+      const from = defaults[hue];
+      const to = colors[hue];
+      if (!to || from.toLowerCase() === to.toLowerCase()) {
+        continue;
+      }
+      const fromRgb = tinycolor(from).toRgb();
+      const toRgb = tinycolor(to).toRgb();
+      substitutions.hex.set(from.toLowerCase(), to);
+      substitutions.rgb.set(`${fromRgb.r},${fromRgb.g},${fromRgb.b}`, `${toRgb.r}, ${toRgb.g}, ${toRgb.b}`);
+    }
+  }
+
+  private recolorThemeCss(substitutions: ColorSubstitutions): string {
+    // Single pass over each value: a sequential replace could re-substitute a color it just wrote
+    // (e.g. when the configured primary happens to be the default accent color).
+    const substitute = (value: string): string =>
+      value.replace(colorLiteralRegex, (match, fn, r, g, b) => {
+        if (!fn) {
+          return substitutions.hex.get(match.toLowerCase()) || match;
+        }
+        const replacement = substitutions.rgb.get(`${parseInt(r, 10)},${parseInt(g, 10)},${parseInt(b, 10)}`);
+        return replacement ? `${fn}${replacement}` : match;
+      });
+    let css = '';
+    const wrap = (body: string, condition: string): string => condition ? `${condition}{${body}}` : body;
+    const collect = (rules: CSSRuleList, condition: string): void => {
+      for (let i = 0; i < rules.length; i++) {
+        const rule = rules[i] as CSSStyleRule & { conditionText?: string; cssRules?: CSSRuleList };
+        if (rule.selectorText && rule.style) {
+          const declarations: string[] = [];
+          for (let j = 0; j < rule.style.length; j++) {
+            const property = rule.style.item(j);
+            const value = rule.style.getPropertyValue(property);
+            const substituted = substitute(value);
+            if (substituted !== value) {
+              const priority = rule.style.getPropertyPriority(property) ? ' !important' : '';
+              declarations.push(`${property}:${substituted}${priority};`);
+            }
+          }
+          if (declarations.length) {
+            css += wrap(`${rule.selectorText}{${declarations.join('')}}`, condition);
+          }
+        } else if (rule.cssRules) {
+          let nested = condition;
+          if (rule instanceof CSSMediaRule) {
+            nested = `@media ${rule.conditionText}`;
+          } else if (typeof CSSSupportsRule !== 'undefined' && rule instanceof CSSSupportsRule) {
+            nested = `@supports ${rule.conditionText}`;
+          }
+          collect(rule.cssRules, nested);
+        }
+      }
+    };
+    for (const sheet of Array.from(this.document.styleSheets)) {
+      const ownerId = (sheet.ownerNode as HTMLElement)?.id;
+      if (ownerId && ownerId.startsWith('tb-white-labeling')) {
+        continue;
+      }
+      let rules: CSSRuleList;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue; // cross-origin stylesheet
+      }
+      collect(rules, '');
+    }
+    return css;
+  }
+
+  /**
+   * Surfaces painted with the primary color that the compiled theme gives a fixed foreground
+   * (white) — unreadable once a light palette is configured — plus the login card, which is not
+   * a themed Material component.
+   */
+  private paletteContrastCss(primaryColors: PaletteColors, _accentColors: PaletteColors): string {
+    const primaryColor = primaryColors['500'];
+    if (!primaryColor) {
+      return '';
+    }
+    const contrast = contrastColor(primaryColor);
+    return `
+      .mat-toolbar.mat-primary { --mat-toolbar-container-text-color: ${contrast}; color: ${contrast}; }
+      .mat-mdc-raised-button.mat-primary, .mat-mdc-unelevated-button.mat-primary,
+      .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary { color: ${contrast}; }
+      .tb-login-content mat-card { background-color: ${primaryColor} !important; }
+    `;
   }
 
   private applyCustomCss(customCss: string): void {
@@ -261,8 +472,16 @@ export class WhiteLabelingApplyService {
       style = this.document.createElement('style');
       style.id = id;
       style.type = 'text/css';
-      this.document.head.appendChild(style);
     }
     style.textContent = css;
+    // Angular appends the styles of lazily-loaded feature modules to <head>; re-append ours so they
+    // stay last and keep winning against same-specificity rules from those modules.
+    this.document.head.appendChild(style);
+    for (const lastStyleId of [WL_CUSTOM_STYLE_ID, WL_LOGIN_FG_STYLE_ID]) {
+      const lastStyle = lastStyleId === id ? null : this.document.getElementById(lastStyleId);
+      if (lastStyle) {
+        this.document.head.appendChild(lastStyle);
+      }
+    }
   }
 }

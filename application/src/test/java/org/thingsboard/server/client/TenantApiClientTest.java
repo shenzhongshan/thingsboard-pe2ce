@@ -40,7 +40,7 @@ public class TenantApiClientTest extends AbstractApiClientTest {
         List<Tenant> createdTenants = new ArrayList<>();
 
         // authenticate as sysadmin for tenant management
-        client.login("sysadmin@thingsboard.org", "sysadmin");
+        client.login("sysadmin@fexlink.com", "sysadmin");
 
         // create 20 tenants
         for (int i = 0; i < 20; i++) {
@@ -106,7 +106,7 @@ public class TenantApiClientTest extends AbstractApiClientTest {
             );
         } finally {
             // clean up all created tenants (deleting tenant cascades to users)
-            client.login("sysadmin@thingsboard.org", "sysadmin");
+            client.login("sysadmin@fexlink.com", "sysadmin");
             for (Tenant tenant : createdTenants) {
                 try {
                     client.deleteTenant(tenant.getId().getId().toString());

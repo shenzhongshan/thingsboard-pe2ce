@@ -55,7 +55,7 @@ You should see ThingsBoard login page.
 
 Use the following default credentials:
 
-- **System Administrator**: sysadmin@thingsboard.org / sysadmin
+- **System Administrator**: sysadmin@fexlink.com / sysadmin
 
 If you installed DataBase with demo data (using `--loadDemo` flag) you can also use the following credentials:
 

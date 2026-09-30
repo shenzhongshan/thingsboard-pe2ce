@@ -34,6 +34,11 @@ public class TenantAdminPermissions extends AbstractPermissions {
         super();
         put(Resource.ADMIN_SETTINGS, PermissionChecker.allowAllPermissionChecker);
         put(Resource.WHITE_LABELING, PermissionChecker.allowAllPermissionChecker);
+        // Matches PE: a tenant admin manages Domain entities scoped to their own tenant (self-registration
+        // and login white-labeling both reference a Domain). saveDomain() forces domain.tenantId from the
+        // caller, so the ownership check here is the only thing standing between a tenant admin and another
+        // tenant's domains.
+        put(Resource.DOMAIN, tenantEntityPermissionChecker);
         put(Resource.SCHEDULER_EVENT, PermissionChecker.allowAllPermissionChecker);
         put(Resource.CONVERTER, tenantEntityPermissionChecker);
         put(Resource.INTEGRATION, tenantEntityPermissionChecker);
