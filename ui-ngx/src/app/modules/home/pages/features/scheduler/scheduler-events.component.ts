@@ -27,7 +27,7 @@ import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
 import {
   SchedulerEventWithCustomerInfo,
-  schedulerEventTypeNames
+  schedulerEventTypeTranslations
 } from '@shared/models/scheduler-event.models';
 import {
   SchedulerEventDialogComponent,
@@ -72,7 +72,7 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
   calendarWeeks: CalendarCell[][] = [];
   weekDays: string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  schedulerEventTypeNames = schedulerEventTypeNames;
+  schedulerEventTypeNames = schedulerEventTypeTranslations;
 
   constructor(protected store: Store<AppState>,
               private schedulerEventService: SchedulerEventService,
@@ -137,7 +137,8 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
   }
 
   eventTypeName(event: SchedulerEventWithCustomerInfo): string {
-    return schedulerEventTypeNames.get(event.type) || event.type;
+    const key = schedulerEventTypeTranslations.get(event.type);
+    return key ? this.translate.instant(key) : event.type;
   }
 
   scheduleText(event: SchedulerEventWithCustomerInfo): string {
