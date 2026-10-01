@@ -15,6 +15,8 @@
  */
 package org.thingsboard.rule.engine.transform;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.rule.engine.api.RuleNode;
 import org.thingsboard.rule.engine.api.TbContext;
@@ -25,6 +27,7 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.plugin.ComponentType;
+import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.msg.TbMsg;
 
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.List;
         type = ComponentType.TRANSFORMATION,
         name = "duplicate to group",
         configClazz = TbDuplicateMsgToGroupNodeConfiguration.class,
+        version = 1,
         nodeDescription = "Duplicates message to all entities belonging to specific entity group",
         nodeDetails = "Entities are fetched from entity group that is detected according to the configuration. Entity group can be " +
                 "specified directly or can be message originator entity itself. For each entity from group new message is created " +
@@ -73,6 +77,22 @@ public class TbDuplicateMsgToGroupNode extends TbAbstractDuplicateMsgNode<TbDupl
             throw new RuntimeException("Message originator is not an entity group!");
         }
         return config.getEntityGroupId();
+    }
+
+    @Override
+    public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) throws TbNodeException {
+        boolean hasChanges = false;
+        switch (fromVersion) {
+            case 0:
+                if (oldConfiguration.has("groupOwnerId")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).remove("groupOwnerId");
+                }
+                break;
+            default:
+                break;
+        }
+        return new TbPair<>(hasChanges, oldConfiguration);
     }
 
 }
