@@ -1,4 +1,4 @@
-#### Encoder JSON output example
+#### 编码器 JSON 输出示例
 
 ```json
 {

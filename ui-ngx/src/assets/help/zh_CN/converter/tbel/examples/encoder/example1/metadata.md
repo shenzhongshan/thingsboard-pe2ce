@@ -1,4 +1,4 @@
-#### Encoder example metadata
+#### 编码器示例元数据
 
 | Key | Value |
 ------|-------- 

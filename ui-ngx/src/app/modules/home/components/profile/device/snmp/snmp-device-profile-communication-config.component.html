@@ -25,7 +25,7 @@
             @for (snmpSpecType of snmpSpecTypes; track snmpSpecType) {
               <mat-option [value]="snmpSpecType"
                           [disabled]="isDisabledSeverity(snmpSpecType, $index)">
-                {{ snmpSpecTypeTranslationMap.get(snmpSpecType) }}
+                {{ snmpSpecTypeTranslationMap.get(snmpSpecType) | translate }}
               </mat-option>
             }
           </mat-select>

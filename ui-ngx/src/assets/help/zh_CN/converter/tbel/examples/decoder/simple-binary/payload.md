@@ -1,4 +1,4 @@
-#### Binary payload
+#### 二进制 payload
 
 HEX representation:
 ```text

@@ -24,7 +24,11 @@ import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { DialogService } from '@core/services/dialog.service';
 import { SolutionService } from '@core/http/solution.service';
-import { SolutionTemplateLevel, TenantSolutionTemplateDetails } from '@shared/models/solution-template.models';
+import {
+  SolutionTemplateLevel,
+  SolutionTemplateLevelTranslationMap,
+  TenantSolutionTemplateDetails
+} from '@shared/models/solution-template.models';
 import {
   SolutionInstallDialogComponent,
   SolutionInstallDialogData
@@ -45,6 +49,7 @@ export class SolutionTemplateDetailsComponent extends PageComponent implements O
   carouselIndex = 0;
 
   SolutionTemplateLevel = SolutionTemplateLevel;
+  SolutionTemplateLevelTranslationMap = SolutionTemplateLevelTranslationMap;
 
   private autoplayHandle: ReturnType<typeof setInterval>;
 

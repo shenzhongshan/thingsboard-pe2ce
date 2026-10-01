@@ -1,3 +1,3 @@
-#### Upgrading to ${TB_EDGE_VERSION}
+#### 升级到 ${TB_EDGE_VERSION}
 
 ${UPGRADE_DB}

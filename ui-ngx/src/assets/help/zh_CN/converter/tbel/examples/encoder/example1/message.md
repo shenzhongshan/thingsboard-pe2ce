@@ -1,4 +1,4 @@
-#### Encoder example incoming message
+#### 编码器示例入站消息
 
 ```json
 {

@@ -1,4 +1,4 @@
-#### Start the Service
+#### 启动服务
 
 ```bash
 sudo systemctl tb-edge start

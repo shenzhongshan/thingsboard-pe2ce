@@ -1,8 +1,8 @@
-#### Decoder example JavaScript function
+#### 解码器 JavaScript 函数示例
 
 ```javascript
 {:code-style="max-height: 500px;"}
-// decode payload to JSON
+// 将 payload 解码为 JSON
 var data = decodeToJson(payload);
 
 var result = [];
@@ -12,7 +12,7 @@ for (var i in data) {
     var deviceName = report.serialNumber;
     var raw = report.value;
     var decoded = hexStringToByteArray(raw);
-    // Result object with device attributes/telemetry data
+    // 包含设备属性/遥测数据的结果对象
     result.push({
         deviceName: deviceName,
         deviceType: "Thermometer",
@@ -27,7 +27,7 @@ for (var i in data) {
     });
 }
 
-/** Helper functions **/
+/** 辅助函数 **/
 
 function decodeToString(payload) {
     return String.fromCharCode.apply(String, payload);
@@ -39,7 +39,7 @@ function decodeToJson(payload) {
     return data;
 }
 
-/* Converts hex string to byte array*/
+/* 将十六进制字符串转换为字节数组 */
 function hexStringToByteArray(str) {
     if (!str) {
         return new Uint8Array();
@@ -51,7 +51,7 @@ function hexStringToByteArray(str) {
     return new Uint8Array(a);
 }
 
-/* Extracts integer value from the 'byteArray' using 'byteIdxFrom' and 'byteIdxTo'*/
+/* 根据 'byteIdxFrom' 和 'byteIdxTo' 从 'byteArray' 中提取整数值 */
 function getInt(byteArray, byteIdxFrom, byteIdxTo) {
     var val = 0;
     for (var j = byteIdxFrom; j < byteIdxTo; j++) {
@@ -63,7 +63,7 @@ function getInt(byteArray, byteIdxFrom, byteIdxTo) {
     return val;
 }
 
-/* Extracts float value from the 'byteArray' using 'byteIdxFrom' and 'byteIdxTo' and divides the value using 'divided' parameter*/
+/* 根据 'byteIdxFrom' 和 'byteIdxTo' 从 'byteArray' 中提取浮点数值，并用 'divided' 参数做除法 */
 function getFloat(byteArray, byteIdxFrom, byteIdxTo, divided) {
     return getInt(byteArray, byteIdxFrom, byteIdxTo) / divided;
 }
