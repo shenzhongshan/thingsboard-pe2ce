@@ -178,7 +178,14 @@ public class PduService {
                 case JSON:
                     result.addProperty(key, value);
                     break;
-                case LONG:
+                case LONG: {
+                    var casted = TypeCastUtil.castToNumber(value);
+                    if (casted.getKey() != DataType.LONG) {
+                        throw new IllegalArgumentException("Can't parse '" + value + "' as long");
+                    }
+                    result.addProperty(key, casted.getValue());
+                    break;
+                }
                 case DOUBLE:
                     result.addProperty(key, TypeCastUtil.castToNumber(value).getValue());
                     break;

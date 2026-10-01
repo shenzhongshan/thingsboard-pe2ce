@@ -70,7 +70,7 @@ public class SnmpAuthService {
             case V3:
                 OctetString username = new OctetString(deviceTransportConfig.getUsername());
                 OctetString securityName = new OctetString(deviceTransportConfig.getSecurityName());
-                OctetString engineId = OctetString.fromString(deviceTransportConfig.getEngineId(), 16);
+                OctetString engineId = parseEngineId(deviceTransportConfig.getEngineId());
 
                 OID authenticationProtocol = new OID(deviceTransportConfig.getAuthenticationProtocol().getOid());
                 OctetString authenticationPassphrase = Optional.ofNullable(SecurityProtocols.getInstance().passwordToKey(authenticationProtocol,
@@ -115,8 +115,24 @@ public class SnmpAuthService {
         SnmpDeviceTransportConfiguration deviceTransportConfiguration = sessionContext.getDeviceTransportConfiguration();
         if (deviceTransportConfiguration.getProtocolVersion() == SnmpProtocolVersion.V3) {
             OctetString username = new OctetString(deviceTransportConfiguration.getUsername());
-            OctetString engineId = new OctetString(deviceTransportConfiguration.getEngineId());
+            OctetString engineId = parseEngineId(deviceTransportConfiguration.getEngineId());
             snmpTransportService.getSnmp().getUSM().removeAllUsers(username, engineId);
+        }
+    }
+
+    /**
+     * Accepts both the plain hex format SNMP4J expects ("8000137001c0a8...") and the
+     * colon/space/0x-delimited hex formats most real SNMP tooling prints engine IDs in
+     * ("80:00:13:70:01:c0:a8...", "0x8000137001c0a8..."), normalizing to the former before
+     * delegating to SNMP4J. A genuinely malformed value fails with a clear validation message
+     * instead of an unhandled NumberFormatException.
+     */
+    private static OctetString parseEngineId(String engineId) {
+        String normalized = engineId.replaceAll("(?i)^0x|[:\\s-]", "");
+        try {
+            return OctetString.fromString(normalized, 16);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("SNMP V3 engine ID is not a valid hex string: '" + engineId + "'", e);
         }
     }
 
