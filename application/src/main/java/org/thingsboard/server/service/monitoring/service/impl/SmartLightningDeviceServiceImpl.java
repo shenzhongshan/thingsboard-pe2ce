@@ -40,6 +40,8 @@ import org.thingsboard.server.service.entitiy.UserEntitiesService;
 import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
+import org.thingsboard.server.service.query.VisibleDeviceContextService;
+import org.thingsboard.server.service.query.bo.VisibleDeviceContextBO;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.thingsboard.server.service.security.permission.Operation;
@@ -61,7 +63,7 @@ import java.util.concurrent.ExecutionException;
 @Service
 @TbCoreComponent
 @RequiredArgsConstructor
-public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceService {
+public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceService, VisibleDeviceContextService {
 
     private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ENTITY_PAGE_SIZE;
     private static final int TELEMETRY_BATCH_SIZE = 50;
@@ -147,11 +149,44 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
         return buildDeviceContexts(user, findVisibleDevices(user, null), null, null);
     }
 
-    /** 返回按 SERVER_SCOPE productCategory 筛选后的当前用户可见设备上下文。 */
+    /** 将监测实现内部上下文适配为共享查询层模型，供其他业务模块复用。 */
     @Override
-    public List<MonitoringDeviceContextBO> getVisibleDeviceContexts(SecurityUser user, String productCategory)
+    public List<VisibleDeviceContextBO> findVisibleDeviceContexts(SecurityUser user, String productCategory)
             throws ThingsboardException {
-        return buildDeviceContexts(user, findVisibleDevices(user, null), productCategory, null);
+        // 空值或空白分类表示调用方需要全部可见设备；有效值先去除首尾空格再参与筛选。
+        String categoryFilter = productCategory == null || productCategory.isBlank()
+                ? null : productCategory.trim();
+        // 先按平台权限查询设备，再复用本服务的批量属性、在线状态和配置读取流程。
+        List<MonitoringDeviceContextBO> monitoringContexts = buildDeviceContexts(
+                user, findVisibleDevices(user, null), categoryFilter, null);
+        // 适配为查询层通用 BO，隔离能源监管等调用方与防雷监测内部对象。
+        List<VisibleDeviceContextBO> contexts = new ArrayList<>(monitoringContexts.size());
+        for (MonitoringDeviceContextBO context : monitoringContexts) {
+            contexts.add(toVisibleDeviceContext(context));
+        }
+        return contexts;
+    }
+
+    /** 将当前监测实现使用的内部对象映射为与业务模块无关的查询上下文。 */
+    private VisibleDeviceContextBO toVisibleDeviceContext(MonitoringDeviceContextBO source) {
+        // 显式复制共享查询契约字段，不把监测模块对象泄露给其他业务模块。
+        return VisibleDeviceContextBO.builder()
+                .deviceId(source.getDeviceId())
+                .deviceName(source.getDeviceName())
+                .deviceProfileName(source.getDeviceProfileName())
+                .productCategory(source.getProductCategory())
+                .productName(source.getProductName())
+                .functionCategory(source.getFunctionCategory())
+                .deviceProtocol(source.getDeviceProtocol())
+                .active(source.getActive())
+                .lastActivityTime(source.getLastActivityTime())
+                .gatewayIdentifier(source.getGatewayIdentifier())
+                .meterAddress(source.getMeterAddress())
+                .circuitName(source.getCircuitName())
+                .timeSetting(source.getTimeSetting())
+                .latitude(source.getLatitude())
+                .longitude(source.getLongitude())
+                .build();
     }
 
     /** 将权限过滤后的设备按可选分类筛选，并批量转换为设备上下文。 */
@@ -161,15 +196,17 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             String expectedProductCategory,
             String expectedFunctionCategory)
             throws ThingsboardException {
-        // 先批量读取服务器属性以识别分类，再按匹配设备批量读取配置与在线遥测。
+        // 先批量读取服务器属性，为后续产品大类和功能分类过滤提供真实属性值。
         Map<UUID, Map<String, String>> attributesByDevice = findDeviceAttributes(
                 user, visibleDevices, DEVICE_CONTEXT_ATTRIBUTES);
+        // 使用已批量读取的属性缩小设备范围，避免对不匹配设备继续查询遥测和配置。
         List<DeviceInfo> matchingDevices = filterDeviceContexts(
                 visibleDevices, attributesByDevice, expectedProductCategory, expectedFunctionCategory);
+        // 对匹配设备批量读取在线状态和设备配置，避免在组装循环中逐设备查询。
         Map<UUID, String> activeValuesByDevice = findActiveTelemetry(user, matchingDevices);
         Map<UUID, Device> devicesById = findDevicesWithConfiguration(matchingDevices);
         List<MonitoringDeviceContextBO> contexts = new ArrayList<>();
-        // 只为匹配分类的设备组合属性、在线状态和设备配置。
+        // 只为匹配分类的设备组合属性、在线状态和设备配置，生成服务层上下文。
         for (DeviceInfo device : matchingDevices) {
             Map<String, String> attributes = attributesByDevice.get(device.getId().getId());
             UUID deviceId = device.getId().getId();
@@ -185,11 +222,13 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
             Map<UUID, Map<String, String>> attributesByDevice,
             String expectedProductCategory,
             String expectedFunctionCategory) {
+        // 逐台读取已批量加载的服务器属性，只保留同时满足已指定分类条件的设备。
         List<DeviceInfo> matchingDevices = new ArrayList<>();
         for (DeviceInfo device : devices) {
             Map<String, String> attributes = attributesByDevice.get(device.getId().getId());
             if (matchesProductCategory(attributes, expectedProductCategory)
                     && matchesFunctionCategory(attributes, expectedFunctionCategory)) {
+                // 分类匹配的设备进入后续在线状态和配置批量查询范围。
                 matchingDevices.add(device);
             }
         }
@@ -252,6 +291,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
     private Map<UUID, Map<String, String>> findDeviceAttributes(
             SecurityUser user, List<DeviceInfo> devices, List<String> attributeKeys) {
         if (devices.isEmpty() || attributeKeys.isEmpty()) {
+            // 没有设备或属性键时直接返回空索引，避免发起无意义的批量查询。
             return new HashMap<>();
         }
         // 将设备 ID 汇总后按服务器属性范围批量查询所需键。
@@ -283,6 +323,7 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
      */
     private MonitoringDeviceContextBO toDeviceContext(
             DeviceInfo device, Device deviceWithConfiguration, Map<String, String> attributes, String activeTelemetry) {
+        // 属性未返回时使用空索引，后续字段读取统一得到 null 而不触发空指针。
         Map<String, String> deviceAttributes = attributes == null ? Map.of() : attributes;
         String deviceProtocol = null;
         // 对应 device.device_data.transportConfiguration.type，直接读取设备配置。
@@ -290,8 +331,10 @@ public class SmartLightningDeviceServiceImpl implements SmartLightningDeviceServ
                 ? deviceWithConfiguration.getDeviceData() : device.getDeviceData();
         if (deviceData != null && deviceData.getTransportConfiguration() != null
                 && deviceData.getTransportConfiguration().getType() != null) {
+            // 只有配置层级完整时才记录接入协议，避免缺省配置造成异常。
             deviceProtocol = deviceData.getTransportConfiguration().getType().name();
         }
+        // 优先使用新的网关标识属性，同时兼容历史 gatewayId 属性。
         String gatewayIdentifier = deviceAttributes.get("gatewayIdentifier");
         if (gatewayIdentifier == null || gatewayIdentifier.isBlank()) {
             gatewayIdentifier = deviceAttributes.get("gatewayId");

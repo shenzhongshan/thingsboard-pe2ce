@@ -21,6 +21,7 @@ import {
 import L from 'leaflet';
 import { smartLightningTianDiTuMapConfig } from './smart-lightning-device-map.config';
 import {
+  formatSmartLightningMapCoordinate,
   isValidSmartLightningMapCoordinate,
   toSmartLightningMapCoordinate
 } from './smart-lightning-device-map.data';
@@ -149,6 +150,11 @@ export class SmartLightningDeviceMapComponent implements AfterViewInit, OnChange
   /** 当前详情设备的告警名称，按设备去重后使用“/”分隔。 */
   selectedDeviceAlarms(): string[] {
     return this.selectedDevice ? this.getAlarmNames(this.selectedDevice) : [];
+  }
+
+  /** 将设备坐标格式化为带方向符号的经纬度文本。 */
+  formatCoordinate(value: number | undefined, axis: 'latitude' | 'longitude'): string {
+    return formatSmartLightningMapCoordinate(value, axis);
   }
 
   /** 单击在矢量地图和卫星影像间切换，设备点位图层保持不变。 */

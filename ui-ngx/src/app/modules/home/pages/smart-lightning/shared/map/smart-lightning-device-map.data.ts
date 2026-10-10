@@ -23,6 +23,22 @@ export const toSmartLightningMapCoordinate = (value: unknown): number | null => 
   return Number.isFinite(numberValue) ? numberValue : null;
 };
 
+/** 坐标详情最多保留五位小数，并按经纬度正负标注 N/S/E/W。 */
+export const formatSmartLightningMapCoordinate = (
+  value: unknown,
+  axis: 'latitude' | 'longitude'
+): string => {
+  const coordinate = toSmartLightningMapCoordinate(value);
+  if (coordinate === null) {
+    return '--';
+  }
+  const direction = axis === 'latitude'
+    ? (coordinate < 0 ? 'S' : 'N')
+    : (coordinate < 0 ? 'W' : 'E');
+  const roundedCoordinate = Number(Math.abs(coordinate).toFixed(5));
+  return `${roundedCoordinate}°${direction}`;
+};
+
 /** 判断经纬度是否落在地理坐标允许范围内。 */
 export const isValidSmartLightningMapCoordinate = (latitude: unknown, longitude: unknown): boolean => {
   const normalizedLatitude = toSmartLightningMapCoordinate(latitude);

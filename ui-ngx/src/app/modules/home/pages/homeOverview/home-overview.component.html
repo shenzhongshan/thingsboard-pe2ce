@@ -94,6 +94,11 @@
       <h2>设备地图</h2>
       <span>{{ selectedCategory ? selectedCategoryLabel + (selectedFunctionLabel ? ' · ' + selectedFunctionLabel : '') : '全部分类' }} · {{ visibleDevices.length }} 台 · 红色告警 · 灰色离线 · 绿色在线</span>
     </header>
-    <div class="overview-map"><tb-smart-lightning-device-map #deviceMap [devices]="visibleDevices" (deviceClick)="onDeviceClick($event)"></tb-smart-lightning-device-map></div>
+    <div class="overview-map">
+      <tb-smart-lightning-device-map
+        [devices]="visibleDevices"
+        [assetPaths]="deviceAssetPaths">
+      </tb-smart-lightning-device-map>
+    </div>
   </article>
 </section>

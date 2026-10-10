@@ -9,9 +9,8 @@ import java.util.UUID;
 /**
  * 设备基础信息、服务器属性和运行状态合并后的内部模型。
  *
- * <p>该类型只供监测服务的筛选、统计和遥测查询使用。接口层需要返回设备信息时，
- * 统一通过 Converter 转换为 SmartLightningDeviceContextDTO，再由 Controller 转换为 VO，
- * 避免内部业务对象成为外部契约。</p>
+ * <p>该类型只供设备查询服务的筛选、统计和遥测查询使用。接口层需要返回设备信息时，
+ * 由所属业务模块转换为自己的 DTO 和 VO，避免内部业务对象成为外部契约。</p>
  */
 @Getter
 @Builder

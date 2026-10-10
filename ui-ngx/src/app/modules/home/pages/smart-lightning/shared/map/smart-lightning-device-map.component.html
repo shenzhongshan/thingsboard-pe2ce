@@ -29,7 +29,8 @@
         <div><dt>产品名称</dt><dd>{{device.productName || '未配置'}}</dd></div>
         <div><dt>设备类型</dt><dd>{{device.profileName || '未配置'}}</dd></div>
         <div><dt>绝对路径</dt><dd class="path-value" [title]="selectedDeviceAssetPath()">{{selectedDeviceAssetPath()}}</dd></div>
-        <div><dt>坐标</dt><dd>{{device.latitude}}，{{device.longitude}}</dd></div>
+        <!-- 地图详情最多展示五位小数，坐标值本身仍保留原精度用于点位定位。 -->
+        <div><dt>坐标</dt><dd>{{formatCoordinate(device.latitude, 'latitude')}}, {{formatCoordinate(device.longitude, 'longitude')}}</dd></div>
       </dl>
 
       <div class="smart-lightning-map-modal-alarm" [class.has-alarm]="selectedDeviceAlarms().length > 0">

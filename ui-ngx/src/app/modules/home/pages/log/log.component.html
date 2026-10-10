@@ -19,11 +19,11 @@
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>设备名称</th><th>设备配置类型</th><th class="operation-column">操作</th></tr></thead>
+        <thead><tr><th>设备名称</th><th>设备配置类型</th><th class="status-column">状态</th><th class="operation-column">操作</th></tr></thead>
         <tbody>
-          <tr *ngIf="loading"><td colspan="3" class="table-state">正在读取设备列表…</td></tr>
-          <tr *ngIf="!loading && loadError"><td colspan="3" class="table-state error">设备列表读取失败，请稍后重试</td></tr>
-          <tr *ngIf="!loading && !loadError && !devices.length"><td colspan="3" class="table-state">当前用户暂无可见设备</td></tr>
+          <tr *ngIf="loading"><td colspan="4" class="table-state">正在读取设备列表…</td></tr>
+          <tr *ngIf="!loading && loadError"><td colspan="4" class="table-state error">设备列表读取失败，请稍后重试</td></tr>
+          <tr *ngIf="!loading && !loadError && !devices.length"><td colspan="4" class="table-state">当前用户暂无可见设备</td></tr>
           <!-- 整行都可切换当前设备；具体操作按钮阻止冒泡，避免复制等操作误触发详情切换。 -->
           <tr *ngFor="let device of devices; trackBy: trackByDeviceId"
               class="device-row"
@@ -36,6 +36,15 @@
                         [attr.aria-pressed]="selectedDevice?.deviceId === device.deviceId">{{device.deviceName}}</button>
             </td>
             <td class="profile-name" [title]="device.deviceProfileName || '未配置'">{{device.deviceProfileName || '未配置'}}</td>
+            <td class="status-column">
+              <span class="device-status-badge"
+                    [class.online]="device.active === true"
+                    [class.offline]="device.active === false"
+                    [class.pending]="device.active === null">
+                <span class="status-dot" aria-hidden="true"></span>
+                {{device.active === true ? '在线' : device.active === false ? '离线' : '读取中'}}
+              </span>
+            </td>
             <td class="operation-column">
               <div class="operation-actions">
                 <button type="button" mat-icon-button class="icon-action" matTooltip="查看日志"

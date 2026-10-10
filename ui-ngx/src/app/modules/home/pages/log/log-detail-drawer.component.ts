@@ -13,6 +13,7 @@ import { DialogService } from '@core/services/dialog.service';
 import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
 import { AppState } from '@core/core.state';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
+import { DeviceActiveStatusService } from '@core/services/device-active-status.service';
 import { EntityType } from '@shared/models/entity-type.models';
 import { AttributeData, LatestTelemetry, SharedTelemetrySubscriber, TimeseriesDeleteStrategy, TimeseriesData } from '@shared/models/telemetry/telemetry.models';
 import { Subject, Subscription, catchError, forkJoin, map, of, switchMap, take, takeUntil } from 'rxjs';
@@ -62,6 +63,7 @@ export class LogDetailDrawerComponent implements OnChanges, OnDestroy {
 
   constructor(private readonly logApi: LogApiService,
               private readonly telemetryWsService: TelemetryWebsocketService,
+              private readonly activeStatusService: DeviceActiveStatusService,
               private readonly zone: NgZone,
               private readonly cd: ChangeDetectorRef,
               private readonly store: Store<AppState>,
@@ -94,6 +96,7 @@ export class LogDetailDrawerComponent implements OnChanges, OnDestroy {
     }).pipe(takeUntil(this.destroy$), takeUntil(this.reload$)).subscribe({
       next: ({attributes, telemetry, timeline}) => {
         const latestTelemetry = this.realtimeTelemetryReceived ? this.snapshot.telemetry : (telemetry || {});
+        this.updateSharedActiveStatus(latestTelemetry);
         this.normalizeTelemetryPage(Object.keys(latestTelemetry).length);
         this.snapshot = {
           attributes: attributes || [],
@@ -135,6 +138,7 @@ export class LogDetailDrawerComponent implements OnChanges, OnDestroy {
       .subscribe((data: AttributeData[]) => {
         this.realtimeTelemetryReceived = true;
         const telemetry = this.toTimeseriesData(data);
+        this.updateSharedActiveStatus(telemetry);
         this.normalizeTelemetryPage(Object.keys(telemetry).length);
         this.snapshot = {
           ...this.snapshot,
@@ -153,6 +157,18 @@ export class LogDetailDrawerComponent implements OnChanges, OnDestroy {
       }];
       return result;
     }, {});
+  }
+
+  /** 将抽屉已有的 active 最新值同步给列表行，不为当前设备另建遥测订阅。 */
+  private updateSharedActiveStatus(telemetry: TimeseriesData): void {
+    const activeTelemetry = telemetry['active']?.[0];
+    if (activeTelemetry) {
+      this.activeStatusService.setLatestActiveStatus(
+        this.device.deviceId,
+        activeTelemetry.value,
+        activeTelemetry.ts
+      );
+    }
   }
 
   /** 当遥测键数量变化时，确保当前页仍然落在有效范围内。 */

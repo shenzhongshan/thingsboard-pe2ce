@@ -1,14 +1,15 @@
 /**
  * 文件职责：设备日志列表页面。
  *
- * <p>列表只显示设备名称、设备配置类型和操作按钮。属性、最新遥测和时间轴在用户打开
- * 右侧抽屉后按需加载，避免页面初始化时为所有设备发起时序请求。</p>
+ * <p>列表展示设备名称、设备配置类型、共享 active 实时状态和操作按钮。属性、其他最新遥测
+ * 及时间轴在用户打开右侧抽屉后按需加载，避免页面初始化时额外发起时序请求。</p>
  */
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Subject, takeUntil } from 'rxjs';
 import { AppState } from '@core/core.state';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
+import { DeviceActiveStatusChange, DeviceActiveStatusService } from '@core/services/device-active-status.service';
 import { LogApiService } from './log-api.service';
 import { LogDevice } from './log.models';
 import { copyTextToClipboard } from './log-clipboard.util';
@@ -35,10 +36,15 @@ export class LogComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
 
   constructor(private readonly logApi: LogApiService,
+              private readonly activeStatusService: DeviceActiveStatusService,
               private readonly cd: ChangeDetectorRef,
               private readonly store: Store<AppState>) {}
 
   ngOnInit(): void {
+    this.activeStatusService.activeStatusChanged$.pipe(takeUntil(this.destroy$)).subscribe((change) => {
+      this.applyActiveStatusChange(change);
+    });
+    this.activeStatusService.acquire();
     this.loadDevices();
   }
 
@@ -47,7 +53,10 @@ export class LogComponent implements OnInit, OnDestroy {
     this.loadError = false;
     this.logApi.getDevices(this.pageSize, this.page, this.search).pipe(takeUntil(this.destroy$)).subscribe({
       next: (pageData) => {
-        this.devices = pageData.data || [];
+        this.devices = (pageData.data || []).map((device) => ({
+          ...device,
+          active: this.activeStatusService.getLatestActiveStatus(device.deviceId) ?? null
+        }));
         this.totalPages = pageData.totalPages || 0;
         this.totalElements = pageData.totalElements || 0;
         this.loading = false;
@@ -109,7 +118,26 @@ export class LogComponent implements OnInit, OnDestroy {
     return device.deviceId;
   }
 
+  /** 只更新共享 active 遥测本帧涉及的当前页设备，保留列表分页与筛选结果。 */
+  private applyActiveStatusChange(change: DeviceActiveStatusChange): void {
+    if (!change.deviceIds.size && !change.initialSnapshot) {
+      return;
+    }
+    const changedDeviceIds = change.deviceIds;
+    this.devices = this.devices.map((device) => {
+      if (!change.initialSnapshot && !changedDeviceIds.has(device.deviceId)) {
+        return device;
+      }
+      return {
+        ...device,
+        active: this.activeStatusService.getLatestActiveStatus(device.deviceId) ?? null
+      };
+    });
+    this.cd.markForCheck();
+  }
+
   ngOnDestroy(): void {
+    this.activeStatusService.release();
     this.destroy$.next();
     this.destroy$.complete();
   }

@@ -2,22 +2,24 @@
  * 文件职责：自定义平台首页的页面控制器。
  * 该页面独立于 ThingsBoard 原生 /home，仅汇总当前用户可见的设备、资产、告警和地图点位。
  */
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { Authority } from '@shared/models/authority.enum';
 import { AssetService } from '@core/http/asset.service';
 import { AlarmService } from '@core/http/alarm.service';
-import { EntityRelationService } from '@core/http/entity-relation.service';
 import { PageLink, MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
 import { AlarmQueryV2, AlarmSearchStatus, AlarmSeverity } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { TimePageLink } from '@shared/models/page/page-link';
-import { of, Subject, timer } from 'rxjs';
-import { auditTime, catchError, map, switchMap, takeUntil } from 'rxjs/operators';
-import { SmartLightningDeviceMapComponent } from '@home/pages/smart-lightning/shared/map/smart-lightning-device-map.component';
-import { SmartLightningMapDevice } from '@home/pages/smart-lightning/shared/map/smart-lightning-device-map.models';
+import { forkJoin, of, Subject, timer } from 'rxjs';
+import { auditTime, catchError, switchMap, takeUntil } from 'rxjs/operators';
+import { SmartLightningMonitoringApiService } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import {
+  buildSmartLightningMonitoringAssetTreeFromRoots,
+  getSmartLightningMonitoringAssetPaths
+} from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
 import { SmartLightningRealtimeService } from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
 import { HomeOverviewApiService, HomeOverviewDeviceContext } from './home-overview-api.service';
 import {
@@ -63,8 +65,6 @@ interface HomeOverviewStatusChart {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HomeOverviewComponent implements OnInit, OnDestroy {
-  @ViewChild('deviceMap') deviceMap?: SmartLightningDeviceMapComponent;
-
   readonly stats: HomeOverviewStats = createEmptyHomeOverviewStats();
   readonly categoryOptions: HomeOverviewCategoryOption[] = HOME_OVERVIEW_CATEGORY_OPTIONS;
   devices: HomeOverviewDevice[] = [];
@@ -85,13 +85,15 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
   private readonly alarmSettleRefresh$ = new Subject<void>();
   private readonly pendingActiveDeviceIds = new Set<string>();
   private alarmNamesByDevice = new Map<string, string[]>();
+  /** 设备 ID 到当前用户可见资产树完整路径的索引，供地图详情弹窗展示。 */
+  deviceAssetPaths = new Map<string, string>();
 
   constructor(
     private readonly store: Store<AppState>,
     private readonly assetService: AssetService,
     private readonly alarmService: AlarmService,
     private readonly homeOverviewApiService: HomeOverviewApiService,
-    private readonly entityRelationService: EntityRelationService,
+    private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly cd: ChangeDetectorRef,
     private readonly realtimeService: SmartLightningRealtimeService
   ) {}
@@ -331,9 +333,17 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
     // 三类数据独立重取；新通知到达时 switchMap 取消旧请求，避免旧快照覆盖新状态。
     this.deviceRefresh$.pipe(
       auditTime(150),
-      switchMap(() => this.homeOverviewApiService.getVisibleDeviceContexts().pipe(catchError(() => of(null)))),
+      switchMap(() => forkJoin({
+        deviceContexts: this.homeOverviewApiService.getVisibleDeviceContexts().pipe(catchError(() => of(null))),
+        // 复用按当前用户权限返回的全产品资产树，路径索引不参与首页分类筛选。
+        assetTree: this.monitoringApi.getTree().pipe(catchError(() => of(null)))
+      })),
       takeUntil(this.destroy$)
-    ).subscribe((deviceContexts) => {
+    ).subscribe(({deviceContexts, assetTree}) => {
+      if (assetTree) {
+        const tree = buildSmartLightningMonitoringAssetTreeFromRoots(assetTree.roots);
+        this.deviceAssetPaths = getSmartLightningMonitoringAssetPaths(tree);
+      }
       if (deviceContexts) {
         this.loadDeviceAttributes(deviceContexts);
       } else {
@@ -410,7 +420,11 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
       .subscribe(() => this.deviceRefresh$.next());
 
     this.realtimeService.assetMembershipChanged$.pipe(auditTime(300), takeUntil(this.destroy$))
-      .subscribe(() => this.assetRefresh$.next());
+      .subscribe(() => {
+        this.assetRefresh$.next();
+        // 资产集合变化可能影响完整路径，因此同步刷新可见资产树。
+        this.deviceRefresh$.next();
+      });
 
     // 数量变化后的补刷使用 switchMap 合并短时间内的连续计数事件，只保留最后一次 800ms 校准。
     this.alarmSettleRefresh$.pipe(
@@ -506,20 +520,5 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
       return categoryMatched && functionMatched;
     });
     this.cd.markForCheck();
-  }
-  onDeviceClick(device: SmartLightningMapDevice): void {
-    if (device.assetPath !== '--') {
-      return;
-    }
-    this.entityRelationService.findInfoByTo({entityType: EntityType.DEVICE, id: device.id}).pipe(
-      map((relations) => relations.find((relation) => relation.from?.entityType === EntityType.ASSET)?.fromName || '--'),
-      catchError(() => of('--')),
-      takeUntil(this.destroy$)
-    ).subscribe((parentName) => {
-      device.assetPath = parentName;
-      this.deviceMap?.refresh();
-      this.deviceMap?.openDevicePopup(device.id);
-      this.cd.markForCheck();
-    });
   }
 }
