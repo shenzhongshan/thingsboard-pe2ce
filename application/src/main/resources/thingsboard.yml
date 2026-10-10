@@ -2305,10 +2305,6 @@ tb:
         function-category: lightning_current
         product-name: FL瞬态电流监测模块
         product-category: lightning
-      LDH1:
-        function-category: arc_fault
-        product-name: FA故障电弧监测模块
-        product-category: lightning
       DEM2:
         function-category: spd_monitor
         product-name: FSS智能型电涌保护器（单相无漏流）
@@ -2333,12 +2329,15 @@ tb:
         function-category: spd_monitor
         product-name: ESM防雷监测模组（旗舰版）
         product-category: lightning
+      # 电气安全产品：以故障监测、供电异常监测和回路保护为主要用途。
+      LDH1:
+        function-category: arc_fault
+        product-name: FA故障电弧监测模块
+        product-category: electrical_safety
       FAP1:
         function-category: arc_fault
         product-name: FAP故障电弧探测器（一体式）
-        product-category: lightning
-
-      # 用电安全产品
+        product-category: electrical_safety
       ESF1:
         function-category: electrical_fire
         product-name: ESF电气火灾监测模组
@@ -2371,19 +2370,27 @@ tb:
         function-category: smart_breaker
         product-name: FECB智能断路器（1P）
         product-category: electrical_safety
-
-      # 能源监管产品
       LDA1:
         function-category: mains_monitor
         product-name: FD市电监测模块
-        product-category: energy_regulation
+        product-category: electrical_safety
+      E1B2:
+        function-category: phase_unbalance
+        product-name: ESB三相不平衡监测器
+        product-category: electrical_safety
+      E1P1:
+        function-category: neutral_ground_voltage
+        product-name: ESP零地电压监测器
+        product-category: electrical_safety
+
+      # 能源监管产品：以用电计量和电能质量分析为主要用途。
       E1E2:
         function-category: power_quality
         product-name: ESE电能质量监测器
         product-category: energy_regulation
-      E1B2:
-        function-category: phase_unbalance
-        product-name: ESB三相不平衡监测器
+      SFE:
+        function-category: power_quality
+        product-name: SFE电能质量监测器
         product-category: energy_regulation
       E1A2:
         function-category: energy_meter
