@@ -44,3 +44,4 @@ rebuild-docker.sh
 /.md
 .md
 *.md
+*.codebuddy
