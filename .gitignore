@@ -43,3 +43,4 @@ rebuild-docker.sh
 /.vscode
 /.md
 .md
+*.md
