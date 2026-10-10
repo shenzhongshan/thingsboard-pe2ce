@@ -45,3 +45,4 @@ rebuild-docker.sh
 .md
 *.md
 *.codebuddy
+application/src/test
