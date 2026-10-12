@@ -1,0 +1,377 @@
+/* 文件职责：沿用防雷看板的大屏网格、面板边框和状态色，仅替换右侧电气安全卡片。 */
+:host {
+  display: block;
+  min-height: 100%;
+}
+
+.electrical-safety-page {
+  --safety-ink: #0a356a;
+  --safety-muted: #6c8194;
+  --safety-line: #d5dee6;
+  --safety-canvas: #edf1f4;
+  --safety-blue: #195ce8;
+  --safety-green: #17e96c;
+  --safety-amber: #f5b31b;
+  --safety-red: #ff4a57;
+  --safety-purple: #8850e5;
+  min-height: 100%;
+  margin-left: 8px;
+  padding: var(--tb-smart-page-spacing) 20px var(--tb-smart-page-spacing) 0;
+  color: #173753;
+  background: var(--safety-canvas);
+  font-family: var(--tb-smart-page-font-family);
+  font-size: var(--tb-smart-page-font-size);
+  line-height: var(--tb-smart-page-line-height);
+}
+
+h2,
+p,
+dl {
+  margin: 0;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, .92fr) minmax(430px, 1.8fr) minmax(270px, .92fr);
+  grid-template-areas:
+    'device map fire'
+    'alarm map safe'
+    'orders records quality';
+  gap: var(--tb-smart-page-spacing);
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--safety-line);
+  background: #fff;
+  box-shadow: 0 7px 18px rgb(29 60 87 / 7%);
+}
+
+.panel-title,
+.map-toolbar {
+  display: flex;
+  min-height: 47px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #e7edf2;
+}
+
+.panel-title h2,
+.map-toolbar > span:first-child {
+  color: #263c50;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.device-summary { grid-area: device; min-height: 270px; }
+.map-panel { grid-area: map; min-height: 554px; position: relative; }
+.alarm-panel { grid-area: alarm; min-height: 270px; }
+.orders-panel { grid-area: orders; min-height: 300px; }
+.records-panel { grid-area: records; min-height: 300px; }
+.fire-panel { grid-area: fire; }
+.safe-electricity-panel { grid-area: safe; }
+.power-quality-panel { grid-area: quality; min-height: 300px; }
+
+.summary-content {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 20px 20px 10px;
+}
+
+.availability-ring {
+  position: relative;
+  display: grid;
+  width: 117px;
+  height: 117px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--safety-green) 0 var(--online-rate), var(--safety-purple) var(--online-rate) 100%);
+}
+
+.availability-ring::before {
+  position: absolute;
+  width: 91px;
+  height: 91px;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+}
+
+.availability-ring > div {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.availability-ring span {
+  display: block;
+  color: #11b85a;
+  font-size: 12px;
+}
+
+.availability-ring strong {
+  color: #2d3f50;
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.summary-metrics {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(68px, 1fr));
+  gap: 24px 14px;
+}
+
+.summary-metrics div { min-width: 0; }
+.summary-metrics dt { color: #607487; font-size: 11px; white-space: nowrap; }
+.summary-metrics dd { margin-top: 6px; font-size: 24px; font-weight: 500; line-height: 1; }
+.blue { color: #1d5be6; }
+.green { color: #09a44b; }
+.amber { color: #f1a800; }
+.red { color: #ff4652; }
+.purple { color: var(--safety-purple); }
+
+.ring-legend {
+  display: flex;
+  gap: 20px;
+  padding: 0 30px;
+  color: #718397;
+  font-size: 10px;
+}
+
+.ring-legend span,
+.ratio-legend span,
+.order-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ring-legend i,
+.ratio-legend i,
+.order-legend i {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.ring-legend .online,
+.legend-online { background: var(--safety-green); }
+.ring-legend .offline,
+.legend-offline { background: var(--safety-purple); }
+
+.map-toolbar {
+  height: 47px;
+  box-sizing: border-box;
+}
+
+.map-toolbar > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-toolbar tb-icon { color: var(--safety-blue); }
+.map-hint { color: #7b8e9f; font-size: 10px; font-weight: 400; }
+
+.map-container {
+  height: calc(100% - 47px);
+  min-height: 507px;
+  background: #dfeef4;
+}
+
+.map-container tb-smart-lightning-device-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.monitoring-card {
+  display: flex;
+  min-height: 270px;
+  flex-direction: column;
+}
+
+.category-title {
+  min-height: 46px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.category-title h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #cfe0f3;
+  border-radius: 5px;
+  color: var(--safety-blue);
+  background: #eef5fc;
+}
+
+.category-icon tb-icon { font-size: 17px; }
+.fire-panel .category-icon { border-color: #ffd0d3; color: #d73e49; background: #fff1f2; }
+.safe-electricity-panel .category-icon { border-color: #bdebd0; color: #0b9850; background: #eefaf3; }
+.power-quality-panel .category-icon { border-color: #c9d9fb; color: #195ce8; background: #eff4ff; }
+
+.help-icon {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  color: #93a2b0;
+  font-size: 16px;
+}
+
+.category-metrics {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  gap: 19px 8px;
+  padding: 13px 18px 10px;
+}
+
+.category-metrics div { min-width: 0; text-align: center; }
+.category-metrics dt { color: #647b90; font-size: 11px; }
+.category-metrics dd { margin-top: 3px; font-size: 21px; font-weight: 600; line-height: 1.15; }
+
+.ratio-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 9px 15px 11px;
+  border-top: 1px solid #edf1f4;
+}
+
+.ratio-row { min-width: 0; }
+.ratio-track { display: flex; width: 100%; height: 7px; overflow: hidden; border-radius: 5px; background: #edf1f4; }
+.ratio-track i { display: block; height: 100%; }
+.ratio-online,
+.legend-online { background: var(--safety-green); }
+.ratio-offline,
+.legend-offline { background: var(--safety-purple); }
+.ratio-alarm,
+.legend-alarm { background: #f36b72; }
+.ratio-normal,
+.legend-normal { background: #45a3f5; }
+
+.ratio-legend {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 5px;
+  color: #718397;
+  font-size: 9px;
+}
+
+.ratio-legend i { width: 8px; height: 8px; border-radius: 2px; }
+
+.chart-panel { display: flex; flex-direction: column; }
+.chart-body { position: relative; display: flex; flex: 1; min-height: 205px; padding: 23px 17px 28px 42px; }
+.chart-axis-label { position: absolute; top: 13px; left: 15px; color: #718397; font-size: 10px; }
+
+.bar-chart {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  border-bottom: 1px solid #9cabb8;
+  background: repeating-linear-gradient(to top, transparent 0, transparent 31px, #edf1f4 32px, #edf1f4 33px);
+}
+
+.bar-column { display: flex; min-width: 0; height: 100%; flex-direction: column; align-items: center; justify-content: flex-end; }
+.bar-value { color: #62788c; font-size: 10px; }
+.bar-track { display: flex; width: min(54%, 46px); height: calc(100% - 37px); min-height: 12px; align-items: flex-end; justify-content: center; }
+.alarm-bar { display: block; width: 100%; min-height: 2px; background: linear-gradient(180deg, #19e96c, #1269ac); }
+.bar-label { min-height: 25px; padding-top: 5px; color: #607487; font-size: 9px; text-align: center; white-space: nowrap; }
+
+.orders-panel .panel-title { min-height: 47px; }
+.order-legend { display: flex; gap: 13px; padding: 9px 15px 0; color: #607487; font-size: 10px; }
+.order-legend i { border-radius: 2px; }
+.pending { background: #f5b31b; }
+.unassigned { background: #8850e5; }
+.processed { background: #195ce8; }
+
+.order-chart {
+  display: grid;
+  flex: 1;
+  min-height: 210px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+  margin: 10px 16px 14px;
+  border-bottom: 1px solid #a5b2bf;
+  background: repeating-linear-gradient(to top, transparent 0, transparent 34px, #edf1f4 35px, #edf1f4 36px);
+}
+
+.order-column { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: flex-end; }
+.order-bars { display: flex; width: 100%; height: calc(100% - 22px); align-items: flex-end; justify-content: center; gap: 5px; }
+.order-bars i { width: min(17%, 14px); min-height: 3px; border-radius: 3px 3px 0 0; }
+.order-column > span { min-height: 22px; padding-top: 5px; color: #607487; font-size: 9px; text-align: center; white-space: nowrap; }
+
+.records-panel { display: flex; min-height: 300px; flex-direction: column; }
+.more-link { display: inline-flex; align-items: center; gap: 4px; color: #07994b; font-size: 11px; font-weight: 650; text-decoration: none; }
+.more-link:hover,
+.more-link:focus-visible { color: #047e3d; text-decoration: underline; }
+.more-link tb-icon { width: 15px; height: 15px; font-size: 15px; }
+
+@media (max-width: 1350px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.45fr);
+    grid-template-areas:
+      'device map'
+      'alarm map'
+      'orders records'
+      'fire safe'
+      'quality quality';
+  }
+
+  .map-panel { min-height: 554px; }
+  .map-container { min-height: 507px; }
+}
+
+@media (max-width: 860px) {
+  .electrical-safety-page { margin-left: 0; padding: 10px; }
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'device'
+      'map'
+      'fire'
+      'safe'
+      'quality'
+      'alarm'
+      'orders'
+      'records';
+    gap: 10px;
+  }
+
+  .device-summary,
+  .alarm-panel,
+  .orders-panel,
+  .records-panel,
+  .monitoring-card { min-height: 250px; }
+  .map-panel { min-height: 370px; }
+  .map-container { min-height: 323px; }
+  .summary-content { justify-content: center; }
+  .category-metrics { padding-right: 28px; padding-left: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-column,
+  .order-bars i { transition: none; }
+}

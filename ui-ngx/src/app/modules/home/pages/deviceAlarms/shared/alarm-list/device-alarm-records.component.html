@@ -1,0 +1,72 @@
+<!-- 数据筛选由父页面负责；此组件统一呈现活动告警表及可访问的加载、失败和空状态。 -->
+<div class="table-scroll">
+  @if (loading) {
+    <div class="table-state" role="status" aria-live="polite">正在加载活动告警…</div>
+  } @else if (loadError) {
+    <div class="table-state error" role="alert">告警记录加载失败。<button type="button" (click)="retry.emit()">重试</button></div>
+  } @else if (!alarms.length) {
+    <div class="table-state" role="status" aria-live="polite">当前没有活动告警</div>
+  } @else {
+    @if (columns.length > 0) {
+      <table [attr.aria-label]="tableLabel">
+        <thead>
+          <tr>
+            @for (column of columns; track column.field) {
+              <th scope="col" [title]="column.label" [style.width.%]="column.widthPercent">{{column.label}}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (alarm of alarms; track alarm.source + alarm.device + alarm.startTs) {
+            <tr>
+              @for (column of columns; track column.field) {
+                <td [attr.title]="column.field === 'startTs' ? null : getDisplayValue(alarm, column.field)">
+                  @switch (column.field) {
+                    @case ('severity') {
+                      <span class="alarm-severity" [class]="alarm.severityTone">{{alarm.severity}}</span>
+                    }
+                    @case ('startTs') {
+                      {{alarm.startTs | date:'yyyy/MM/dd HH:mm'}}
+                    }
+                    @default {
+                      {{getDisplayValue(alarm, column.field)}}
+                    }
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else {
+      <table [attr.aria-label]="tableLabel">
+        <thead>
+          <tr>
+            <th scope="col" title="来源位置">来源位置</th>
+            <th scope="col" title="次级位置">次级位置</th>
+            <th scope="col" title="设备类型">设备类型</th>
+            <th scope="col" title="设备名称">设备名称</th>
+            <th scope="col" title="告警类型">告警类型</th>
+            <th scope="col" title="告警等级">告警等级</th>
+            <th scope="col" title="确认状态">确认状态</th>
+            <th scope="col" title="触发时间">触发时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (alarm of alarms; track alarm.source + alarm.device + alarm.startTs) {
+            <tr>
+              <td [title]="alarm.source">{{alarm.source}}</td>
+              <td [title]="alarm.secondaryLocation">{{alarm.secondaryLocation}}</td>
+              <td [title]="alarm.deviceType">{{alarm.deviceType}}</td>
+              <td [title]="alarm.deviceName">{{alarm.deviceName}}</td>
+              <td [title]="alarm.type">{{alarm.type}}</td>
+              <td><span class="alarm-severity" [class]="alarm.severityTone">{{alarm.severity}}</span></td>
+              <td [title]="alarm.status">{{alarm.status}}</td>
+              <td>{{alarm.startTs | date:'yyyy/MM/dd HH:mm'}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  }
+</div>

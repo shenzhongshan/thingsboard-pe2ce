@@ -5,7 +5,19 @@
  * 列表、详情弹窗和后续告警子页面都从这里取得严重程度与原生状态文案，
  * 页面组件只负责调用，不在各自文件重复维护同一套中文映射。
  */
-export type SmartLightningAlarmSeverityTone = 'critical' | 'major' | 'minor' | 'warning' | 'indeterminate';
+import type {
+  DeviceAlarmDisplayRow as SharedDeviceAlarmDisplayRow,
+  DeviceAlarmSeverityTone
+} from './alarm-list/device-alarm-records.model';
+
+/** 保留智能防雷页面现有的类型名称，并复用通用告警展示色调定义。 */
+export type SmartLightningAlarmSeverityTone = DeviceAlarmSeverityTone;
+
+/** 兼容既有调用方对通用告警展示行类型的导入路径。 */
+export type { DeviceAlarmDisplayRow } from './alarm-list/device-alarm-records.model';
+
+/** 兼容现有智能防雷看板的数据类型名称。 */
+export type SmartLightningAlarmRow = SharedDeviceAlarmDisplayRow;
 
 const SEVERITY_LABELS: Readonly<Record<SmartLightningAlarmSeverityTone, string>> = {
   critical: '严重',

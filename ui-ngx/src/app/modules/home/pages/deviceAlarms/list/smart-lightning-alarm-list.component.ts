@@ -487,7 +487,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),
       {}
     );
-    this.alarmService.getAllAlarmsV2(query).pipe(takeUntil(this.destroy$)).subscribe({
+    this.monitoringApi.getLightningAlarms(query).pipe(takeUntil(this.destroy$)).subscribe({
       next: (pageData) => {
         const rows = pageData.data
           .filter((alarm) => alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))

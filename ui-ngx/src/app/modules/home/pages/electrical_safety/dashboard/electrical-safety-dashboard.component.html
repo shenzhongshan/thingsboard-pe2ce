@@ -1,0 +1,125 @@
+<!-- 文件职责：按防雷看板的三栏大屏布局展示设备、地图、告警、工单和电气安全分类卡片。 -->
+<main class="electrical-safety-page" aria-label="电气安全看板">
+  <section class="dashboard-grid" aria-label="电气安全监测总览">
+    <article class="panel device-summary">
+      <header class="panel-title"><h2>设备信息</h2></header>
+      <div class="summary-content">
+        <div class="availability-ring"
+             [style.--online-rate]="dashboardData.deviceOverview.onlineRate + '%'"
+             [attr.aria-label]="'设备在线率 ' + dashboardData.deviceOverview.onlineRate + '%'">
+          <div><span>在线率</span><strong>{{dashboardData.deviceOverview.onlineRate}}%</strong></div>
+        </div>
+        <dl class="summary-metrics">
+          <div><dt>设备总数</dt><dd class="blue">{{dashboardData.deviceOverview.total}}</dd></div>
+          <div><dt>在线设备</dt><dd class="green">{{dashboardData.deviceOverview.online}}</dd></div>
+          <div><dt>离线设备</dt><dd class="amber">{{dashboardData.deviceOverview.offline}}</dd></div>
+          <div><dt>报警设备</dt><dd class="red">{{dashboardData.deviceOverview.alarm}}</dd></div>
+        </dl>
+      </div>
+      <div class="ring-legend"><span><i class="online"></i>在线</span><span><i class="offline"></i>离线</span></div>
+    </article>
+
+    <article class="panel map-panel">
+      <header class="map-toolbar">
+        <span><tb-icon>location_on</tb-icon>电气安全设备分布</span>
+        <span class="map-hint">点击点位查看设备状态</span>
+      </header>
+      <div class="map-container" aria-label="电气安全设备地图">
+        <tb-smart-lightning-device-map
+          [devices]="mapDevices"
+          [includeDevice]="includeElectricalSafetyDevice">
+        </tb-smart-lightning-device-map>
+      </div>
+    </article>
+
+    <article *ngFor="let card of monitoringCards; trackBy: trackByCategory"
+             class="panel monitoring-card" [ngClass]="card.key + '-panel'">
+      <header class="panel-title category-title">
+        <span class="category-icon"><tb-icon>{{card.icon}}</tb-icon></span>
+        <h2>{{card.title}}</h2>
+        <tb-icon class="help-icon" [attr.title]="card.title + '设备状态统计'" aria-hidden="true">help_outline</tb-icon>
+      </header>
+      <dl class="category-metrics" [attr.aria-label]="card.title + '数量统计'">
+        <div><dt>在线数量</dt><dd class="green">{{card.onlineCount}}</dd></div>
+        <div><dt>正常数量</dt><dd class="blue">{{card.normalCount}}</dd></div>
+        <div><dt>离线数量</dt><dd class="purple">{{card.offlineCount}}</dd></div>
+        <div><dt>报警数量</dt><dd class="red">{{card.alarmCount}}</dd></div>
+      </dl>
+      <div class="ratio-section" [attr.aria-label]="card.title + '状态占比'">
+        <div class="ratio-row">
+          <div class="ratio-track" role="img"
+               [attr.aria-label]="'在线 ' + card.onlinePercent + '%，离线 ' + card.offlinePercent + '%'">
+            <i class="ratio-online" [style.width.%]="card.onlinePercent"></i>
+            <i class="ratio-offline" [style.width.%]="card.offlinePercent"></i>
+          </div>
+          <div class="ratio-legend"><span><i class="legend-online"></i>在线</span><span><i class="legend-offline"></i>离线</span></div>
+        </div>
+        <div class="ratio-row">
+          <div class="ratio-track" role="img"
+               [attr.aria-label]="'报警 ' + card.alarmPercent + '%，正常 ' + card.normalPercent + '%'">
+            <i class="ratio-alarm" [style.width.%]="card.alarmPercent"></i>
+            <i class="ratio-normal" [style.width.%]="card.normalPercent"></i>
+          </div>
+          <div class="ratio-legend"><span><i class="legend-alarm"></i>报警</span><span><i class="legend-normal"></i>正常</span></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel chart-panel alarm-panel">
+      <header class="panel-title">
+        <h2>报警信息</h2>
+        <tb-smart-lightning-period-switcher
+          [activePeriod]="alarmPeriod"
+          (periodChange)="setAlarmPeriod($event)">
+        </tb-smart-lightning-period-switcher>
+      </header>
+      <div class="chart-body" aria-label="各类电气安全报警数量">
+        <div class="chart-axis-label">报警次数</div>
+        <div class="bar-chart">
+          <div *ngFor="let item of dashboardData.alarmChart" class="bar-column">
+            <span class="bar-value">{{item.count}}</span>
+            <div class="bar-track"><i class="alarm-bar" [style.height.%]="item.heightPercent"></i></div>
+            <span class="bar-label">{{item.category}}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel chart-panel orders-panel">
+      <header class="panel-title">
+        <h2>运维工单</h2>
+        <tb-smart-lightning-period-switcher
+          [activePeriod]="workOrderPeriod"
+          (periodChange)="setWorkOrderPeriod($event)">
+        </tb-smart-lightning-period-switcher>
+      </header>
+      <div class="order-legend">
+        <span><i class="pending"></i>未处理</span>
+        <span><i class="unassigned"></i>未派发</span>
+        <span><i class="processed"></i>已处理</span>
+      </div>
+      <div class="order-chart" aria-label="电气安全运维工单统计">
+        <div *ngFor="let item of dashboardData.workOrderChart" class="order-column">
+          <div class="order-bars">
+            <i class="pending" [style.height.%]="item.pendingHeight" [attr.title]="'未处理 ' + item.pending"></i>
+            <i class="unassigned" [style.height.%]="item.unassignedHeight" [attr.title]="'未派发 ' + item.unassigned"></i>
+            <i class="processed" [style.height.%]="item.processedHeight" [attr.title]="'已处理 ' + item.processed"></i>
+          </div>
+          <span>{{item.category}}</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel records-panel">
+      <header class="panel-title">
+        <h2>告警记录</h2>
+        <a class="more-link" routerLink="/deviceAlarms/list">更多 <tb-icon>arrow_forward</tb-icon></a>
+      </header>
+      <tb-device-alarm-records
+        [alarms]="alarmRecords"
+        [columns]="alarmRecordColumns"
+        tableLabel="电气安全告警记录">
+      </tb-device-alarm-records>
+    </article>
+  </section>
+</main>

@@ -1,7 +1,6 @@
 /** 文件职责：数据查询模块的 smart-lightning-data-query.component，负责页面状态管理、接口调用与用户交互。 */
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {MatDialog} from '@angular/material/dialog';
-import {AlarmService} from '@core/http/alarm.service';
 import {AlarmInfo} from '@shared/models/alarm.models';
 import {DeviceInfo} from '@shared/models/device.models';
 import {EntityType} from '@shared/models/entity-type.models';
@@ -84,7 +83,6 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly alarmService: AlarmService,
     private readonly realtimeService: SmartLightningRealtimeService,
     private readonly dialog: MatDialog,
     private readonly cd: ChangeDetectorRef
@@ -380,7 +378,7 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
 
   /** 活动告警变化只刷新告警标记，不连带重查设备上下文。 */
   private loadActiveAlarms(): void {
-    this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
+    this.monitoringApi.getLightningAlarms(createSmartLightningAlarmQuery()).pipe(
       map((pageData) => this.toActiveAlarmContext(pageData.data)),
       // 告警请求失败不应阻断设备查询；此时设备先按正常/离线显示。
       catchError(() => of({deviceIds: new Set<string>(), severityByDeviceId: new Map<string, string>()})),

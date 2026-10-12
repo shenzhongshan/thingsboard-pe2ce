@@ -189,27 +189,12 @@
         <h2>告警记录</h2>
         <a class="more-link" routerLink="/deviceAlarms/list">查看全部 <tb-icon>arrow_forward</tb-icon></a>
       </div>
-      <div class="table-scroll">
-        @if (alarmsLoading) {
-          <div class="table-state">正在加载活动告警…</div>
-        } @else if (alarmsLoadError) {
-          <div class="table-state error">告警记录加载失败。<button type="button" (click)="loadLatestAlarms()">重试</button></div>
-        } @else if (!alarms.length) {
-          <div class="table-state">当前没有活动告警</div>
-        } @else {
-        <table>
-          <thead><tr><th title="来源位置">来源位置</th><th title="次级位置">次级位置</th><th title="设备类型">设备类型</th><th title="设备名称">设备名称</th><th title="告警类型">告警类型</th><th title="告警等级">告警等级</th><th title="确认状态">确认状态</th><th title="触发时间">触发时间</th></tr></thead>
-          <tbody>
-            @for (alarm of alarms; track alarm.source + alarm.device + alarm.startTs) {
-              <tr><td [title]="alarm.source">{{alarm.source}}</td><td [title]="alarm.secondaryLocation">{{alarm.secondaryLocation}}</td>
-                <td [title]="alarm.deviceType">{{alarm.deviceType}}</td><td [title]="alarm.deviceName">{{alarm.deviceName}}</td><td [title]="alarm.type">{{alarm.type}}</td>
-                <td><span class="alarm-severity" [class]="alarm.severityTone">{{alarm.severity}}</span></td>
-                <td [title]="alarm.status">{{alarm.status}}</td><td>{{alarm.startTs | date:'yyyy/MM/dd HH:mm'}}</td></tr>
-            }
-          </tbody>
-        </table>
-        }
-      </div>
+      <tb-device-alarm-records
+        [alarms]="alarms"
+        [loading]="alarmsLoading"
+        [loadError]="alarmsLoadError"
+        (retry)="loadLatestAlarms()">
+      </tb-device-alarm-records>
     </article>
 
     <article class="panel monitoring-summary-panel lightning-panel">

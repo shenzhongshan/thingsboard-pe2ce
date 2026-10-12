@@ -6,6 +6,9 @@ import { Direction } from '@shared/models/page/sort-order';
 import { AlarmFilter } from '@shared/models/query/query.models';
 import { EntityRelationInfo } from '@shared/models/relation.models';
 import { AttributeData } from '@shared/models/telemetry/telemetry.models';
+import { SmartLightningAlarmRow } from '../../deviceAlarms/shared/smart-lightning-alarm-display';
+
+export type { SmartLightningAlarmRow } from '../../deviceAlarms/shared/smart-lightning-alarm-display';
 
 export enum SmartLightningPeriod {
   day = 'day',
@@ -35,20 +38,6 @@ export const setSmartLightningChartPeriod = (
   chart: SmartLightningChartId,
   period: SmartLightningPeriod
 ): SmartLightningChartPeriods => ({...periods, [chart]: period});
-
-/** 看板告警记录表的行结构（由 AlarmInfo 映射而来）。 */
-export interface SmartLightningAlarmRow {
-  source: string;
-  secondaryLocation: string;
-  device: string;
-  deviceType: string;
-  deviceName: string;
-  type: string;
-  severity: string;
-  severityTone: 'critical' | 'major' | 'minor' | 'warning' | 'indeterminate';
-  status: string;
-  startTs: number;
-}
 
 /** 设备汇总统计：总数与在线/离线/未连接数量。 */
 export interface SmartLightningDeviceSummary {
@@ -83,8 +72,7 @@ export const getSmartLightningActiveValue = (attributes: AttributeData[]): unkno
 const latestActiveAlarmFilter: AlarmFilter = {
   statusList: [AlarmSearchStatus.ACTIVE]
 };
-
-/** 构建看板告警面板使用的 ThingsBoard v2 原生告警查询。 */
+/** 构建看板告警面板调用防雷模块告警接口时使用的 v2 查询条件。 */
 export const createSmartLightningAlarmQuery = (): AlarmQueryV2 => new AlarmQueryV2(
   null,
   new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),

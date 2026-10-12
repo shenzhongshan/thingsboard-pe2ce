@@ -1,0 +1,180 @@
+<!-- 文件职责：渲染电气安全监测指标、资产范围统计和可筛选的设备总览。 -->
+<main class="electrical-safety-monitoring" aria-label="电气安全数据监测">
+  <aside class="asset-panel" aria-label="资产范围">
+    <tb-smart-lightning-root-asset-filter
+      [roots]="assetTree.roots"
+      [selectedRootAssetId]="selectedRootAssetId"
+      (rootAssetChange)="selectRootAsset($event)">
+    </tb-smart-lightning-root-asset-filter>
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [showDeviceNodes]="false"
+      searchPlaceholder="搜索资产名称"
+      treeAriaLabel="电气安全资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
+  </aside>
+
+  <section class="monitoring-content">
+    <section class="summary-grid" aria-label="电气安全监测指标">
+      @for (card of summaryCards; track card.key) {
+        <article [class]="'monitoring-panel summary-card card-' + card.key">
+          <header class="summary-card-heading">
+            <span class="summary-icon"><tb-icon>{{card.icon}}</tb-icon></span>
+            <h2>{{card.title}}</h2>
+          </header>
+          <dl class="summary-metrics">
+            @for (metric of card.metrics; track metric.label) {
+              <div>
+                <dt>{{metric.label}}</dt>
+                <dd [class]="metric.tone || 'neutral'">
+                  {{metric.value}}
+                  @if (metric.unit) {
+                    <small>{{metric.unit}}</small>
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+        </article>
+      }
+    </section>
+
+    <section class="monitoring-panel scope-panel" aria-label="当前资产运行统计">
+      <div class="scope-heading">
+        <span class="scope-heading-icon"><tb-icon>electrical_services</tb-icon></span>
+        <div>
+          <h2>{{selectedAssetName}} · 运行概况</h2>
+          <p>当前选中资产及全部下级设备</p>
+        </div>
+      </div>
+      <dl class="scope-metrics">
+        <div><dt>设备总数</dt><dd>{{scopeSummary.totalDevices}}<small>台</small></dd></div>
+        <div><dt>正常</dt><dd class="healthy">{{scopeSummary.normalDevices}}<small>台</small></dd></div>
+        <div><dt>在线</dt><dd class="healthy">{{scopeSummary.onlineDevices}}<small>台</small></dd></div>
+        <div><dt>报警</dt><dd class="critical">{{scopeSummary.alarmDevices}}<small>台</small></dd></div>
+        <div><dt>离线</dt><dd class="muted">{{scopeSummary.offlineDevices}}<small>台</small></dd></div>
+        <div><dt>当日报警总数</dt><dd>{{scopeSummary.todayAlarmCount}}<small>条</small></dd></div>
+        <div><dt>未处理报警</dt><dd class="warning">{{scopeSummary.unprocessedAlarmCount}}<small>条</small></dd></div>
+        <div><dt>已派发报警</dt><dd>{{scopeSummary.dispatchedAlarmCount}}<small>条</small></dd></div>
+        <div><dt>已处理报警</dt><dd>{{scopeSummary.processedAlarmCount}}<small>条</small></dd></div>
+      </dl>
+    </section>
+
+    <section class="monitoring-panel device-panel" aria-label="电气安全设备总览">
+      <header class="device-toolbar">
+        <div class="device-title">
+          <h2>设备总览</h2>
+          <span>{{filteredDevices.length}} 台设备</span>
+        </div>
+        <nav class="category-tabs" aria-label="设备分类筛选">
+          @for (category of categories; track category.key) {
+            <button type="button"
+                    [class.active]="activeCategory === category.key"
+                    [attr.aria-pressed]="activeCategory === category.key"
+                    (click)="selectCategory(category.key)">{{category.label}}</button>
+          }
+        </nav>
+        <div class="device-actions">
+          <label class="device-search">
+            <tb-icon aria-hidden="true">search</tb-icon>
+            <input type="text" [(ngModel)]="deviceSearch" (ngModelChange)="resetDevicePage()"
+                   aria-label="搜索设备名称、型号或位置" placeholder="输入设备名称或型号">
+            @if (deviceSearch) {
+              <button type="button" class="clear-search" aria-label="清除设备搜索"
+                      title="清除搜索" (click)="deviceSearch = ''; resetDevicePage()">
+                <tb-icon>close</tb-icon>
+              </button>
+            }
+          </label>
+          <div class="view-toggle" role="group" aria-label="设备展示方式">
+            <button type="button" [class.active]="viewMode === 'grid'" [attr.aria-pressed]="viewMode === 'grid'"
+                    aria-label="卡片视图" title="卡片视图" (click)="viewMode = 'grid'">
+              <tb-icon>grid_view</tb-icon>
+            </button>
+            <button type="button" [class.active]="viewMode === 'list'" [attr.aria-pressed]="viewMode === 'list'"
+                    aria-label="列表视图" title="列表视图" (click)="viewMode = 'list'">
+              <tb-icon>view_list</tb-icon>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      @if (pagedDevices.length) {
+        <div class="device-grid" [class.list-view]="viewMode === 'list'">
+          @for (device of pagedDevices; track device.id) {
+            <article class="device-card"
+                     [class.alarm-card]="device.condition === 'alarm'"
+                     [class.offline-card]="device.condition !== 'alarm' && device.connection === 'offline'">
+              <header>
+                <h3 [title]="device.name + ' / ' + device.productName">
+                  {{device.name}} / {{device.productName}}
+                </h3>
+                <span [class]="'device-status ' + (device.condition === 'alarm' ? '报警' : device.connection === 'offline' ? '离线' : '正常')">
+                  {{device.condition === 'alarm' ? '报警' : device.connection === 'offline' ? '离线' : '正常'}}
+                </span>
+              </header>
+              <div class="device-body">
+                <div class="device-icon"><tb-icon>electrical_services</tb-icon></div>
+                <div class="device-details">
+                  <p><span>设备地址：</span><strong [title]="device.assetPath">{{device.assetPath}}</strong></p>
+                  <p><span>产品型号：</span><strong [title]="device.model">{{device.model}}</strong></p>
+                  <p><span>最近上报：</span><strong>{{device.lastReportTime}}</strong></p>
+                </div>
+              </div>
+              <dl class="device-realtime-metrics" aria-label="设备状态及报警统计">
+                <div>
+                  <dt>连接状态</dt>
+                  <dd [class.abnormal]="device.connection === 'offline'">{{device.connection === 'online' ? '在线' : '离线'}}</dd>
+                </div>
+                <div>
+                  <dt>当日报警</dt>
+                  <dd [class.abnormal]="device.todayAlarmCount > 0">{{device.todayAlarmCount}} 条</dd>
+                </div>
+                <div>
+                  <dt>未处理报警</dt>
+                  <dd [class.abnormal]="device.unprocessedAlarmCount > 0">{{device.unprocessedAlarmCount}} 条</dd>
+                </div>
+              </dl>
+              <footer>
+                <span class="device-category">{{device.categoryLabel}}</span>
+                <span class="device-alarm-summary">已派发 {{device.dispatchedAlarmCount}} · 已处理 {{device.processedAlarmCount}}</span>
+              </footer>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="device-grid-state" role="status">
+          <span>暂无符合条件的设备</span>
+        </div>
+      }
+
+      <footer class="device-pagination" aria-label="设备列表分页">
+        <span>显示 {{rangeStart}}–{{rangeEnd}} 条，共 {{filteredDevices.length}} 条</span>
+        <label>每页
+          <select [value]="pageSize" (change)="setPageSize($any($event.target).value)" aria-label="每页设备数量">
+            @for (size of pageSizeOptions; track size) {
+              <option [value]="size">{{size}} 条</option>
+            }
+          </select>
+        </label>
+        <div class="page-controls">
+          <button type="button" aria-label="上一页" [disabled]="page <= 1" (click)="movePage(-1)">
+            <tb-icon>chevron_left</tb-icon>
+          </button>
+          <span>{{page}} / {{pageCount}}</span>
+          <button type="button" aria-label="下一页" [disabled]="page >= pageCount" (click)="movePage(1)">
+            <tb-icon>chevron_right</tb-icon>
+          </button>
+        </div>
+      </footer>
+    </section>
+  </section>
+</main>

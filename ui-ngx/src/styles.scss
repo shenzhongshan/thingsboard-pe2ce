@@ -23,9 +23,12 @@
 @import './scss/mixins';
 @import './scss/fonts';
 
-/* 智能防雷与告警业务页共用的页面级留白，避免各页面单独维护后产生偏差。 */
+/* 业务监测页共用的字体与页面留白，避免能源和防雷页面各自维护后产生偏差。 */
 :root {
   --tb-smart-page-spacing: 14px;
+  --tb-smart-page-font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --tb-smart-page-font-size: 12px;
+  --tb-smart-page-line-height: 1.4;
 }
 
 @media (max-width: 760px) {

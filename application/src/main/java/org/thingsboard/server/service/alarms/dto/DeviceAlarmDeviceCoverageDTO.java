@@ -4,12 +4,12 @@ package org.thingsboard.server.service.alarms.dto;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-/** 当前用户可见设备在指定周期内的告警覆盖情况。 */
+/** 当前用户可见防雷设备在指定周期内的告警覆盖情况。 */
 @Getter
 @RequiredArgsConstructor
 public class DeviceAlarmDeviceCoverageDTO {
 
-    /** 当前用户可见设备总数。 */
+    /** 当前用户可见防雷设备总数。 */
     private final long totalDevices;
     /** 当前周期内至少出现一条告警的设备数，按设备 ID 去重。 */
     private final long alarmedDevices;

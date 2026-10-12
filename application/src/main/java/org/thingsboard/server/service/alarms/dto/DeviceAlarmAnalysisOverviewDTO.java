@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
-/** 当前统计周期的告警状态和设备覆盖率聚合结果。 */
+/** 当前统计周期内防雷设备的告警状态和设备覆盖率聚合结果。 */
 @Getter
 @RequiredArgsConstructor
 public class DeviceAlarmAnalysisOverviewDTO {

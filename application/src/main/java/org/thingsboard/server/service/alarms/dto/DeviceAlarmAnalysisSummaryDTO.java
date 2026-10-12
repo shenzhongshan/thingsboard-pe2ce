@@ -6,7 +6,7 @@ import lombok.Getter;
 import java.util.Collections;
 import java.util.List;
 
-/** 告警分析顶部日、月、年统计。统计范围已经在 service 中按用户权限过滤。 */
+/** 智能防雷告警分析顶部日、月、年统计；范围为当前用户可见防雷设备。 */
 @Getter
 public class DeviceAlarmAnalysisSummaryDTO {
 

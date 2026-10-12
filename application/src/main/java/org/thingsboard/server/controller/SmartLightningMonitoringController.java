@@ -21,11 +21,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.alarm.AlarmInfo;
+import org.thingsboard.server.common.data.alarm.AlarmQueryV2;
+import org.thingsboard.server.common.data.alarm.AlarmSearchStatus;
+import org.thingsboard.server.common.data.alarm.AlarmSeverity;
 import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
+import org.thingsboard.server.common.data.page.TimePageLink;
+import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmService;
 import org.thingsboard.server.service.monitoring.converter.MonitoringVOConverter;
 import org.thingsboard.server.service.monitoring.vo.DeviceStatusSummaryVO;
 import org.thingsboard.server.service.monitoring.vo.GroundMonitoringSummaryVO;
@@ -41,6 +48,9 @@ import org.thingsboard.server.service.monitoring.service.SmartLightningMonitorin
 import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
 
 import java.util.UUID;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 智能防雷数据监测页专用接口。
@@ -55,6 +65,7 @@ import java.util.UUID;
 public class SmartLightningMonitoringController extends BaseController {
 
     private final SmartLightningMonitoringTreeService monitoringTreeService;
+    private final SmartLightningAlarmService smartLightningAlarmService;
     private final DeviceStatusSummaryService deviceStatusSummaryService;
     private final SmartLightningDashboardService dashboardService;
     private final SmartLightningMonitoringService monitoringService;
@@ -151,6 +162,74 @@ public class SmartLightningMonitoringController extends BaseController {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
         return MonitoringVOConverter.toDeviceContextPage(
                 dataQueryService.getDeviceContexts(getCurrentUser(), pageLink));
+    }
+
+    /**
+     * 查询智能防雷模块的告警页；筛选和分页参数沿用 ThingsBoard v2 告警查询格式。
+     *
+     * <p>productCategory 必须为 lightning；实际查询还会限制在当前用户有 READ 权限的防雷设备内。</p>
+     *
+     * @param productCategory 产品大类，只接受 lightning，用于防止跨模块查询
+     * @param statusList 告警状态筛选，可传多个原生 AlarmSearchStatus 枚举值
+     * @param severityList 告警严重程度筛选，可传多个原生 AlarmSeverity 枚举值
+     * @param typeList 告警类型筛选；为空时不按告警类型限制
+     * @param assigneeId 受理人用户 ID；为空时不按受理人限制
+     * @param pageSize 每页记录数
+     * @param page 从 0 开始的页码
+     * @param textSearch ThingsBoard 告警文本搜索条件
+     * @param sortProperty 排序字段；未提供时按创建时间倒序
+     * @param sortOrder 排序方向
+     * @param startTime 查询开始时间，Unix 毫秒时间戳
+     * @param endTime 查询结束时间，Unix 毫秒时间戳
+     * @return 当前用户可见防雷设备产生的告警分页，保留原生 AlarmInfo 字段和分页信息
+     * @throws ThingsboardException 当前用户权限校验或告警查询失败时抛出
+     */
+    @GetMapping("/alarms")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public PageData<AlarmInfo> getLightningAlarms(
+            @RequestParam String productCategory,
+            @RequestParam(required = false) String[] statusList,
+            @RequestParam(required = false) String[] severityList,
+            @RequestParam(required = false) String[] typeList,
+            @RequestParam(required = false) String assigneeId,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder,
+            @RequestParam(required = false) Long startTime,
+            @RequestParam(required = false) Long endTime
+    ) throws ThingsboardException {
+        // 将 URL 中的状态名称转换成平台枚举；未传状态条件时保留空列表，表示不按状态过滤。
+        List<AlarmSearchStatus> alarmStatusList = new java.util.ArrayList<>();
+        if (statusList != null) {
+            for (String status : statusList) {
+                if (status != null && !status.isBlank()) {
+                    alarmStatusList.add(AlarmSearchStatus.valueOf(status));
+                }
+            }
+        }
+        // 将严重程度名称转换成平台枚举；忽略空白项，避免它们进入底层查询条件。
+        List<AlarmSeverity> alarmSeverityList = new java.util.ArrayList<>();
+        if (severityList != null) {
+            for (String severity : severityList) {
+                if (severity != null && !severity.isBlank()) {
+                    alarmSeverityList.add(AlarmSeverity.valueOf(severity));
+                }
+            }
+        }
+        // 保留调用方给出的告警类型；null 转为空列表以表达“不限制类型”。
+        List<String> alarmTypeList = typeList == null ? Collections.emptyList() : Arrays.asList(typeList);
+        // 将受理人字符串解析为 ThingsBoard 用户 ID；未指定受理人时传 null 表示不筛选。
+        UserId alarmAssigneeId = assigneeId == null ? null : new UserId(UUID.fromString(assigneeId));
+        // 统一构建平台时间分页链接，时间范围使用 Unix 毫秒并携带文本搜索和排序参数。
+        TimePageLink pageLink = createTimePageLink(
+                pageSize, page, textSearch, sortProperty, sortOrder, startTime, endTime);
+        // 该模块查询不绑定单一 affectedEntity，由模块 Service 再限制到当前用户可见的防雷设备集合。
+        AlarmQueryV2 query = new AlarmQueryV2(
+                null, pageLink, alarmTypeList, alarmStatusList, alarmSeverityList, alarmAssigneeId);
+        // 将当前用户、原生告警条件和模块类别交给业务层完成分类校验及设备权限过滤。
+        return smartLightningAlarmService.findAlarms(getCurrentUser(), query, productCategory);
     }
 
 }

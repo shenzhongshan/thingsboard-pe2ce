@@ -1,0 +1,517 @@
+// 第一步：解析 MQTT 集成上传的 JSON 报文。
+// 下面的代码只负责把输入转换成 ThingsBoard 集成要求的统一对象，
+// 不会因为温度、电流、电压或计数值的大小而主动丢弃业务数据。
+
+var json = decodeToJson(payload);
+
+// 当前项目要求对原始整数执行单位换算。
+// 如果现场 MQTT value 已经是工程单位，将此值改为 false，避免重复换算。
+var applyUnitConversion = true;
+
+if (json == null) {
+    // 报文不是合法 JSON 时，无法取得设备名称和测点字段。
+    // 此时没有办法构造可入库的 ThingsBoard 输出对象，只能结束当前报文。
+    return null;
+}
+
+if (json.header == null) {
+    // header 保存设备定位所需的信息；缺少 header 时无法确定数据属于谁。
+    return null;
+}
+
+if (json.data == null) {
+    // data 保存型号和测点；缺少 data 时没有可写入的业务数据。
+    return null;
+}
+
+var header = json.header;
+var data = json.data;
+
+/*
+ * 设备标识规则：
+ * - 网关聚合报文：header.client 是网关，header.salveid 是实际 KSD 设备；
+ * - 设备直连报文：没有 salveid 时，header.client 本身必须是 KSD 设备编号。
+ * 两种报文形态都要求最终得到的 deviceName 以 KSD 开头，不再兼容其它名称格式。
+ */
+var gatewayId = header.client;
+var rawDeviceName = header.salveid;
+var deviceName = rawDeviceName;
+
+/*
+ * 告警报文可能把测点编号追加到设备编号后面，例如：
+ * KSDDESA260701001_04。
+ * `_04` 是告警/测点编号，不是另一台设备，必须还原为基础设备名称。
+ */
+if (deviceName != null) {
+    var deviceSuffixIndex = deviceName.lastIndexOf("_");
+    if (deviceSuffixIndex > 0) {
+        deviceName = deviceName.substring(0, deviceSuffixIndex);
+    }
+}
+
+if (deviceName == null || deviceName == "") {
+    deviceName = header.client;
+}
+
+if (deviceName == null || deviceName == "") {
+    // 没有设备名称就无法定位或创建设备，不能把数据写入一个错误设备。
+    return null;
+}
+
+if (deviceName.length < 7 || deviceName.substring(0, 3) != "KSD") {
+    // 当前现场协议约定所有设备编号都以 KSD 开头，且 KSD 后至少要有四位型号。
+    // 非 KSD 名称无法按统一协议推断型号，直接拒绝，避免误把网关或其它名称当成设备。
+    return null;
+}
+
+/*
+ * 优先使用报文中的 terminal_type；只有缺少该字段时，才从 KSD 设备编号推断型号。
+ * KSD 后紧跟的四个字符就是协议型号，例如：
+ * KSDDESA260701001 -> DESA；KSDM1AI210701001 -> M1AI。
+ */
+var deviceType = data.terminal_type;
+
+if (deviceType == null || deviceType == "") {
+    deviceType = deviceName.substring(3, 7);
+}
+
+if (deviceType == null || deviceType == "") {
+    // 既无法从报文读取型号，也无法从设备名称推断型号。
+    // ThingsBoard 的输出必须带 deviceType；不能用空值伪造一个可入库设备。
+    return null;
+}
+
+/*
+ * 产品中文名称映射。
+ * terminal_type 是通讯协议中定义的设备型号字段。
+ */
+var productNameMap = {
+    "DES4": "FS防雷器监测模块（四要素）",
+    "DES9": "FS防雷器监测模块（九要素）",
+    "DESA": "FS防雷器监测模块（全要素）",
+    "DEP4": "FSP防雷监测底座",
+
+    "DEM2": "FSS智能型电涌保护器（单相无漏流）",
+    "DEM4": "FSS智能型电涌保护器（三相无漏流）",
+    "DEA2": "FSS智能型电涌保护器（单相全电流）",
+    "DEA4": "FSS智能型电涌保护器（三相全电流）",
+
+    "G1A3": "FR接地电阻监测模块",
+    "M1AI": "FL雷电流监测模块",
+    "L2AI": "FL瞬态电流监测模块",
+    "ESM0": "ESM防雷监测模组（基础版）",
+    "ESM3": "ESM防雷监测模组（旗舰版）",
+    "LDH1": "FA故障电弧监测模块",
+    "FAP1": "FAP故障电弧探测器（一体式）",
+
+    "ESF1": "ESF电气火灾监测模组",
+    "E1T2": "EST温度监测模组（有线测温）",
+    "E2C3": "ESC漏电监测模组",
+    "E1I2": "ESI输入监测模组",
+    "CBP4": "FECB智能断路器（4P）",
+    "CBP3": "FECB智能断路器（3P）",
+    "CBP2": "FECB智能断路器（2P）",
+    "CBP1": "FECB智能断路器（1P）",
+    "E1P1": "ESP零地电压监测器",
+
+    "LDA1": "FD市电监测模块",
+    "E1E2": "ESE电能质量监测器",
+    "SFE": "SFE电能质量监测器",
+    "E1B2": "ESB三相不平衡监测器",
+    "E1A2": "ESA智能电表"
+};
+
+/*
+ * 产品功能分类映射。
+ * 这些值与产品分类配置中的 function-category 保持一致。
+ */
+var functionCategoryMap = {
+    "DES4": "spd_monitor",
+    "DES9": "spd_monitor",
+    "DESA": "spd_monitor",
+    "DEP4": "spd_monitor",
+    "DEM2": "spd_monitor",
+    "DEM4": "spd_monitor",
+    "DEA2": "spd_monitor",
+    "DEA4": "spd_monitor",
+    "ESM0": "spd_monitor",
+    "ESM3": "spd_monitor",
+    "G1A3": "ground_resistance",
+    "M1AI": "lightning_current",
+    "L2AI": "lightning_current",
+    "LDA1": "mains_monitor",
+    "LDH1": "arc_fault",
+    "FAP1": "arc_fault",
+
+    "ESF1": "electrical_fire",
+    "E1T2": "temperature_monitor",
+    "E2C3": "leakage_monitor",
+    "E1I2": "input_monitor",
+    "CBP4": "smart_breaker",
+    "CBP3": "smart_breaker",
+    "CBP2": "smart_breaker",
+    "CBP1": "smart_breaker",
+    "E1P1": "neutral_ground_voltage",
+
+    "E1E2": "power_quality",
+    "SFE": "power_quality",
+    "E1B2": "phase_unbalance",
+    "E1A2": "energy_meter"
+};
+
+/*
+ * 一级产品分类映射。
+ * 该映射只负责写入 productCategory，不改变现有的产品名称和功能标签映射。
+ */
+var productCategoryMap = {
+    // 防雷产品
+    "DES4": "lightning",
+    "DES9": "lightning",
+    "DESA": "lightning",
+    "DEP4": "lightning",
+    "G1A3": "lightning",
+    "M1AI": "lightning",
+    "L2AI": "lightning",
+    "DEM2": "lightning",
+    "DEM4": "lightning",
+    "DEA2": "lightning",
+    "DEA4": "lightning",
+    "ESM0": "lightning",
+    "ESM3": "lightning",
+
+    // 电气安全产品
+    "LDH1": "electrical_safety",
+    "FAP1": "electrical_safety",
+    "LDA1": "electrical_safety",
+    "E1B2": "electrical_safety",
+    "ESF1": "electrical_safety",
+    "E1T2": "electrical_safety",
+    "E2C3": "electrical_safety",
+    "E1I2": "electrical_safety",
+    "CBP4": "electrical_safety",
+    "CBP3": "electrical_safety",
+    "CBP2": "electrical_safety",
+    "CBP1": "electrical_safety",
+    "E1P1": "electrical_safety",
+
+    // 能源监管产品
+    "E1E2": "energy_regulation",
+    "SFE": "energy_regulation",
+    "E1A2": "energy_regulation"
+};
+
+var productName = productNameMap[deviceType];
+var functionCategory = functionCategoryMap[deviceType];
+var productCategory = productCategoryMap[deviceType];
+
+if (productName == null || functionCategory == null || productCategory == null) {
+    // 型号虽然有值，但不在项目产品映射表中。
+    // 未知型号缺少产品名称、一级分类和功能分类，不能合法入库；
+    // 因此这里拒绝整条报文，而不是把未知型号误当成某个已知产品。
+    return null;
+}
+
+/* 状态、计数和极性按整数写入，避免平台保存为 0.00 或 1.00。 */
+var integerTelemetryKeys = {
+    "RemoteSig": true,
+    "McbStatus": true,
+    "GndStatus": true,
+    "SpdStatus": true,
+    "VoltStsA": true,
+    "VoltStsB": true,
+    "VoltStsC": true,
+    "Trip1": true,
+    "Trip2": true,
+    "Trip3": true,
+    "Trip4": true,
+    "StrikeCnt": true,
+    "SurgeCnt": true,
+    "SampleCnt": true,
+    "SamplePrd": true,
+    "Polarity": true
+};
+
+/*
+ * 各型号只保留 D:/thingsboard平台设备遥测数据测点及其转换字段.xlsx 中的协议键。
+ * 任何未出现在对应型号表格中的键都不猜测、不改名，后面会按原始键保存。
+ */
+var des4PointMap = {
+    "YL": "RemoteSig", "KL": "McbStatus", "PE": "GndStatus", "LtNum": "StrikeCnt"
+};
+var des9PointMap = {
+    "YL": "RemoteSig", "KL": "McbStatus", "PE": "GndStatus", "LtNum": "StrikeCnt",
+    "CurA": "LeakCurrA", "CurB": "LeakCurrB", "CurC": "LeakCurrC",
+    "Temp1": "Temp1", "Temp2": "Temp2"
+};
+var desaPointMap = {
+    "YL": "RemoteSig", "KL": "McbStatus", "PE": "GndStatus", "LtNum": "StrikeCnt",
+    "VolA": "PhAVolt", "VolB": "PhBVolt", "VolC": "PhCVolt",
+    "CurA": "LeakCurrA", "CurB": "LeakCurrB", "CurC": "LeakCurrC",
+    "Temp1": "Temp1", "Temp2": "Temp2", "Life": "LifeLeft"
+};
+
+/* DEM/DEA 系列：每个型号严格使用表格中列出的协议键。 */
+var dem2PointMap = {
+    "VS1": "VoltStsA", "PE": "GndStatus", "SW1": "Trip1", "SW2": "Trip2",
+    "LtNum": "StrikeCnt", "Temp1": "Temp1", "Temp2": "Temp2", "Life": "LifeLeft"
+};
+var dem4PointMap = {
+    "VS1": "VoltStsA", "VS2": "VoltStsB", "VS3": "VoltStsC", "PE": "GndStatus",
+    "SW1": "Trip1", "SW2": "Trip2", "SW3": "Trip3", "SW4": "Trip4",
+    "LtNum": "StrikeCnt", "Temp1": "Temp1", "Temp2": "Temp2", "Temp3": "Temp3",
+    "Temp4": "Temp4", "Life": "LifeLeft"
+};
+var dea2PointMap = {
+    "VS1": "VoltStsA", "PE": "GndStatus", "SW1": "Trip1", "SW2": "Trip2",
+    "LtNum": "StrikeCnt", "CurA": "LeakCurrA", "Temp1": "Temp1", "Temp2": "Temp2",
+    "Life": "LifeLeft"
+};
+var dea4PointMap = {
+    "VS1": "VoltStsA", "VS2": "VoltStsB", "VS3": "VoltStsC", "PE": "GndStatus",
+    "SW1": "Trip1", "SW2": "Trip2", "SW3": "Trip3", "SW4": "Trip4",
+    "LtNum": "StrikeCnt", "CurA": "LeakCurrA", "CurB": "LeakCurrB", "CurC": "LeakCurrC",
+    "Temp1": "Temp1", "Temp2": "Temp2", "Temp3": "Temp3", "Temp4": "Temp4",
+    "Life": "LifeLeft"
+};
+
+/* G1A3：FR 接地电阻监测模块。 */
+var g1a3PointMap = {
+    "DJ": "SampleCnt", "MIN": "SamplePrd", "DR": "GndGridRes"
+};
+
+/* M1AI：FL 雷电流监测模块。 */
+var m1aiPointMap = {
+    "LJ": "SurgeCnt", "LF": "PeakValue", "JX": "Polarity", "LT": "StrikeDur",
+    "Q": "Charge", "VP": "PeakVolt", "WR": "SpecEnergy", "Z": "WaveImp"
+};
+
+/* L2AI：FL 瞬态电流监测模块。 */
+var l2aiPointMap = {
+    "LJ": "SurgeCnt", "LF": "PeakValue", "JX": "Polarity", "LT": "StrikeDur",
+    "Q": "Charge", "VP": "PeakVolt", "WR": "SpecEnergy", "Z": "WaveImp"
+};
+
+/* ESM0：ESM 防雷监测模组基础版。 */
+var esm0PointMap = {
+    "YL": "RemoteSig", "KL": "McbStatus", "PE": "GndStatus",
+    "LtNum": "StrikeCnt", "Temp": "SpdTemp"
+};
+
+/* ESM3：ESM 防雷监测模组旗舰版。 */
+var esm3PointMap = {
+    "YL": "RemoteSig", "KL": "McbStatus", "PE": "GndStatus", "LtNum": "StrikeCnt",
+    "VolA": "PhAVolt", "VolB": "PhBVolt", "VolC": "PhCVolt",
+    "CurA": "LeakCurrA", "CurB": "LeakCurrB", "CurC": "LeakCurrC",
+    "Temp1": "AmbTemp", "Temp2": "SpdTemp", "Life": "LifeLeft"
+};
+
+/*
+ * DEP4：FSP 防雷监测底座。
+ *
+ * 这里严格以最新测点表为准：表中只有 YL、LtNum、Temp 三个协议键。
+ * KL、PE 等未出现在 DEP4 最新表格中的键不会猜测映射，扁平报文分支会
+ * 按“未配置键保留原始键和值”的通用规则写入。
+ */
+var dep4PointMap = {
+    "YL": "RemoteSig",
+    "LtNum": "StrikeCnt",
+    "Temp": "Temp"
+};
+
+/* 以下型号尚无标准测点映射；保留报文中的原始业务键，不推测单位换算。 */
+var emptyPointMap = {};
+
+/* 根据设备型号选择点位映射。 */
+var pointMap = null;
+
+if (deviceType == "DES4") {
+    pointMap = des4PointMap;
+} else if (deviceType == "DES9") {
+    pointMap = des9PointMap;
+} else if (deviceType == "DESA") {
+    pointMap = desaPointMap;
+} else if (deviceType == "DEM2") {
+    pointMap = dem2PointMap;
+} else if (deviceType == "DEM4") {
+    pointMap = dem4PointMap;
+} else if (deviceType == "DEA2") {
+    pointMap = dea2PointMap;
+} else if (deviceType == "DEA4") {
+    pointMap = dea4PointMap;
+} else if (deviceType == "G1A3") {
+    pointMap = g1a3PointMap;
+} else if (deviceType == "M1AI") {
+    pointMap = m1aiPointMap;
+} else if (deviceType == "L2AI") {
+    pointMap = l2aiPointMap;
+} else if (deviceType == "ESM0") {
+    pointMap = esm0PointMap;
+} else if (deviceType == "ESM3") {
+    pointMap = esm3PointMap;
+    } else if (deviceType == "DEP4") {
+        pointMap = dep4PointMap;
+    } else if (deviceType == "LDA1" || deviceType == "LDH1" || deviceType == "FAP1" || deviceType == "E1B2" || deviceType == "E1P1" || deviceType == "SFE") {
+        pointMap = emptyPointMap;
+    } else {
+        // 产品映射和测点映射是两层校验：
+        // 即使产品映射已经存在，如果当前型号没有测点表，也不能猜测它的协议键。
+        // 这里保留“未知型号不入库”的约束，避免生成无法维护的错误设备。
+        return null;
+    }
+
+var telemetry = {};
+
+/*
+ * 第三步：处理旧版单点报文。
+ *
+ * 单点报文形态通常是 data.id + data.value，例如：
+ * {"id":"KSDDESA260701001_Temp1", "value":原始数值}。
+ *
+ * 这一分支只负责单点字段本身。即使同一条 data 同时还带有其它聚合字段，
+ * 后面的聚合字段分支仍会继续执行，不能使用“if ... else”把其它字段跳过。
+ */
+if (data.id != null && data.value != null) {
+    // id 按协议是字符串；转成字符串后再截取，避免非字符串对象导致脚本中断。
+    var pointId = data.id.toString();
+    var separatorIndex = pointId.lastIndexOf("_");
+
+    // 同时支持“设备编号_协议键”和“协议键”两种单点格式；未知协议键仍原样保留。
+    var pointCode = separatorIndex >= 0 ? pointId.substring(separatorIndex + 1) : pointId;
+    var telemetryKey = pointMap[pointCode];
+
+    if (telemetryKey == null) {
+        // 测点不在当前型号表格中时保留原始测点编号和值，不做猜测性转换。
+        telemetry[pointCode] = data.value;
+    } else {
+        var scale = 1.0;
+        if (deviceType == "DES9" &&
+            (telemetryKey == "LeakCurrA" || telemetryKey == "LeakCurrB" || telemetryKey == "LeakCurrC")) {
+            scale = 0.1;
+        } else if (deviceType == "DES9" &&
+                   (telemetryKey == "Temp1" || telemetryKey == "Temp2")) {
+            // DES9 的温度原始值按百分之一摄氏度上报，按比例换算后写入。
+            scale = 0.01;
+        } else if (deviceType == "DESA" &&
+                   (telemetryKey == "PhAVolt" || telemetryKey == "PhBVolt" || telemetryKey == "PhCVolt")) {
+            scale = 0.1;
+        } else if (deviceType == "DESA" &&
+                   (telemetryKey == "LeakCurrA" || telemetryKey == "LeakCurrB" || telemetryKey == "LeakCurrC" ||
+                    telemetryKey == "Temp1" || telemetryKey == "Temp2" || telemetryKey == "LifeLeft")) {
+            scale = 0.01;
+        } else if (deviceType == "G1A3" && telemetryKey == "GndGridRes") {
+            scale = 0.01;
+        } else if ((deviceType == "M1AI" || deviceType == "L2AI") && telemetryKey == "PeakValue") {
+            scale = 0.1;
+        } else if ((deviceType == "DEM2" || deviceType == "DEM4" || deviceType == "DEA2") &&
+                   (telemetryKey == "LeakCurrA" || telemetryKey == "LeakCurrB" || telemetryKey == "LeakCurrC" ||
+                    telemetryKey == "Temp1" || telemetryKey == "Temp2" || telemetryKey == "Temp3" ||
+                    telemetryKey == "Temp4")) {
+            // DEM2、DEM4、DEA2 的寿命字段已经是百分比原值，不能按温度/漏流再次除以 10。
+            scale = 0.1;
+        } else if (deviceType == "DEA4" && telemetryKey == "Temp4") {
+            scale = 0.1;
+        } else if ((deviceType == "ESM0" || deviceType == "ESM3") &&
+                   (telemetryKey == "SpdTemp" || telemetryKey == "AmbTemp")) {
+            scale = 0.1;
+        } else if (deviceType == "LDA1" && telemetryKey == "ResCurr1") {
+            scale = 0.1;
+        }
+
+        var pointValue = parseDouble(data.value) * scale;
+        if (integerTelemetryKeys[telemetryKey] == true) {
+            // TBEL 的 parseInt 不能解析 "0.0" 这类小数字符串，使用内置 toInt 直接处理数值。
+            telemetry[telemetryKey] = toInt(pointValue);
+        } else {
+            telemetry[telemetryKey] = toFixed(pointValue, 2);
+        }
+    }
+}
+
+/*
+ * 第四步：处理网关聚合报文或单点报文中附带的其它字段。
+ *
+ * 这里故意使用连续处理段，而不是上一个单点分支的 else：
+ * 一条报文可能同时包含 id/value 和其它业务字段，两个分支都必须执行。
+ * 聚合字段只按当前型号的精确测点表转换；未配置的业务字段直接使用原始键和值。
+ * 聚合报文通常已经是工程值，但表格明确规定的测点仍执行一次比例换算。
+ */
+var flatPointMap = {};
+
+/* 表格中没有额外别名；扁平报文和单点报文共用同一份精确型号映射。 */
+flatPointMap = pointMap;
+
+foreach (entry : data.entrySet()) {
+    var sourceKey = entry.getKey();
+    var targetKey = flatPointMap[sourceKey];
+    var sourceValue = entry.getValue();
+
+    // 这些字段是报文协议控制信息，不是设备遥测测点：
+    // - terminal_type：型号，用于选择映射表；
+    // - monitor_type/data_type：报文类型，用于解释数据；
+    // - id/value：单点报文的包装字段；
+    // - alert：协议告警标志，告警业务由平台告警链路处理。
+    // 它们不会被误写为普通遥测键。
+    var isProtocolField =
+        sourceKey == "terminal_type" ||
+        sourceKey == "monitor_type" ||
+        sourceKey == "data_type" ||
+        sourceKey == "id" ||
+        sourceKey == "value" ||
+        sourceKey == "alert";
+
+    // ThingsBoard 遥测不能用 null 表示有效测点，因此 null 只跳过当前字段；
+    // 数值为 0、负数、边界值或现场自定义值都不会触发过滤。
+    if (sourceValue != null && isProtocolField == false) {
+        if (targetKey == null) {
+            // 当前型号已知，但该测点没有出现在项目表格中。
+            // 不猜测、不改名、不丢弃，直接按原始键和值写入遥测。
+            telemetry[sourceKey] = sourceValue;
+        } else {
+            var numericValue = parseDouble(sourceValue);
+            var flatScale = 1.0;
+            /* DES9 的 T1/T2 按百分之一摄氏度上报，所有数值均按比例换算。 */
+            if (deviceType == "DES9" && (sourceKey == "Temp1" || sourceKey == "Temp2")) {
+                flatScale = 0.01;
+            /* DEM4 的 T3/T4 在协议中是 0.1 ℃ 原始值，需在写入前除以 10。 */
+            } else if (deviceType == "DEM4" && (sourceKey == "Temp3" || sourceKey == "Temp4")) {
+                flatScale = 0.1;
+            } else if (deviceType == "DEA4" && sourceKey == "Temp4") {
+                flatScale = 0.1;
+            }
+            var convertedFlatValue = numericValue * flatScale;
+            /*
+             * 所有非空业务值都按当前测点的换算规则处理，不再根据数值大小
+             * 判断“异常值”或丢弃数据。这样协议中的边界值、占位值和现场
+             * 自定义值都会保留在平台遥测中。
+             */
+            if (integerTelemetryKeys[targetKey] == true) {
+                // TBEL 的 parseInt 不能解析 "0.0" 这类小数字符串，使用内置 toInt 直接处理数值。
+                telemetry[targetKey] = toInt(convertedFlatValue);
+            } else {
+                telemetry[targetKey] = toFixed(convertedFlatValue, 2);
+            }
+        }
+    }
+}
+if (telemetry.size() == 0) {
+    // 如果报文只包含协议控制字段、null 字段，或没有任何业务测点，
+    // 就没有可写入的遥测内容。此处不是数值过滤，而是避免提交空遥测对象。
+    return null;
+}
+
+/*
+ * attributes 按 TBLE 集成解码器约定写入设备服务器属性。
+ * 这里只写入系统要求的三项属性。
+ */
+var attributes = {
+    "productCategory": productCategory,
+    "functionCategory": functionCategory,
+    "productName": productName
+};
+
+return {
+    "deviceName": deviceName,
+    "deviceType": deviceType,
+    "telemetry": telemetry,
+    "attributes": attributes
+};

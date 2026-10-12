@@ -1,0 +1,102 @@
+/* 文件职责：使用本系统的深蓝、信号蓝和紧凑数据面板，组织用能概况版式。 */
+:host { display: block; min-width: 0; }
+.energy-overview {
+  --overview-ink: #0a356a;
+  --overview-text: #263c50;
+  --overview-muted: #71869a;
+  --overview-blue: #195ce8;
+  --overview-green: #16a65a;
+  --overview-line: #d8e0e8;
+  --overview-soft-line: #e4eaf0;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 20px 28px;
+  color: var(--overview-text);
+  background: #edf1f4;
+  font-family: Inter, 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+}
+
+button:focus-visible, select:focus-visible { outline: 2px solid var(--overview-blue); outline-offset: 2px; }
+
+/* 筛选控件沿用系统常见的矩形输入与信号蓝主操作。 */
+.overview-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 64px; padding: 12px 16px; border: 1px solid #d5dee6; background: #fff; box-shadow: 0 4px 12px rgba(29, 60, 87, .055); box-sizing: border-box; }
+.filter-field { display: block; width: min(210px, 100%); }
+.filter-field select { width: 100%; height: 36px; padding: 0 32px 0 11px; border: 1px solid #ccd7e0; border-radius: 5px; color: #344f65; background: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+.filter-field select:disabled { color: #8797a7; background: #f5f7f9; cursor: wait; }
+.filter-hint, .filter-error { font-size: 11px; }
+.filter-hint { color: #8194a6; }
+.filter-error { color: #c34444; }
+.query-button, .reset-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 82px; height: 36px; padding: 0 12px; border-radius: 4px; font: inherit; font-size: 12px; line-height: 1; white-space: nowrap; cursor: pointer; }
+.query-button { border: 1px solid var(--overview-blue); color: #fff; background: var(--overview-blue); }
+.query-button:hover { background: #104bc3; }
+.reset-button { border: 1px solid #cad6e2; color: #425e78; background: #fff; }
+.reset-button:hover { background: #f1f6fb; }
+.query-button tb-icon, .reset-button tb-icon { display: inline-flex; flex: 0 0 16px; align-items: center; justify-content: center; width: 16px; height: 16px; font-size: 16px; line-height: 16px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+.overview-primary, .overview-secondary { display: grid; gap: 14px; min-width: 0; }
+.overview-primary { grid-template-columns: minmax(0, 1fr); }
+.overview-secondary { grid-template-columns: minmax(0, 2.4fr) minmax(250px, .9fr); }
+.overview-panel { min-width: 0; border: 1px solid var(--overview-line); border-radius: 0; background: #fff; box-shadow: 0 4px 16px rgba(27, 64, 98, .06); }
+.overview-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 54px; margin: 0 18px; border-bottom: 1px solid var(--overview-soft-line); }
+.overview-panel-heading > div:first-child { display: grid; gap: 2px; }
+.overview-panel-heading h2 { margin: 0; color: #193f6d; font-size: 16px; font-weight: 600; }
+.overview-panel-heading small, .overview-panel-heading > span { color: #8194a6; font-size: 11px; }
+.section-accent { color: var(--overview-blue) !important; }
+
+/* 三张对比卡平铺呈现日、周、月，主数值与变化量分层显示。 */
+.comparison-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 15px 16px; }
+.comparison-card { display: grid; min-width: 0; gap: 11px; padding: 12px 14px; border: 1px solid #e0e7ee; border-left: 3px solid var(--overview-blue); background: #fff; box-sizing: border-box; }
+.comparison-card:nth-child(2) { border-left-color: #20a7c6; }
+.comparison-card:nth-child(3) { border-left-color: #6387b4; }
+.comparison-card-heading { display: flex; align-items: center; justify-content: space-between; color: #61788e; font-size: 11px; }
+.comparison-card-heading i { width: 6px; height: 6px; border-radius: 50%; background: #195ce8; }
+.comparison-card:nth-child(2) .comparison-card-heading i { background: #20a7c6; }
+.comparison-card:nth-child(3) .comparison-card-heading i { background: #6387b4; }
+.comparison-current { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+.comparison-current strong { overflow: hidden; color: #183f70; font-size: clamp(22px, 2.1vw, 30px); font-weight: 650; line-height: 1; text-overflow: ellipsis; }
+.comparison-current small, .comparison-detail small { color: #8797a7; font-size: 10px; }
+.comparison-detail { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 9px; border-top: 1px solid #edf1f5; color: var(--overview-muted); font-size: 10px; }
+.comparison-detail b { color: #405a72; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.comparison-change { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--overview-green); font-size: 10px; }
+.comparison-change small { color: #8192a2; font-size: 10px; }
+.comparison-change.is-increase { color: #d96e42; }
+
+.trend-panel, .power-panel { display: flex; min-height: 320px; flex-direction: column; }
+.trend-chart, .power-chart { flex: 1; min-height: 260px; width: 100%; }
+.overview-periods { display: inline-flex; align-items: center; gap: 3px; }
+.overview-periods button { min-width: 43px; height: 27px; padding: 0 8px; border: 0; border-radius: 4px; color: #647c92; background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.overview-periods button:hover { color: var(--overview-blue); background: #f0f5fc; }
+.overview-periods button.is-active { color: #fff; background: var(--overview-blue); font-weight: 600; }
+
+.peak-panel { display: flex; flex-direction: column; }
+.peak-item { display: flex; flex: 1; min-height: 132px; align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 14px; }
+.peak-item + .peak-item { border-top: 1px solid #e7edf3; }
+.peak-item strong { color: #183f70; font-size: 30px; font-weight: 650; line-height: 1; }
+.peak-item span { display: block; width: 100%; padding: 9px 7px; border: 1px solid #d5e0eb; color: #526b84; background: #f7f9fb; font-size: 11px; text-align: center; box-sizing: border-box; }
+
+@media (max-width: 900px) {
+  .overview-secondary { grid-template-columns: minmax(0, 1.7fr) minmax(220px, 1fr); }
+}
+@media (max-width: 680px) {
+  .energy-overview { gap: 12px; padding: 12px; }
+  .overview-secondary { grid-template-columns: minmax(0, 1fr); }
+  .comparison-grid { gap: 7px; padding: 10px; }
+  .comparison-card { gap: 8px; padding: 9px; }
+  .comparison-current strong { font-size: 19px; }
+  .comparison-detail { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .trend-panel, .power-panel { min-height: 290px; }
+  .peak-panel { flex-direction: row; }
+  .peak-item { min-width: 0; min-height: 120px; padding: 10px; }
+  .peak-item + .peak-item { border-top: 0; border-left: 1px solid #e7edf3; }
+}
+@media (max-width: 440px) {
+  .overview-filters { gap: 8px; padding: 10px; }
+  .filter-field { flex: 1 1 125px; width: auto; }
+  .comparison-grid { grid-template-columns: minmax(0, 1fr); }
+  .comparison-card { grid-template-columns: 1fr auto; }
+  .comparison-card-heading { grid-column: 1 / -1; }
+  .comparison-detail { padding-top: 0; border: 0; }
+  .comparison-change { grid-column: 1 / -1; }
+}

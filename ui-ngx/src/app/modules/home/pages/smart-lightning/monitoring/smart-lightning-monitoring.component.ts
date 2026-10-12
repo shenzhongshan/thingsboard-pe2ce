@@ -7,7 +7,6 @@ import {
   OnInit
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { AlarmService } from '@core/http/alarm.service';
 import { auditTime, bufferTime, map, Subject, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmQueryV2, AlarmSearchStatus } from '@shared/models/alarm.models';
 import { DeviceInfo } from '@shared/models/device.models';
@@ -114,7 +113,6 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly alarmService: AlarmService,
     private readonly realtimeService: SmartLightningRealtimeService,
     private readonly route: ActivatedRoute,
     private readonly cd: ChangeDetectorRef
@@ -502,7 +500,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, sortOrder),
       {statusList: [AlarmSearchStatus.ACTIVE]}
     );
-    this.alarmService.getAllAlarmsV2(activeQuery).pipe(
+    this.monitoringApi.getLightningAlarms(activeQuery).pipe(
       map((page) => this.uniqueAlarms(page.data)),
       takeUntil(this.destroy$)
     ).subscribe({

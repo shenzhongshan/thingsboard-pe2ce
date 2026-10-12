@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
-/** 当前用户全部可见设备的未清除告警统计。 */
+/** 当前用户可见防雷设备的未清除告警统计。 */
 @Getter
 @RequiredArgsConstructor
 public class DeviceAlarmSummaryDTO {

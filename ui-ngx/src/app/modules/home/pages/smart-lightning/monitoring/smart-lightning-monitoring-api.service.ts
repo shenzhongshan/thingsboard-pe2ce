@@ -2,6 +2,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
+import { AlarmInfo, AlarmQueryV2 } from '@shared/models/alarm.models';
 import { DeviceInfo } from '@shared/models/device.models';
 import { PageData } from '@shared/models/page/page-data';
 import { SmartLightningMonitoringTreeResponseNode } from './smart-lightning-monitoring.data';
@@ -328,7 +329,7 @@ export class SmartLightningMonitoringApiService {
   }
 
   /**
-   * 查询当前用户全部可见设备的状态汇总。
+   * 查询当前用户可见防雷设备的状态汇总。
    * active 的解释由后端统一读取最新遥测，避免误用服务器属性或 DeviceInfo.active。
    */
   getDeviceStatusSummary(): Observable<SmartLightningDeviceStatusSummary> {
@@ -360,12 +361,22 @@ export class SmartLightningMonitoringApiService {
     );
   }
 
-  /** 查询当前用户可见防雷设备的未清除告警总数及按类型汇总。 */
+  /** 查询防雷设备未清除告警摘要；后端按 productCategory=lightning 统计。 */
   getLightningAlarmSummary(): Observable<SmartLightningAlarmSummary> {
     return this.http.get<SmartLightningAlarmSummary>('/api/smart-lightning/monitoring/alarm-summary');
   }
 
-  /** 查询告警分析页日、月、年触发次数；统计范围由后端按当前用户权限过滤。 */
+  /**
+   * 查询防雷模块告警；筛选条件沿用 v2 参数格式，productCategory 固定为 lightning。
+   * 后端会把请求范围限制到当前用户有读取权限的防雷设备。
+   */
+  getLightningAlarms(query: AlarmQueryV2): Observable<PageData<AlarmInfo>> {
+    return this.http.get<PageData<AlarmInfo>>(
+      `/api/smart-lightning/monitoring/alarms${query.toQuery()}&productCategory=lightning`
+    );
+  }
+
+  /** 查询告警分析页日、月、年触发次数；后端按用户权限和防雷类别过滤。 */
   getLightningAlarmAnalysisSummary(): Observable<SmartLightningAlarmAnalysisSummary> {
     return this.http.get<SmartLightningAlarmAnalysisSummary>(
       '/api/smart-lightning/monitoring/alarm-analysis-summary'
@@ -380,7 +391,7 @@ export class SmartLightningMonitoringApiService {
     );
   }
 
-  /** 查询当前周期内全部可见设备按告警类型聚合的记录数。 */
+  /** 查询当前周期内防雷设备按告警类型聚合的记录数。 */
   getAlarmTypeRanking(period: SmartLightningPeriod): Observable<SmartLightningAlarmTypeTotal[]> {
     const params = new HttpParams().set('period', period);
     return this.http.get<SmartLightningAlarmTypeTotal[]>(
@@ -388,7 +399,7 @@ export class SmartLightningMonitoringApiService {
     );
   }
 
-  /** 查询当前周期内全部可见设备按告警严重程度聚合的记录数。 */
+  /** 查询当前周期内防雷设备按告警严重程度聚合的记录数。 */
   getAlarmSeverityRanking(period: SmartLightningPeriod): Observable<SmartLightningAlarmSeverityTotal[]> {
     const params = new HttpParams().set('period', period);
     return this.http.get<SmartLightningAlarmSeverityTotal[]>(

@@ -56,6 +56,7 @@ import { DeviceSimulatorModule } from '@home/pages/device-simulator/device-simul
 import { SmartLightningDashboardModule } from '@home/pages/smart-lightning/dashboard/smart-lightning-dashboard.module';
 import { HomeOverviewModule } from '@home/pages/homeOverview/home-overview.module';
 import { EnergyRegulationModule } from '@home/pages/energy_regulation/energy-regulation.module';
+import { ElectricalSafetyModule } from '@home/pages/electrical_safety/electrical-safety.module';
 
 @NgModule({
   exports: [
@@ -99,6 +100,7 @@ import { EnergyRegulationModule } from '@home/pages/energy_regulation/energy-reg
     SmartLightningDashboardModule,
     HomeOverviewModule,
     EnergyRegulationModule,
+    ElectricalSafetyModule,
   ]
 })
 export class HomePagesModule { }

@@ -331,7 +331,7 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
     return min;
   }
 
-  /** 查询当前周期内全部可见设备的告警类型排行。 */
+  /** 查询当前周期内防雷设备的告警类型排行。 */
   private loadAlarmTypeRanking(): void {
     this.typeLoading = true;
     this.typeError = false;
@@ -401,7 +401,7 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
     });
   }
 
-  /** 计算当前周期发生过告警的设备占全部可见设备的百分比。 */
+  /** 计算当前周期发生过告警的防雷设备占防雷设备总数的百分比。 */
   get alarmCoveragePercent(): number {
     return calculateAlarmCoveragePercent(
       this.deviceCoverage.alarmedDevices,
@@ -409,7 +409,7 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
     );
   }
 
-  /** 查询当前周期内全部可见设备按告警严重程度聚合的数量。 */
+  /** 查询当前周期内防雷设备按告警严重程度聚合的数量。 */
   private loadAlarmSeverityRanking(): void {
     this.severityLoading = true;
     this.severityError = false;

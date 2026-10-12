@@ -3,14 +3,12 @@ package org.thingsboard.server.service.alarms.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.alarm.AlarmInfo;
 import org.thingsboard.server.common.data.alarm.AlarmQueryV2;
 import org.thingsboard.server.common.data.alarm.AlarmSearchStatus;
 import org.thingsboard.server.common.data.alarm.AlarmSeverity;
 import org.thingsboard.server.common.data.alarm.AlarmStatus;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
-import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.page.SortOrder;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.queue.util.TbCoreComponent;
@@ -34,7 +32,8 @@ import org.thingsboard.server.service.alarms.service.DeviceAlarmQueryService;
 import org.thingsboard.server.service.alarms.service.AlarmStatisticsService;
 import org.thingsboard.server.service.alarms.util.DeviceAlarmAggregationSupport;
 import org.thingsboard.server.service.alarms.util.AlarmPeriodWindow;
-import org.thingsboard.server.service.query.VisibleDeviceScopeService;
+import org.thingsboard.server.service.query.VisibleDeviceContextService;
+import org.thingsboard.server.service.query.bo.VisibleDeviceContextBO;
 import org.thingsboard.server.service.query.VisibleAssetTreeService;
 import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.query.util.VisibleAssetTreeIndex;
@@ -47,6 +46,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +54,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 全体设备告警分析周期统计实现；按告警 startTs（触发时间）计数。
+ * 智能防雷设备告警分析周期统计实现；按告警 startTs（触发时间）计数。
  *
  * <p>统计今日/本月/今年的告警次数，以及昨日/上月/去年的对比次数，
  * 并计算环比变化百分比。窗口边界按系统时区的自然日/月/年计算，
@@ -68,21 +68,28 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     /** 单次告警或设备查询使用的最大记录数。 */
     private static final int QUERY_PAGE_SIZE = ServiceQueryDefaults.ALARM_PAGE_SIZE;
 
-    private final VisibleDeviceScopeService deviceService;
+    /** 智能防雷设备 SERVER_SCOPE.productCategory 的约定值，分析和汇总统一使用该筛选值。 */
+    private static final String LIGHTNING_PRODUCT_CATEGORY = "lightning";
+
+    /** 提供当前用户可见且符合防雷分类的设备上下文。 */
+    private final VisibleDeviceContextService deviceContextService;
+    /** 提供平台告警分页查询；重点告警使用已授权设备 ID 范围查询。 */
     private final DeviceAlarmQueryService alarmQueryService;
+    /** 读取按当前用户权限裁剪的资产树，用于末级资产归属和设备路径展示。 */
     private final VisibleAssetTreeService monitoringTreeService;
+    /** 在数据库侧聚合告警次数、趋势桶、状态和严重程度。 */
     private final AlarmStatisticsService alarmStatisticsService;
 
     /**
-     * 统计当前用户可见设备在日、月、年三个周期的告警次数及环比。
+     * 统计当前用户可见防雷设备在日、月、年三个周期的告警次数及环比。
      *
      * @param user 当前登录用户，用于执行权限过滤
      * @return 日、月、年三个周期各自的当前次数、上一周期次数和变化百分比
      */
     @Override
     public DeviceAlarmAnalysisSummaryDTO getSummary(SecurityUser user) throws ThingsboardException {
-        // 全部可见设备（不区分产品分类），与告警分析页“全体设备”的口径一致。
-        Set<UUID> visibleDeviceIds = deviceService.getVisibleDeviceIds(user);
+        // 防雷分析的统计范围按用户权限和 productCategory=lightning 双重限定。
+        Set<UUID> visibleDeviceIds = findVisibleLightningDeviceIds(user);
         AlarmPeriodWindow window = AlarmPeriodWindow.current(ZoneId.systemDefault());
         // counts 依次存放：今日、昨日、本月、上月、今年、去年的告警次数。
         long[] counts = new long[6];
@@ -135,8 +142,25 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
                 monitoringTreeService.getVisibleAssetTree(user));
         Map<UUID, ParentAssetCounter> counters = new LinkedHashMap<>();
         Map<UUID, UUID> deviceToParentAsset = treeIndex.getParentAssetByDevice();
+        Set<UUID> visibleDeviceIds = findVisibleLightningDeviceIds(user);
+        if (visibleDeviceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // 只保留已通过权限及 productCategory=lightning 筛选的设备，避免其他产品告警混入资产统计。
+        Set<UUID> lightningParentAssetIds = new HashSet<>();
+        Set<UUID> leafDeviceIds = new HashSet<>();
+        for (Map.Entry<UUID, UUID> entry : deviceToParentAsset.entrySet()) {
+            if (visibleDeviceIds.contains(entry.getKey())) {
+                // 同时记录防雷设备及其直属父资产，后续计数只覆盖这些设备和资产。
+                leafDeviceIds.add(entry.getKey());
+                lightningParentAssetIds.add(entry.getValue());
+            }
+        }
+        // 只为确实挂有当前用户可见防雷设备的末级资产建立计数器，避免输出无关资产。
         for (VisibleAssetTreeIndex.LeafAsset asset : treeIndex.getLeafAssetsById().values()) {
-            counters.put(asset.id(), new ParentAssetCounter(asset.id(), asset.name(), asset.path()));
+            if (lightningParentAssetIds.contains(asset.id())) {
+                counters.put(asset.id(), new ParentAssetCounter(asset.id(), asset.name(), asset.path()));
+            }
         }
         if (counters.isEmpty()) {
             return Collections.emptyList();
@@ -144,7 +168,6 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
 
         // 数据库按设备聚合后只返回计数；这里仅负责将设备计数归并到直属父资产。
         // 只查询末级资产直接关联的设备，避免将更深层子资产中的告警算入当前资产。
-        Set<UUID> leafDeviceIds = deviceToParentAsset.keySet();
         List<AlarmDeviceCountBO> deviceCounts = alarmStatisticsService.countByDevice(
                 user, leafDeviceIds, window.getStartTs(), window.getEndTs());
         for (AlarmDeviceCountBO deviceCount : deviceCounts) {
@@ -177,12 +200,12 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         return result;
     }
 
-    /** 按告警触发时间统计当前用户可见设备的告警类型排行。 */
+    /** 按告警触发时间统计当前用户可见防雷设备的告警类型排行。 */
     @Override
     public List<DeviceAlarmTypeTotalDTO> getTypeRanking(SecurityUser user, String period)
             throws ThingsboardException {
         MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-        Set<UUID> visibleDeviceIds = deviceService.getVisibleDeviceIds(user);
+        Set<UUID> visibleDeviceIds = findVisibleLightningDeviceIds(user);
         if (visibleDeviceIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -199,12 +222,12 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         return result;
     }
 
-    /** 按告警触发时间统计当前用户可见设备的严重程度分布。 */
+    /** 按告警触发时间统计当前用户可见防雷设备的严重程度分布。 */
     @Override
     public List<DeviceAlarmSeverityTotalDTO> getSeverityRanking(SecurityUser user, String period)
             throws ThingsboardException {
         MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-        Set<UUID> visibleDeviceIds = deviceService.getVisibleDeviceIds(user);
+        Set<UUID> visibleDeviceIds = findVisibleLightningDeviceIds(user);
         if (visibleDeviceIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -234,12 +257,12 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         return result;
     }
 
-    /** 按触发时间统计四种告警状态，并按设备 ID 去重计算告警覆盖率。 */
+    /** 按触发时间统计防雷设备的四种告警状态，并按设备 ID 去重计算告警覆盖率。 */
     @Override
     public DeviceAlarmAnalysisOverviewDTO getOverview(SecurityUser user, String period)
             throws ThingsboardException {
         MonitoringPeriodWindow window = MonitoringPeriodWindow.from(period);
-        Set<UUID> visibleDeviceIds = deviceService.getVisibleDeviceIds(user);
+        Set<UUID> visibleDeviceIds = findVisibleLightningDeviceIds(user);
         if (visibleDeviceIds.isEmpty() || user == null || user.getTenantId() == null) {
             return buildOverviewFromAggregate(visibleDeviceIds, AlarmOverviewAggregateBO.empty());
         }
@@ -263,6 +286,20 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
                 aggregate.getAlarmedDeviceCount(),
                 aggregate.getActiveAlarmDeviceCountBO());
         return new DeviceAlarmAnalysisOverviewDTO(statusDistribution, coverage);
+    }
+
+    /** 查询当前用户可见且 productCategory=lightning 的设备 ID，供分析统计共用。 */
+    private Set<UUID> findVisibleLightningDeviceIds(SecurityUser user) throws ThingsboardException {
+        // 汇集共享权限和类别过滤后的设备 ID，供各类告警统计复用同一口径。
+        Set<UUID> visibleDeviceIds = new HashSet<>();
+        for (VisibleDeviceContextBO context : deviceContextService
+                .findVisibleDeviceContexts(user, LIGHTNING_PRODUCT_CATEGORY)) {
+            // 防御共享查询可能返回的空上下文或空设备 ID，不将无效值送入数据库查询。
+            if (context != null && context.getDeviceId() != null) {
+                visibleDeviceIds.add(context.getDeviceId());
+            }
+        }
+        return visibleDeviceIds;
     }
 
     /** 单个设备直属父资产的告警累计对象。 */
@@ -321,29 +358,39 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
     }
 
     /**
-     * 单独复用公共告警查询服务读取当前仍未清除的严重告警。
+     * 按已授权防雷设备 ID 查询当前仍未清除的严重告警。
      * 该查询不限制时间起点，避免长期未清除的严重告警被年度统计窗口截掉。
+     * 查询结果按创建时间倒序逐页读取；同一设备的多条告警会在后续步骤合并成单个重点设备项。
      */
     private void collectActiveCriticalAlarms(SecurityUser user, Set<UUID> deviceIds,
                                              Map<UUID, String> parentNodesByDevice,
                                              Map<UUID, FocusAlarmAccumulator> focusDevicesById)
             throws ThingsboardException {
-        TimePageLink pageLink = new TimePageLink(
-                QUERY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC);
+        // 重点告警定义为仍处于 ACTIVE 的告警，不纳入已经清除的历史记录。
         List<AlarmSearchStatus> activeStatuses = new ArrayList<>();
         activeStatuses.add(AlarmSearchStatus.ACTIVE);
+        // 重点列表只展示 CRITICAL 级别；其他严重程度仍由常规分析统计接口统计。
         List<AlarmSeverity> criticalSeverity = new ArrayList<>();
         criticalSeverity.add(AlarmSeverity.CRITICAL);
-        AlarmQueryV2 query = new AlarmQueryV2(
-                null, pageLink, Collections.emptyList(), activeStatuses, criticalSeverity, null);
+        // 固定本次处理的当前时间，避免跨页查询期间持续时长的计算基准发生变化。
         long now = System.currentTimeMillis();
-        alarmQueryService.forEachPage(user, query, page -> {
-            for (AlarmInfo alarm : page) {
-                if (isVisibleDeviceAlarm(alarm, deviceIds)) {
-                    collectFocusAlarm(alarm, parentNodesByDevice, focusDevicesById, now);
-                }
+        for (int page = 0; ; page++) {
+            // 每次只取一个固定大小的页面，并按创建时间从新到旧排序，避免加载所有重点告警。
+            TimePageLink pageLink = new TimePageLink(
+                    QUERY_PAGE_SIZE, page, null, SortOrder.BY_CREATED_TIME_DESC);
+            // 额外设备范围来自上游权限和防雷分类过滤；空时间条件确保旧的未清除告警也会返回。
+            AlarmQueryV2 query = new AlarmQueryV2(
+                    null, pageLink, Collections.emptyList(), activeStatuses, criticalSeverity, null);
+            List<AlarmInfo> alarms = alarmQueryService.findPageForDevices(user, query, deviceIds).getData();
+            // 将本页告警即时并入按设备聚合器，当前页结束后即可释放明细列表。
+            for (AlarmInfo alarm : alarms) {
+                collectFocusAlarm(alarm, parentNodesByDevice, focusDevicesById, now);
             }
-        });
+            // 返回条数少于页容量意味着已到最后一页；满页时继续查询下一页。
+            if (alarms.size() < QUERY_PAGE_SIZE) {
+                break;
+            }
+        }
     }
 
     /** 收集严重等级且尚未清除的告警，并按设备合并多个告警类型。 */
@@ -411,14 +458,6 @@ public class DeviceAlarmAnalysisServiceImpl implements DeviceAlarmAnalysisServic
         private void updateDuration(long duration) {
             durationMs = Math.max(durationMs, duration);
         }
-    }
-
-    /** 判断告警是否由当前用户可见的设备产生。 */
-    private boolean isVisibleDeviceAlarm(AlarmInfo alarm, Set<UUID> deviceIds) {
-        EntityId originator = alarm.getOriginator();
-        return originator != null
-                && originator.getEntityType() == EntityType.DEVICE
-                && deviceIds.contains(originator.getId());
     }
 
     /**

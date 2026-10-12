@@ -1,0 +1,65 @@
+<!-- 文件职责：展示用能环比、能耗趋势和功率峰值，并提供企业、站点范围选择。 -->
+<main class="energy-overview" aria-label="用能概况">
+  <section class="overview-filters" aria-label="用能查询条件">
+    <label class="filter-field">
+      <span class="visually-hidden">公司</span>
+      <select [(ngModel)]="selectedRootAssetId" [disabled]="rootAssetsLoading" aria-label="选择公司根资产">
+        <option value="">全部公司</option>
+        <option *ngFor="let root of rootAssets" [value]="root.assetId">{{ root.assetName }}</option>
+      </select>
+    </label>
+    <span *ngIf="rootAssetsLoading" class="filter-hint">正在加载资产范围</span>
+    <span *ngIf="rootAssetsLoadError" class="filter-error">资产范围加载失败</span>
+    <button type="button" class="query-button" (click)="applyFilters()">
+      <tb-icon aria-hidden="true">search</tb-icon>
+      <span>查询</span>
+    </button>
+    <button type="button" class="reset-button" (click)="resetFilters()">
+      <tb-icon aria-hidden="true">restart_alt</tb-icon>
+      <span>重置</span>
+    </button>
+  </section>
+
+  <section class="overview-primary">
+    <article class="overview-panel comparison-panel">
+      <header class="overview-panel-heading">
+        <div><h2>周期用电对比</h2><small>当前周期与上一周期</small></div>
+        <span class="section-accent">用电量 · kWh</span>
+      </header>
+      <div class="comparison-grid">
+        <article class="comparison-card" *ngFor="let row of snapshot.comparisons">
+          <div class="comparison-card-heading"><span>{{ row.currentLabel }}</span><i></i></div>
+          <div class="comparison-current"><strong>{{ row.currentKwh | number:'1.1-1' }}</strong><small>kWh</small></div>
+          <div class="comparison-detail"><span>{{ row.previousLabel }}</span><b>{{ row.previousKwh | number:'1.1-1' }} <small>kWh</small></b></div>
+          <div class="comparison-change" [class.is-increase]="row.changePercent > 0">
+            <span>{{ row.changePercent > 0 ? '↑' : row.changePercent < 0 ? '↓' : '→' }} {{ row.changePercent > 0 ? '+' : '' }}{{ row.changePercent | number:'1.1-1' }}%</span>
+            <small>{{ row.deltaKwh > 0 ? '+' : '' }}{{ row.deltaKwh | number:'1.1-1' }} kWh</small>
+          </div>
+        </article>
+      </div>
+    </article>
+
+    <article class="overview-panel trend-panel">
+      <header class="overview-panel-heading">
+        <div><h2>能耗趋势</h2><small>分时用电量</small></div>
+        <div class="overview-periods" role="group" aria-label="能耗趋势周期">
+          <button type="button" *ngFor="let period of periods" (click)="selectPeriod(period.key)"
+                  [class.is-active]="selectedPeriod === period.key" [attr.aria-pressed]="selectedPeriod === period.key">{{ period.label }}</button>
+        </div>
+      </header>
+      <div class="trend-chart" #trendHost role="img" aria-label="用电量趋势图"></div>
+    </article>
+  </section>
+
+  <section class="overview-secondary">
+    <article class="overview-panel power-panel">
+      <header class="overview-panel-heading"><h2>日用电总功率 / 功率曲线</h2></header>
+      <div class="power-chart" #powerHost role="img" aria-label="今日与昨日总有功功率曲线"></div>
+    </article>
+    <article class="overview-panel peak-panel">
+      <header class="overview-panel-heading"><h2>总有功功率峰值</h2></header>
+      <div class="peak-item"><strong>{{ snapshot.todayPeakKw | number:'1.2-2' }}</strong><span>当日用电总功率峰值 · kW</span></div>
+      <div class="peak-item"><strong>{{ snapshot.yesterdayPeakKw | number:'1.2-2' }}</strong><span>昨日用电总功率峰值 · kW</span></div>
+    </article>
+  </section>
+</main>

@@ -458,7 +458,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     const requestId = ++this.alarmLoadRequestId;
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
-    this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
+    this.monitoringApi.getLightningAlarms(createSmartLightningAlarmQuery()).pipe(
       map((pageData): AlarmInfo[] => {
         const sortedAlarms = pageData.data.map((alarm) => ({info: alarm, row: formatSmartLightningAlarm(alarm)}))
           .sort((left, right) => compareSmartLightningAlarms(left.row, right.row))
