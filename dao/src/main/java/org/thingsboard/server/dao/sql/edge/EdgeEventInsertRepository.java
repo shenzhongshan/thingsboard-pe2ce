@@ -35,8 +35,8 @@ import java.util.List;
 public class EdgeEventInsertRepository {
 
     private static final String INSERT =
-            "INSERT INTO edge_event (id, created_time, edge_id, edge_event_type, edge_event_uid, entity_id, edge_event_action, body, tenant_id, ts) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+            "INSERT INTO edge_event (id, created_time, edge_id, edge_event_type, edge_event_uid, entity_id, edge_event_action, body, tenant_id, entity_group_id, ts) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                     "ON CONFLICT DO NOTHING;";
 
     @Autowired
@@ -64,7 +64,8 @@ public class EdgeEventInsertRepository {
                                 ? edgeEvent.getEntityBody().toString()
                                 : null);
                         ps.setObject(9, edgeEvent.getTenantId());
-                        ps.setLong(10, edgeEvent.getTs());
+                        ps.setObject(10, edgeEvent.getEntityGroupId());
+                        ps.setLong(11, edgeEvent.getTs());
                     }
 
                     @Override

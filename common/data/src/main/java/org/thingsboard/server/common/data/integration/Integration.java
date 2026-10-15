@@ -50,6 +50,10 @@ public class Integration extends BaseData<IntegrationId> implements HasName, Has
     private static final long serialVersionUID = 1L;
 
     @Getter @Setter
+    @Schema(description = "edge 模板标记。true 表示这是一个 edge 模板集成 —— 云端不启动、不校验连通性、不计租户配额，只作为下发给 edge 的蓝图。")
+    private boolean edgeTemplate;
+
+    @Getter @Setter
     @Schema(description = "JSON object with Tenant Id", accessMode = Schema.AccessMode.READ_ONLY)
     private TenantId tenantId;
 

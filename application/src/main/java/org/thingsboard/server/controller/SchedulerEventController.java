@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
@@ -280,6 +281,34 @@ public class SchedulerEventController extends BaseController {
                     ThingsboardErrorCode.PERMISSION_DENIED);
         }
         return event;
+    }
+
+
+    @ApiOperation(value = "Assign schedulerEvent to edge",
+            notes = "把schedulerEvent分配给一台 edge。分配后它会随全量同步下发；关系走 RelationTypeGroup.EDGE。")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PostMapping(value = {"/edge/{edgeId}/schedulerEvent/{schedulerEventId}"})
+    public SchedulerEventInfo assignSchedulerEventToEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("schedulerEventId") String strSchedulerEventId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        SchedulerEventId entityId = new SchedulerEventId(toUUID(strSchedulerEventId));
+        return checkNotNull(schedulerEventService.assignSchedulerEventToEdge(getTenantId(), entityId, edgeId));
+    }
+
+    @ApiOperation(value = "Unassign schedulerEvent from edge")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @DeleteMapping(value = {"/edge/{edgeId}/schedulerEvent/{schedulerEventId}"})
+    public SchedulerEventInfo unassignSchedulerEventFromEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("schedulerEventId") String strSchedulerEventId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        SchedulerEventId entityId = new SchedulerEventId(toUUID(strSchedulerEventId));
+        return checkNotNull(schedulerEventService.unassignSchedulerEventFromEdge(getTenantId(), entityId, edgeId));
     }
 
 }

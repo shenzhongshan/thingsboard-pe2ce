@@ -15,6 +15,7 @@
 ///
 
 import { Component, OnInit, Renderer2, ViewChild, ViewContainerRef } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -64,6 +65,10 @@ export class IntegrationsComponent extends PageComponent implements OnInit {
   readonly IntegrationState = IntegrationState;
   readonly EntityType = EntityType;
 
+  /** 由路由 data.isEdgeTemplate 决定这个页面看的是 edge 模板还是普通实体 —— 同一套组件
+   *  服务 /integrations-center 和 /edgeManagement 两条路由，与 PE 一致。 */
+  isEdgeTemplate = false;
+
   sortProperty = 'createdTime';
   sortDirection: 'asc' | 'desc' = 'desc';
 
@@ -78,18 +83,20 @@ export class IntegrationsComponent extends PageComponent implements OnInit {
               private entityDebugSettingsService: EntityDebugSettingsService,
               private viewContainerRef: ViewContainerRef,
               private renderer: Renderer2,
-              private dialog: MatDialog) {
+              private dialog: MatDialog,
+              private route: ActivatedRoute) {
     super(store);
   }
 
   ngOnInit() {
+    this.isEdgeTemplate = !!this.route.snapshot.data.isEdgeTemplate;
     this.reload();
   }
 
   reload() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: this.sortProperty, direction: this.sortDirection === 'asc' ? Direction.ASC : Direction.DESC });
-    this.integrationService.getIntegrationInfos(pageLink).subscribe((pageData) => {
+    this.integrationService.getIntegrationInfos(pageLink, this.isEdgeTemplate).subscribe((pageData) => {
       this.integrations = pageData.data;
       this.totalElements = pageData.totalElements;
     });
@@ -237,7 +244,7 @@ export class IntegrationsComponent extends PageComponent implements OnInit {
       IntegrationDialogComponent, {
         disableClose: true,
         panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-        data: { integrationId }
+        data: { integrationId, isEdgeTemplate: this.isEdgeTemplate }
       }).afterClosed().subscribe((changed) => {
       if (changed) {
         this.reload();

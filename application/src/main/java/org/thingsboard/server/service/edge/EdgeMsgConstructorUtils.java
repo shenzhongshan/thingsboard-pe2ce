@@ -15,6 +15,13 @@
  */
 package org.thingsboard.server.service.edge;
 
+import org.thingsboard.server.common.data.wl.WhiteLabeling;
+import org.thingsboard.server.common.data.menu.CustomMenu;
+import org.thingsboard.server.common.data.translation.CustomTranslation;
+import org.thingsboard.server.gen.edge.v1.WhiteLabelingProto;
+import org.thingsboard.server.gen.edge.v1.CustomMenuProto;
+import org.thingsboard.server.gen.edge.v1.CustomTranslationUpdateMsg;
+import org.apache.commons.collections4.CollectionUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
@@ -48,6 +55,7 @@ import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.TenantProfile;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.ai.AiModel;
 import org.thingsboard.server.common.data.pat.ApiKey;
 import org.thingsboard.server.common.data.alarm.Alarm;
@@ -59,6 +67,7 @@ import org.thingsboard.server.common.data.device.profile.DeviceProfileTransportC
 import org.thingsboard.server.common.data.device.profile.Lwm2mDeviceProfileTransportConfiguration;
 import org.thingsboard.server.common.data.domain.DomainInfo;
 import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.encryptionkey.EncryptionKey;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.id.AiModelId;
@@ -99,6 +108,8 @@ import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
 import org.thingsboard.server.common.transport.util.JsonUtils;
+import org.thingsboard.server.gen.edge.v1.DeviceGroupOtaPackageUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.EncryptionKeyUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.AiModelUpdateMsg;
 import org.thingsboard.server.gen.edge.v1.ApiKeyUpdateMsg;
 import org.thingsboard.server.common.data.group.EntityGroup;
@@ -106,10 +117,10 @@ import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.gen.edge.v1.EntityGroupUpdateMsg;
 import org.thingsboard.server.common.data.role.Role;
 import org.thingsboard.server.common.data.id.RoleId;
-import org.thingsboard.server.gen.edge.v1.RoleUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.RoleProto;
 import org.thingsboard.server.common.data.permission.GroupPermission;
 import org.thingsboard.server.common.data.id.GroupPermissionId;
-import org.thingsboard.server.gen.edge.v1.GroupPermissionUpdateMsg;
+import org.thingsboard.server.gen.edge.v1.GroupPermissionProto;
 import org.thingsboard.server.common.data.converter.Converter;
 import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.gen.edge.v1.ConverterUpdateMsg;
@@ -236,18 +247,28 @@ public class EdgeMsgConstructorUtils {
         return AlarmCommentUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(alarmComment)).build();
     }
 
-    public static AssetUpdateMsg constructAssetUpdatedMsg(UpdateMsgType msgType, Asset asset) {
+    public static AssetUpdateMsg constructAssetUpdatedMsg(UpdateMsgType msgType, Asset asset, EntityGroupId entityGroupId) {
         resetVersion(asset);
-        return AssetUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(asset))
+        AssetUpdateMsg.Builder builder = AssetUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(asset))
                 .setIdMSB(asset.getUuidId().getMostSignificantBits())
-                .setIdLSB(asset.getUuidId().getLeastSignificantBits()).build();
+                .setIdLSB(asset.getUuidId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static AssetUpdateMsg constructAssetDeleteMsg(AssetId assetId) {
-        return AssetUpdateMsg.newBuilder()
+    public static AssetUpdateMsg constructAssetDeleteMsg(AssetId assetId, EntityGroupId entityGroupId) {
+        AssetUpdateMsg.Builder builder = AssetUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(assetId.getId().getMostSignificantBits())
-                .setIdLSB(assetId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(assetId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static AssetProfileUpdateMsg constructAssetProfileUpdatedMsg(UpdateMsgType msgType, AssetProfile assetProfile) {
@@ -264,11 +285,16 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(assetProfileId.getId().getLeastSignificantBits()).build();
     }
 
-    public static CustomerUpdateMsg constructCustomerUpdatedMsg(UpdateMsgType msgType, Customer customer) {
+    public static CustomerUpdateMsg constructCustomerUpdatedMsg(UpdateMsgType msgType, Customer customer, EntityGroupId entityGroupId) {
         resetVersion(customer);
-        return CustomerUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(customer))
+        CustomerUpdateMsg.Builder builder = CustomerUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(customer))
                 .setIdMSB(customer.getId().getId().getMostSignificantBits())
-                .setIdLSB(customer.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(customer.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static CustomerUpdateMsg constructCustomerDeleteMsg(CustomerId customerId) {
@@ -278,32 +304,52 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(customerId.getId().getLeastSignificantBits()).build();
     }
 
-    public static DashboardUpdateMsg constructDashboardUpdatedMsg(UpdateMsgType msgType, Dashboard dashboard) {
+    public static DashboardUpdateMsg constructDashboardUpdatedMsg(UpdateMsgType msgType, Dashboard dashboard, EntityGroupId entityGroupId) {
         resetVersion(dashboard);
-        return DashboardUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(dashboard))
+        DashboardUpdateMsg.Builder builder = DashboardUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(dashboard))
                 .setIdMSB(dashboard.getId().getId().getMostSignificantBits())
-                .setIdLSB(dashboard.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(dashboard.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DashboardUpdateMsg constructDashboardDeleteMsg(DashboardId dashboardId) {
-        return DashboardUpdateMsg.newBuilder()
+    public static DashboardUpdateMsg constructDashboardDeleteMsg(DashboardId dashboardId, EntityGroupId entityGroupId) {
+        DashboardUpdateMsg.Builder builder = DashboardUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(dashboardId.getId().getMostSignificantBits())
-                .setIdLSB(dashboardId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(dashboardId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DeviceUpdateMsg constructDeviceUpdatedMsg(UpdateMsgType msgType, Device device) {
+    public static DeviceUpdateMsg constructDeviceUpdatedMsg(UpdateMsgType msgType, Device device, EntityGroupId entityGroupId) {
         resetVersion(device);
-        return DeviceUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(device))
+        DeviceUpdateMsg.Builder builder = DeviceUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(device))
                 .setIdMSB(device.getId().getId().getMostSignificantBits())
-                .setIdLSB(device.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(device.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static DeviceUpdateMsg constructDeviceDeleteMsg(DeviceId deviceId) {
-        return DeviceUpdateMsg.newBuilder()
+    public static DeviceUpdateMsg constructDeviceDeleteMsg(DeviceId deviceId, EntityGroupId entityGroupId) {
+        DeviceUpdateMsg.Builder builder = DeviceUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(deviceId.getId().getMostSignificantBits())
-                .setIdLSB(deviceId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(deviceId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static DeviceCredentialsUpdateMsg constructDeviceCredentialsUpdatedMsg(DeviceCredentials deviceCredentials) {
@@ -416,8 +462,16 @@ public class EdgeMsgConstructorUtils {
                 .setType(edge.getType())
                 .setRoutingKey(edge.getRoutingKey())
                 .setSecret(edge.getSecret())
+                .setEdgeLicenseKey(edge.getEdgeLicenseKey() != null ? edge.getEdgeLicenseKey() : "")
+                .setCloudEndpoint(edge.getCloudEndpoint() != null ? edge.getCloudEndpoint() : "")
                 .setAdditionalInfo(JacksonUtil.toString(edge.getAdditionalInfo()))
-                .setCloudType("CE");
+                // 对接的是 ThingsBoard Edge PE：edge 按 cloudType 决定是否启用 PE 侧能力
+                // （实体分组、集成、调度等）。报 "CE" 会让 PE edge 关掉这些路径，
+                // 这个移植也就白做了。
+                .setCloudType("PE")
+                // PE 的 EdgeUtils.isAddonEdge(v) 就是 v == 2：只有为 2 时 edge 才会去做
+                // 按租户的 add-on 授权校验。CE 没有订阅服务，取 1 绕开该门控。
+                .setLicenseVersion(1);
         if (edge.getCustomerId() != null) {
             builder.setCustomerIdMSB(edge.getCustomerId().getId().getMostSignificantBits())
                     .setCustomerIdLSB(edge.getCustomerId().getId().getLeastSignificantBits());
@@ -425,18 +479,28 @@ public class EdgeMsgConstructorUtils {
         return builder.build();
     }
 
-    public static EntityViewUpdateMsg constructEntityViewUpdatedMsg(UpdateMsgType msgType, EntityView entityView) {
+    public static EntityViewUpdateMsg constructEntityViewUpdatedMsg(UpdateMsgType msgType, EntityView entityView, EntityGroupId entityGroupId) {
         resetVersion(entityView);
-        return EntityViewUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(entityView))
+        EntityViewUpdateMsg.Builder builder = EntityViewUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(entityView))
                 .setIdMSB(entityView.getId().getId().getMostSignificantBits())
-                .setIdLSB(entityView.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(entityView.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static EntityViewUpdateMsg constructEntityViewDeleteMsg(EntityViewId entityViewId) {
-        return EntityViewUpdateMsg.newBuilder()
+    public static EntityViewUpdateMsg constructEntityViewDeleteMsg(EntityViewId entityViewId, EntityGroupId entityGroupId) {
+        EntityViewUpdateMsg.Builder builder = EntityViewUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(entityViewId.getId().getMostSignificantBits())
-                .setIdLSB(entityViewId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(entityViewId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static NotificationRuleUpdateMsg constructNotificationRuleUpdateMsg(UpdateMsgType msgType, NotificationRule notificationRule) {
@@ -483,6 +547,31 @@ public class EdgeMsgConstructorUtils {
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(oAuth2ClientId.getId().getMostSignificantBits())
                 .setIdLSB(oAuth2ClientId.getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 白标（通用/登录/邮件模板三种 type 共用一条消息）。整行序列化进 entity，
+     * 消息本身不带 id —— edge 侧按 WhiteLabeling 里的 tenantId/customerId/type 定位。
+     */
+    public static WhiteLabelingProto constructWhiteLabeling(UpdateMsgType msgType, WhiteLabeling whiteLabeling) {
+        return WhiteLabelingProto.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(whiteLabeling)).build();
+    }
+
+    /**
+     * 自定义菜单。assigneeList 是该菜单被指派到的实体 id 列表，删除时不带。
+     */
+    public static CustomMenuProto constructCustomMenuMsg(UpdateMsgType msgType, CustomMenu customMenu, List<EntityId> entityIds) {
+        CustomMenuProto.Builder builder = CustomMenuProto.newBuilder();
+        if (CollectionUtils.isNotEmpty(entityIds)) {
+            builder.setAssigneeList(JacksonUtil.toString(entityIds));
+        }
+        return builder.setMsgType(msgType).setEntity(JacksonUtil.toString(customMenu)).build();
+    }
+
+    public static CustomTranslationUpdateMsg constructCustomTranslationMsg(UpdateMsgType msgType, CustomTranslation customTranslation) {
+        return CustomTranslationUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(customTranslation)).build();
     }
 
     public static OAuth2DomainUpdateMsg constructOAuth2DomainUpdateMsg(UpdateMsgType msgType, DomainInfo domainInfo) {
@@ -691,18 +780,28 @@ public class EdgeMsgConstructorUtils {
         return TenantProfileUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(tenantProfile)).build();
     }
 
-    public static UserUpdateMsg constructUserUpdatedMsg(UpdateMsgType msgType, User user) {
+    public static UserUpdateMsg constructUserUpdatedMsg(UpdateMsgType msgType, User user, EntityGroupId entityGroupId) {
         resetVersion(user);
-        return UserUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(user))
+        UserUpdateMsg.Builder builder = UserUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(user))
                 .setIdMSB(user.getId().getId().getMostSignificantBits())
-                .setIdLSB(user.getId().getId().getLeastSignificantBits()).build();
+                .setIdLSB(user.getId().getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
-    public static UserUpdateMsg constructUserDeleteMsg(UserId userId) {
-        return UserUpdateMsg.newBuilder()
+    public static UserUpdateMsg constructUserDeleteMsg(UserId userId, EntityGroupId entityGroupId) {
+        UserUpdateMsg.Builder builder = UserUpdateMsg.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(userId.getId().getMostSignificantBits())
-                .setIdLSB(userId.getId().getLeastSignificantBits()).build();
+                .setIdLSB(userId.getId().getLeastSignificantBits());
+        if (entityGroupId != null) {
+            builder.setEntityGroupIdMSB(entityGroupId.getId().getMostSignificantBits())
+                    .setEntityGroupIdLSB(entityGroupId.getId().getLeastSignificantBits());
+        }
+        return builder.build();
     }
 
     public static UserCredentialsUpdateMsg constructUserCredentialsUpdatedMsg(UserCredentials userCredentials) {
@@ -794,27 +893,27 @@ public class EdgeMsgConstructorUtils {
                 .setIdLSB(entityGroupId.getId().getLeastSignificantBits()).build();
     }
 
-    public static RoleUpdateMsg constructRoleUpdatedMsg(UpdateMsgType msgType, Role role) {
-        return RoleUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(role))
+    public static RoleProto constructRoleUpdatedMsg(UpdateMsgType msgType, Role role) {
+        return RoleProto.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(role))
                 .setIdMSB(role.getId().getId().getMostSignificantBits())
                 .setIdLSB(role.getId().getId().getLeastSignificantBits()).build();
     }
 
-    public static RoleUpdateMsg constructRoleDeleteMsg(RoleId roleId) {
-        return RoleUpdateMsg.newBuilder()
+    public static RoleProto constructRoleDeleteMsg(RoleId roleId) {
+        return RoleProto.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(roleId.getId().getMostSignificantBits())
                 .setIdLSB(roleId.getId().getLeastSignificantBits()).build();
     }
 
-    public static GroupPermissionUpdateMsg constructGroupPermissionUpdatedMsg(UpdateMsgType msgType, GroupPermission groupPermission) {
-        return GroupPermissionUpdateMsg.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(groupPermission))
+    public static GroupPermissionProto constructGroupPermissionUpdatedMsg(UpdateMsgType msgType, GroupPermission groupPermission) {
+        return GroupPermissionProto.newBuilder().setMsgType(msgType).setEntity(JacksonUtil.toString(groupPermission))
                 .setIdMSB(groupPermission.getId().getId().getMostSignificantBits())
                 .setIdLSB(groupPermission.getId().getId().getLeastSignificantBits()).build();
     }
 
-    public static GroupPermissionUpdateMsg constructGroupPermissionDeleteMsg(GroupPermissionId groupPermissionId) {
-        return GroupPermissionUpdateMsg.newBuilder()
+    public static GroupPermissionProto constructGroupPermissionDeleteMsg(GroupPermissionId groupPermissionId) {
+        return GroupPermissionProto.newBuilder()
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(groupPermissionId.getId().getMostSignificantBits())
                 .setIdLSB(groupPermissionId.getId().getLeastSignificantBits()).build();
@@ -870,6 +969,26 @@ public class EdgeMsgConstructorUtils {
                 .setMsgType(UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE)
                 .setIdMSB(reportTemplateId.getId().getMostSignificantBits())
                 .setIdLSB(reportTemplateId.getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 加密密钥随 edge 同步下发：edge 本地要用同一把密钥解开云端加密过的凭据
+     * （Secret / 集成配置里的密码等）。密钥不同则 edge 上所有密文都解不开。
+     */
+    public static EncryptionKeyUpdateMsg constructEncryptionKeyUpdatedMsg(UpdateMsgType msgType, EncryptionKey encryptionKey) {
+        return EncryptionKeyUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(encryptionKey))
+                .setIdMSB(encryptionKey.getId().getId().getMostSignificantBits())
+                .setIdLSB(encryptionKey.getId().getId().getLeastSignificantBits()).build();
+    }
+
+    /**
+     * 设备分组的 OTA 配置。这是挂在分组上的设置行，不是一等实体 —— 所以消息里没有
+     * idMSB/idLSB，整条内容走 entity 字段。
+     */
+    public static DeviceGroupOtaPackageUpdateMsg constructDeviceGroupOtaUpdateMsg(UpdateMsgType msgType, DeviceGroupOtaPackage otaPackage) {
+        return DeviceGroupOtaPackageUpdateMsg.newBuilder().setMsgType(msgType)
+                .setEntity(JacksonUtil.toString(otaPackage)).build();
     }
 
     public static SecretUpdateMsg constructSecretUpdatedMsg(UpdateMsgType msgType, Secret secret) {

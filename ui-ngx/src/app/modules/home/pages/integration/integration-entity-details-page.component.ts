@@ -96,8 +96,14 @@ export class IntegrationEntityDetailsPageComponent implements OnInit {
     }
   }
 
+  /** 同一个组件同时服务集成中心和 edge 模板两条路由，关闭时必须回到进来的那条。 */
+  get isEdgeTemplate(): boolean {
+    return !!this.route.snapshot.data.isEdgeTemplate;
+  }
+
   close() {
-    this.router.navigate([this.kind === 'integration' ? '/integrations-center/integrations' : '/integrations-center/converters']);
+    const base = this.isEdgeTemplate ? '/edgeManagement' : '/integrations-center';
+    this.router.navigate([`${base}/${this.kind === 'integration' ? 'integrations' : 'converters'}`]);
   }
 
   onEdit() {
@@ -110,14 +116,14 @@ export class IntegrationEntityDetailsPageComponent implements OnInit {
         IntegrationDialogComponent, {
           disableClose: true,
           panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-          data: { integrationId: id }
+          data: { integrationId: id, isEdgeTemplate: this.isEdgeTemplate }
         }).afterClosed().subscribe((changed) => { if (changed) { this.load(); } });
     } else {
       this.dialog.open<ConverterDialogComponent, ConverterDialogData, boolean>(
         ConverterDialogComponent, {
           disableClose: true,
           panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-          data: { converterId: id }
+          data: { converterId: id, isEdgeTemplate: this.isEdgeTemplate }
         }).afterClosed().subscribe((changed) => { if (changed) { this.load(); } });
     }
   }

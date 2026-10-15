@@ -27,6 +27,10 @@ import org.thingsboard.server.cache.limits.RateLimitService;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.msg.notification.NotificationRuleProcessor;
+import org.thingsboard.server.dao.translation.CustomTranslationService;
+import org.thingsboard.server.dao.menu.CustomMenuService;
+import org.thingsboard.server.dao.ota.DeviceGroupOtaPackageService;
+import org.thingsboard.server.dao.encryptionkey.EncryptionService;
 import org.thingsboard.server.dao.ai.AiModelService;
 import org.thingsboard.server.dao.pat.ApiKeyService;
 import org.thingsboard.server.dao.alarm.AlarmCommentService;
@@ -67,21 +71,15 @@ import org.thingsboard.server.service.edge.rpc.processor.EdgeProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.ai.AiModelProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.apikey.ApiKeyProcessor;
 import org.thingsboard.server.dao.group.EntityGroupService;
-import org.thingsboard.server.service.edge.rpc.processor.group.EntityGroupProcessor;
 import org.thingsboard.server.dao.role.RoleService;
-import org.thingsboard.server.service.edge.rpc.processor.role.RoleProcessor;
 import org.thingsboard.server.dao.grouppermission.GroupPermissionService;
-import org.thingsboard.server.service.edge.rpc.processor.grouppermission.GroupPermissionProcessor;
 import org.thingsboard.server.dao.converter.ConverterService;
-import org.thingsboard.server.service.edge.rpc.processor.converter.ConverterProcessor;
 import org.thingsboard.server.dao.integration.IntegrationService;
-import org.thingsboard.server.service.edge.rpc.processor.integration.IntegrationProcessor;
 import org.thingsboard.server.dao.scheduler.SchedulerEventService;
 import org.thingsboard.server.service.edge.rpc.processor.scheduler.SchedulerEventProcessor;
 import org.thingsboard.server.dao.report.ReportTemplateService;
 import org.thingsboard.server.service.edge.rpc.processor.report.ReportTemplateProcessor;
 import org.thingsboard.server.dao.secret.SecretService;
-import org.thingsboard.server.service.edge.rpc.processor.secret.SecretProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.AlarmProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.alarm.comment.AlarmCommentProcessor;
 import org.thingsboard.server.service.edge.rpc.processor.asset.AssetEdgeProcessor;
@@ -105,7 +103,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 @Lazy
@@ -126,6 +123,12 @@ public class EdgeContextComponent {
             EdgeEventType eventType = processor.getEdgeEventType();
             if (eventType != null) {
                 processorMap.put(eventType, processor);
+            }
+            // 白标的三种事件类型共用一个 processor —— WhiteLabelingEdgeProcessor 只能从
+            // getEdgeEventType() 报出一种，另两种在这里手工登记，对齐 PE。
+            if (EdgeEventType.WHITE_LABELING.equals(eventType)) {
+                processorMap.put(EdgeEventType.LOGIN_WHITE_LABELING, processor);
+                processorMap.put(EdgeEventType.MAIL_TEMPLATES, processor);
             }
         });
         this.edgeEventProcessingExecutorService = ThingsBoardExecutors.newScheduledThreadPool(schedulerPoolSize, "edge-event-check-scheduler");
@@ -351,24 +354,21 @@ public class EdgeContextComponent {
     private SecretService secretService;
 
     @Autowired
-    @Lazy
-    private EntityGroupProcessor entityGroupProcessor;
+    private EncryptionService encryptionService;
 
     @Autowired
-    @Lazy
-    private RoleProcessor roleProcessor;
+    private DeviceGroupOtaPackageService deviceGroupOtaPackageService;
 
     @Autowired
-    @Lazy
-    private GroupPermissionProcessor groupPermissionProcessor;
+    private CustomMenuService customMenuService;
 
     @Autowired
-    @Lazy
-    private ConverterProcessor converterProcessor;
+    private CustomTranslationService customTranslationService;
 
-    @Autowired
-    @Lazy
-    private IntegrationProcessor integrationProcessor;
+
+
+
+
 
     @Autowired
     @Lazy
@@ -378,8 +378,5 @@ public class EdgeContextComponent {
     @Lazy
     private ReportTemplateProcessor reportTemplateProcessor;
 
-    @Autowired
-    @Lazy
-    private SecretProcessor secretProcessor;
 
 }

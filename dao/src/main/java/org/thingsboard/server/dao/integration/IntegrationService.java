@@ -16,6 +16,7 @@
 package org.thingsboard.server.dao.integration;
 
 import org.thingsboard.server.common.data.id.ConverterId;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.IntegrationId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.integration.Integration;
@@ -52,5 +53,21 @@ public interface IntegrationService extends EntityDaoService {
     void deleteIntegration(TenantId tenantId, IntegrationId integrationId);
 
     void deleteIntegrationsByTenantId(TenantId tenantId);
+
+
+    /**
+     * 把 edge 模板集成分配给一台 edge。只有模板能分配 —— 普通集成在云端有运行实例，
+     * 下发给 edge 会变成两个进程同时连同一个外部端点。
+     * 关系走 RelationTypeGroup.EDGE + "Contains"，与规则链一致。
+     */
+    Integration assignIntegrationToEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId);
+
+    Integration unassignIntegrationFromEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId);
+
+    PageData<Integration> findIntegrationsByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink);
+
+
+    /** 租户下的 edge 模板集成。模板与普通集成分居两个命名空间，列表互不可见。 */
+    PageData<Integration> findTenantEdgeTemplateIntegrations(TenantId tenantId, PageLink pageLink);
 
 }

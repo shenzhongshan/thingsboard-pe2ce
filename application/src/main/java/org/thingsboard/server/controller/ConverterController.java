@@ -126,6 +126,8 @@ public class ConverterController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/converters"}, params = {"pageSize", "page"})
     public PageData<Converter> getConverters(
+            @Parameter(description = "只列 edge 模板。模板与普通转换器分居两个命名空间，互不可见。")
+            @RequestParam(value = "isEdgeTemplate", required = false, defaultValue = "false") boolean isEdgeTemplate,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = "Case-insensitive 'substring' filter based on converter name")
@@ -138,6 +140,9 @@ public class ConverterController extends BaseController {
             @RequestParam(required = false) String integrationType) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.CONVERTER, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        if (isEdgeTemplate) {
+            return checkNotNull(converterService.findTenantEdgeTemplateConverters(getTenantId(), pageLink));
+        }
         IntegrationType typeFilter = StringUtils.isNotEmpty(integrationType) ? IntegrationType.valueOf(integrationType) : null;
         return converterService.findTenantConverters(getTenantId(), typeFilter, pageLink);
     }

@@ -35,9 +35,24 @@ public interface IntegrationRepository extends JpaRepository<IntegrationEntity, 
 
     List<IntegrationEntity> findByTenantId(UUID tenantId);
 
-    List<IntegrationEntity> findAllByEnabledTrue();
+    /**
+     * 启动时要真正拉起来的集成。**必须排除 edge 模板** —— 模板只存不跑，它的连接配置里
+     * 通常还带着 ${{attr}} 占位符，真去连只会一路报错；而且那是 edge 侧该跑的东西，
+     * 不该在云上占一份连接。
+     */
+    @Query("SELECT i FROM IntegrationEntity i WHERE i.enabled = true AND i.edgeTemplate = false")
+    List<IntegrationEntity> findAllEnabledNonTemplate();
 
-    @Query("SELECT i FROM IntegrationEntity i WHERE i.tenantId = :tenantId " +
+    // 模板与普通实体分居两个命名空间：列表页按这个位切分，互不可见。
+    @Query("SELECT i FROM IntegrationEntity i WHERE i.tenantId = :tenantId AND i.edgeTemplate = :isEdgeTemplate " +
+            "AND (:textSearch IS NULL OR ilike(i.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<IntegrationEntity> findByTenantIdAndIsEdgeTemplate(@Param("tenantId") UUID tenantId,
+                                                @Param("isEdgeTemplate") boolean isEdgeTemplate,
+                                                @Param("textSearch") String textSearch,
+                                                Pageable pageable);
+
+    // 普通列表必须排除模板，对齐 PE 的 findCoreIntegrationsByTenantId。
+    @Query("SELECT i FROM IntegrationEntity i WHERE i.tenantId = :tenantId AND i.edgeTemplate = false " +
             "AND (:searchText IS NULL OR ilike(i.name, CONCAT('%', :searchText, '%')) = true)")
     Page<IntegrationEntity> findByTenantId(@Param("tenantId") UUID tenantId,
                                            @Param("searchText") String searchText,
@@ -48,6 +63,17 @@ public interface IntegrationRepository extends JpaRepository<IntegrationEntity, 
     List<IntegrationEntity> findByTenantIdAndDownlinkConverterId(UUID tenantId, UUID downlinkConverterId);
 
     IntegrationEntity findByTenantIdAndName(UUID tenantId, String name);
+
+    // 分配给某台 edge 的集成。关系方向 edge -> integration，类型 "Contains"，
+    // 关系组 EDGE —— 与规则链一致，区别于分组用的 EDGE_ENTITY_GROUP_<TYPE>。
+    @Query("SELECT ie FROM IntegrationEntity ie, RelationEntity re WHERE ie.tenantId = :tenantId " +
+            "AND ie.id = re.toId AND re.toType = 'INTEGRATION' AND re.relationTypeGroup = 'EDGE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :edgeId AND re.fromType = 'EDGE' " +
+            "AND (:searchText IS NULL OR ilike(ie.name, CONCAT('%', :searchText, '%')) = true)")
+    Page<IntegrationEntity> findByTenantIdAndEdgeId(@Param("tenantId") UUID tenantId,
+                                                    @Param("edgeId") UUID edgeId,
+                                                    @Param("searchText") String searchText,
+                                                    Pageable pageable);
 
     @Query("SELECT externalId FROM IntegrationEntity WHERE id = :id")
     UUID getExternalIdById(@Param("id") UUID id);

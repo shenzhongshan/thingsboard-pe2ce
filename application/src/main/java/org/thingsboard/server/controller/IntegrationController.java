@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
@@ -113,6 +114,8 @@ public class IntegrationController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/integrations"}, params = {"pageSize", "page"})
     public PageData<Integration> getIntegrations(
+            @Parameter(description = "只列 edge 模板。模板与普通实体分居两个命名空间，互不可见。")
+            @RequestParam(value = "isEdgeTemplate", required = false, defaultValue = "false") boolean isEdgeTemplate,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = "Case-insensitive 'substring' filter based on integration name")
@@ -123,6 +126,9 @@ public class IntegrationController extends BaseController {
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        if (isEdgeTemplate) {
+            return checkNotNull(integrationService.findTenantEdgeTemplateIntegrations(getTenantId(), pageLink));
+        }
         return integrationService.findTenantIntegrations(getTenantId(), pageLink);
     }
 
@@ -133,6 +139,8 @@ public class IntegrationController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @GetMapping(value = {"/integrationInfos"}, params = {"pageSize", "page"})
     public PageData<IntegrationInfo> getIntegrationInfos(
+            @Parameter(description = "只列 edge 模板。模板与普通实体分居两个命名空间，互不可见。")
+            @RequestParam(value = "isEdgeTemplate", required = false, defaultValue = "false") boolean isEdgeTemplate,
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true) @RequestParam int page,
             @Parameter(description = "Case-insensitive 'substring' filter based on integration name")
@@ -144,7 +152,9 @@ public class IntegrationController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.INTEGRATION, Operation.READ);
         TenantId tenantId = getTenantId();
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
-        PageData<Integration> pageData = integrationService.findTenantIntegrations(tenantId, pageLink);
+        PageData<Integration> pageData = isEdgeTemplate
+                ? integrationService.findTenantEdgeTemplateIntegrations(tenantId, pageLink)
+                : integrationService.findTenantIntegrations(tenantId, pageLink);
         List<IntegrationInfo> infos = pageData.getData().stream().map(IntegrationInfo::new).toList();
         // One aggregate query for the whole page rather than one per row.
         Map<UUID, ArrayNode> statsByEntityId = infos.isEmpty()
@@ -221,6 +231,34 @@ public class IntegrationController extends BaseController {
                     ThingsboardErrorCode.PERMISSION_DENIED);
         }
         return integration;
+    }
+
+
+    @ApiOperation(value = "Assign integration to edge",
+            notes = "把integration分配给一台 edge。分配后它会随全量同步下发；关系走 RelationTypeGroup.EDGE。")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PostMapping(value = {"/edge/{edgeId}/integration/{integrationId}"})
+    public Integration assignIntegrationToEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("integrationId") String strIntegrationId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        IntegrationId entityId = new IntegrationId(toUUID(strIntegrationId));
+        return checkNotNull(integrationService.assignIntegrationToEdge(getTenantId(), entityId, edgeId));
+    }
+
+    @ApiOperation(value = "Unassign integration from edge")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @DeleteMapping(value = {"/edge/{edgeId}/integration/{integrationId}"})
+    public Integration unassignIntegrationFromEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("integrationId") String strIntegrationId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        IntegrationId entityId = new IntegrationId(toUUID(strIntegrationId));
+        return checkNotNull(integrationService.unassignIntegrationFromEdge(getTenantId(), entityId, edgeId));
     }
 
 }

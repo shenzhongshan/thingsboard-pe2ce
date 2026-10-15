@@ -30,14 +30,18 @@ export class IntegrationService {
   constructor(private http: HttpClient) {
   }
 
-  public getIntegrations(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Integration>> {
-    return this.http.get<PageData<Integration>>(`/api/integrations${pageLink.toQuery()}`,
+  public getIntegrations(pageLink: PageLink, isEdgeTemplate = false,
+                         config?: RequestConfig): Observable<PageData<Integration>> {
+    return this.http.get<PageData<Integration>>(
+      `/api/integrations${pageLink.toQuery()}&isEdgeTemplate=${isEdgeTemplate}`,
       defaultHttpOptionsFromConfig(config));
   }
 
   /** Integrations with their runtime status and 24h activity series, in one request. */
-  public getIntegrationInfos(pageLink: PageLink, config?: RequestConfig): Observable<PageData<IntegrationInfo>> {
-    return this.http.get<PageData<IntegrationInfo>>(`/api/integrationInfos${pageLink.toQuery()}`,
+  public getIntegrationInfos(pageLink: PageLink, isEdgeTemplate = false,
+                             config?: RequestConfig): Observable<PageData<IntegrationInfo>> {
+    return this.http.get<PageData<IntegrationInfo>>(
+      `/api/integrationInfos${pageLink.toQuery()}&isEdgeTemplate=${isEdgeTemplate}`,
       defaultHttpOptionsFromConfig(config));
   }
 

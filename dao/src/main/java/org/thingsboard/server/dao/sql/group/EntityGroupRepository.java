@@ -51,6 +51,23 @@ public interface EntityGroupRepository extends JpaRepository<EntityGroupEntity, 
 
     Optional<EntityGroupEntity> findByOwnerIdAndTypeAndName(UUID ownerId, EntityType type, String name);
 
+    // 分配给某个 edge 的实体分组。关系方向是 edge -> group，类型是
+    // EDGE_ENTITY_GROUP_<GROUP_TYPE>，关系组是 EDGE（与实体成员关系的 FROM_ENTITY_GROUP 区分开）。
+    @Query("SELECT e FROM EntityGroupEntity e, RelationEntity re WHERE e.id = re.toId " +
+            "AND re.toType = 'ENTITY_GROUP' AND re.relationTypeGroup = 'EDGE' " +
+            "AND re.relationType = :relationType AND re.fromId = :edgeId AND re.fromType = 'EDGE'")
+    Page<EntityGroupEntity> findEdgeEntityGroupsByType(@Param("edgeId") UUID edgeId,
+                                                       @Param("relationType") String relationType,
+                                                       Pageable pageable);
+
+    @Query("SELECT e FROM EntityGroupEntity e, RelationEntity re WHERE e.id = re.toId " +
+            "AND re.toType = 'ENTITY_GROUP' AND e.ownerId = :ownerId AND re.relationTypeGroup = 'EDGE' " +
+            "AND re.relationType = :relationType AND re.fromId = :edgeId AND re.fromType = 'EDGE'")
+    Page<EntityGroupEntity> findEdgeEntityGroupsByOwnerIdAndType(@Param("edgeId") UUID edgeId,
+                                                                 @Param("ownerId") UUID ownerId,
+                                                                 @Param("relationType") String relationType,
+                                                                 Pageable pageable);
+
     List<EntityGroupEntity> findAllByTenantId(UUID tenantId);
 
     List<EntityGroupEntity> findAllByOwnerId(UUID ownerId);

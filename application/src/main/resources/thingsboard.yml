@@ -1777,6 +1777,13 @@ edges:
   send_scheduler_pool_size: "${EDGES_SEND_SCHEDULER_POOL_SIZE:4}"
   # Number of threads that are used to convert edge events from DB into downlink messages and send them for delivery
   grpc_callback_thread_pool_size: "${EDGES_GRPC_CALLBACK_POOL_SIZE:4}"
+  license:
+    # Edge license portal the cloud forwards /api/license/* requests to. The edge asks its cloud and
+    # the cloud asks the portal - the edge never talks to the portal directly. Leave empty to disable
+    # forwarding; the endpoints then answer 503 instead of hanging on an unreachable host.
+    server_endpoint: "${EDGES_LICENSE_SERVER_ENDPOINT:https://license.thingsboard.io}"
+    # Connect/read timeout in milliseconds for the calls above.
+    timeout_ms: "${EDGES_LICENSE_TIMEOUT_MS:30000}"
   state:
     # Persist state of edge (active, last connect, last disconnect) into timeseries or attributes tables. 'false' means to store edge state into attributes table
     persistToTelemetry: "${EDGES_PERSIST_STATE_TO_TELEMETRY:false}"

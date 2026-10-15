@@ -37,6 +37,16 @@ public interface SchedulerEventInfoRepository extends JpaRepository<SchedulerEve
 
     List<SchedulerEventInfoEntity> findSchedulerEventInfoEntitiesByTenantIdAndEnabled(UUID tenantId, boolean enabled);
 
+    // 分配给某台 edge 的调度事件。关系 edge -> schedulerEvent，"Contains" + EDGE 组。
+    @Query("SELECT sei FROM SchedulerEventInfoEntity sei, RelationEntity re WHERE sei.tenantId = :tenantId " +
+            "AND sei.id = re.toId AND re.toType = 'SCHEDULER_EVENT' AND re.relationTypeGroup = 'EDGE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :edgeId AND re.fromType = 'EDGE' " +
+            "AND (:searchText IS NULL OR ilike(sei.name, CONCAT('%', :searchText, '%')) = true)")
+    Page<SchedulerEventInfoEntity> findByTenantIdAndEdgeId(@Param("tenantId") UUID tenantId,
+                                                           @Param("edgeId") UUID edgeId,
+                                                           @Param("searchText") String searchText,
+                                                           Pageable pageable);
+
     @Query("SELECT s.id FROM SchedulerEventInfoEntity s WHERE s.tenantId = :tenantId")
     List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
 

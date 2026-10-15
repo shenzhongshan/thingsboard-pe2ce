@@ -26,7 +26,7 @@ import { DashboardsTableConfigResolver } from '@home/pages/dashboard/dashboards-
 import { RuleChainsTableConfigResolver } from '@home/pages/rulechain/rulechains-table-config.resolver';
 import { DashboardPageComponent } from '@home/components/dashboard-page/dashboard-page.component';
 import { dashboardBreadcumbLabelFunction, DashboardResolver } from '@home/pages/dashboard/dashboard-routing.module';
-import { BreadCrumbConfig } from '@shared/components/breadcrumb';
+import { BreadCrumbConfig, BreadCrumbLabelFunction } from '@shared/components/breadcrumb';
 import { RuleChainPageComponent } from '@home/pages/rulechain/rulechain-page.component';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { RuleChainType } from '@shared/models/rule-chain.models';
@@ -42,6 +42,19 @@ import {
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
+import { IntegrationsComponent } from '@home/pages/integration/integration/integrations.component';
+import { ConvertersComponent } from '@home/pages/integration/converter/converters.component';
+import {
+  IntegrationEntityDetailsPageComponent
+} from '@home/pages/integration/integration-entity-details-page.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
+import { EdgeGroupEntitiesTableConfigResolver } from '@home/pages/entity-group/group-entities-table-config.resolvers';
+import { groupMembersPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
+
+const edgeIntegrationEntityBreadcrumbLabelFunction: BreadCrumbLabelFunction<IntegrationEntityDetailsPageComponent>
+  = ((route, translate, component) => component.entityName);
 
 const routes: Routes = [
   {
@@ -304,6 +317,73 @@ const routes: Routes = [
         ]
       },
       {
+        // Edge 实例本身可以分组（PE 4.3.1.1 的 groupTypes 含 EDGE）。
+        // 结构镜像 asset-routing 的 groups 分支。注意每个叶子路由都要带 auth ——
+        // AuthGuard 只看最深一层 activated route 的 data.auth，父路由上的不生效。
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.group-type-edge',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-edge',
+              groupType: EntityType.EDGE
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                labelFunction: groupMembersPageBreadcrumbLabelFunction,
+                icon: 'view_list'
+              } as BreadCrumbConfig<GroupMembersPageComponent>
+            },
+            children: [
+              {
+                path: '',
+                component: GroupMembersPageComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.group-type-edge',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'router'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'edge.edge-instances',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
         path: 'ruleChains',
         data: {
           breadcrumb: {
@@ -364,6 +444,75 @@ const routes: Routes = [
             resolve: {
               ruleNodeComponents: RuleNodeComponentsResolver,
               tooltipster: TooltipsterResolver
+            }
+          }
+        ]
+      },
+      // 集成 / 转换器模板。复用集成中心那套组件，靠 data.isEdgeTemplate 切换命名空间。
+      // auth 必须写在叶子路由上：CE 的 AuthGuard 只看最深一层 activated route 的 data.auth，
+      // 写在这一层的分组节点上不会生效。
+      {
+        path: 'integrations',
+        data: {
+          breadcrumb: {
+            menuId: MenuId.integration_templates
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: IntegrationsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-integration-templates',
+              isEdgeTemplate: true
+            }
+          },
+          {
+            path: ':integrationId',
+            component: IntegrationEntityDetailsPageComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-integration-templates',
+              kind: 'integration',
+              isEdgeTemplate: true,
+              breadcrumb: {
+                labelFunction: edgeIntegrationEntityBreadcrumbLabelFunction,
+                icon: 'input'
+              } as BreadCrumbConfig<IntegrationEntityDetailsPageComponent>
+            }
+          }
+        ]
+      },
+      {
+        path: 'converters',
+        data: {
+          breadcrumb: {
+            menuId: MenuId.converter_templates
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: ConvertersComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-converter-templates',
+              isEdgeTemplate: true
+            }
+          },
+          {
+            path: ':converterId',
+            component: IntegrationEntityDetailsPageComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-converter-templates',
+              kind: 'converter',
+              isEdgeTemplate: true,
+              breadcrumb: {
+                labelFunction: edgeIntegrationEntityBreadcrumbLabelFunction,
+                icon: 'transform'
+              } as BreadCrumbConfig<IntegrationEntityDetailsPageComponent>
             }
           }
         ]
@@ -431,7 +580,8 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    EdgesTableConfigResolver
+    EdgesTableConfigResolver,
+    EdgeGroupEntitiesTableConfigResolver
   ]
 })
 export class EdgeRoutingModule {

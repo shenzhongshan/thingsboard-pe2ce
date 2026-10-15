@@ -101,3 +101,15 @@ ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id uuid;
 -- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather than SQL
 -- NULL, because the name-uniqueness lookup is an equality match and "= NULL" never matches.
 ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;
+-- Which entity group this edge event belongs to. PE's edge sync is group-centric:
+-- DeviceUpdateMsg and friends carry entityGroupIdMSB/LSB and the value is threaded from here.
+-- NULL means the event is not group-scoped (rule chains, admin settings, ...).
+ALTER TABLE edge_event ADD COLUMN IF NOT EXISTS entity_group_id uuid;
+
+-- 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS edge_license_key varchar;
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS cloud_endpoint varchar(255);
+
+-- edge 模板位：模板只存不跑，不计配额，随 edge 同步下发。
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;

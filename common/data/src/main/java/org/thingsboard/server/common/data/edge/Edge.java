@@ -27,6 +27,8 @@ import org.thingsboard.server.common.data.HasLabel;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.HasVersion;
 import org.thingsboard.server.common.data.id.CustomerId;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -60,6 +62,15 @@ public class Edge extends BaseDataWithAdditionalInfo<EdgeId> implements HasLabel
     @Length(fieldName = "secret")
     private String secret;
 
+    // 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。edge 用它们完成自身的授权
+    // 与回连配置。EdgeController 在返回给非授权调用方时会把 edgeLicenseKey 置空。
+    @NoXss
+    @Length(fieldName = "edgeLicenseKey")
+    private String edgeLicenseKey;
+    @NoXss
+    @Length(fieldName = "cloudEndpoint")
+    private String cloudEndpoint;
+
     @Getter
     private Long version;
 
@@ -81,6 +92,8 @@ public class Edge extends BaseDataWithAdditionalInfo<EdgeId> implements HasLabel
         this.label = edge.getLabel();
         this.routingKey = edge.getRoutingKey();
         this.secret = edge.getSecret();
+        this.edgeLicenseKey = edge.getEdgeLicenseKey();
+        this.cloudEndpoint = edge.getCloudEndpoint();
         this.version = edge.getVersion();
     }
 
@@ -93,6 +106,8 @@ public class Edge extends BaseDataWithAdditionalInfo<EdgeId> implements HasLabel
         this.label = edge.getLabel();
         this.routingKey = edge.getRoutingKey();
         this.secret = edge.getSecret();
+        this.edgeLicenseKey = edge.getEdgeLicenseKey();
+        this.cloudEndpoint = edge.getCloudEndpoint();
         this.version = edge.getVersion();
     }
 
@@ -154,6 +169,17 @@ public class Edge extends BaseDataWithAdditionalInfo<EdgeId> implements HasLabel
         return this.secret;
     }
 
+    @Schema(description = "Edge license key. Sent to the edge in EdgeConfiguration. Nulled out for callers " +
+            "without CREATE/WRITE permission on the edge, since it is a credential.")
+    public String getEdgeLicenseKey() {
+        return this.edgeLicenseKey;
+    }
+
+    @Schema(description = "Cloud endpoint the edge connects back to. Sent to the edge in EdgeConfiguration.")
+    public String getCloudEndpoint() {
+        return this.cloudEndpoint;
+    }
+
     @Schema(description = "Additional parameters of the edge. " +
             "May include: 'description' (string).",
             implementation = com.fasterxml.jackson.databind.JsonNode.class,
@@ -163,4 +189,14 @@ public class Edge extends BaseDataWithAdditionalInfo<EdgeId> implements HasLabel
         return super.getAdditionalInfo();
     }
 
+
+    /**
+     * Edge 的所有者：分配给客户时是该客户，否则是租户。与 CE 其它实体（Asset/Device/...）
+     * 的派生方式一致 —— 没有独立字段，由 customerId/tenantId 推导。
+     * PE 的分组/权限链路按 ownerId 组织，[Edge] X All 分组也挂在这个 owner 下。
+     */
+    @JsonIgnore
+    public EntityId getOwnerId() {
+        return customerId != null && !customerId.isNullUid() ? customerId : tenantId;
+    }
 }

@@ -26,6 +26,7 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeInfo;
 import org.thingsboard.server.common.data.edqs.fields.EdgeFields;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -169,6 +170,27 @@ public class JpaEdgeDao extends JpaAbstractDao<EdgeEntity, Edge> implements Edge
                 edgeRepository.findEdgeInfosByTenantIdAndType(
                         tenantId,
                         type,
+                        pageLink.getTextSearch(),
+                        DaoUtil.toPageable(pageLink, EdgeInfoEntity.edgeInfoColumnMap)));
+    }
+
+    @Override
+    public PageData<EdgeInfo> findTenantEdgeInfosByTenantId(UUID tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(
+                edgeRepository.findTenantEdgeInfosByTenantId(
+                        tenantId,
+                        CustomerId.NULL_UUID,
+                        pageLink.getTextSearch(),
+                        DaoUtil.toPageable(pageLink, EdgeInfoEntity.edgeInfoColumnMap)));
+    }
+
+    @Override
+    public PageData<EdgeInfo> findTenantEdgeInfosByTenantIdAndType(UUID tenantId, String type, PageLink pageLink) {
+        return DaoUtil.toPageData(
+                edgeRepository.findTenantEdgeInfosByTenantIdAndType(
+                        tenantId,
+                        type,
+                        CustomerId.NULL_UUID,
                         pageLink.getTextSearch(),
                         DaoUtil.toPageable(pageLink, EdgeInfoEntity.edgeInfoColumnMap)));
     }
