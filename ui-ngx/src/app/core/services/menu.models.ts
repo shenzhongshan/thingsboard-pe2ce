@@ -1255,6 +1255,7 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {
             id: MenuId.oauth2,
             pages: [
+              {id: MenuId.domains},
               {id: MenuId.clients}
             ]
           }

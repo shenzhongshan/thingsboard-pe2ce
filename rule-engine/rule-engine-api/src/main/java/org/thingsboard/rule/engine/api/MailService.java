@@ -36,15 +36,21 @@ public interface MailService {
      */
     void sendTestMail(TenantId tenantId, JsonNode config, String email) throws ThingsboardException;
 
-    void sendActivationEmail(String activationLink, long ttlMs, String email) throws ThingsboardException;
+    /*
+     * The user-facing account mails below are tenant-scoped: {@code tenantId} selects both the mail
+     * sender (tenant SMTP settings, falling back to the system ones) and the MAIL_TEMPLATES white
+     * labeling used for subject/body. Pass {@code SYS_TENANT_ID} for system-level mail.
+     */
 
-    void sendAccountActivatedEmail(String loginLink, String email) throws ThingsboardException;
+    void sendActivationEmail(TenantId tenantId, String activationLink, long ttlMs, String email) throws ThingsboardException;
 
-    void sendResetPasswordEmail(String passwordResetLink, long ttlMs, String email) throws ThingsboardException;
+    void sendAccountActivatedEmail(TenantId tenantId, String loginLink, String email) throws ThingsboardException;
 
-    void sendResetPasswordEmailAsync(String passwordResetLink, long ttlMs, String email);
+    void sendResetPasswordEmail(TenantId tenantId, String passwordResetLink, long ttlMs, String email) throws ThingsboardException;
 
-    void sendPasswordWasResetEmail(String loginLink, String email) throws ThingsboardException;
+    void sendResetPasswordEmailAsync(TenantId tenantId, String passwordResetLink, long ttlMs, String email);
+
+    void sendPasswordWasResetEmail(TenantId tenantId, String loginLink, String email) throws ThingsboardException;
 
     void sendAccountLockoutEmail(String lockoutEmail, String email, Integer maxFailedLoginAttempts) throws ThingsboardException;
 

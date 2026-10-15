@@ -46,7 +46,7 @@
       @if (solutionTemplateDetails.level !== SolutionTemplateLevel.MAKER) {
         <div style="padding-bottom: 20px;">
           <span style="font-weight: bold;">{{ 'solution-template.level' | translate }}: </span>
-          <span class="level">{{solutionTemplateDetails.level}}</span>
+          <span class="level">{{SolutionTemplateLevelTranslationMap.get(solutionTemplateDetails.level) | translate}}</span>
         </div>
       }
       <mat-divider style="margin-bottom: 20px;"></mat-divider>

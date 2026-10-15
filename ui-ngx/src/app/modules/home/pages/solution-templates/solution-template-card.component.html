@@ -20,7 +20,7 @@
     <mat-card-title class="flex items-center justify-between gap-2">
       <span>{{solutionTemplate.title}}</span>
       @if (solutionTemplate.level !== SolutionTemplateLevel.MAKER) {
-        <span class="level">{{solutionTemplate.level}}</span>
+        <span class="level">{{SolutionTemplateLevelTranslationMap.get(solutionTemplate.level) | translate}}</span>
       }
     </mat-card-title>
   </mat-card-header>

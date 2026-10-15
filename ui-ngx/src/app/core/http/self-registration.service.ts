@@ -18,7 +18,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
+import { LoginResponse } from '@shared/models/login.models';
 import {
+  LocalCaptchaChallenge,
   SignUpRequest,
   SignUpResult,
   SignUpSelfRegistrationParams,
@@ -55,6 +57,11 @@ export class SelfRegistrationService {
       defaultHttpOptionsFromConfig(config));
   }
 
+  public getLocalCaptcha(config?: RequestConfig): Observable<LocalCaptchaChallenge> {
+    return this.http.get<LocalCaptchaChallenge>('/api/noauth/selfRegistration/localCaptcha',
+      defaultHttpOptionsFromConfig(config));
+  }
+
   public getPrivacyPolicy(config?: RequestConfig): Observable<string> {
     return this.http.get('/api/noauth/selfRegistration/privacyPolicy',
       { ...defaultHttpOptionsFromConfig(config), responseType: 'text' as 'json' }) as Observable<string>;
@@ -75,8 +82,9 @@ export class SelfRegistrationService {
       defaultHttpOptionsFromConfig(config));
   }
 
-  public activateUserByEmailCode(emailCode: string, config?: RequestConfig): Observable<any> {
-    return this.http.post<any>(`/api/noauth/activateByEmailCode?emailCode=${encodeURIComponent(emailCode)}`, null,
+  /** Returns a JWT pair so the activated user lands logged in rather than back at the login form. */
+  public activateUserByEmailCode(emailCode: string, config?: RequestConfig): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`/api/noauth/activateByEmailCode?emailCode=${encodeURIComponent(emailCode)}`, null,
       defaultHttpOptionsFromConfig(config));
   }
 

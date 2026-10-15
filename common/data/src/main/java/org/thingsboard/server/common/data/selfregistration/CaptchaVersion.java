@@ -5,7 +5,8 @@ import lombok.Generated;
 public enum CaptchaVersion {
     V_3("v3"),
     V_2("v2"),
-    ENTERPRISE("enterprise");
+    ENTERPRISE("enterprise"),
+    LOCAL("local");
 
     private final String name;
 

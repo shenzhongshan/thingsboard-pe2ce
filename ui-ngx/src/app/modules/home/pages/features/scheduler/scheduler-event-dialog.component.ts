@@ -41,7 +41,7 @@ import {
   newSchedulerEvent,
   SchedulerEvent,
   SchedulerEventType,
-  schedulerEventTypeNames,
+  schedulerEventTypeTranslations,
   SchedulerRepeat,
   SchedulerRepeatType,
   schedulerRepeatTypeTranslations,
@@ -79,7 +79,7 @@ export class SchedulerEventDialogComponent implements OnInit {
   AttributeScope = AttributeScope;
 
   eventTypes = Object.values(SchedulerEventType) as string[];
-  eventTypeNames = schedulerEventTypeNames;
+  eventTypeNames = schedulerEventTypeTranslations;
   repeatTypes = Object.values(SchedulerRepeatType);
   repeatTypeTranslations = schedulerRepeatTypeTranslations;
   timeUnits = Object.values(SchedulerTimeUnit);

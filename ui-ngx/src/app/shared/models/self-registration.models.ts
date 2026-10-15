@@ -14,15 +14,18 @@
 /// limitations under the License.
 ///
 
-import { CustomerId } from '@shared/models/id/customer-id';
 import { NotificationTargetId } from '@shared/models/id/notification-target-id';
 import { DomainId } from '@shared/models/id/domain-id';
+import { CustomMenuId } from '@shared/models/id/custom-menu-id';
+import { EntityGroupId } from '@shared/models/entity-group.models';
+import { GroupPermission } from '@shared/models/role.models';
 
 export enum SignUpFieldId {
   EMAIL = 'EMAIL',
+  PASSWORD = 'PASSWORD',
+  REPEAT_PASSWORD = 'REPEAT_PASSWORD',
   FIRST_NAME = 'FIRST_NAME',
   LAST_NAME = 'LAST_NAME',
-  PASSWORD = 'PASSWORD',
   PHONE = 'PHONE',
   COUNTRY = 'COUNTRY',
   STATE = 'STATE',
@@ -34,9 +37,10 @@ export enum SignUpFieldId {
 
 export const signUpFieldIdTranslations = new Map<SignUpFieldId, string>([
   [SignUpFieldId.EMAIL, 'signup.field-email'],
+  [SignUpFieldId.PASSWORD, 'signup.field-password'],
+  [SignUpFieldId.REPEAT_PASSWORD, 'signup.repeat-password'],
   [SignUpFieldId.FIRST_NAME, 'signup.field-first-name'],
   [SignUpFieldId.LAST_NAME, 'signup.field-last-name'],
-  [SignUpFieldId.PASSWORD, 'signup.field-password'],
   [SignUpFieldId.PHONE, 'signup.field-phone'],
   [SignUpFieldId.COUNTRY, 'signup.field-country'],
   [SignUpFieldId.STATE, 'signup.field-state'],
@@ -45,6 +49,9 @@ export const signUpFieldIdTranslations = new Map<SignUpFieldId, string>([
   [SignUpFieldId.ADDRESS2, 'signup.field-address2'],
   [SignUpFieldId.ZIP, 'signup.field-zip']
 ]);
+
+/** Rendered as password inputs on the public sign-up form. */
+export const passwordSignUpFields: SignUpFieldId[] = [SignUpFieldId.PASSWORD, SignUpFieldId.REPEAT_PASSWORD];
 
 export interface SignUpField {
   id: SignUpFieldId;
@@ -55,7 +62,8 @@ export interface SignUpField {
 // Values must match the backend Jackson subtype ids for CaptchaParams (@JsonTypeInfo property="version").
 export enum CaptchaVersion {
   V2 = 'v2',
-  V3 = 'v3'
+  V3 = 'v3',
+  LOCAL = 'local'
 }
 
 export interface CaptchaParams {
@@ -64,6 +72,12 @@ export interface CaptchaParams {
   secretKey?: string;
   logActionName?: string;
 }
+
+export const captchaVersionTranslations = new Map<CaptchaVersion, string>([
+  [CaptchaVersion.V2, 'self-registration.captcha-version-v2'],
+  [CaptchaVersion.V3, 'self-registration.captcha-version-v3'],
+  [CaptchaVersion.LOCAL, 'self-registration.captcha-version-local']
+]);
 
 export interface DefaultDashboardParams {
   id?: string;
@@ -85,12 +99,15 @@ export interface WebSelfRegistrationParams {
   showTermsOfUse?: boolean;
   notificationRecipient?: NotificationTargetId;
   customerTitlePrefix?: string;
-  customerId?: CustomerId;
+  /** Customer group the created customer is added to. */
+  customerGroupId?: EntityGroupId;
+  /** Roles granted to the "Self Registration Users" group of every new customer. */
+  permissions?: GroupPermission[];
+  customMenuId?: CustomMenuId;
   defaultDashboard?: DefaultDashboardParams;
   homeDashboard?: HomeDashboardParams;
   privacyPolicy?: string;
   termsOfUse?: string;
-  domainName?: string;
   domainId?: DomainId;
 }
 
@@ -106,9 +123,18 @@ export interface SignUpSelfRegistrationParams {
 export interface SignUpRequest {
   fields: { [key in SignUpFieldId]?: string };
   recaptchaResponse?: string;
+  /** Local captcha challenge id, only used when the self-registration captcha version is 'local'. */
+  captchaId?: string;
+  /** User-typed answer for the local captcha challenge. */
+  captchaAnswer?: string;
   pkgName?: string;
   platform?: string;
   appSecret?: string;
+}
+
+export interface LocalCaptchaChallenge {
+  captchaId: string;
+  image: string;
 }
 
 export enum SignUpResult {

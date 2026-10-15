@@ -31,6 +31,12 @@
     <mat-card-content style="padding-top: 16px;">
       <form [formGroup]="loginWhiteLabelingForm" (ngSubmit)="save()">
         <fieldset [disabled]="isLoading$ | async" class="flex flex-col">
+          @if (!isSysAdmin) {
+            <tb-domain-autocomplete formControlName="domainId" labelText="self-registration.domain"
+                                    requiredText="self-registration.domain-required"
+                                    (domainChanged)="onDomainChanged($event)">
+            </tb-domain-autocomplete>
+          }
           <mat-form-field class="w-full">
             <mat-label translate>white-labeling.base-url</mat-label>
             <input matInput formControlName="baseUrl" required>

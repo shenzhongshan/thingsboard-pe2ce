@@ -38,4 +38,12 @@ public interface NotificationInfo {
         return null;
     }
 
+    static NotificationInfo userRegistered(String userFullName, String userEmail) {
+        return new UserRegisteredNotificationInfo(userFullName, userEmail);
+    }
+
+    static NotificationInfo userActivated(String userFullName, String userEmail) {
+        return new UserActivatedNotificationInfo(userFullName, userEmail);
+    }
+
 }

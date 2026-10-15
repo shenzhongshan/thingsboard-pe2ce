@@ -66,7 +66,7 @@ export class EntityGroupDialogComponent implements OnInit {
 
   ngOnInit() {
     this.shareForm = this.fb.group({
-      enabled: [true],
+      enabled: [false],
       ownerId: [null],
       allUserGroup: [false],
       userGroupId: [null],

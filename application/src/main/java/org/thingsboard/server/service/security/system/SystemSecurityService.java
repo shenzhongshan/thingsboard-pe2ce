@@ -21,6 +21,7 @@ import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.security.UserCredentials;
 import org.thingsboard.server.common.data.security.model.UserPasswordPolicy;
 import org.thingsboard.server.common.data.security.model.mfa.PlatformTwoFaSettings;
@@ -38,6 +39,14 @@ public interface SystemSecurityService {
     void validatePassword(String password, UserCredentials userCredentials) throws DataValidationException;
 
     String getBaseUrl(TenantId tenantId, CustomerId customerId, HttpServletRequest httpServletRequest);
+
+    /**
+     * Resolves the base URL for links sent to a user (activation, password reset), honouring the
+     * login white labeling configured for that user's scope: customer, then tenant, then system.
+     * A white-labeled base URL only wins when its {@code prohibitDifferentUrl} flag is set;
+     * otherwise this falls back to the admin-settings/request based overload.
+     */
+    String getBaseUrl(Authority authority, TenantId tenantId, CustomerId customerId, HttpServletRequest httpServletRequest);
 
     void logLoginAction(User user, Object authenticationDetails, ActionType actionType, Exception e);
 

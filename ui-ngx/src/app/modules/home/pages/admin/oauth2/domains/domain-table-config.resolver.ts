@@ -35,7 +35,10 @@ import { Direction } from '@app/shared/models/page/sort-order';
 import { map, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 
-@Injectable()
+// providedIn: 'root' (rather than only route-level, per the OAuth2 domains table's own use) so that
+// self-registration/login-white-labeling's inline "创建新的" quick-create can reuse the exact same
+// add-domain form via AddEntityDialogComponent, without duplicating its fields in a bespoke dialog.
+@Injectable({ providedIn: 'root' })
 export class DomainTableConfigResolver  {
 
   private readonly config: EntityTableConfig<DomainInfo> = new EntityTableConfig<DomainInfo>();

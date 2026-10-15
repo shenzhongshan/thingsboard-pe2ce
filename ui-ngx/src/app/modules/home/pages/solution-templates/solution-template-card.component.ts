@@ -24,7 +24,11 @@ import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { DialogService } from '@core/services/dialog.service';
 import { SolutionService } from '@core/http/solution.service';
-import { SolutionTemplateLevel, TenantSolutionTemplateInfo } from '@shared/models/solution-template.models';
+import {
+  SolutionTemplateLevel,
+  SolutionTemplateLevelTranslationMap,
+  TenantSolutionTemplateInfo
+} from '@shared/models/solution-template.models';
 import {
   SolutionInstallDialogComponent,
   SolutionInstallDialogData
@@ -43,6 +47,7 @@ export class SolutionTemplateCardComponent extends PageComponent {
   @Output() solutionTemplateChanged = new EventEmitter<void>();
 
   SolutionTemplateLevel = SolutionTemplateLevel;
+  SolutionTemplateLevelTranslationMap = SolutionTemplateLevelTranslationMap;
 
   constructor(protected store: Store<AppState>,
               private solutionService: SolutionService,

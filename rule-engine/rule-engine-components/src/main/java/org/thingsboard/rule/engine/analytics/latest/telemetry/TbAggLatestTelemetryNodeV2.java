@@ -15,6 +15,8 @@
  */
 package org.thingsboard.rule.engine.analytics.latest.telemetry;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -35,6 +37,7 @@ import org.thingsboard.server.common.data.plugin.ComponentType;
 import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
+import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 
@@ -54,6 +57,7 @@ import java.util.concurrent.TimeUnit;
         type = ComponentType.ANALYTICS,
         name = "aggregate latest",
         hasQueueName = true,
+        version = 1,
         configClazz = TbAggLatestTelemetryNodeV2Configuration.class,
         nodeDescription = "Aggregates data based on incoming event",
         nodeDetails = "Performs aggregation of attributes or latest time-series fetched from related entities. Generates outgoing " +
@@ -181,6 +185,22 @@ public class TbAggLatestTelemetryNodeV2 implements TbNode {
     @Override
     public void destroy() {
         lastMsgMap.clear();
+    }
+
+    @Override
+    public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) throws TbNodeException {
+        boolean hasChanges = false;
+        switch (fromVersion) {
+            case 0:
+                if (oldConfiguration.has("queueName")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).remove("queueName");
+                }
+                break;
+            default:
+                break;
+        }
+        return new TbPair<>(hasChanges, oldConfiguration);
     }
 
 }

@@ -106,6 +106,13 @@ public interface EntityGroupService {
     EntityGroup findOrCreatePublicUsersGroup(TenantId tenantId, CustomerId customerId);
 
     /**
+     * Ensures + returns a named USER group under the given owner, idempotently (PE parity: used by
+     * self-registration to provision its "Self Registration Users" group). The description is stored
+     * in the group's {@code additionalInfo.description}.
+     */
+    EntityGroup findOrCreateUserGroup(TenantId tenantId, CustomerId ownerId, String name, String description);
+
+    /**
      * All entity-group ids the given entity belongs to: its tenant-level (and, if customerId is
      * provided, its customer-level) implicit "All" group, plus any explicit group memberships
      * (relations). Used by permission enforcement to resolve GROUP-role scoping.

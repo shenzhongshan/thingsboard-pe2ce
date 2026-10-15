@@ -279,6 +279,8 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
         connectivitySettings.setKey("connectivity");
         connectivitySettings.setJsonValue(JacksonUtil.valueToTree(connectivityConfiguration.getConnectivity()));
         adminSettingsService.saveAdminSettings(TenantId.SYS_TENANT_ID, connectivitySettings);
+
+        installScripts.loadMailTemplates();
     }
 
     @Override

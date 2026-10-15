@@ -1,6 +1,6 @@
-**NOTE**: Package installer may ask you to merge your tb-edge configuration. It is preferred to use **merge option** to make sure that all your previous parameters will not be overwritten.
+**注意**：软件包安装程序可能会询问是否合并 tb-edge 配置，建议选择 **合并（merge）选项**，以确保之前的全部参数不会被覆盖。
 
-Execute regular upgrade script:
+执行常规升级脚本：
 
 ```bash
 sudo /usr/share/tb-edge/bin/install/upgrade.sh --fromVersion=${FROM_TB_EDGE_VERSION}

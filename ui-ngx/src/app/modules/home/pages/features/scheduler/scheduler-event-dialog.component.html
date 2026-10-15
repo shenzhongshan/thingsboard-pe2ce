@@ -40,7 +40,7 @@
                 <mat-label translate>scheduler.event-type</mat-label>
                 <mat-select formControlName="type" required>
                   @for (type of eventTypes; track type) {
-                    <mat-option [value]="type">{{ eventTypeNames.get(type) }}</mat-option>
+                    <mat-option [value]="type">{{ eventTypeNames.get(type) | translate }}</mat-option>
                   }
                 </mat-select>
                 @if (form.get('type').hasError('required')) {

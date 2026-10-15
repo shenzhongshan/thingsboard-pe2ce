@@ -1,13 +1,13 @@
-#### Decoder example JavaScript function
+#### 解码器函数示例
 
 ```javascript
 {:code-style="max-height: 500px;"}
 
-// decode payload to JSON. See helper function below
+// 将 payload 解码为 JSON，参见下方辅助函数
 var json = decodeToJson(payload);
-// convert date to epoch in milliseconds
+// 将日期字符串转换为毫秒级时间戳
 var timestamp = Date.parse(json.ts);
-// Construct result object with time-series data
+// 构造包含时间序列数据的结果对象
 var result = {
     deviceName: json.serialNumber,
     deviceType: "Thermostat",

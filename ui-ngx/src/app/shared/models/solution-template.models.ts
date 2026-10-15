@@ -22,6 +22,12 @@ export enum SolutionTemplateLevel {
   STARTUP = 'STARTUP'
 }
 
+export const SolutionTemplateLevelTranslationMap = new Map<SolutionTemplateLevel, string>([
+  [SolutionTemplateLevel.MAKER, 'solution-template.level-maker'],
+  [SolutionTemplateLevel.PROTOTYPE, 'solution-template.level-prototype'],
+  [SolutionTemplateLevel.STARTUP, 'solution-template.level-startup']
+]);
+
 export interface SolutionTemplate {
   id: string;
   title: string;

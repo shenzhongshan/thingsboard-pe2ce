@@ -1,13 +1,13 @@
-#### Decoder example JavaScript function
+#### 解码器 JavaScript 函数示例
 
 ```javascript
 {:code-style="max-height: 500px;"}
 
-// decode payload to string. See helper function below
+// 将 payload 解码为字符串，参见下方辅助函数
 var str = decodeToString(payload);
-// split the string to an array of strings using ',' delimiter
+// 使用 ',' 分隔符将字符串拆分为字符串数组
 var csv = str.split(',');
-// Construct result object with time-series data
+// 构造包含时间序列数据的结果对象
 var result = {
     deviceName: csv[0],
     deviceType: "Thermostat",
@@ -18,7 +18,7 @@ var result = {
     }
 };
 
-/** Helper function to decode raw payload bytes to string**/
+/** 辅助函数：将原始 payload 字节解码为字符串 **/
 function decodeToString(payload) {
     return String.fromCharCode.apply(String, payload);
 }

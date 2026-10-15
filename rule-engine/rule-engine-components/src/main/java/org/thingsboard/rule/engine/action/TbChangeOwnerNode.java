@@ -16,6 +16,7 @@
 package org.thingsboard.rule.engine.action;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -143,7 +144,19 @@ public class TbChangeOwnerNode implements TbNode {
 
     @Override
     public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) {
-        return new TbPair<>(false, oldConfiguration);
+        boolean hasChanges = false;
+        switch (fromVersion) {
+            case 0:
+                if (!oldConfiguration.has("createOwnerOnOriginatorLevel")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).put("createOwnerOnOriginatorLevel", false);
+                    ((ObjectNode) oldConfiguration).remove("ownerCacheExpiration");
+                }
+                break;
+            default:
+                break;
+        }
+        return new TbPair<>(hasChanges, oldConfiguration);
     }
 
 }

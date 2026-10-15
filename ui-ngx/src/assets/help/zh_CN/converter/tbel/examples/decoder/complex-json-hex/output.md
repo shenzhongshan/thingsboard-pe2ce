@@ -1,4 +1,4 @@
-#### Decoder example output
+#### 解码器示例输出
 
 ```json
 [{

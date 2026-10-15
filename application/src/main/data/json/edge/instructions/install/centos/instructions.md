@@ -1,38 +1,38 @@
-Here is the list of commands that can be used to quickly install ThingsBoard Edge on RHEL/CentOS 9/10 and connect to the server.
+以下是在 RHEL/CentOS 9/10 上快速安装 ThingsBoard Edge 并连接到服务器的命令列表。
 
-**Note:** OpenJDK 25 requires RHEL/CentOS 9+ or RHEL/CentOS 10+. Earlier versions (RHEL/CentOS 7, 8) are not supported.
+**注意：** OpenJDK 25 需要 RHEL/CentOS 9+ 或 RHEL/CentOS 10+，不支持更早版本（RHEL/CentOS 7、8）。
 
-#### Prerequisites
-Before continuing to installation, execute the following commands to install the necessary tools:
+#### 前置条件
+在继续安装之前，请执行以下命令安装必要的工具：
 
 ```bash
 sudo dnf install -y nano wget
 {:copy-code}
 ```
 
-#### Step 1. Install Java 25 (OpenJDK)
-ThingsBoard service is running on Java 25. To install OpenJDK 25, follow these instructions:
+#### 步骤 1. 安装 Java 25（OpenJDK）
+ThingsBoard 服务运行在 Java 25 上。请按以下步骤安装 OpenJDK 25：
 
 ```bash
 sudo dnf install -y java-25-openjdk
 {:copy-code}
 ```
 
-Configure your operating system to use OpenJDK 25 by default. You can configure the default version by running the following command:
+将操作系统的默认 Java 配置为 OpenJDK 25，可通过以下命令配置默认版本：
 
 ```bash
 sudo update-alternatives --config java
 {:copy-code}
 ```
 
-To check the installed Java version on your system, use the following command:
+要检查系统上已安装的 Java 版本，使用以下命令：
 
 ```bash
 java -version
 {:copy-code}
 ```
 
-The expected result is:
+预期结果：
 
 ```text
 openjdk version "25.x.xx"
@@ -40,39 +40,39 @@ OpenJDK Runtime Environment (...)
 OpenJDK 64-Bit Server VM (build ...)
 ```
 
-#### Step 2. Configure ThingsBoard Edge Database
+#### 步骤 2. 配置 ThingsBoard Edge 数据库
 
-ThingsBoard Edge supports **SQL** and **hybrid** database configurations.
-In this guide, we'll use an **SQL** database.
-For more details about the hybrid setup, please refer to the official installation instructions on the <a href="https://allshen.org/docs/user-guide/install/edge/rhel/#step-2-configure-thingsboard-database" target="_blank">ThingsBoard documentation site</a>.
+ThingsBoard Edge 支持 **SQL** 和 **混合（hybrid）** 两种数据库配置。
+本指南使用 **SQL** 数据库。
+关于混合配置的更多细节，请参考 <a href="https://allshen.org/docs/user-guide/install/edge/rhel/#step-2-configure-thingsboard-database" target="_blank">ThingsBoard 官方安装文档</a>。
 
-To install the PostgreSQL database, run these commands:
+运行以下命令安装 PostgreSQL 数据库：
 
 ```bash
-# Update your system
+# 更新系统
 sudo dnf update
 {:copy-code}
 ```
 
-Install the repository RPM:
+安装仓库 RPM：
 
-* **For RHEL/CentOS 9:**
+* **RHEL/CentOS 9：**
 
 ```bash
-# Install the repository RPM (for RHEL/CentOS 9):
+# 安装仓库 RPM（适用于 RHEL/CentOS 9）：
 sudo dnf -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 {:copy-code}
 ```
 
-* **For RHEL/CentOS 10:**
+* **RHEL/CentOS 10：**
 
 ```bash
-# Install the repository RPM (for RHEL/CentOS 10):
+# 安装仓库 RPM（适用于 RHEL/CentOS 10）：
 sudo dnf -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm
 {:copy-code}
 ```
 
-Install packages and initialize PostgreSQL. The PostgreSQL service will automatically start every time the system boots up.
+安装软件包并初始化 PostgreSQL。PostgreSQL 服务会在系统每次启动时自动启动。
 
 ```bash
 sudo dnf -qy module disable postgresql && \
@@ -82,53 +82,53 @@ sudo systemctl enable --now postgresql-16
 {:copy-code}
 ```
 
-Once PostgreSQL is installed, it is recommended to set the password for the PostgreSQL main user.
+PostgreSQL 安装完成后，建议为 PostgreSQL 主用户设置密码。
 
-The following command will switch the current user to the PostgreSQL user and set the password directly in PostgreSQL.
+以下命令会切换到 PostgreSQL 用户并直接在 PostgreSQL 中设置密码。
 
 ```bash
 sudo -u postgres psql -c "\password"
 {:copy-code}
 ```
 
-Then, enter and confirm the password.
+然后输入并确认密码。
 
-Since ThingsBoard Edge uses the PostgreSQL database for local storage, configuring MD5 authentication ensures that only authenticated users or
-applications can access the database, thus protecting your data. After configuring the password,
-edit the pg_hba.conf file to use MD5 hashing for authentication instead of the default method (ident) for local IPv4 connections.
+由于 ThingsBoard Edge 使用 PostgreSQL 数据库做本地存储，配置 MD5 身份验证可以确保只有经过身份验证的用户或
+应用程序才能访问数据库，从而保护你的数据。设置密码后，
+编辑 pg_hba.conf 文件，将本地 IPv4 连接的默认认证方式（ident）改为 MD5 哈希认证。
 
-To replace ident with md5, run the following command:
+执行以下命令将 ident 替换为 md5：
 
 ```bash
 sudo sed -i 's/^host\s\+all\s\+all\s\+127\.0\.0\.1\/32\s\+ident/host    all             all             127.0.0.1\/32            md5/' /var/lib/pgsql/16/data/pg_hba.conf
 {:copy-code}
 ```
 
-Then run the command that will restart the PostgreSQL service to apply configuration changes, connect to the database as a postgres user,
-and create the ThingsBoard Edge database (tb_edge). To connect to the PostgreSQL database, enter the PostgreSQL password.
+然后运行以下命令：重启 PostgreSQL 服务以应用配置更改，以 postgres 用户连接数据库，
+并创建 ThingsBoard Edge 数据库（tb_edge）。连接 PostgreSQL 数据库时，需输入 PostgreSQL 密码。
 
 ```bash
 sudo systemctl restart postgresql-16.service && psql -U postgres -d postgres -h 127.0.0.1 -W -c "CREATE DATABASE tb_edge;"
 {:copy-code}
 ```
 
-#### Step 3. ThingsBoard Edge Service Installation
-Download installation package:
+#### 步骤 3. 安装 ThingsBoard Edge 服务
+下载安装包：
 
 ```bash
 wget https://github.com/thingsboard/thingsboard-edge/releases/download/v${TB_EDGE_TAG}/tb-edge-${TB_EDGE_TAG}.rpm
 {:copy-code}
 ```
 
-Go to the download repository and install ThingsBoard Edge service:
+进入下载目录，安装 ThingsBoard Edge 服务：
 
 ```bash
 sudo rpm -Uvh tb-edge-${TB_EDGE_TAG}.rpm
 {:copy-code}
 ```
 
-#### Step 4. Configure ThingsBoard Edge
-To configure ThingsBoard Edge, you can use the following command to automatically update the configuration file with specific values:
+#### 步骤 4. 配置 ThingsBoard Edge
+可使用以下命令自动将指定的配置值写入配置文件：
 
 ```bash
 sudo sh -c 'cat <<EOL >> /etc/tb-edge/conf/tb-edge.conf
@@ -141,8 +141,8 @@ EOL'
 {:copy-code}
 ```
 
-##### [Optional] Configure PostgreSQL Connection
-If you changed PostgreSQL default datasource settings, use the following command:
+##### [可选] 配置 PostgreSQL 连接
+如果修改过 PostgreSQL 的默认数据源设置，请使用以下命令：
 
 ```bash
 sudo sh -c 'cat <<EOL >> /etc/tb-edge/conf/tb-edge.conf
@@ -153,12 +153,12 @@ EOL'
 {:copy-code}
 ```
 
-* **PUT_YOUR_POSTGRESQL_PASSWORD_HERE**: Replace with your actual **PostgreSQL user password**.
+* **PUT_YOUR_POSTGRESQL_PASSWORD_HERE**：替换为你实际的 **PostgreSQL 用户密码**。
 
-##### [Optional] Update Bind Ports
-If ThingsBoard Edge runs on the same machine as the ThingsBoard Server, you need to update the port configuration to avoid conflicts between the two services.
+##### [可选] 修改绑定端口
+如果 ThingsBoard Edge 与 ThingsBoard Server 运行在同一台机器上，需要修改端口配置以避免两个服务间的端口冲突。
 
-Please execute the following command to update ThingsBoard Edge configuration file (**/etc/tb-edge/conf/tb-edge.conf**):
+请执行以下命令更新 ThingsBoard Edge 配置文件（**/etc/tb-edge/conf/tb-edge.conf**）：
 
 ```bash
 sudo sh -c 'cat <<EOL >> /etc/tb-edge/conf/tb-edge.conf
@@ -171,26 +171,26 @@ EOL'
 {:copy-code}
 ```
 
-Make sure that ports **18080**, **11883**, and **15683–15688** are not being used by any other applications.
+请确认端口 **18080**、**11883** 和 **15683–15688** 未被其他应用占用。
 
-#### Step 5. Run Installation Script
+#### 步骤 5. 运行安装脚本
 
-Once ThingsBoard Edge is installed and configured, please execute the following install script:
+ThingsBoard Edge 安装并配置完成后，请执行以下安装脚本：
 
 ```bash
 sudo /usr/share/tb-edge/bin/install/install.sh
 {:copy-code}
 ```
 
-#### Step 6. Start ThingsBoard Edge Service
+#### 步骤 6. 启动 ThingsBoard Edge 服务
 
 ```bash
 sudo service tb-edge start
 {:copy-code}
 ```
 
-#### Step 7. Open ThingsBoard Edge UI
+#### 步骤 7. 打开 ThingsBoard Edge 界面
 
-Once the Edge service has started, open the Edge web interface at http://localhost:8080, or http://localhost:18080 if you modified the HTTP bind port configuration in the previous step.
+Edge 服务启动后，访问 http://localhost:8080 打开 Edge 的 Web 界面；如果上一步修改了 HTTP 绑定端口，则访问 http://localhost:18080。
 
-Log in using your **tenant credentials** from either your local ThingsBoard Server or the **ThingsBoard Live Demo**.
+使用来自本地 ThingsBoard Server 或 **ThingsBoard Live Demo** 的 **租户账号** 登录。

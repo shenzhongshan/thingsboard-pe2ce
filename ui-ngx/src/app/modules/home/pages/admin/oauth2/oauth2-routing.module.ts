@@ -66,7 +66,7 @@ export const oAuth2Routes: Routes = [
         path: 'domains',
         component: EntitiesTableComponent,
         data: {
-          auth: [Authority.SYS_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
           title: 'admin.oauth2.domains',
           breadcrumb: {
             menuId: MenuId.domains
@@ -127,8 +127,10 @@ export const oAuth2Routes: Routes = [
 @NgModule({
   providers: [
     OAuth2LoginProcessingUrlResolver,
-    ClientsTableConfigResolver,
-    DomainTableConfigResolver
+    ClientsTableConfigResolver
+    // DomainTableConfigResolver is providedIn: 'root' (see the resolver itself) so it can be
+    // reused outside this module's route tree, by self-registration/login-white-labeling's
+    // inline domain quick-create.
   ],
   imports: [RouterModule.forChild(oAuth2Routes)],
   exports: [RouterModule]

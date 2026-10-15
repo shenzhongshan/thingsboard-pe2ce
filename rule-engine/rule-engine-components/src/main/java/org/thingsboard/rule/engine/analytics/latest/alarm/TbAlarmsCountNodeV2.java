@@ -15,6 +15,7 @@
  */
 package org.thingsboard.rule.engine.analytics.latest.alarm;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.rule.engine.api.RuleNode;
@@ -32,6 +33,7 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.page.TimePageLink;
 import org.thingsboard.server.common.data.plugin.ComponentType;
+import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.msg.TbMsg;
 import org.thingsboard.server.common.msg.TbMsgMetaData;
 
@@ -40,6 +42,7 @@ import org.thingsboard.server.common.msg.TbMsgMetaData;
         name = "alarms count",
         configClazz = TbAlarmsCountNodeV2Configuration.class,
         hasQueueName = true,
+        version = 2,
         nodeDescription = "Counts alarms by msg originator",
         nodeDetails = "Performs count of alarms for the message originator. Generates outgoing messages with alarm count " +
                 "values for the originator. By default, an outgoing message generates with 'POST_TELEMETRY_REQUEST' type. " +
@@ -99,6 +102,27 @@ public class TbAlarmsCountNodeV2 implements TbNode {
             obj.put(mapping.getTarget(), count);
         }
         return obj;
+    }
+
+    @Override
+    public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) throws TbNodeException {
+        boolean hasChanges = false;
+        switch (fromVersion) {
+            case 0:
+                if (!oldConfiguration.hasNonNull("outMsgType")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).put("outMsgType", TbMsgType.POST_TELEMETRY_REQUEST.name());
+                }
+            case 1:
+                if (oldConfiguration.has("queueName")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).remove("queueName");
+                }
+                break;
+            default:
+                break;
+        }
+        return new TbPair<>(hasChanges, oldConfiguration);
     }
 
 }

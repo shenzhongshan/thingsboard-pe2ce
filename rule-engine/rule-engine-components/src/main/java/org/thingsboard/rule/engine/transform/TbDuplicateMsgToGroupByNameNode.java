@@ -15,6 +15,8 @@
  */
 package org.thingsboard.rule.engine.transform;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.rule.engine.api.RuleNode;
 import org.thingsboard.rule.engine.api.TbContext;
@@ -27,6 +29,7 @@ import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.plugin.ComponentType;
+import org.thingsboard.server.common.data.util.TbPair;
 import org.thingsboard.server.common.msg.TbMsg;
 
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.List;
         type = ComponentType.TRANSFORMATION,
         name = "duplicate to group by name",
         configClazz = TbDuplicateMsgToGroupByNameNodeConfiguration.class,
+        version = 1,
         nodeDescription = "Duplicates message to all entities belonging to resolved Entity group",
         nodeDetails = "Entities are fetched from entity group that is detected according to the configuration. When " +
                 "<b>\"search entity group on Tenant level only\"</b> is enabled, the search is restricted to the Tenant level only. " +
@@ -96,6 +100,16 @@ public class TbDuplicateMsgToGroupByNameNode extends TbAbstractDuplicateMsgNode<
             return tryFindGroupByOwnerId(ctx, parentOwnerId != null ? parentOwnerId : ctx.getTenantId(), groupName);
         }
         throw new RuntimeException("Can't find group with type: " + config.getGroupType() + " name: " + groupName + "!");
+    }
+
+    @Override
+    public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) throws TbNodeException {
+        boolean hasChanges = false;
+        if (fromVersion == 0 && !oldConfiguration.has("considerMessageOriginatorAsAGroupOwner")) {
+            hasChanges = true;
+            ((ObjectNode) oldConfiguration).put("considerMessageOriginatorAsAGroupOwner", false);
+        }
+        return new TbPair<>(hasChanges, oldConfiguration);
     }
 
 }

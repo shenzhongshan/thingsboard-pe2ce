@@ -28,6 +28,8 @@ import org.thingsboard.server.config.annotations.ApiOperation;
 import org.thingsboard.server.controller.BaseController;
 import org.thingsboard.server.dao.wl.WhiteLabelingService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
+import org.thingsboard.server.service.security.captcha.LocalCaptchaChallenge;
+import org.thingsboard.server.service.security.captcha.LocalCaptchaService;
 import org.thingsboard.server.service.security.model.SecurityUser;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -38,6 +40,8 @@ public class SelfRegistrationController
 extends BaseController {
     @Autowired
     private WhiteLabelingService whiteLabelingService;
+    @Autowired
+    private LocalCaptchaService localCaptchaService;
 
     private static final String PRIVACY_POLICY = "privacyPolicy";
     private static final String TERMS_OF_USE = "termsOfUse";
@@ -133,6 +137,12 @@ extends BaseController {
             return termsOfUse.get(TERMS_OF_USE).toString();
         }
         return "";
+    }
+
+    @ApiOperation(value="Get a local (self-hosted) captcha challenge (getLocalCaptcha)", notes="Generates a self-hosted captcha image for the 'local' captcha version. Available for non-authorized users. Not scoped to any tenant/domain - the image is produced by the system-wide configured local captcha provider (security.captcha.local.provider).")
+    @GetMapping(value={"/noauth/selfRegistration/localCaptcha"})
+    public LocalCaptchaChallenge getLocalCaptcha() {
+        return this.localCaptchaService.createChallenge();
     }
 
     private void checkSelfRegistrationPermissions(Operation operation) throws ThingsboardException {
