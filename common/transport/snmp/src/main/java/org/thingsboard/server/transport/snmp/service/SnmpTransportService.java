@@ -290,15 +290,12 @@ public class SnmpTransportService implements TbTransportService, CommandResponde
         }
 
         PDU responsePdu = event.getResponse();
-        log.trace("[{}] Received PDU: {}", sessionContext.getDeviceId(), responsePdu);
 
         List<PDU> response;
         if (requestContext.getRequestSize() == 1) {
             if (responsePdu == null) {
-                if (requestContext.getMethod() == SnmpMethod.GET) {
-                    log.debug("[{}][{}] Empty response from device", sessionContext.getDeviceId(), event.getRequest().getRequestID());
-                    transportService.errorEvent(sessionContext.getTenantId(), sessionContext.getDeviceId(), requestContext.getCommunicationSpec().getLabel(), new RuntimeException("No response from device"));
-                }
+                log.debug("[{}][{}] Empty response from device", sessionContext.getDeviceId(), event.getRequest().getRequestID());
+                transportService.errorEvent(sessionContext.getTenantId(), sessionContext.getDeviceId(), requestContext.getCommunicationSpec().getLabel(), new RuntimeException("No response from device"));
                 return;
             }
             response = List.of(responsePdu);
@@ -315,6 +312,15 @@ public class SnmpTransportService implements TbTransportService, CommandResponde
                 log.debug("[{}] All {} response parts are collected for request", sessionContext.getDeviceId(), responseParts.size());
             } else {
                 log.trace("[{}] Awaiting other response parts for request", sessionContext.getDeviceId());
+                return;
+            }
+        }
+
+        for (PDU pdu : response) {
+            if (pdu.getErrorStatus() != PDU.noError) {
+                log.warn("[{}] SNMP {} request failed: {}", sessionContext.getDeviceId(), requestContext.getMethod(), pdu.getErrorStatusText());
+                transportService.errorEvent(sessionContext.getTenantId(), sessionContext.getDeviceId(), requestContext.getCommunicationSpec().getLabel(),
+                        new RuntimeException("Device returned SNMP error: " + pdu.getErrorStatusText()));
                 return;
             }
         }
