@@ -9,6 +9,27 @@ export interface SmartLightningHistoryYAxisRange {
   max: number;
 }
 
+/** 历史回顾弹窗可选用业务模块提供的键名、单位和状态定义。 */
+export interface SmartLightningHistoryMetricDefinition {
+  readonly key: string;
+  readonly label: string;
+  readonly unit?: string;
+  readonly valueType?: 'status' | 'telemetry';
+  readonly chartable?: boolean;
+}
+
+/** 将防雷的共享定义投影为回顾弹窗统一结构，供电气安全覆盖型号配置。 */
+const resolveHistoryMetricDefinitions = (
+  deviceProfileName: string,
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[]
+): readonly SmartLightningHistoryMetricDefinition[] => metricDefinitions ??
+  getSmartLightningRealtimeMetricDefinitions(deviceProfileName).map((definition) => ({
+    key: definition.key,
+    label: definition.label,
+    unit: definition.unit,
+    valueType: definition.valueType
+  }));
+
 /** 折线图只接收可解析为有限数值的数据，并按时间从旧到新排序。 */
 export const buildSmartLightningHistoryPoints = (
   timeseries: TimeseriesData,
@@ -47,25 +68,39 @@ export const getSmartLightningHistoryYAxisRange = (
 };
 
 /** 已配置的设备参数显示中文业务名，同时保留原始遥测 key 便于排障。 */
-export const getSmartLightningTelemetryParameterLabel = (deviceProfileName: string, key: string): string => {
-  const definition = getSmartLightningRealtimeMetricDefinitions(deviceProfileName)
-    .find((item) => item.key === key);
+export const getSmartLightningTelemetryParameterLabel = (
+  deviceProfileName: string,
+  key: string,
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[]
+): string => {
+  const definitions = resolveHistoryMetricDefinitions(deviceProfileName, metricDefinitions);
+  const definition = definitions.find((item) => item.key === key);
   return definition ? `${definition.label}（${key}）` : key;
 };
 
 /** 返回指定遥测参数的单位；未配置的参数返回空字符串。 */
-export const getSmartLightningTelemetryParameterUnit = (deviceProfileName: string, key: string): string =>
-  getSmartLightningRealtimeMetricDefinitions(deviceProfileName).find((item) => item.key === key)?.unit || '';
+export const getSmartLightningTelemetryParameterUnit = (
+  deviceProfileName: string,
+  key: string,
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[]
+): string => {
+  const definitions = resolveHistoryMetricDefinitions(deviceProfileName, metricDefinitions);
+  return definitions.find((item) => item.key === key)?.unit || '';
+};
 
 /** 回顾趋势只展示数值参数，状态/枚举值不放入单选列表。 */
-export const filterSmartLightningTelemetryParameters = (deviceProfileName: string, keys: string[]): string[] => {
-  const definitions = getSmartLightningRealtimeMetricDefinitions(deviceProfileName);
+export const filterSmartLightningTelemetryParameters = (
+  deviceProfileName: string,
+  keys: string[],
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[]
+): string[] => {
+  const definitions = resolveHistoryMetricDefinitions(deviceProfileName, metricDefinitions);
   return keys.filter((key) => {
     // 在线状态和活跃时间不是历史指标，不放入设备数据查询参数列表。
     if (['active', 'inactivityAlarmTime', 'lastActivityTime'].includes(key)) {
       return false;
     }
     const definition = definitions.find((item) => item.key === key);
-    return definition?.valueType !== 'status' && !/(status|state)$/i.test(key);
+    return definition?.valueType !== 'status' && definition?.chartable !== false && !/(status|state)$/i.test(key);
   });
 };

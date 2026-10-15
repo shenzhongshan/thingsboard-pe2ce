@@ -116,7 +116,7 @@ export interface SmartLightningRealtimeArcFault {
   status: string;
 }
 
-/** 数据监测页五个实时板块的统一响应。 */
+/** 数据监测页实时汇总响应；arcFault 字段保留兼容旧接口，前端卡片已迁至电气安全模块。 */
 export interface SmartLightningRealtimeAnalysis {
   overall: SmartLightningRealtimeOverall;
   spd: SmartLightningRealtimeSpd;

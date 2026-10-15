@@ -16,7 +16,7 @@ export enum SmartLightningPeriod {
   month = 'month'
 }
 
-export type SmartLightningChartId = 'ground' | 'spd' | 'alarm' | 'orders' | 'lightning';
+export type SmartLightningChartId = 'ground' | 'spd' | 'orders' | 'lightning';
 
 export type SmartLightningChartPeriods = Record<SmartLightningChartId, SmartLightningPeriod>;
 
@@ -27,7 +27,6 @@ export const SMART_LIGHTNING_ALARM_DISPLAY_LIMIT = 10;
 export const defaultSmartLightningChartPeriods: SmartLightningChartPeriods = {
   ground: SmartLightningPeriod.day,
   spd: SmartLightningPeriod.day,
-  alarm: SmartLightningPeriod.day,
   orders: SmartLightningPeriod.day,
   lightning: SmartLightningPeriod.day
 };
@@ -115,38 +114,6 @@ export interface SmartLightningAlarmTypeTotal {
   count: number;
 }
 
-export type SmartLightningAlarmChartState = 'loading' | 'error' | 'empty' | 'ready';
-
-/** 区分“接口不可用”与“确认没有告警”两种空状态。 */
-export const getSmartLightningAlarmChartState = (
-  loading: boolean,
-  loadError: boolean,
-  alarmTypeTotals: SmartLightningAlarmTypeTotal[]
-): SmartLightningAlarmChartState => {
-  if (loading) {
-    return 'loading';
-  }
-  if (loadError) {
-    return 'error';
-  }
-  return alarmTypeTotals.length ? 'ready' : 'empty';
-};
-
-/** 加载失败时保持静默，避免图表面板闪现短暂的空状态提示。 */
-export const getSmartLightningAlarmChartMessage = (
-  loading: boolean,
-  loadError: boolean,
-  alarmTypeTotals: SmartLightningAlarmTypeTotal[]
-): string | undefined => {
-  switch (getSmartLightningAlarmChartState(loading, loadError, alarmTypeTotals)) {
-    case 'error':
-      return '告警统计加载失败';
-    case 'empty':
-      return '当前没有未清除告警';
-    default:
-      return undefined;
-  }
-};
 /** 只统计当前未清除的告警，并按 ThingsBoard 告警类型分组。 */
 export const aggregateSmartLightningActiveAlarms = (alarms: AlarmInfo[]): SmartLightningAlarmTypeTotal[] => {
   const counts = new Map<string, number>();

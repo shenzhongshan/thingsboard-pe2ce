@@ -8,7 +8,7 @@
 .asset-panel { min-height: calc(100vh - 120px); padding: 16px 14px 16px 0; }.asset-panel-title { display: flex; align-items: baseline; justify-content: space-between; }.asset-panel h2, .monitoring-heading h1, .monitoring-heading p, .analysis-title h2, .selection-summary h2, .selection-summary p, .overview-toolbar h2, .device-card h3, .device-body p { margin: 0; }.asset-panel-title h2 { font-size: 16px; }.asset-panel-title span { color: #718397; font-size: 11px; }
 .asset-search, .device-search { display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: 34px; padding: 0 8px; border: 1px solid #ccd7e0; border-radius: 5px; color: #6a8093; background: #fff; }.asset-search { margin: 14px 0 10px; }.asset-search input, .device-search input { min-width: 0; width: 100%; border: 0; outline: 0; color: #344f65; font: inherit; font-size: 12px; }.asset-search tb-icon, .device-search tb-icon { font-size: 18px; }
 .asset-state { display: grid; min-height: 100px; place-items: center; color: #73879a; font-size: 12px; }.asset-state.error { color: #c72f3d; }.asset-tree { display: grid; gap: 2px; }.asset-node { --depth: 0; display: flex; align-items: center; width: 100%; min-height: 32px; padding: 0 4px 0 calc(4px + var(--depth) * 19px); border: 0; border-left: 4px solid transparent; color: #476075; background: transparent; cursor: pointer; font: inherit; font-size: 13px; text-align: left; transition: background-color .15s ease, color .15s ease; }.asset-node:hover { color: #063b79; background: #cfe5ff; }.asset-node.selected { color: #fff; background: #1267db; border-left-color: #16df65; box-shadow: 0 2px 7px rgba(18, 103, 219, .3); font-weight: 700; }.asset-node.selected .asset-icon, .asset-node.selected .tree-toggle { color: #fff; }.asset-node:focus-visible, .category-tabs button:focus-visible, .device-card button:focus-visible, .pagination button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }.tree-toggle { display: inline-grid; width: 20px; height: 24px; place-items: center; border-radius: 3px; color: #6d8192; }.tree-toggle:hover { background: #d8e8f8; }.tree-toggle tb-icon { font-size: 18px; }.tree-toggle.spacer { pointer-events: none; }.asset-icon { margin-right: 6px; color: #4e88cf; font-size: 16px; }
-.monitoring-content { min-width: 0; }.monitoring-heading { display: flex; align-items: baseline; gap: 12px; padding: 2px 0 12px; }.monitoring-heading h1 { color: var(--ink); font-size: 26px; font-weight: 800; }.monitoring-heading p { color: #72879a; font-size: 13px; }.analysis-grid { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); min-width: 1014px; gap: 14px; overflow: hidden; }.analysis-card { position: relative; min-width: 0; height: 228px; overflow: hidden; }.analysis-card.spd { background: linear-gradient(135deg, #fff 0%, #f5fbfd 100%); }.analysis-card.ground { background: linear-gradient(135deg, #fff 0%, #f1fbfa 100%); }.analysis-card.current { background: linear-gradient(135deg, #fff 0%, #faf7ff 100%); }.analysis-card.voltage { background: linear-gradient(135deg, #fff 0%, #fff9f5 100%); }.analysis-title { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; min-height: 45px; padding: 0 12px; border-bottom: 1px solid #e7edf2; }.analysis-title h2 { font-size: 14px; }.analysis-title span { padding: 3px 6px; border: 1px solid #b9d3f2; border-radius: 4px; color: #2264a9; background: #f4f9ff; font-size: 10px; }.analysis-card-body { position: relative; z-index: 1; display: flex; align-items: center; min-height: 145px; gap: 8px; padding: 12px 12px 0; }.analysis-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 58%; gap: 7px; min-width: 0; }.analysis-metric { display: flex; min-height: 54px; flex-direction: column; justify-content: center; padding: 8px 9px; border-radius: 5px; background: rgba(210, 244, 251, .78); }.analysis-metric span { color: #597183; font-size: 11px; }.analysis-metric strong { margin-top: 5px; color: #2b3946; font-size: 20px; font-weight: 700; line-height: 1; }.analysis-feature { display: flex; min-width: 0; flex: 0 0 42%; flex-direction: column; justify-content: center; padding-left: 2px; }.analysis-feature strong { color: var(--ink); font-size: clamp(21px, 2vw, 29px); font-weight: 800; letter-spacing: -.03em; white-space: nowrap; }.analysis-feature span { margin-top: 8px; color: #607789; font-size: 11px; }.analysis-illustration { position: relative; width: 44%; min-width: 78px; height: 122px; flex: 0 0 44%; overflow: hidden; border-radius: 7px; background: rgba(221, 244, 251, .62); }.analysis-illustration::before { position: absolute; inset: 14px 10px 10px; border: 1px solid rgba(68, 148, 200, .2); border-radius: 50%; content: ''; transform: rotate(-18deg); }.analysis-illustration::after { position: absolute; right: 12px; bottom: 14px; width: 44px; height: 18px; border-bottom: 2px solid rgba(22, 117, 187, .35); border-left: 2px solid rgba(22, 117, 187, .35); content: ''; transform: skewX(-28deg); }.analysis-illustration.ground { background: rgba(219, 248, 245, .78); }.analysis-illustration.current { background: rgba(239, 231, 255, .72); }.analysis-illustration.voltage { background: rgba(255, 237, 222, .76); }.illustration-device { position: absolute; top: 35px; left: 50%; display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid rgba(20, 112, 180, .28); border-radius: 10px; color: #1477bc; background: rgba(255, 255, 255, .88); box-shadow: 0 7px 16px rgba(38, 103, 145, .14); transform: translateX(-50%) rotate(-3deg); }.illustration-device tb-icon { font-size: 30px; }.ground .illustration-device { color: #079d8d; border-color: rgba(7, 157, 141, .3); }.current .illustration-device { color: #7b53d2; border-color: rgba(123, 83, 210, .3); }.voltage .illustration-device { color: #e57643; border-color: rgba(229, 118, 67, .3); }.illustration-orbit { position: absolute; left: 50%; width: 94px; height: 32px; border: 1px solid rgba(20, 119, 188, .35); border-radius: 50%; transform: translateX(-50%) rotate(30deg); }.orbit-one { top: 29px; }.orbit-two { top: 58px; transform: translateX(-50%) rotate(-28deg); }.illustration-connector { position: absolute; top: 11px; width: 8px; height: 8px; border: 2px solid currentColor; border-radius: 50%; color: #0c82c8; background: #fff; }.connector-one { left: 17px; }.connector-two { right: 17px; }.illustration-signal { position: absolute; right: 16px; bottom: 22px; width: 17px; height: 17px; border-top: 3px solid currentColor; border-right: 3px solid currentColor; color: #14c7d6; transform: skewY(-34deg) rotate(15deg); }.ground .illustration-signal { color: #12aa8e; }.current .illustration-signal { color: #9a71e7; }.voltage .illustration-signal { color: #ee8e54; }.analysis-caption { position: relative; z-index: 2; margin: 0 12px; color: #72879a; font-size: 11px; line-height: 1.35; }.analysis-card.spd .analysis-illustration { flex-basis: 39%; width: 39%; }.analysis-card.spd .analysis-metrics { flex-basis: 61%; }
+.monitoring-content { min-width: 0; }.monitoring-heading { display: flex; align-items: baseline; gap: 12px; padding: 2px 0 12px; }.monitoring-heading h1 { color: var(--ink); font-size: 26px; font-weight: 800; }.monitoring-heading p { color: #72879a; font-size: 13px; }.analysis-grid { display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)); min-width: 1014px; gap: 14px; overflow: hidden; }.analysis-card { position: relative; min-width: 0; height: 228px; overflow: hidden; }.analysis-card.spd { background: linear-gradient(135deg, #fff 0%, #f5fbfd 100%); }.analysis-card.ground { background: linear-gradient(135deg, #fff 0%, #f1fbfa 100%); }.analysis-card.current { background: linear-gradient(135deg, #fff 0%, #faf7ff 100%); }.analysis-card.voltage { background: linear-gradient(135deg, #fff 0%, #fff9f5 100%); }.analysis-title { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; min-height: 45px; padding: 0 12px; border-bottom: 1px solid #e7edf2; }.analysis-title h2 { font-size: 14px; }.analysis-title span { padding: 3px 6px; border: 1px solid #b9d3f2; border-radius: 4px; color: #2264a9; background: #f4f9ff; font-size: 10px; }.analysis-card-body { position: relative; z-index: 1; display: flex; align-items: center; min-height: 145px; gap: 8px; padding: 12px 12px 0; }.analysis-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 58%; gap: 7px; min-width: 0; }.analysis-metric { display: flex; min-height: 54px; flex-direction: column; justify-content: center; padding: 8px 9px; border-radius: 5px; background: rgba(210, 244, 251, .78); }.analysis-metric span { color: #597183; font-size: 11px; }.analysis-metric strong { margin-top: 5px; color: #2b3946; font-size: 20px; font-weight: 700; line-height: 1; }.analysis-feature { display: flex; min-width: 0; flex: 0 0 42%; flex-direction: column; justify-content: center; padding-left: 2px; }.analysis-feature strong { color: var(--ink); font-size: clamp(21px, 2vw, 29px); font-weight: 800; letter-spacing: -.03em; white-space: nowrap; }.analysis-feature span { margin-top: 8px; color: #607789; font-size: 11px; }.analysis-illustration { position: relative; width: 44%; min-width: 78px; height: 122px; flex: 0 0 44%; overflow: hidden; border-radius: 7px; background: rgba(221, 244, 251, .62); }.analysis-illustration::before { position: absolute; inset: 14px 10px 10px; border: 1px solid rgba(68, 148, 200, .2); border-radius: 50%; content: ''; transform: rotate(-18deg); }.analysis-illustration::after { position: absolute; right: 12px; bottom: 14px; width: 44px; height: 18px; border-bottom: 2px solid rgba(22, 117, 187, .35); border-left: 2px solid rgba(22, 117, 187, .35); content: ''; transform: skewX(-28deg); }.analysis-illustration.ground { background: rgba(219, 248, 245, .78); }.analysis-illustration.current { background: rgba(239, 231, 255, .72); }.analysis-illustration.voltage { background: rgba(255, 237, 222, .76); }.illustration-device { position: absolute; top: 35px; left: 50%; display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid rgba(20, 112, 180, .28); border-radius: 10px; color: #1477bc; background: rgba(255, 255, 255, .88); box-shadow: 0 7px 16px rgba(38, 103, 145, .14); transform: translateX(-50%) rotate(-3deg); }.illustration-device tb-icon { font-size: 30px; }.ground .illustration-device { color: #079d8d; border-color: rgba(7, 157, 141, .3); }.current .illustration-device { color: #7b53d2; border-color: rgba(123, 83, 210, .3); }.voltage .illustration-device { color: #e57643; border-color: rgba(229, 118, 67, .3); }.illustration-orbit { position: absolute; left: 50%; width: 94px; height: 32px; border: 1px solid rgba(20, 119, 188, .35); border-radius: 50%; transform: translateX(-50%) rotate(30deg); }.orbit-one { top: 29px; }.orbit-two { top: 58px; transform: translateX(-50%) rotate(-28deg); }.illustration-connector { position: absolute; top: 11px; width: 8px; height: 8px; border: 2px solid currentColor; border-radius: 50%; color: #0c82c8; background: #fff; }.connector-one { left: 17px; }.connector-two { right: 17px; }.illustration-signal { position: absolute; right: 16px; bottom: 22px; width: 17px; height: 17px; border-top: 3px solid currentColor; border-right: 3px solid currentColor; color: #14c7d6; transform: skewY(-34deg) rotate(15deg); }.ground .illustration-signal { color: #12aa8e; }.current .illustration-signal { color: #9a71e7; }.voltage .illustration-signal { color: #ee8e54; }.analysis-caption { position: relative; z-index: 2; margin: 0 12px; color: #72879a; font-size: 11px; line-height: 1.35; }.analysis-card.spd .analysis-illustration { flex-basis: 39%; width: 39%; }.analysis-card.spd .analysis-metrics { flex-basis: 61%; }
 .selection-summary { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 14px; padding: 18px; }.summary-label { display: flex; align-items: center; gap: 10px; min-width: 230px; }.summary-label > tb-icon { color: var(--blue); font-size: 32px; }.selection-summary h2 { font-size: 17px; }.selection-summary p { margin-top: 3px; color: #708497; font-size: 11px; }.selection-summary dl { display: grid; grid-template-columns: repeat(8, minmax(68px, 1fr)); flex: 1; gap: 12px; margin: 0; }.selection-summary dt { color: #667b8e; font-size: 12px; white-space: nowrap; }.selection-summary dd { margin: 8px 0 0; color: #2d3f50; font-size: 23px; }.selection-summary dd.healthy { color: #0aa34c; }.selection-summary dd.critical { color: var(--red); }.selection-summary dd.warning { color: #d88900; }.selection-summary dd.muted { color: #92a1ac; }
 .device-overview { margin-top: 14px; }.overview-toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; min-height: 70px; padding: 0 18px; border-bottom: 1px solid #e7edf2; background: #fff; box-shadow: 0 2px 7px rgba(32, 66, 95, .08); }.overview-toolbar h2 { min-width: 80px; font-size: 18px; }.category-tabs { display: flex; align-items: center; justify-content: center; flex: 1; gap: 2px; padding: 5px; border-radius: 20px; background: #e3e7eb; }.category-tabs button { padding: 8px 11px; border: 0; border-radius: 16px; color: #124173; background: transparent; cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }.category-tabs button:hover { background: #f6f8fa; }.category-tabs button.active { color: #064727; background: var(--green); font-weight: 700; }.device-search { width: 225px; }
 .device-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 14px; }.device-grid-state { display: grid; grid-column: 1 / -1; min-height: 148px; place-items: center; color: #718599; font-size: 13px; }.device-grid-state.error { color: #c72f3d; }.device-card { min-width: 0; border: 1px solid #b9c6d0; background: #fff; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }.device-card:hover, .device-card:focus-within { position: relative; z-index: 1; border-color: #75a9df; box-shadow: 0 10px 22px rgba(29, 60, 87, .18); transform: translateY(-3px); }.device-card.selected-range { border-color: #22e466; }.device-card header { display: flex; align-items: center; justify-content: space-between; min-height: 46px; padding: 0 14px; border-bottom: 1px solid #e7edf2; }.device-card h3 { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }.device-status { padding: 4px 8px; border-radius: 4px; font-size: 11px; }.device-status.正常 { color: #0b7d3a; background: #dff9ea; }.device-status.报警 { color: #fff; background: #d10b0b; }.device-status.异常 { color: #9e5500; background: #fff0db; }.device-status.离线 { color: #667b8e; background: #e5e9ed; }.device-body { display: flex; min-height: 110px; gap: 12px; padding: 14px; }.device-icon { display: grid; width: 76px; height: 76px; flex: 0 0 auto; place-items: center; border: 1px solid #d9e2e8; border-radius: 6px; color: #2466ba; background: #f4f8fb; }.device-icon tb-icon { font-size: 38px; }.device-details { min-width: 0; flex: 1; padding-top: 1px; }.device-details p { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px; margin: 0 0 7px; color: #718599; font-size: 12px; line-height: 1.35; }.device-details p:last-child { margin-bottom: 0; }.device-details span { color: #718599; white-space: nowrap; }.device-details strong { overflow: hidden; color: #40586c; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }.device-details strong.product-name-value { overflow: visible; line-height: 1.42; text-overflow: clip; white-space: normal; word-break: break-word; }.device-details strong.product-name-value.compact { font-size: 11px; }.device-details strong.product-name-value.tight { font-size: 10px; line-height: 1.35; }.device-card footer { display: flex; justify-content: end; gap: 6px; padding: 10px 12px; border-top: 1px solid #e7edf2; }.device-card button { min-height: 28px; padding: 0 8px; border: 0; border-radius: 3px; color: #fff; background: #195ce8; cursor: pointer; font: inherit; font-size: 11px; }.device-card button:hover { background: #114abd; }.device-card button.detail { margin-right: auto; background: #09aa52; }.device-card button.detail:hover { background: #078942; }
@@ -225,11 +225,6 @@
   transform: scaleY(1);
 }
 
-/* 有未处理告警的设备，悬浮状态条改用偏红色，和卡片右上角告警标签保持一致。 */
-.device-card.alarm-card::before {
-  background: linear-gradient(180deg, #ff9696 0%, #ef3f4c 48%, #b91f31 100%);
-}
-
 .device-card:hover .device-icon, .device-card:focus-within .device-icon {
   border-color: #8ebcf0;
   color: #195ce8;
@@ -273,7 +268,7 @@
   letter-spacing: -.04em;
 }
 
-/* 实时分析区：整体范围单独成行，四类设备保持固定横向顺序。 */
+/* 实时分析区：整体范围单独成行，防雷保留三类设备分析卡。 */
 .realtime-analysis { display: grid; gap: var(--tb-smart-page-spacing, 14px); }
 .realtime-analysis-state { display: grid; min-height: 150px; place-items: center; border: 1px solid #d5dee6; color: #718599; background: #fff; box-shadow: 0 7px 18px rgba(29, 60, 87, .07); font-size: 13px; }
 .realtime-analysis-state.error { color: #c72f3d; }
@@ -290,12 +285,11 @@
 .scope-overview-metrics dt, .analysis-device-counts dt, .analysis-detail-grid dt { color: #688095; font-size: 11px; white-space: nowrap; }
 .scope-overview-metrics dd { margin: 3px 0 0; color: #24425d; font-size: 21px; font-weight: 650; }
 
-.realtime-analysis .analysis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; gap: var(--tb-smart-page-spacing, 14px); overflow: visible; }
+.realtime-analysis .analysis-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; gap: var(--tb-smart-page-spacing, 14px); overflow: visible; }
 .realtime-analysis .analysis-card { display: flex; min-width: 0; height: auto; min-height: 244px; flex-direction: column; overflow: hidden; border-top: 3px solid #3e8ee8; }
 .realtime-analysis .analysis-card.spd { border-top-color: #178bd3; background: linear-gradient(160deg, #fff 60%, #eefaff 100%); }
 .realtime-analysis .analysis-card.ground { border-top-color: #12a894; background: linear-gradient(160deg, #fff 60%, #effbf8 100%); }
 .realtime-analysis .analysis-card.current { border-top-color: #805bd2; background: linear-gradient(160deg, #fff 60%, #f7f1ff 100%); }
-.realtime-analysis .analysis-card.arc-fault { border-top-color: #e28336; background: linear-gradient(160deg, #fff 60%, #fff7ef 100%); }
 .realtime-analysis .analysis-title { display: flex; min-height: 43px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 11px; }
 .realtime-analysis .analysis-title > div { display: flex; min-width: 0; align-items: center; gap: 6px; }
 .realtime-analysis .analysis-title tb-icon { flex: 0 0 auto; color: #2a6eb9; font-size: 19px; }
@@ -434,82 +428,31 @@
   .device-realtime-metrics dd { font-size: 11px; }
 }
 
-/* 离线和活动告警使用清晰可辨的卡片底色，正常设备沿用原有白色背景。 */
-.device-card.offline-card {
-  background-color: #aeb6c0;
+/* 和电气安全监测页保持一致：在线、离线和告警色只作用于设备标题栏。 */
+.device-card:not(.offline-card):not(.alarm-card) header {
+  background: #edf7f0;
 }
 
-.device-card.alarm-card {
-  background-color: #e77f88;
+.device-card.offline-card header {
+  background: #bbc3cb;
 }
 
-/* 悬浮时保留对应状态色，避免通用蓝色悬浮标题覆盖状态提示。 */
+.device-card.alarm-card header {
+  background: #ed969d;
+}
+
+/* 悬浮和键盘聚焦时仍保留标题栏的状态色，卡片正文保持原样。 */
+.device-card:not(.offline-card):not(.alarm-card):hover header,
+.device-card:not(.offline-card):not(.alarm-card):focus-within header {
+  background: #e3f2e7;
+}
+
 .device-card.offline-card:hover header,
 .device-card.offline-card:focus-within header {
-  background: linear-gradient(90deg, #bbc3cb, #aeb6c0);
+  background: #b1bac2;
 }
 
 .device-card.alarm-card:hover header,
 .device-card.alarm-card:focus-within header {
-  background: linear-gradient(90deg, #ed969d, #e77f88);
-}
-
-/* 卡片状态色延伸到内部标题、图标和实时指标；正常态只着色内层，外卡片继续保持白底。 */
-.device-card:not(.offline-card):not(.alarm-card) {
-  --device-state-header: #edf7f0;
-  --device-state-header-hover: #e3f2e7;
-  --device-state-icon-bg: #dcefe2;
-  --device-state-icon-border: #a9d3b4;
-  --device-state-icon-color: #178042;
-  --device-state-metric-bg: #e4f2e7;
-  --device-state-metric-border: #bad9c3;
-}
-
-.device-card.offline-card {
-  --device-state-header: #bbc3cb;
-  --device-state-header-hover: #b1bac2;
-  --device-state-icon-bg: #c1c8cf;
-  --device-state-icon-border: #9ca8b2;
-  --device-state-icon-color: #435565;
-  --device-state-metric-bg: #bfc7ce;
-  --device-state-metric-border: #a9b3bc;
-}
-
-.device-card.alarm-card {
-  --device-state-header: #ed969d;
-  --device-state-header-hover: #e88a93;
-  --device-state-icon-bg: #f0a0a6;
-  --device-state-icon-border: #dc818a;
-  --device-state-icon-color: #8b2833;
-  --device-state-metric-bg: #ee9da3;
-  --device-state-metric-border: #dc828b;
-}
-
-.device-card header,
-.device-card footer {
-  background: var(--device-state-header);
-}
-
-.device-card .device-icon {
-  border-color: var(--device-state-icon-border);
-  color: var(--device-state-icon-color);
-  background: var(--device-state-icon-bg);
-}
-
-.device-card .device-realtime-metrics > div {
-  border-color: var(--device-state-metric-border);
-  background: var(--device-state-metric-bg);
-}
-
-.device-card:hover header,
-.device-card:focus-within header {
-  background: var(--device-state-header-hover);
-}
-
-.device-card:hover .device-icon,
-.device-card:focus-within .device-icon {
-  border-color: var(--device-state-icon-border);
-  color: var(--device-state-icon-color);
-  background: var(--device-state-icon-bg);
-  box-shadow: 0 7px 15px rgba(29, 60, 87, .16);
+  background: #e88a93;
 }

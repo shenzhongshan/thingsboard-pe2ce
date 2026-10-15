@@ -123,9 +123,7 @@ const SMART_LIGHTNING_MODEL_ALIASES: Readonly<Record<string, readonly string[]>>
   G1A3: ['G1A3', 'FR接地电阻监测模块'],
   M1AI: ['M1AI', 'FL雷电流监测模块（峰值型）', 'FL雷电流监测模块(峰值型)'],
   L2AI: ['L2AI', 'FL瞬态电流监测模块'],
-  DEP4: ['DEP4', 'FSP防雷监测底座'],
-  LDH1: ['LDH1', 'FA故障电弧监测模块'],
-  FAP1: ['FAP1', 'FAP故障电弧探测器(一体式)', 'FAP故障电弧探测器（一体式)']
+  DEP4: ['DEP4', 'FSP防雷监测底座']
 };
 
 /** 将设备配置名称归一化为测点表中的型号编码。 */
@@ -260,8 +258,6 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('Temp', '温度', SMART_LIGHTNING_UNITS.temperature)
   ],
-  LDH1: [statusMetric('DevStatus', '设备状态')],
-  FAP1: [statusMetric('DevStatus', '设备状态')]
 };
 
 /** 按设备配置名称返回实时指标定义；未匹配的型号返回空列表。 */

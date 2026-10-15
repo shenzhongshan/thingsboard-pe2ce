@@ -1,4 +1,4 @@
-/** 文件职责：数据监测模块的 smart-lightning-monitoring.data，定义数据模型、接口结果映射与纯函数。 */
+  /** 文件职责：数据监测模块的 smart-lightning-monitoring.data，定义数据模型、接口结果映射与纯函数。 */
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import {
@@ -73,8 +73,7 @@ export interface SmartLightningMonitoringDeviceAttributes {
 const smartLightningFunctionCategoryLabels: Record<string, string> = {
   spd_monitor: 'SPD监测',
   ground_resistance: '接地电阻监测',
-  lightning_current: '雷电流监测',
-  arc_fault: '故障电弧监测'
+  lightning_current: '雷电流监测'
 };
 
 /** 把后端功能分类枚举值映射为中文标签；未配置或未知值原样展示。 */
@@ -127,8 +126,6 @@ const SMART_LIGHTNING_CARD_METRICS: Readonly<Record<string, readonly SmartLightn
   G1A3: [cardMetric('GndGridRes')],
   M1AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
   L2AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
-  LDH1: [cardMetric('DevStatus')],
-  FAP1: [cardMetric('DevStatus')]
 };
 
 /** 将遥测记录转为卡片提示文本，同时保留原始键、原始值与时间戳。 */

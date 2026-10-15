@@ -1,12 +1,6 @@
 /* 文件职责：能源监管看板视觉布局；复用系统外壳，不重复绘制平台导航。 */
 :host { display: block; min-width: 0; color: #29465d; }
 .energy-dashboard { display: grid; gap: 10px; min-width: 0; padding: 10px; background: #eef2f6; }
-/* 新页面沿用同一组页内导航，避免复制平台全局侧栏。 */
-.energy-dashboard-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0 4px 2px; color: #29465d; font-size: 13px; }
-.energy-dashboard-links span { padding-bottom: 5px; border-bottom: 2px solid #2878df; font-weight: 600; }
-.energy-dashboard-links a { color: #526b82; text-decoration: none; }
-.energy-dashboard-links a:hover { color: #2878df; }
-.energy-dashboard-links a:focus-visible { outline: 2px solid #2878df; outline-offset: 3px; }
 .headline-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .headline-card { display: flex; align-items: center; gap: 13px; min-width: 0; min-height: 88px; padding: 13px 16px; border: 1px solid #d8e2ec; border-radius: 5px; background: #fff; box-shadow: 0 2px 6px rgba(26, 62, 96, .035); }
 .metric-icon { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; border-radius: 9px; font-size: 23px; font-weight: 700; }

@@ -461,6 +461,12 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     const devices: DeviceInfo[] = [];
     const attributesByDeviceId = new Map<string, SmartLightningMonitoringDeviceAttributes>();
     for (const context of contexts) {
+      const productCategory = context.productCategory?.trim();
+      const functionCategory = context.functionCategory?.trim();
+      // 设备上下文可能包含旧分类记录；以服务器属性为准，并确保已迁出的电弧设备不再进入防雷列表。
+      if ((productCategory && productCategory !== 'lightning') || functionCategory === 'arc_fault') {
+        continue;
+      }
       if (!treeDeviceIds.has(context.deviceId)) {
         continue;
       }

@@ -159,12 +159,6 @@ export const SMART_LIGHTNING_PRODUCT_SPECIFICATIONS: Readonly<Record<string, Sma
       {label: '数据存储', value: '100 组，自动覆盖最早记录'},
       {label: '能量信息', value: '电荷量、单位能量'}
     ]
-  },
-  LDH1: {
-    productName: 'FA故障电弧监测模块',
-    model: 'FA-01121',
-    items: [
-    ]
   }
 };
 

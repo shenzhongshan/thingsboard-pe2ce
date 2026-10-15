@@ -84,7 +84,8 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
                 continue;
             }
             result.add(new AlarmDeviceCountBO(
-                    row.getDeviceId(), safeLong(row.getAlarmCount()), safeLong(row.getHandledCount())));
+                    row.getDeviceId(), safeLong(row.getAlarmCount()), safeLong(row.getHandledCount()),
+                    safeLong(row.getUnassignedCount())));
         }
         return result;
     }

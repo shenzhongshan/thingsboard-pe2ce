@@ -9,15 +9,16 @@ import { SmartLightningPeriodSwitcherModule } from './smart-lightning-period-swi
 import { SmartLightningMonitoringComponent } from '../monitoring/smart-lightning-monitoring.component';
 import { SmartLightningDeviceDetailComponent } from '../monitoring/smart-lightning-device-detail.component';
 import { SmartLightningDataQueryComponent } from '../query/smart-lightning-data-query.component';
-import { SmartLightningHistoryReviewDialogComponent } from '../query/smart-lightning-history-review-dialog.component';
+import {SmartLightningHistoryReviewDialogModule} from '../query/smart-lightning-history-review-dialog.module';
 import { SmartLightningRootAssetFilterComponent } from '../smart-lightning-root-asset-filter.component';
 import { SmartLightningAssetTreeModule } from '../shared/asset-tree/smart-lightning-asset-tree.module';
 import { SmartLightningDeviceMapModule } from '../shared/map/smart-lightning-device-map.module';
 import { LogModule } from '../../log/log.module';
 import { DeviceAlarmRecordsModule } from '../../deviceAlarms/shared/alarm-list/device-alarm-records.module';
+import { DeviceAlarmInformationChartModule } from '../../deviceAlarms/shared/alarm-information/device-alarm-information-chart.module';
 
 @NgModule({
-  declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent, SmartLightningHistoryReviewDialogComponent],
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, LogModule]
+  declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent],
+  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
 })
 export class SmartLightningDashboardModule {}

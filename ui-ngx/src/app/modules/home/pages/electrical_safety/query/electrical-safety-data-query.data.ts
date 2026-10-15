@@ -1,13 +1,13 @@
-/** 文件职责：定义电气安全数据查询页的行模型、产品分类范围和本地筛选函数。 */
+/** 文件职责：定义电气安全数据查询行模型，并提供本地筛选函数。 */
 import {
-  ELECTRICAL_SAFETY_MONITORING_DEVICES,
+  ElectricalSafetyMonitoringDevice,
   ELECTRICAL_SAFETY_PRODUCT_CATEGORY
 } from '../monitoring/electrical-safety-monitoring.data';
 
-/** 表格按告警优先、离线其次的顺序展示设备运行状态。 */
+/** 查询状态与防雷一致：活动告警优先，其次正常在线，最后离线。 */
 export type ElectricalSafetyQueryStatus = '报警' | '离线' | '正常';
 
-/** 数据查询表格展示字段；资产编号用于将查询结果限制在左侧树选中范围。 */
+/** 表格展示字段；assetId 对应真实树中的设备叶节点 ID。 */
 export interface ElectricalSafetyQueryRow {
   id: string;
   assetId: string;
@@ -15,13 +15,14 @@ export interface ElectricalSafetyQueryRow {
   deviceType: string;
   protocol: string;
   status: ElectricalSafetyQueryStatus;
+  alarmSeverity?: string;
   productName: string;
   functionCategory: string;
   assetPath: string;
   lastActivityText: string;
 }
 
-/** 查询筛选条件与防雷数据查询页保持一致。 */
+/** 查询筛选条件与页面表单字段一一对应。 */
 export interface ElectricalSafetyQueryFilters {
   status: '全部' | ElectricalSafetyQueryStatus;
   productName: string;
@@ -29,32 +30,37 @@ export interface ElectricalSafetyQueryFilters {
   keyword: string;
 }
 
-/**
- * 复用电气安全监测页面的设备展示数据，保证同一设备在模块页面中的名称和状态一致。
- * 协议字段暂无对应的页面数据，按通用查询页约定显示“--”，不推断设备协议。
- */
-export const ELECTRICAL_SAFETY_QUERY_ROWS: readonly ElectricalSafetyQueryRow[] =
-  ELECTRICAL_SAFETY_MONITORING_DEVICES
-    .filter((device) => device.productCategory === ELECTRICAL_SAFETY_PRODUCT_CATEGORY)
-    .map((device) => ({
+/** 将共享监测设备模型映射为查询表格行，不重复读取或推断设备字段。 */
+export function buildElectricalSafetyQueryRows(
+  devices: readonly ElectricalSafetyMonitoringDevice[],
+  activeAlarmDeviceIds: ReadonlySet<string> = new Set<string>(),
+  alarmSeverityByDeviceId: ReadonlyMap<string, string> = new Map<string, string>()
+): ElectricalSafetyQueryRow[] {
+  const rows: ElectricalSafetyQueryRow[] = [];
+  for (const device of devices) {
+    if (device.productCategory !== ELECTRICAL_SAFETY_PRODUCT_CATEGORY) {
+      continue;
+    }
+    rows.push({
       id: device.id,
       assetId: device.assetId,
       deviceName: device.name,
       deviceType: device.model,
-      protocol: '--',
-      status: device.condition === 'alarm'
+      protocol: device.protocol,
+      status: activeAlarmDeviceIds.has(device.id)
         ? '报警'
-        : device.connection === 'offline' ? '离线' : '正常',
+        : device.connection === 'online' ? '正常' : '离线',
+      alarmSeverity: alarmSeverityByDeviceId.get(device.id),
       productName: device.productName,
       functionCategory: device.categoryLabel,
       assetPath: device.assetPath,
       lastActivityText: device.lastReportTime
-    }));
+    });
+  }
+  return rows;
+}
 
-/**
- * 在资产树选中范围、状态、产品、功能类型和关键词范围内筛选查询行。
- * 产品分类在数据源入口已限制为 electrical_safety，不与其他模块设备混用。
- */
+/** 按资产范围、连接状态、产品、功能和关键词筛选设备行。 */
 export function filterElectricalSafetyQueryRows(
   rows: readonly ElectricalSafetyQueryRow[],
   selectedAssetIds: ReadonlySet<string>,

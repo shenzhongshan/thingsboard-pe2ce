@@ -12,8 +12,8 @@
       [expandedIds]="expandedAssetIds"
       [rootAssetId]="selectedRootAssetId"
       [search]="assetSearch"
-      [loading]="false"
-      [loadError]="false"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
       [alarmDeviceIds]="activeAlarmDeviceIds"
       [showDeviceNodes]="false"
       searchPlaceholder="输入资产名称"
@@ -29,7 +29,7 @@
     <div class="filter-panel" role="search" aria-label="电气安全设备筛选">
       <label>
         <span>产品名称</span>
-        <select [(ngModel)]="productNameFilter" name="productName">
+        <select [(ngModel)]="productNameFilter" (ngModelChange)="resetPage()" name="productName">
           <option value="">全部</option>
           @for (productName of productNames; track productName) {
             <option [value]="productName">{{productName}}</option>
@@ -38,7 +38,7 @@
       </label>
       <label>
         <span>功能</span>
-        <select [(ngModel)]="functionType" name="functionType">
+        <select [(ngModel)]="functionType" (ngModelChange)="resetPage()" name="functionType">
           <option value="">全部</option>
           @for (category of functionCategories; track category) {
             <option [value]="category">{{category}}</option>
@@ -47,7 +47,7 @@
       </label>
       <label class="keyword-input">
         <span>关键词</span>
-        <input [(ngModel)]="keyword" name="keyword"
+        <input [(ngModel)]="keyword" (ngModelChange)="resetPage()" name="keyword"
                placeholder="请输入设备名称、类型或产品名称" aria-label="设备名称搜索">
         <tb-icon aria-hidden="true">search</tb-icon>
       </label>
@@ -90,7 +90,11 @@
             </tr>
           </thead>
           <tbody>
-            @if (!pageRows.length) {
+            @if (devicesLoading) {
+              <tr><td colspan="8" class="table-state">正在加载设备</td></tr>
+            } @else if (devicesLoadError) {
+              <tr><td colspan="8" class="table-state">设备信息加载失败</td></tr>
+            } @else if (!pageRows.length) {
               <tr><td colspan="8" class="table-state">当前条件下暂无设备</td></tr>
             } @else {
               @for (row of pageRows; track row.id; let index = $index) {
@@ -103,11 +107,20 @@
                   <td [title]="row.assetPath">{{row.deviceName}}</td>
                   <td [title]="row.deviceType">{{row.deviceType}}</td>
                   <td [title]="row.protocol">{{row.protocol}}</td>
-                  <td><span [class]="'status-tag ' + row.status" [title]="row.status">{{row.status}}</span></td>
+                  <td>
+                    <span [class]="'status-tag ' + row.status"
+                          [title]="row.alarmSeverity ? '未处理告警：' + row.alarmSeverity : row.status">
+                      {{row.status}}
+                    </span>
+                  </td>
                   <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
                   <td class="operation-cell">
-                    <button type="button" class="trace-button" title="历史数据回顾">回顾</button>
-                    <button type="button" class="detail-button" title="设备详情">详情</button>
+                    <button type="button" class="trace-button" (click)="openHistoryReview(row)"
+                            title="查看历史遥测数据">回顾</button>
+                    <!-- 查询页与监测页使用同一详情组件，并携带返回来源。 -->
+                    <a class="detail-button" [routerLink]="['/electrical-safety/query/device', row.id]"
+                       [queryParams]="{returnUrl: '/electrical-safety/query', returnAssetId: selectedTreeNodeId || null, returnRootAssetId: selectedRootAssetId || null}"
+                       [attr.aria-label]="'查看设备详情：' + row.deviceName" title="设备详情">详情</a>
                   </td>
                 </tr>
               }
@@ -116,14 +129,16 @@
         </table>
       </div>
 
-      <nav class="pagination" aria-label="查询结果分页">
-        <span>共 {{filteredRows.length}} 条</span>
-        <span>{{pageSize}} / 页</span>
-        <button type="button" aria-label="上一页" (click)="setPage(page - 1)" [disabled]="page === 1">‹</button>
-        <button type="button" class="active" aria-current="page">{{page}}</button>
-        <span>/ {{totalPages}}</span>
-        <button type="button" aria-label="下一页" (click)="setPage(page + 1)" [disabled]="page === totalPages">›</button>
-      </nav>
+      @if (!devicesLoading && !devicesLoadError) {
+        <nav class="pagination" aria-label="查询结果分页">
+          <span>共 {{filteredRows.length}} 条</span>
+          <span>{{pageSize}} / 页</span>
+          <button type="button" aria-label="上一页" (click)="setPage(page - 1)" [disabled]="page === 1">‹</button>
+          <button type="button" class="active" aria-current="page">{{page}}</button>
+          <span>/ {{totalPages}}</span>
+          <button type="button" aria-label="下一页" (click)="setPage(page + 1)" [disabled]="page === totalPages">›</button>
+        </nav>
+      }
     </section>
   </section>
 </main>

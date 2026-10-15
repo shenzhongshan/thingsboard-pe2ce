@@ -376,10 +376,14 @@ export class LogDetailDrawerComponent implements OnChanges, OnDestroy {
       this.viewContainerRef,
       injector
     ));
+    // 动态挂载的组件要先执行首次变更检测，ngOnInit 才会创建删除表单。
+    // 初始化完成后再覆盖默认策略，避免在表单尚未创建时调用 patchValue。
+    componentRef.changeDetectorRef.detectChanges();
     // 行级删除默认定位到“仅删除最新值”，避免弹窗初始即选中范围最大的历史清理。
     componentRef.instance.deleteTimeseriesFormGroup.patchValue({
       strategy: TimeseriesDeleteStrategy.DELETE_LATEST_VALUE
     });
+    componentRef.changeDetectorRef.detectChanges();
     componentRef.onDestroy(() => {
       if (this.telemetryDeleteOverlay === overlayRef) {
         this.telemetryDeleteOverlay = undefined;

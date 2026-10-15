@@ -113,10 +113,14 @@
       }
     </article>
 
-    <article class="panel chart-panel alarm-panel">
-      <div class="panel-title"><h2>报警信息</h2><span class="period-readout">当前未清除</span></div>
-      <div #chartHost data-chart="alarm" class="chart" aria-label="报警信息柱状图"></div>
-    </article>
+    <tb-device-alarm-information-chart
+      class="panel chart-panel alarm-panel"
+      [items]="alarmInformationItems"
+      [loading]="alarmSummaryLoading"
+      [loadError]="alarmSummaryLoadError"
+      emptyMessage="当前没有未清除告警">
+      <span alarm-information-actions class="period-readout">当前未清除</span>
+    </tb-device-alarm-information-chart>
 
     <article class="panel monitoring-summary-panel spd-panel">
       <div class="panel-title"><h2>SPD监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.spd" (periodChange)="setChartPeriod('spd', $event)"></tb-smart-lightning-period-switcher></div>

@@ -22,16 +22,26 @@ import {
 } from '@shared/models/telemetry/telemetry.models';
 import {TelemetryWebsocketService} from '@core/ws/telemetry-websocket.service';
 
-/** 页面实时卡片使用的规范遥测键；active 与 lastActivityTime 同样从最新遥测读取。 */
-export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = [
+/** 防雷、能源和电气安全页面共用的型号测点订阅键；未配置型号不会展示其他设备的值。 */
+export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.from(new Set([
   'RemoteSig', 'McbStatus', 'GndStatus', 'StrikeCnt',
   'LeakCurrA', 'LeakCurrB', 'LeakCurrC',
   'Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp',
   'PhAVolt', 'PhBVolt', 'PhCVolt', 'VoltStsA', 'VoltStsB', 'VoltStsC',
   'Trip1', 'Trip2', 'Trip3', 'Trip4', 'LifeLeft',
   'GndGridRes', 'SampleCnt', 'SamplePrd', 'Temp',
-  'SurgeCnt', 'PeakValue', 'Polarity', 'DevStatus'
-];
+  'SurgeCnt', 'PeakValue', 'Polarity', 'DevStatus',
+  // SFA 的以下键来自已确认的型号测点表；每个页面仍只把所属型号配置的键映射到界面。
+  'Longitude', 'Latitude', 'LineVoltAB', 'LineVoltBC', 'LineVoltCA', 'Freq',
+  'PhACurr', 'PhBCurr', 'PhCCurr', 'CurrVecSum', 'ResCurr',
+  'ActPwrA', 'ActPwrB', 'ActPwrC', 'ActPwrTot',
+  'RctPwrA', 'RctPwrB', 'RctPwrC', 'RctPwrTot',
+  'AppPwrA', 'AppPwrB', 'AppPwrC', 'AppPwrTot',
+  'PwrFactA', 'PwrFactB', 'PwrFactC', 'PwrFactT',
+  'FwdActEA', 'FwdActEB', 'FwdActEC', 'FwdActET',
+  'RevRctEA', 'RevRctEB', 'RevRctEC', 'RevRctET',
+  'FwdRctEA', 'FwdRctEB', 'FwdRctEC', 'FwdRctET'
+]));
 
 /**
  * 告警实时变化事件：count 来源表示活动告警数量变化，data 来源表示告警状态、派发、确认或清除字段变化。
@@ -114,6 +124,11 @@ export class SmartLightningRealtimeService {
   /** 取得设备当前缓存的遥测快照副本，避免页面直接修改共享订阅缓存。 */
   getLatestTelemetryValues(deviceId: string): ReadonlyMap<string, {ts: number; value: string}> {
     return new Map(this.latestTelemetryByDevice.get(deviceId) || []);
+  }
+
+  /** 按设备和测点读取最新缓存值，避免地图坐标查询复制整份设备遥测快照。 */
+  getLatestTelemetryValue(deviceId: string, key: string): {ts: number; value: string} | undefined {
+    return this.latestTelemetryByDevice.get(deviceId)?.get(key);
   }
 
   /** 取得设备最近活跃时间的 WebSocket 快照；未收到有效字段时返回 undefined。 */

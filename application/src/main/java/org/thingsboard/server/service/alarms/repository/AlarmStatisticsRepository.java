@@ -62,10 +62,15 @@ public interface AlarmStatisticsRepository extends Repository<AlarmInfoEntity, U
             @Param("endTs") Long endTs,
             @Param("activeOnly") boolean activeOnly);
 
-    /** 按设备聚合周期告警，避免把告警明细逐页加载到应用内存。 */
+    /**
+     * 按设备一次聚合周期内告警总数、已清除数和未清除且未分配数。
+     * 未分配数通过原生 assignee_id 字段计算，避免把 assign_ts 误当成当前受理状态。
+     */
     @Query(value = "SELECT a.originator_id AS \"deviceId\", "
             + "COUNT(*) AS \"alarmCount\", "
-            + "COALESCE(SUM(CASE WHEN a.cleared = TRUE THEN 1 ELSE 0 END), 0) AS \"handledCount\" "
+            + "COALESCE(SUM(CASE WHEN a.cleared = TRUE THEN 1 ELSE 0 END), 0) AS \"handledCount\", "
+            + "COALESCE(SUM(CASE WHEN a.cleared = FALSE AND a.assignee_id IS NULL "
+            + "THEN 1 ELSE 0 END), 0) AS \"unassignedCount\" "
             + "FROM alarm_info a "
             + "WHERE a.tenant_id = :tenantId "
             + "AND a.originator_type = 5 "

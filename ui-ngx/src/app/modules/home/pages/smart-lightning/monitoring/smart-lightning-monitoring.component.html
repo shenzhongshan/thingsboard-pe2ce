@@ -97,20 +97,6 @@
             </dl>
           </article>
 
-          <article class="analysis-card arc-fault">
-            <header class="analysis-title"><div><tb-icon>crisis_alert</tb-icon><h2>故障电弧实时监测</h2></div><span class="analysis-status" [class]="'analysis-status status-' + analysis.arcFault.status">{{analysis.arcFault.status}}</span></header>
-            <dl class="analysis-device-counts">
-              <div><dt>总数</dt><dd>{{analysis.arcFault.totalDevices}}</dd></div>
-              <div><dt>在线</dt><dd class="healthy">{{analysis.arcFault.onlineDevices}}</dd></div>
-              <div><dt>离线</dt><dd class="muted">{{analysis.arcFault.offlineDevices}}</dd></div>
-              <div><dt>告警</dt><dd class="critical">{{analysis.arcFault.alarmDeviceCount}}</dd></div>
-            </dl>
-            <dl class="analysis-detail-grid compact">
-              <div><dt>设备状态</dt><dd>{{analysis.arcFault.normalStatusCount}} / {{analysis.arcFault.statusDeviceCount}} 正常</dd></div>
-              <div><dt>累计动作次数</dt><dd>{{formatRealtimeCount(analysis.arcFault.totalArcFaultCount)}}</dd></div>
-              <div><dt>最近上报</dt><dd>{{formatRealtimeTime(analysis.arcFault.latestReportTime)}}</dd></div>
-            </dl>
-          </article>
         </div>
       }
     </section>

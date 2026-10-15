@@ -193,10 +193,10 @@ var productCategoryMap = {
     "CBP2": "electrical_safety",
     "CBP1": "electrical_safety",
     "E1P1": "electrical_safety",
+    "E1E2": "electrical_safety",
+    "SFE": "electrical_safety",
 
-    // 能源监管产品
-    "E1E2": "energy_regulation",
-    "SFE": "energy_regulation",
+    // 能源监管产品：目前仅智能电表（E1A2）归入此类。
     "E1A2": "energy_regulation"
 };
 
@@ -350,7 +350,7 @@ if (deviceType == "DES4") {
     pointMap = esm3PointMap;
     } else if (deviceType == "DEP4") {
         pointMap = dep4PointMap;
-    } else if (deviceType == "LDA1" || deviceType == "LDH1" || deviceType == "FAP1" || deviceType == "E1B2" || deviceType == "E1P1" || deviceType == "SFE") {
+    } else if (deviceType == "LDA1" || deviceType == "LDH1" || deviceType == "FAP1" || deviceType == "E1B2" || deviceType == "E1P1" || deviceType == "SFE" || deviceType == "E1E2") {
         pointMap = emptyPointMap;
     } else {
         // 产品映射和测点映射是两层校验：

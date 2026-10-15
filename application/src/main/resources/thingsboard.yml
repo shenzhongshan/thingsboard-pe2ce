@@ -2297,6 +2297,11 @@ tb:
         function-category: ground_resistance
         product-name: FR接地电阻监测模块
         product-category: lightning
+      # 型号清单中的导轨式接地电阻监测仪，按接地电阻功能归入防雷分类。
+      G2A3:
+        function-category: ground_resistance
+        product-name: 导轨式接地电阻监测仪
+        product-category: lightning
       M1AI:
         function-category: lightning_current
         product-name: FL雷电流监测模块
@@ -2329,7 +2334,7 @@ tb:
         function-category: spd_monitor
         product-name: ESM防雷监测模组（旗舰版）
         product-category: lightning
-      # 电气安全产品：以故障监测、供电异常监测和回路保护为主要用途。
+      # 电气安全二级分类统一为电气火灾、安全用电、电力质量和故障电弧四类。
       LDH1:
         function-category: arc_fault
         product-name: FA故障电弧监测模块
@@ -2343,55 +2348,65 @@ tb:
         product-name: ESF电气火灾监测模组
         product-category: electrical_safety
       E1T2:
-        function-category: temperature_monitor
+        function-category: electrical_fire
         product-name: EST温度监测模组（有线测温）
         product-category: electrical_safety
       E2C3:
-        function-category: leakage_monitor
+        function-category: electrical_fire
         product-name: ESC漏电监测模组
         product-category: electrical_safety
       E1I2:
-        function-category: input_monitor
+        function-category: safe_electricity
         product-name: ESI输入监测模组
         product-category: electrical_safety
       CBP4:
-        function-category: smart_breaker
+        function-category: safe_electricity
         product-name: FECB智能断路器（4P）
         product-category: electrical_safety
       CBP3:
-        function-category: smart_breaker
+        function-category: safe_electricity
         product-name: FECB智能断路器（3P）
         product-category: electrical_safety
       CBP2:
-        function-category: smart_breaker
+        function-category: safe_electricity
         product-name: FECB智能断路器（2P）
         product-category: electrical_safety
       CBP1:
-        function-category: smart_breaker
+        function-category: safe_electricity
         product-name: FECB智能断路器（1P）
         product-category: electrical_safety
       LDA1:
-        function-category: mains_monitor
+        function-category: safe_electricity
         product-name: FD市电监测模块
         product-category: electrical_safety
       E1B2:
-        function-category: phase_unbalance
+        function-category: power_quality
         product-name: ESB三相不平衡监测器
         product-category: electrical_safety
+      # SFB 与 ESB 型号仍保持独立设备类型；三相不平衡统一归入电力质量分类。
+      SFB:
+        function-category: power_quality
+        product-name: SFB三相不平衡测控模组
+        product-category: electrical_safety
       E1P1:
-        function-category: neutral_ground_voltage
+        function-category: safe_electricity
         product-name: ESP零地电压监测器
         product-category: electrical_safety
-
-      # 能源监管产品：以用电计量和电能质量分析为主要用途。
       E1E2:
         function-category: power_quality
         product-name: ESE电能质量监测器
-        product-category: energy_regulation
+        product-category: electrical_safety
       SFE:
         function-category: power_quality
         product-name: SFE电能质量监测器
-        product-category: energy_regulation
+        product-category: electrical_safety
+      # 型号清单中的 SFA 三相智能测控模组，归入电气安全分类。
+      SFA:
+        function-category: electrical_fire
+        product-name: SFA三相智能测控模组
+        product-category: electrical_safety
+
+      # 能源监管产品：目前仅 ESA 智能电表（E1A2）归入此类。
       E1A2:
         function-category: energy_meter
         product-name: ESA智能电表

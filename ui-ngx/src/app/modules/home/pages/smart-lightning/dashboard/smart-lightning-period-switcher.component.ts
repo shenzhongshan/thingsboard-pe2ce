@@ -13,6 +13,8 @@ import { SmartLightningPeriod } from './smart-lightning-dashboard.data';
 export class SmartLightningPeriodSwitcherComponent {
 
   @Input() activePeriod: SmartLightningPeriod = SmartLightningPeriod.day;
+  /** 提供当前周期控件的具体统计对象；默认值保持防雷页面原有无障碍标签。 */
+  @Input() ariaLabel = '图表时间范围';
   @Output() readonly periodChange = new EventEmitter<SmartLightningPeriod>();
 
   readonly periods = [

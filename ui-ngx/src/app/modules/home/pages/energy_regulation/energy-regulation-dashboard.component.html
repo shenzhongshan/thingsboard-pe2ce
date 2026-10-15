@@ -1,11 +1,5 @@
-<!-- 文件职责：展示真实设备概况和用电数据，并保留演示地图、碳排趋势与告警样例。 -->
+<!-- 文件职责：展示能源监管设备地图、设备概况和用电数据，并保留尚未接入的碳排与告警样例。 -->
 <main class="energy-dashboard" aria-label="能源监管看板">
-  <nav class="energy-dashboard-links" aria-label="能源监管页面">
-    <span aria-current="page">能源监管看板</span>
-    <a routerLink="/energy-regulation/overview">用能概况</a>
-    <a routerLink="/energy-regulation/monitoring">用能监测</a>
-    <a routerLink="/energy-regulation/query">用能数据查询</a>
-  </nav>
   <section class="headline-metrics" aria-label="平台概况">
     <article class="headline-card"><span class="metric-icon project-icon">▦</span><div><small>设备总数</small><strong>{{ deviceOverviewLoading ? '…' : deviceOverviewError ? '--' : deviceSummary.total }}</strong><span>能源监管设备</span></div></article>
     <article class="headline-card"><span class="metric-icon online-icon">⌁</span><div><small>在线设备</small><strong>{{ deviceOverviewLoading ? '…' : deviceOverviewError ? '--' : deviceSummary.online }}</strong><span *ngIf="!deviceOverviewError">离线 {{ deviceSummary.offline }} 台</span></div></article>
@@ -37,7 +31,7 @@
     </article>
 
     <article class="panel map-panel">
-      <header class="panel-heading"><div><h2>设备分布</h2><small>天地图 · 演示点位</small></div><span class="map-legend"><i></i>在线　<i class="offline-dot"></i>离线　<i class="alarm-dot"></i>告警</span></header>
+      <header class="panel-heading"><div><h2>设备分布</h2><small>{{ mapLoadError ? '设备位置加载失败' : '优先使用 GPS 遥测坐标，缺失时使用服务器属性' }}</small></div><span class="map-legend"><i></i>在线　<i class="offline-dot"></i>离线　<i class="alarm-dot"></i>告警</span></header>
       <div class="map-host"><tb-smart-lightning-device-map [devices]="mapDevices"></tb-smart-lightning-device-map></div>
     </article>
 

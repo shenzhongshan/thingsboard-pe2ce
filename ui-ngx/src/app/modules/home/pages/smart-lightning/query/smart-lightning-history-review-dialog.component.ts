@@ -25,6 +25,7 @@ import {
   getSmartLightningHistoryYAxisRange,
   getSmartLightningTelemetryParameterLabel,
   getSmartLightningTelemetryParameterUnit,
+  SmartLightningHistoryMetricDefinition,
   SmartLightningHistoryPoint
 } from './smart-lightning-history-review.data';
 
@@ -32,6 +33,8 @@ export interface SmartLightningHistoryReviewDialogData {
   deviceId: string;
   deviceName: string;
   deviceProfileName: string;
+  /** 非防雷页面可传入本模块已确认的测点表；不传时沿用防雷型号定义。 */
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[];
 }
 
 type HistoryRangePreset = '24h' | '7d' | '30d' | 'custom';
@@ -108,13 +111,15 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
 
   get selectedParameterLabel(): string {
     return this.selectedParameter
-      ? getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, this.selectedParameter)
+      ? getSmartLightningTelemetryParameterLabel(
+        this.data.deviceProfileName, this.selectedParameter, this.data.metricDefinitions
+      )
       : '设备参数';
   }
 
   /** 遥测参数展示文本：配置过映射的显示中文业务名并保留原始键。 */
   parameterLabel(key: string): string {
-    return getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, key);
+    return getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, key, this.data.metricDefinitions);
   }
 
   /** 关闭弹窗，断开图表尺寸监听。 */
@@ -201,7 +206,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       DataKeyType.timeseries
     ).pipe(takeUntil(this.destroy$)).subscribe({
       next: (keys) => {
-        this.parameterKeys = filterSmartLightningTelemetryParameters(this.data.deviceProfileName, keys)
+        this.parameterKeys = filterSmartLightningTelemetryParameters(
+          this.data.deviceProfileName, keys, this.data.metricDefinitions
+        )
           .sort((left, right) => left.localeCompare(right));
         this.selectedParameter = this.parameterKeys[0] || '';
         this.keysLoading = false;
@@ -224,7 +231,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     if (!this.chart) {
       return;
     }
-    const unit = getSmartLightningTelemetryParameterUnit(this.data.deviceProfileName, this.selectedParameter);
+    const unit = getSmartLightningTelemetryParameterUnit(
+      this.data.deviceProfileName, this.selectedParameter, this.data.metricDefinitions
+    );
     const yAxisRange = getSmartLightningHistoryYAxisRange(this.points);
     const option: EChartsOption = {
       animationDuration: 250,

@@ -93,6 +93,7 @@ export const HOME_OVERVIEW_FUNCTION_LABELS: Record<string, string> = {
   input_monitor: '输入状态监测',
   smart_breaker: '智能断路器',
   mains_monitor: '市电监测',
+  safe_electricity: '安全用电监测',
   power_quality: '电能质量监测',
   phase_unbalance: '三相不平衡监测',
   energy_meter: '电能计量'
@@ -180,7 +181,7 @@ export function buildFunctionDistribution(devices: HomeOverviewDevice[], categor
     if (category && normalizeCategory(device.productCategory) !== category) {
       continue;
     }
-    const key = device.functionCategory?.trim().toLowerCase() || 'unclassified';
+    const key = normalizeHomeOverviewFunctionCategory(device.productCategory, device.functionCategory);
     totals.set(key, (totals.get(key) || 0) + 1);
   }
   return Array.from(totals.entries())
@@ -191,6 +192,40 @@ export function buildFunctionDistribution(devices: HomeOverviewDevice[], categor
       value,
       color: HOME_OVERVIEW_COLORS[index % HOME_OVERVIEW_COLORS.length]
     }));
+}
+
+/**
+ * 首页在电气安全范围内合并已存在的旧二级分类，保证未批量迁移的设备也按四类统计。
+ * 其他产品分类沿用其原始 functionCategory，避免影响防雷和能源监管统计。
+ */
+export function normalizeHomeOverviewFunctionCategory(productCategory: unknown, functionCategory: unknown): string {
+  const normalizedProductCategory = normalizeCategory(productCategory);
+  const normalizedFunctionCategory = typeof functionCategory === 'string'
+    ? functionCategory.trim().toLowerCase()
+    : '';
+  if (normalizedProductCategory !== 'electrical_safety') {
+    return normalizedFunctionCategory || 'unclassified';
+  }
+
+  switch (normalizedFunctionCategory) {
+    case 'electrical_fire':
+    case 'temperature_monitor':
+    case 'leakage_monitor':
+      return 'electrical_fire';
+    case 'safe_electricity':
+    case 'input_monitor':
+    case 'smart_breaker':
+    case 'mains_monitor':
+    case 'neutral_ground_voltage':
+      return 'safe_electricity';
+    case 'power_quality':
+    case 'phase_unbalance':
+      return 'power_quality';
+    case 'arc_fault':
+      return 'arc_fault';
+    default:
+      return normalizedFunctionCategory || 'unclassified';
+  }
 }
 
 export function normalizeCategory(value: unknown): string {

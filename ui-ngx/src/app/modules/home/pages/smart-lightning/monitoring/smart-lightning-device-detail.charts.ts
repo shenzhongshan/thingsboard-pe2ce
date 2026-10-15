@@ -161,9 +161,7 @@ export const SMART_LIGHTNING_CHART_DEFINITIONS: Readonly<Record<string, readonly
   DEP4: [
     chart('temperature', '温度', 1, [series('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature)]),
     chart('StrikeCnt', '雷击次数', 2, lightningCount())
-  ],
-  LDH1: [],
-  FAP1: []
+  ]
 };
 
 /** 返回指定型号的原始趋势图定义；未知型号不显示曲线，避免用错产品指标。 */

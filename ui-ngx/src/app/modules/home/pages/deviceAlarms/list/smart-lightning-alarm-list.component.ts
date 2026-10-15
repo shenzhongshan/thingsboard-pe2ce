@@ -21,7 +21,8 @@ import {
   SmartLightningMonitoringAssetNode,
   SmartLightningMonitoringAssetTree
 } from '../../smart-lightning/monitoring/smart-lightning-monitoring.data';
-import { SmartLightningDeviceContext, SmartLightningMonitoringApiService } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import { SmartLightningMonitoringApiService } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import { HomeOverviewApiService, HomeOverviewDeviceContext } from '../../homeOverview/home-overview-api.service';
 import {
   filterSmartLightningAlarmListRows,
   formatSmartLightningAlarmListTime,
@@ -88,6 +89,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
+    private readonly homeOverviewApi: HomeOverviewApiService,
     private readonly alarmService: AlarmService,
     private readonly dialog: MatDialog,
     private readonly dialogService: DialogService,
@@ -408,6 +410,14 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
         this.deviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
+        // 树接口返回的是当前用户可见的全部资产和设备；以树中的设备 ID 作为告警页范围，
+        // 避免继续沿用防雷专用设备上下文而漏掉电气安全、能源监管等产品的告警。
+        this.deviceIds.clear();
+        for (const node of this.assetTree.nodes.values()) {
+          if (node.entityType === EntityType.DEVICE) {
+            this.deviceIds.add(node.id);
+          }
+        }
         this.expandedAssetIds = preserveSelection
           ? new Set([...previousExpandedIds].filter((id) => this.assetTree.nodes.has(id)))
           : getSmartLightningDefaultExpandedAssetIds(this.assetTree);
@@ -443,16 +453,13 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       this.alarmsLoading = true;
       this.alarmsLoadError = false;
     }
-    this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0).pipe(
-      map((pageData) => pageData.data.filter((device) =>
-        this.assetTree.nodes.get(device.deviceId)?.entityType === EntityType.DEVICE)),
+    this.homeOverviewApi.getVisibleDeviceContexts().pipe(
+      map((contexts) => contexts.filter((device) => this.deviceIds.has(device.deviceId))),
       takeUntil(this.destroy$)
     ).subscribe({
       next: (contexts) => {
-        this.deviceIds.clear();
         this.deviceContexts.clear();
         contexts.forEach((context) => {
-          this.deviceIds.add(context.deviceId);
           this.deviceContexts.set(context.deviceId, this.toAlarmContext(context));
         });
         if (refreshAlarms) {
@@ -462,21 +469,19 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
         }
       },
       error: () => {
-        if (refreshAlarms) {
-          this.alarmsLoading = false;
-          this.alarmsLoadError = true;
-        }
-        this.cd.markForCheck();
+        // 设备上下文只补充型号、产品名等展示字段；上下文接口失败不能阻断平台告警查询。
+        if (refreshAlarms) this.loadAlarms();
+        else this.cd.markForCheck();
       }
     });
   }
 
-  private toAlarmContext(context: SmartLightningDeviceContext): SmartLightningAlarmListContext {
+  private toAlarmContext(context: HomeOverviewDeviceContext): SmartLightningAlarmListContext {
     return {
       deviceType: context.deviceProfileName || '--',
       productName: context.productName || '--',
-      meterAddress: context.meterAddress || '--',
-      timeSetting: context.timeSetting || '全时段'
+      meterAddress: '--',
+      timeSetting: '全时段'
     };
   }
 
@@ -487,7 +492,9 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),
       {}
     );
-    this.monitoringApi.getLightningAlarms(query).pipe(takeUntil(this.destroy$)).subscribe({
+    // 使用 ThingsBoard 原生“当前用户全部告警”接口；租户管理员和客户用户仍按平台权限返回数据，
+    // 本共享告警页不再附加 productCategory=lightning 的模块级过滤。
+    this.alarmService.getAllAlarmsV2(query).pipe(takeUntil(this.destroy$)).subscribe({
       next: (pageData) => {
         const rows = pageData.data
           .filter((alarm) => alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))

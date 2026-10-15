@@ -1,17 +1,26 @@
-/** 文件职责：能源监管总览看板，组织接口数据、演示内容和本地图表生命周期。 */
+/** 文件职责：能源监管总览看板，组织设备接口、用能数据、演示内容和本地图表生命周期。 */
 import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren} from '@angular/core';
 import * as echarts from 'echarts';
 import {ECharts, EChartsOption} from 'echarts';
 import {AlarmQueryV2, AlarmSearchStatus, AlarmSeverity} from '@shared/models/alarm.models';
 import {EntityType} from '@shared/models/entity-type.models';
 import {MAX_SAFE_PAGE_SIZE, TimePageLink} from '@shared/models/page/page-link';
-import {forkJoin, Subject} from 'rxjs';
+import {auditTime, bufferTime, catchError, filter, forkJoin, merge, of, Subject} from 'rxjs';
 import {takeUntil} from 'rxjs/operators';
 import {EnergyRegulationApiService} from './energy-regulation-api.service';
-import type {EnergyRegulationEnergyConsumption} from './energy-regulation-api.service';
+import type {
+  EnergyRegulationAssetTreeNode,
+  EnergyRegulationDeviceContext,
+  EnergyRegulationEnergyConsumption
+} from './energy-regulation-api.service';
+import type {SmartLightningMapDevice} from '../smart-lightning/shared/map/smart-lightning-device-map.models';
+import {resolveSmartLightningMapCoordinates} from '../smart-lightning/shared/map/smart-lightning-device-map.data';
+import {
+  SmartLightningDeviceTelemetryChange,
+  SmartLightningRealtimeService
+} from '../smart-lightning/shared/realtime/smart-lightning-realtime.service';
 import {
   buildEnergyRegulationDeviceOverview,
-  DEMO_ENERGY_MAP_DEVICES,
   DEMO_ENERGY_REGULATION_DASHBOARD_DATA,
   EnergyRegulationDeviceProfileCount,
   EnergyRegulationDeviceSummary,
@@ -35,8 +44,16 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
 
   /** 模板绑定集中使用本地演示数据，明确不代表实时监测结果。 */
   readonly demoData = DEMO_ENERGY_REGULATION_DASHBOARD_DATA;
-  /** 地图当前仍展示演示点位，真实点位接入在后续步骤处理。 */
-  readonly mapDevices = DEMO_ENERGY_MAP_DEVICES;
+  /** 能源监管地图仅显示现有设备上下文中具有有效遥测或服务器属性坐标的设备。 */
+  mapDevices: SmartLightningMapDevice[] = [];
+  /** 地图坐标和设备信息沿用能源监管模块已有接口，不依赖防雷或电气安全数据。 */
+  private energyDeviceContexts: EnergyRegulationDeviceContext[] = [];
+  /** 当前活动告警设备集合，只用于地图点位的告警状态标记。 */
+  private alarmedDeviceIds = new Set<string>();
+  /** 设备 ID 到完整资产树路径的索引，供地图弹窗展示设备归属。 */
+  private readonly mapAssetPaths = new Map<string, string>();
+  /** 地图坐标请求失败时清空点位，避免把旧点位误当成当前设备结果。 */
+  mapLoadError = false;
   deviceSummary: EnergyRegulationDeviceSummary = {total: 0, online: 0, offline: 0, alarming: 0};
   deviceProfiles: EnergyRegulationDeviceProfileCount[] = [];
   deviceOverviewLoading = true;
@@ -50,12 +67,17 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
   private readonly charts = new Map<string, ECharts>();
   private readonly destroy$ = new Subject<void>();
   private resizeObserver?: ResizeObserver;
+  /** 只接受最近一次看板快照请求，避免设备新增后旧响应覆盖新点位。 */
+  private deviceOverviewRequestId = 0;
 
   constructor(
-    private readonly energyRegulationApiService: EnergyRegulationApiService
+    private readonly energyRegulationApiService: EnergyRegulationApiService,
+    private readonly realtimeService: SmartLightningRealtimeService
   ) {}
 
   ngOnInit(): void {
+    this.subscribeToMapTelemetry();
+    this.realtimeService.acquire();
     this.loadDeviceOverview();
     this.loadEnergyConsumption();
   }
@@ -152,22 +174,29 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.realtimeService.release();
     this.resizeObserver?.disconnect();
     this.charts.forEach((chart) => chart.dispose());
     this.charts.clear();
   }
 
-  /** 复用共享设备上下文和活动告警查询，只统计 productCategory=energy_regulation 的设备。 */
+  /** 复用能源监管模块现有设备、资产树和告警接口；无设备时地图保持空白。 */
   private loadDeviceOverview(): void {
+    const requestId = ++this.deviceOverviewRequestId;
     const alarmsQuery = new AlarmQueryV2(null, new TimePageLink(MAX_SAFE_PAGE_SIZE, 0), {
       statusList: [AlarmSearchStatus.ACTIVE],
       severityList: Object.values(AlarmSeverity)
     });
     forkJoin({
       devices: this.energyRegulationApiService.getDeviceContexts(),
-      alarms: this.energyRegulationApiService.getAlarms(alarmsQuery)
+      alarms: this.energyRegulationApiService.getAlarms(alarmsQuery),
+      // 资产树只为地图弹窗提供归属路径；树请求失败不影响设备统计和坐标点位。
+      assetTree: this.energyRegulationApiService.getAssetTree().pipe(catchError(() => of(null)))
     }).pipe(takeUntil(this.destroy$)).subscribe({
-      next: ({devices, alarms}) => {
+      next: ({devices, alarms, assetTree}) => {
+        if (requestId !== this.deviceOverviewRequestId) {
+          return;
+        }
         const energyDeviceIds = new Set(devices.map((device) => device.deviceId));
         const alarmedDeviceIds = new Set<string>();
         for (const alarm of alarms.data || []) {
@@ -176,6 +205,14 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
             alarmedDeviceIds.add(alarm.originator.id);
           }
         }
+        this.energyDeviceContexts = devices;
+        this.alarmedDeviceIds = alarmedDeviceIds;
+        this.mapAssetPaths.clear();
+        if (assetTree) {
+          buildEnergyRegulationAssetPathIndex(assetTree.roots, this.mapAssetPaths);
+        }
+        this.mapLoadError = false;
+        this.refreshMapDevices();
         const overview = buildEnergyRegulationDeviceOverview(devices, alarmedDeviceIds);
         this.deviceSummary = overview.summary;
         this.deviceProfiles = overview.profiles;
@@ -183,10 +220,72 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
         this.renderChart('devices');
       },
       error: () => {
+        if (requestId !== this.deviceOverviewRequestId) {
+          return;
+        }
+        this.energyDeviceContexts = [];
+        this.mapDevices = [];
+        this.mapLoadError = true;
         this.deviceOverviewLoading = false;
         this.deviceOverviewError = true;
       }
     });
+  }
+
+  /** 复用防雷共享 WebSocket 缓存：GPS 坐标和在线状态更新只刷新当前能源设备地图。 */
+  private subscribeToMapTelemetry(): void {
+    this.realtimeService.deviceTelemetryChanged$.pipe(
+      bufferTime(100),
+      filter((changes) => changes.length > 0),
+      takeUntil(this.destroy$)
+    ).subscribe((changes) => {
+      const energyDeviceIds = new Set(this.energyDeviceContexts.map((device) => device.deviceId));
+      const mapStateChanged = changes.some((change) => energyDeviceIds.has(change.deviceId) && (
+        change.values.has('active') || change.values.has('Latitude') || change.values.has('Longitude')
+      ));
+      if (mapStateChanged) {
+        this.refreshMapDevices();
+      }
+    });
+
+    // 新设备、资产归属或服务器坐标变化后，重新读取模块现有快照接口以发现新增能源设备。
+    merge(
+      this.realtimeService.deviceMembershipChanged$,
+      this.realtimeService.deviceContextIncrementalChanged$,
+      this.realtimeService.assetMembershipChanged$
+    ).pipe(
+      auditTime(400),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.loadDeviceOverview());
+  }
+
+  /** 遥测坐标优先，完整遥测坐标无效时回退服务器属性；无坐标设备不创建地图标记。 */
+  private refreshMapDevices(): void {
+    this.mapDevices = [];
+    for (const context of this.energyDeviceContexts) {
+      const coordinates = resolveSmartLightningMapCoordinates(
+        context.latitude,
+        context.longitude,
+        this.realtimeService.getLatestTelemetryValue(context.deviceId, 'Latitude')?.value,
+        this.realtimeService.getLatestTelemetryValue(context.deviceId, 'Longitude')?.value
+      );
+      if (!coordinates) {
+        continue;
+      }
+      const activeValue = this.realtimeService.getLatestTelemetryValue(context.deviceId, 'active')?.value;
+      this.mapDevices.push({
+        id: context.deviceId,
+        name: context.deviceName,
+        productName: context.productName || '--',
+        profileName: context.deviceProfileName || '--',
+        productCategory: context.productCategory,
+        active: parseEnergyRegulationActiveValue(activeValue) ?? (context.active === true),
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        assetPath: this.mapAssetPaths.get(context.deviceId) || '--',
+        alarmNames: this.alarmedDeviceIds.has(context.deviceId) ? ['存在未清除告警'] : []
+      });
+    }
   }
 
   /** 读取标准累计电能接口；失败时保留错误状态，不回退到演示用电量。 */
@@ -307,4 +406,33 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
       ]
     };
   }
+}
+
+/** 递归建立能源监管设备及资产 ID 到完整树路径的映射。 */
+function buildEnergyRegulationAssetPathIndex(
+  roots: readonly EnergyRegulationAssetTreeNode[],
+  paths: Map<string, string>
+): void {
+  const visit = (node: EnergyRegulationAssetTreeNode, parentNames: readonly string[]): void => {
+    const currentNames = [...parentNames, node.name?.trim() || node.id];
+    paths.set(node.id, currentNames.join('/'));
+    for (const child of node.children || []) {
+      visit(child, currentNames);
+    }
+  };
+  for (const root of roots) {
+    visit(root, []);
+  }
+}
+
+/** 把共享 active 遥测转换成明确的在线状态；未知编码保留上下文接口的状态。 */
+function parseEnergyRegulationActiveValue(value: string | undefined): boolean | undefined {
+  const normalizedValue = String(value ?? '').trim().toLowerCase();
+  if (normalizedValue === 'true' || normalizedValue === '1') {
+    return true;
+  }
+  if (normalizedValue === 'false' || normalizedValue === '0') {
+    return false;
+  }
+  return undefined;
 }

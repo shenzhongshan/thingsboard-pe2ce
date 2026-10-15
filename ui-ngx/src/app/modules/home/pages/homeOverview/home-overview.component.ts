@@ -21,13 +21,13 @@ import {
   getSmartLightningMonitoringAssetPaths
 } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
 import { SmartLightningRealtimeService } from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+import {resolveSmartLightningMapCoordinates} from '@home/pages/smart-lightning/shared/map/smart-lightning-device-map.data';
 import { HomeOverviewApiService, HomeOverviewDeviceContext } from './home-overview-api.service';
 import {
   buildCategoryDistribution,
   buildDonutSegments,
   buildFunctionDistribution,
   categoryLabel,
-  countDevicesWithoutCoordinates,
   createEmptyHomeOverviewStats,
   buildDonutSegmentInfo,
   findDonutSegmentAtPoint,
@@ -44,6 +44,7 @@ import {
   HomeOverviewDistributionItem,
   HomeOverviewStats,
   normalizeCoordinate,
+  normalizeHomeOverviewFunctionCategory,
   normalizeCategory,
   applyHomeOverviewActiveUpdates,
   parseHomeOverviewActiveValue,
@@ -84,6 +85,8 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
   private readonly activeTelemetryRefresh$ = new Subject<void>();
   private readonly alarmSettleRefresh$ = new Subject<void>();
   private readonly pendingActiveDeviceIds = new Set<string>();
+  /** 暂存已有设备坐标遥测变化，合并后从共享缓存读取完整经纬度对。 */
+  private readonly pendingMapCoordinateDeviceIds = new Set<string>();
   private alarmNamesByDevice = new Map<string, string[]>();
   /** 设备 ID 到当前用户可见资产树完整路径的索引，供地图详情弹窗展示。 */
   deviceAssetPaths = new Map<string, string>();
@@ -406,6 +409,10 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
           this.pendingActiveDeviceIds.add(change.deviceId);
           this.activeTelemetryRefresh$.next();
         }
+        if (change.values.has('Latitude') || change.values.has('Longitude')) {
+          this.pendingMapCoordinateDeviceIds.add(change.deviceId);
+          this.activeTelemetryRefresh$.next();
+        }
       });
 
     this.activeTelemetryRefresh$.pipe(auditTime(100), takeUntil(this.destroy$))
@@ -442,11 +449,11 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 合并一小段时间内的 active 推送，并从共享服务缓存读取最新值，避免使用乱序到达的旧帧。
-   * 只更新首屏 HTTP 已确认可见的设备；权限范围、分类、坐标和设备总数仍以原接口为准。
+   * 合并 active 和坐标推送，并从共享缓存读取最新值，避免使用乱序到达的旧帧。
+   * 只应用首屏 HTTP 已确认可见的设备；权限范围、设备分类和设备总数仍以原接口为准。
    */
   private applyPendingActiveTelemetry(): void {
-    if (!this.pendingActiveDeviceIds.size) {
+    if (!this.pendingActiveDeviceIds.size && !this.pendingMapCoordinateDeviceIds.size) {
       return;
     }
 
@@ -469,14 +476,30 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
       this.pendingActiveDeviceIds.delete(deviceId);
     }
 
+    let mapCoordinatesChanged = false;
+    for (const deviceId of Array.from(this.pendingMapCoordinateDeviceIds)) {
+      if (!loadedDeviceIds.has(deviceId)) {
+        // 设备上下文仍在加载时保留事件，等 HTTP 响应确认当前用户的可见范围。
+        if (!this.loading) {
+          this.pendingMapCoordinateDeviceIds.delete(deviceId);
+        }
+        continue;
+      }
+      mapCoordinatesChanged = true;
+      this.pendingMapCoordinateDeviceIds.delete(deviceId);
+    }
+
     const updatedDevices = applyHomeOverviewActiveUpdates(this.devices, activeByDeviceId);
-    if (updatedDevices === this.devices) {
+    const activeStateChanged = updatedDevices !== this.devices;
+    if (!activeStateChanged && !mapCoordinatesChanged) {
       return;
     }
 
-    this.devices = updatedDevices;
-    this.stats.onlineTotal = this.devices.filter((device) => device.active).length;
-    this.stats.offlineTotal = this.devices.length - this.stats.onlineTotal;
+    if (activeStateChanged) {
+      this.devices = updatedDevices;
+      this.stats.onlineTotal = this.devices.filter((device) => device.active).length;
+      this.stats.offlineTotal = this.devices.length - this.stats.onlineTotal;
+    }
     this.refreshVisibleDevices();
   }
 
@@ -499,7 +522,6 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
     this.stats.onlineTotal = this.devices.filter((item) => item.active).length;
     this.stats.offlineTotal = this.devices.length - this.stats.onlineTotal;
     this.stats.alarmDeviceTotal = this.devices.filter((item) => item.alarmNames.length > 0).length;
-    this.stats.unconfiguredTotal = countDevicesWithoutCoordinates(this.devices);
     this.categoryDistribution = buildCategoryDistribution(this.devices);
     this.functionDistribution = this.selectedCategory
       ? buildFunctionDistribution(this.devices, this.selectedCategory) : [];
@@ -514,11 +536,32 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
   }
   /** 根据当前分类筛选刷新地图输入，顶部全局统计不受影响。 */
   private refreshVisibleDevices(): void {
-    this.visibleDevices = this.devices.filter((device) => {
+    const visibleDevices = this.devices.filter((device) => {
       const categoryMatched = !this.selectedCategory || normalizeCategory(device.productCategory) === this.selectedCategory;
-      const functionMatched = !this.selectedFunctionCategory || (device.functionCategory || 'unclassified').toLowerCase() === this.selectedFunctionCategory;
+      const functionMatched = !this.selectedFunctionCategory
+        || normalizeHomeOverviewFunctionCategory(device.productCategory, device.functionCategory) === this.selectedFunctionCategory;
       return categoryMatched && functionMatched;
     });
+    this.visibleDevices = visibleDevices.map((device) => {
+      const coordinates = resolveSmartLightningMapCoordinates(
+        device.latitude,
+        device.longitude,
+        this.realtimeService.getLatestTelemetryValue(device.id, 'Latitude')?.value,
+        this.realtimeService.getLatestTelemetryValue(device.id, 'Longitude')?.value
+      );
+      return {
+        ...device,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude
+      };
+    });
+    // “未配置坐标”按实际地图点位口径统计，已有 GPS 遥测坐标的设备不再计入。
+    this.stats.unconfiguredTotal = this.devices.filter((device) => resolveSmartLightningMapCoordinates(
+      device.latitude,
+      device.longitude,
+      this.realtimeService.getLatestTelemetryValue(device.id, 'Latitude')?.value,
+      this.realtimeService.getLatestTelemetryValue(device.id, 'Longitude')?.value
+    ) === null).length;
     this.cd.markForCheck();
   }
 }

@@ -22,6 +22,7 @@ import { AlarmInfo, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
+import type {DeviceAlarmInformationChartItem} from '@home/pages/deviceAlarms/shared/alarm-information/device-alarm-information-chart.model';
 import {
   calculateSmartLightningDeviceSummary,
   compareSmartLightningAlarms,
@@ -31,7 +32,6 @@ import {
   SmartLightningChartId,
   SmartLightningChartPeriods,
   SmartLightningAlarmRow,
-  SmartLightningAlarmTypeTotal,
   SmartLightningDeviceSummary,
   SMART_LIGHTNING_ALARM_DISPLAY_LIMIT,
   SmartLightningPeriod,
@@ -39,12 +39,14 @@ import {
   formatSmartLightningResistance,
   getSmartLightningParentDirectory,
   getSmartLightningProductName,
-  getSmartLightningAlarmChartMessage,
   shouldReloadSmartLightningAlarms,
   shouldScheduleSmartLightningAlarmSettleRefresh,
   isLatestSmartLightningAlarmRequest,
 } from './smart-lightning-dashboard.data';
-import { filterSmartLightningMapDevicesWithoutPoints } from '../shared/map/smart-lightning-device-map.data';
+import {
+  filterSmartLightningMapDevicesWithoutPoints,
+  resolveSmartLightningMapCoordinates
+} from '../shared/map/smart-lightning-device-map.data';
 import {
   SmartLightningGroundMonitoringSummary,
   SmartLightningSpdMonitoringSummary,
@@ -126,7 +128,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   lightningLoading = true;
   lightningLoadError = false;
   activeAlarmCount: number | null = null;
-  activeAlarmTypeTotals: SmartLightningAlarmTypeTotal[] = [];
+  /** 转为共享图表契约的当前活动告警分类统计。 */
+  alarmInformationItems: DeviceAlarmInformationChartItem[] = [];
 
   private readonly charts = new Map<string, ECharts>();
   private readonly destroy$ = new Subject<void>();
@@ -146,19 +149,22 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   mapDevices: SmartLightningDeviceContext[] = [];
   /** 将防雷设备上下文转换为公共地图模型；分类边界由本页面决定。 */
   get mapDevicesForMap(): SmartLightningMapDevice[] {
-    return this.mapDevices.map((device) => ({
-      id: device.deviceId,
-      name: device.deviceName,
-      productName: device.productName || '--',
-      profileName: device.deviceProfileName || '--',
-      // 接口已经按 productCategory=lightning 过滤；缺少回传字段时按该接口契约回退，避免旧服务版本误隐藏点位。
-      productCategory: device.productCategory || 'lightning',
-      active: device.active === true,
-      latitude: device.latitude ?? undefined,
-      longitude: device.longitude ?? undefined,
-      assetPath: this.mapAssetPaths.get(device.deviceId) || '--',
-      alarmNames: this.activeAlarmNames.get(device.deviceId) || []
-    }));
+    return this.mapDevices.map((device) => {
+      const coordinates = this.resolveDeviceMapCoordinates(device);
+      return {
+        id: device.deviceId,
+        name: device.deviceName,
+        productName: device.productName || '--',
+        profileName: device.deviceProfileName || '--',
+        // 接口已按 productCategory=lightning 过滤；缺少回传值时按接口契约恢复分类。
+        productCategory: device.productCategory || 'lightning',
+        active: device.active === true,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+        assetPath: this.mapAssetPaths.get(device.deviceId) || '--',
+        alarmNames: this.activeAlarmNames.get(device.deviceId) || []
+      };
+    });
   }
   /** 智能防雷页面只显示 productCategory=lightning 的设备；公共组件不承担该业务筛选。 */
   readonly includeSmartLightningMapDevice = (device: SmartLightningMapDevice): boolean =>
@@ -171,13 +177,24 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
    */
   get availableMapDevices(): SmartLightningDeviceContext[] {
     const mappedDeviceIds = new Set(this.mapDevices
-      .filter((device) => device.latitude != null && device.longitude != null)
+      .filter((device) => this.resolveDeviceMapCoordinates(device) !== null)
       .map((device) => device.deviceId));
     return filterSmartLightningMapDevicesWithoutPoints(
       this.mapDevices,
       mappedDeviceIds
     );
   }
+
+  /** 防雷设备地图统一优先使用 GPS 时序坐标，缺少有效整对时回退到服务器属性。 */
+  private resolveDeviceMapCoordinates(device: SmartLightningDeviceContext) {
+    return resolveSmartLightningMapCoordinates(
+      device.latitude,
+      device.longitude,
+      this.realtimeService.getLatestTelemetryValue(device.deviceId, 'Latitude')?.value,
+      this.realtimeService.getLatestTelemetryValue(device.deviceId, 'Longitude')?.value
+    );
+  }
+
   /** 设备 ID 到根资产路径的索引，供公共地图组件弹窗显示绝对路径。 */
   mapAssetPaths = new Map<string, string>();
   /** 当前未清除告警按设备聚合的名称，供公共地图组件渲染状态和弹窗。 */
@@ -265,7 +282,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     }
     // 下拉框会过滤已绑定设备，但提交前仍再次校验，防止并发刷新或旧页面状态造成重复绑定。
     const selectedDevice = this.mapDevices.find((device) => device.deviceId === this.selectedMapDeviceId);
-    if (!selectedDevice || (selectedDevice.latitude != null && selectedDevice.longitude != null)) {
+    if (!selectedDevice || this.resolveDeviceMapCoordinates(selectedDevice) !== null) {
       this.mapPointSaveError = '该设备已经绑定地图点位，请重新选择未绑定设备。';
       this.selectedMapDeviceId = '';
       this.cd.markForCheck();
@@ -477,7 +494,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         this.alarms = alarms;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
-        this.renderChart('alarm');
         // 告警接口和设备接口是并行请求，告警先返回时也要刷新已经绘制的点位弹窗。
         this.deviceMap?.refresh();
         this.cd.markForCheck();
@@ -490,11 +506,10 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         this.alarms = [];
         this.activeAlarmNames.clear();
         this.activeAlarmCount = null;
-        this.activeAlarmTypeTotals = [];
+        this.alarmInformationItems = [];
         this.alarmsLoadError = true;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
-        this.renderChart('alarm');
         this.deviceMap?.refresh();
         this.cd.markForCheck();
       }
@@ -508,17 +523,18 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     this.monitoringApi.getLightningAlarmSummary().pipe(takeUntil(this.destroy$)).subscribe({
       next: (summary) => {
         this.activeAlarmCount = summary.activeCount;
-        this.activeAlarmTypeTotals = summary.typeTotals;
+        this.alarmInformationItems = summary.typeTotals.map((item) => ({
+          label: item.type,
+          count: item.count
+        }));
         this.alarmSummaryLoading = false;
-        this.renderChart('alarm');
         this.cd.markForCheck();
       },
       error: () => {
         this.activeAlarmCount = null;
-        this.activeAlarmTypeTotals = [];
+        this.alarmInformationItems = [];
         this.alarmSummaryLoading = false;
         this.alarmSummaryLoadError = true;
-        this.renderChart('alarm');
         this.cd.markForCheck();
       }
     });
@@ -736,11 +752,15 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     const temperatureKeys = new Set(['Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp']);
     const leakageKeys = new Set(['LeakCurrA', 'LeakCurrB', 'LeakCurrC']);
     const voltageKeys = new Set(['PhAVolt', 'PhBVolt', 'PhCVolt']);
+    let mapCoordinatesChanged = false;
 
     for (const change of changes) {
       const device = devicesById.get(change.deviceId);
       if (!device) {
         continue;
+      }
+      if (change.values.has('Latitude') || change.values.has('Longitude')) {
+        mapCoordinatesChanged = true;
       }
       const latestValues = this.realtimeService.getLatestTelemetryValues(device.deviceId);
       const active = this.parseActiveTelemetry(
@@ -798,7 +818,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       this.deviceSummary = calculateSmartLightningDeviceSummary(this.mapDevices.map((device) => device.active));
     }
 
-    let changed = activeUpdates.size > 0;
+    let changed = activeUpdates.size > 0 || mapCoordinatesChanged;
     if (groundSamples.length && this.groundSummary) {
       const current = this.groundSummary.resistanceExtrema;
       if (doesSmartLightningSampleInvalidateExtrema(
@@ -1078,9 +1098,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       case 'spd':
         chart.setOption(this.emptyChartOption(), true);
         break;
-      case 'alarm':
-        chart.setOption(this.alarmOption(), true);
-        break;
       case 'orders':
         chart.setOption(this.emptyChartOption(), true);
         break;
@@ -1091,7 +1108,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   }
 
   private isChartId(value: string | undefined): value is SmartLightningChartId {
-    return value === 'ground' || value === 'spd' || value === 'alarm' || value === 'orders' || value === 'lightning';
+    return value === 'ground' || value === 'spd' || value === 'orders' || value === 'lightning';
   }
 
   /** 获取或懒初始化指定容器的 ECharts 实例（SVG 渲染器）。 */
@@ -1111,33 +1128,6 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       xAxis: {type: 'category', show: false, data: []},
       yAxis: {type: 'value', show: false},
       series: []
-    };
-  }
-
-  /** 报警信息柱状图配置。 */
-  private alarmOption(): EChartsOption {
-    const alarmTypeTotals = this.activeAlarmTypeTotals;
-    const emptyStateText = getSmartLightningAlarmChartMessage(
-      this.alarmSummaryLoading,
-      this.alarmSummaryLoadError,
-      alarmTypeTotals
-    );
-    return {
-      animationDuration: 380,
-      title: {text: emptyStateText || '', left: 'center', top: 'middle', textStyle: {color: '#7890a4', fontSize: 12, fontWeight: 'normal'}},
-      grid: {top: 20, right: 10, bottom: 25, left: 28},
-      tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
-      xAxis: {
-        type: 'category', data: alarmTypeTotals.map((item) => item.type),
-        axisLabel: {color: '#7890a4', fontSize: 10, rotate: 20, interval: 0}, axisLine: {lineStyle: {color: '#d7e0e9'}}, axisTick: {show: false}
-      },
-      yAxis: {type: 'value', minInterval: 1, splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}},
-      series: [{
-        type: 'bar', data: alarmTypeTotals.map((item) => item.count), barMaxWidth: 28,
-        itemStyle: {borderRadius: [5, 5, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          {offset: 0, color: '#22e466'}, {offset: 1, color: '#073d5c'}
-        ])}
-      }]
     };
   }
 
