@@ -211,14 +211,10 @@ export class WhiteLabelingApplyService {
     if (url.startsWith(TB_IMAGE_PREFIX)) {
       const ref = url.substring(TB_IMAGE_PREFIX.length);
       if (ref.startsWith(IMAGES_API_PREFIX)) {
-        const rest = ref.substring(IMAGES_API_PREFIX.length);
-        const slash = rest.indexOf('/');
-        if (slash > 0) {
-          const type = rest.substring(0, slash);
-          const key = rest.substring(slash + 1);
-          const endpoint = faviconElseLogo ? 'loginFavicon' : 'loginLogo';
-          return `/api/noauth/whiteLabel/${endpoint}/${type}/${encodeURIComponent(key)}`;
-        }
+        // The login-page logo/favicon is resolved server-side from the domain's white-labeling
+        // config, so the endpoint needs no tenant/system type or resource key in the URL.
+        const endpoint = faviconElseLogo ? 'loginFavicon' : 'loginLogo';
+        return `/api/noauth/whiteLabel/${endpoint}`;
       }
       return ref;
     }
