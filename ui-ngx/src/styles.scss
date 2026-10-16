@@ -1387,6 +1387,10 @@ mat-sidenav.tb-site-sidenav .tb-side-menu-toolbar {
   color: #edf7ff !important;
 }
 
+mat-sidenav-content .tb-primary-toolbar {
+  background-color: #083b78 !important;
+}
+
 /* Logo 与一级菜单保持紧凑的深蓝基底。 */
 mat-sidenav.tb-site-sidenav .tb-nav-header-toolbar {
   border-bottom: 1px solid rgba(255, 255, 255, .16) !important;
