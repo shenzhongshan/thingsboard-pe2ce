@@ -19,13 +19,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.StringUtils;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.translation.CustomTranslation;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.model.sql.CustomTranslationCompositeKey;
 import org.thingsboard.server.dao.model.sql.CustomTranslationEntity;
 import org.thingsboard.server.dao.sql.translation.CustomTranslationRepository;
@@ -46,6 +50,25 @@ public class BaseCustomTranslationService implements CustomTranslationService {
     private static final Pattern LOCALE_CODE_PATTERN = Pattern.compile("^[a-z]{2}(_[A-Z]{2})?$");
 
     private final CustomTranslationRepository customTranslationRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * edge 事件的 entityId 用所有者：有客户填客户，否则填租户。
+     * 接收侧 CustomTranslationEdgeProcessor 按 TENANT/CUSTOMER 分派两条下发路径。
+     */
+    private static EntityId getEntityIdForEvent(TenantId tenantId, CustomerId customerId) {
+        return customerId != null && !customerId.isNullUid() ? customerId : tenantId;
+    }
+
+    private void publishEdgeEvent(TenantId tenantId, CustomerId customerId, ActionType actionType, Object body) {
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId)
+                .entityId(getEntityIdForEvent(tenantId, customerId))
+                .edgeEventType(EdgeEventType.CUSTOM_TRANSLATION)
+                .actionType(actionType)
+                .body(body == null ? null : JacksonUtil.toString(body))
+                .build());
+    }
 
     @Override
     public CustomTranslation getCustomTranslation(TenantId tenantId, CustomerId customerId, String localeCode) {
@@ -97,7 +120,10 @@ public class BaseCustomTranslationService implements CustomTranslationService {
         customTranslation.setCustomerId(customerId);
         customTranslation.setLocaleCode(localeCode);
         customTranslation.setValue(value != null ? value : JacksonUtil.newObjectNode());
-        return customTranslationRepository.save(new CustomTranslationEntity(customTranslation)).toData();
+        CustomTranslation saved = customTranslationRepository.save(new CustomTranslationEntity(customTranslation)).toData();
+        // 增量下发：没有这一步，edge 只在首次全量同步时拿到翻译，之后租户改了永远不生效。
+        publishEdgeEvent(tenantId, customerId, ActionType.UPDATED, saved);
+        return saved;
     }
 
     @Override
@@ -121,7 +147,12 @@ public class BaseCustomTranslationService implements CustomTranslationService {
     @Override
     public void deleteCustomTranslation(TenantId tenantId, CustomerId customerId, String localeCode) {
         UUID ownerCustomerId = ownerCustomerId(customerId);
+        // 先读后删：DELETED 事件要带 body，edge 侧收到时已经查不到内容了。
+        CustomTranslation existing = getCustomTranslation(tenantId, customerId, localeCode);
         customTranslationRepository.deleteById(new CustomTranslationCompositeKey(tenantId.getId(), ownerCustomerId, localeCode));
+        if (existing != null) {
+            publishEdgeEvent(tenantId, customerId, ActionType.DELETED, existing);
+        }
     }
 
     private UUID ownerCustomerId(CustomerId customerId) {

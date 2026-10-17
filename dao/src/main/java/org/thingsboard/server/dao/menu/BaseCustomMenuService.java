@@ -18,9 +18,13 @@ package org.thingsboard.server.dao.menu;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.CustomMenuDeleteResult;
 import org.thingsboard.server.common.data.EntityInfo;
 import org.thingsboard.server.common.data.User;
@@ -37,6 +41,7 @@ import org.thingsboard.server.common.data.menu.CustomMenuInfo;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.sql.customer.CustomerRepository;
 import org.thingsboard.server.dao.sql.user.UserRepository;
 import org.thingsboard.server.dao.user.UserService;
@@ -58,6 +63,31 @@ public class BaseCustomMenuService implements CustomMenuService {
     private final UserService userService;
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * 把菜单变更增量下发给 edge。没有这一步，edge 只在首次全量同步时拿到菜单，
+     * 之后的任何改动都不会到达（接收侧 CustomMenuEdgeProcessor 一直在等这个事件）。
+     *
+     * <p>entityId 填 tenantId 而不是菜单自身的 id：内容全在 body 里，这与全量同步
+     * fetcher 的产物保持一致（它发的 entityId 就是 null，路由只看租户）。entityId 不能
+     * 传 null —— EdgeEventSourcingListener 会直接解引用它的 EntityType。
+     *
+     * <p>CE 的菜单模型（scope + assigneeType + 分配列表）与 PE 的 (tenantId, customerId)
+     * 不同，所以这里不是照搬 PE 的 entityId 取法，而是对齐 CE 自己的接收端契约。
+     */
+    private void publishEdgeEvent(TenantId tenantId, CustomMenu menu, ActionType actionType) {
+        if (menu == null) {
+            return;
+        }
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId)
+                .entityId(tenantId)
+                .edgeEventType(EdgeEventType.CUSTOM_MENU)
+                .actionType(actionType)
+                .body(JacksonUtil.toString(menu))
+                .build());
+    }
 
     @Override
     @Transactional
@@ -84,6 +114,7 @@ public class BaseCustomMenuService implements CustomMenuService {
         if (assigneeType == CMAssigneeType.CUSTOMERS || assigneeType == CMAssigneeType.USERS) {
             assignEntities(tenantId, saved.getId(), assigneeType, assignToList);
         }
+        publishEdgeEvent(tenantId, saved, ActionType.ADDED);
         return saved;
     }
 
@@ -92,7 +123,9 @@ public class BaseCustomMenuService implements CustomMenuService {
     public CustomMenu updateCustomMenuConfig(TenantId tenantId, CustomMenuId id, CustomMenuConfig config) {
         CustomMenu menu = getExisting(tenantId, id);
         menu.setConfig(config != null ? config : new CustomMenuConfig());
-        return customMenuDao.save(tenantId, menu);
+        CustomMenu saved = customMenuDao.save(tenantId, menu);
+        publishEdgeEvent(tenantId, saved, ActionType.UPDATED);
+        return saved;
     }
 
     @Override
@@ -103,7 +136,9 @@ public class BaseCustomMenuService implements CustomMenuService {
         }
         CustomMenu menu = getExisting(tenantId, id);
         menu.setName(name);
-        return customMenuDao.save(tenantId, menu);
+        CustomMenu saved = customMenuDao.save(tenantId, menu);
+        publishEdgeEvent(tenantId, saved, ActionType.UPDATED);
+        return saved;
     }
 
     @Override
@@ -116,10 +151,11 @@ public class BaseCustomMenuService implements CustomMenuService {
         }
         clearAssignees(tenantId, id);
         menu.setAssigneeType(resolvedType);
-        customMenuDao.save(tenantId, menu);
+        CustomMenu saved = customMenuDao.save(tenantId, menu);
         if (resolvedType == CMAssigneeType.CUSTOMERS || resolvedType == CMAssigneeType.USERS) {
             assignEntities(tenantId, id, resolvedType, newList);
         }
+        publishEdgeEvent(tenantId, saved, ActionType.UPDATED);
     }
 
     @Override
@@ -186,6 +222,8 @@ public class BaseCustomMenuService implements CustomMenuService {
         }
         clearAssignees(tenantId, id);
         customMenuDao.removeById(tenantId, id);
+        // 用删除前读到的 menu 作 body：edge 侧收到 DELETED 时已无法回查内容。
+        publishEdgeEvent(tenantId, menu, ActionType.DELETED);
         return CustomMenuDeleteResult.success();
     }
 
