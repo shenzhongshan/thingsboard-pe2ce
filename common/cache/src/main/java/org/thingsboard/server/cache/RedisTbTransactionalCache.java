@@ -53,7 +53,14 @@ public abstract class RedisTbTransactionalCache<K extends Serializable, V extend
     /**
      * 服务端 SCAN + DEL，避免把键全量拉回客户端。与 PE 的同名脚本逐字一致，
      * SHA 也取 PE 的值 —— executeScript 会先试 evalSha，失败再 scriptLoad 回退，
-     * 所以 SHA 对不上也只是慢一次，不会出错。
+     * 所以 SHA 对不上也只是慢一次，不会出错（有单测钉住两者一致）。
+     *
+     * <p><b>要求 Redis >= 5</b>：更早的版本把脚本按原文复制到从库，禁止在非确定性命令
+     * （SCAN）之后执行写命令（DEL），会直接报 "Write commands not allowed after non
+     * deterministic commands"。Redis 5 起默认按效果复制，限制取消。实测确认过：在
+     * Redis 2.8 上这段脚本执行失败。本项目的缓存后端是 Valkey 8
+     * （docker/docker-compose.valkey-*.yml），满足该要求，因此保持与 PE 一致未作改动；
+     * 若将来要支持 3.2~4.x，需在脚本开头加 redis.replicate_commands()（并同步更新 SHA）。
      */
     static final byte[] EVICT_BY_PREFIX_LUA_SCRIPT = StringRedisSerializer.UTF_8.serialize(
             "local prefix = ARGV[1]\n" +

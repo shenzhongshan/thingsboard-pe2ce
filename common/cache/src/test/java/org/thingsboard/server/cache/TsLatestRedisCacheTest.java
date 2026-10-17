@@ -29,6 +29,17 @@ class VersionedRedisTbCacheTest {
         assertThat(getSHA1(VersionedRedisTbCache.SET_VERSIONED_VALUE_LUA_SCRIPT)).isEqualTo(new String(VersionedRedisTbCache.SET_VERSIONED_VALUE_SHA));
     }
 
+    /**
+     * SHA 常量是硬编码的，而 executeScript 先试 evalSha、失败才回退 scriptLoad ——
+     * 两者不一致时功能依然正确，只是每次都多一轮往返且不报任何错。所以钉住它：
+     * 改脚本必须同步改 SHA。
+     */
+    @Test
+    void testEvictByPrefixLUAScriptHash() {
+        assertThat(getSHA1(RedisTbTransactionalCache.EVICT_BY_PREFIX_LUA_SCRIPT))
+                .isEqualTo(new String(RedisTbTransactionalCache.EVICT_BY_PREFIX_SHA));
+    }
+
     @SneakyThrows
     String getSHA1(byte[] script) {
         MessageDigest md = MessageDigest.getInstance("SHA-1");
