@@ -578,16 +578,15 @@ public class EdgeServiceImpl extends AbstractCachedEntityService<EdgeCacheKey, E
             // 而被静默丢弃。USER 原先走"按租户/客户广播"分支，会把用户更新推给租户下
             // 每一台 edge（包括与该用户毫无关系的），这里一并收紧为按实际关联下发。
             //
-            // 刻意不过 relatedEdgesService 的缓存：结果现在依赖分组成员关系与
-            // 分组→edge 分配，而 CE 的缓存层没有 PE 的 evictByPrefix，无法在这些变更时
-            // 正确失效。带错误失效的缓存比不缓存更糟。本路径只在实体元数据变更时触发
-            // （改名、改标签等），遥测不走这里，频率很低。
+            // 走缓存（relatedEdgesService）。结果依赖分组成员关系与分组→edge 分配，
+            // 这两类变更的失效由 RelatedEdgesSourcingListener 负责：成员增删精确清该实体，
+            // 分组分配/取消分配/删除则整租户清空（受影响的成员集合未知或已不可枚举）。
             case DEVICE:
             case ASSET:
             case ENTITY_VIEW:
             case DASHBOARD:
             case USER:
-                return findEdgeIdsByTenantIdAndEntityIdIncludingGroups(tenantId, entityId, pageLink);
+                return relatedEdgesService.findEdgeIdsByEntityIdIncludingGroups(tenantId, entityId, pageLink);
             case RULE_CHAIN:
             // SCHEDULER_EVENT / INTEGRATION 与 RULE_CHAIN 同属"逐台 edge 显式分配"的实体：
             // assignXxxToEdge 建的是 EntityRelation(edgeId -> entityId, CONTAINS_TYPE,

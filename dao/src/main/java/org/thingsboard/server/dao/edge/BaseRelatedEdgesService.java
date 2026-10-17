@@ -44,7 +44,15 @@ public class BaseRelatedEdgesService extends AbstractCachedEntityService<Related
     @TransactionalEventListener(classes = RelatedEdgesEvictEvent.class)
     @Override
     public void handleEvictEvent(RelatedEdgesEvictEvent event) {
-        cache.evict(new RelatedEdgesCacheKey(event.getTenantId(), event.getEntityId()));
+        if (event.getEntityId() == null) {
+            // entityId 为 null 表示"受影响的键集合未知"（典型场景：一个实体分组被分配/
+            // 取消分配给 edge，组内全部成员的 related-edges 结果都变了）。按租户前缀整体
+            // 清空。RelatedEdgesCacheKey 的 toString 以 {tenantId} 开头，既是前缀也是
+            // Redis 的 hash tag，所以 cluster 下只会落在一个 slot。
+            cache.evictByPrefix("{" + event.getTenantId() + "}");
+        } else {
+            cache.evict(new RelatedEdgesCacheKey(event.getTenantId(), event.getEntityId()));
+        }
     }
 
     @Override
@@ -58,9 +66,25 @@ public class BaseRelatedEdgesService extends AbstractCachedEntityService<Related
     }
 
     @Override
+    public PageData<EdgeId> findEdgeIdsByEntityIdIncludingGroups(TenantId tenantId, EntityId entityId, PageLink pageLink) {
+        log.trace("Executing findEdgeIdsByEntityIdIncludingGroups, tenantId [{}], entityId [{}], pageLink [{}]", tenantId, entityId, pageLink);
+        if (!pageLink.equals(FIRST_PAGE)) {
+            return edgeService.findEdgeIdsByTenantIdAndEntityIdIncludingGroups(tenantId, entityId, pageLink);
+        }
+        return cache.getAndPutInTransaction(new RelatedEdgesCacheKey(tenantId, entityId),
+                () -> new RelatedEdgesCacheValue(edgeService.findEdgeIdsByTenantIdAndEntityIdIncludingGroups(tenantId, entityId, pageLink)), false).getPageData();
+    }
+
+    @Override
     public void publishRelatedEdgeIdsEvictEvent(TenantId tenantId, EntityId entityId) {
         log.trace("Executing publishRelatedEdgeIdsEvictEvent, tenantId [{}], entityId [{}]", tenantId, entityId);
         publishEvictEvent(new RelatedEdgesEvictEvent(tenantId, entityId));
+    }
+
+    @Override
+    public void publishEdgeIdsEvictEventByTenantId(TenantId tenantId) {
+        log.trace("Executing publishEdgeIdsEvictEventByTenantId, tenantId [{}]", tenantId);
+        publishEvictEvent(new RelatedEdgesEvictEvent(tenantId, null));
     }
 
 }
