@@ -39,10 +39,18 @@
           <mat-icon>close</mat-icon>
         </button>
       } @else {
-        <button mat-icon-button type="button" (click)="addEvent()"
-                matTooltip="{{ 'scheduler.add-scheduler-event' | translate }}" matTooltipPosition="above">
-          <mat-icon>add</mat-icon>
-        </button>
+        @if (edgeMode) {
+          <!-- edge 模式下"新增"是把已有调度事件分配给这台 edge，不是新建事件 -->
+          <button mat-icon-button type="button" (click)="assignEventToEdge($event)"
+                  matTooltip="{{ 'edge.assign-to-edge' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button type="button" (click)="addEvent()"
+                  matTooltip="{{ 'scheduler.add-scheduler-event' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        }
         @if (mode === 'list') {
           <button mat-icon-button type="button" (click)="enterSearchMode()"
                   matTooltip="{{ 'action.search' | translate }}" matTooltipPosition="above">
@@ -101,10 +109,18 @@
                         matTooltip="{{ 'version-control.version-control' | translate }}" matTooltipPosition="above">
                   <mat-icon>history</mat-icon>
                 </button>
-                <button mat-icon-button type="button" (click)="deleteEvent($event, event)"
-                        matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
-                  <mat-icon>delete</mat-icon>
-                </button>
+                @if (edgeMode) {
+                  <!-- 取消分配而非删除：这个页面列的是分配关系 -->
+                  <button mat-icon-button type="button" (click)="unassignEventFromEdge($event, event)"
+                          matTooltip="{{ 'edge.unassign-from-edge' | translate }}" matTooltipPosition="above">
+                    <mat-icon>portable_wifi_off</mat-icon>
+                  </button>
+                } @else {
+                  <button mat-icon-button type="button" (click)="deleteEvent($event, event)"
+                          matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                }
               </div>
             </td>
           </ng-container>

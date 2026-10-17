@@ -16,6 +16,10 @@
 
 import { Component, OnInit, Renderer2, ViewChild, ViewContainerRef } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import {
+  AddEntitiesToEdgeDialogComponent,
+  AddEntitiesToEdgeDialogData
+} from '@home/dialogs/add-entities-to-edge-dialog.component';
 import { of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -69,6 +73,12 @@ export class IntegrationsComponent extends PageComponent implements OnInit {
    *  服务 /integrations-center 和 /edgeManagement 两条路由，与 PE 一致。 */
   isEdgeTemplate = false;
 
+  /**
+   * Edge 模式：从 edge 详情页进来（instances/:edgeId/integrations）时，只列出**分配给
+   * 这台 edge** 的集成，动作换成分配/取消分配。与分组页同一套思路。
+   */
+  edgeId: string;
+
   sortProperty = 'createdTime';
   sortDirection: 'asc' | 'desc' = 'desc';
 
@@ -90,15 +100,69 @@ export class IntegrationsComponent extends PageComponent implements OnInit {
 
   ngOnInit() {
     this.isEdgeTemplate = !!this.route.snapshot.data.isEdgeTemplate;
+    // edgeId 在祖先路由段 ':edgeId/integrations' 上；Angular 默认不向子路由继承 params。
+    this.edgeId = this.findRouteParam('edgeId');
     this.reload();
+  }
+
+  private findRouteParam(name: string): string {
+    let route = this.route.snapshot;
+    while (route) {
+      if (route.params?.[name]) {
+        return route.params[name];
+      }
+      route = route.parent;
+    }
+    return null;
+  }
+
+  get edgeMode(): boolean {
+    return !!this.edgeId;
   }
 
   reload() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: this.sortProperty, direction: this.sortDirection === 'asc' ? Direction.ASC : Direction.DESC });
-    this.integrationService.getIntegrationInfos(pageLink, this.isEdgeTemplate).subscribe((pageData) => {
-      this.integrations = pageData.data;
+    // edge 模式下用的是 Integration（非 IntegrationInfo），字段是后者的超集里缺 dailyActivity
+    // 等统计项，表格对缺失值显示空即可 —— 对齐 PE 的 /edge/{id}/integrations 端点形状。
+    const source$ = this.edgeMode
+      ? this.integrationService.getEdgeIntegrations(this.edgeId, pageLink)
+      : this.integrationService.getIntegrationInfos(pageLink, this.isEdgeTemplate);
+    source$.subscribe((pageData) => {
+      this.integrations = pageData.data as any[];
       this.totalElements = pageData.totalElements;
+    });
+  }
+
+  /** 把一个 edge 模板集成分配给这台 edge。 */
+  assignIntegrationToEdge($event: Event) {
+    $event?.stopPropagation();
+    this.dialog.open<AddEntitiesToEdgeDialogComponent, AddEntitiesToEdgeDialogData, boolean>(
+      AddEntitiesToEdgeDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+        data: { edgeId: this.edgeId, entityType: EntityType.INTEGRATION }
+      }).afterClosed().subscribe((assigned) => {
+      if (assigned) {
+        this.reload();
+      }
+    });
+  }
+
+  unassignIntegrationFromEdge($event: Event, integration: {id: {id: string}; name: string}) {
+    $event?.stopPropagation();
+    // PE 的集成取消分配只有复数标题（ICU plural），单行就传 count:1 复用它；
+    // 文案在 integration.* 命名空间下，不在 edge.* ——照抄 PE，不另造键。
+    this.dialogService.confirm(
+      this.translate.instant('integration.unassign-integrations-from-edge-title', {count: 1}),
+      this.translate.instant('integration.unassign-integration-from-edge-text'),
+      this.translate.instant('action.no'),
+      this.translate.instant('action.yes')
+    ).subscribe((confirmed) => {
+      if (confirmed) {
+        this.integrationService.unassignIntegrationFromEdge(this.edgeId, integration.id.id)
+          .subscribe(() => this.reload());
+      }
     });
   }
 

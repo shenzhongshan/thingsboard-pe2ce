@@ -43,6 +43,10 @@ import { EntityTableConfig } from '@home/models/entity/entities-table-config.mod
 import { EntityAction } from '@home/models/entity/entity-component.models';
 import { EntityDetailsPanelComponent } from '@home/components/entity/entity-details-panel.component';
 import { createGroupDetailsConfig } from '@home/pages/entity-group/entity-group-details-config.util';
+import {
+  AssignEntityGroupToEdgeDialogComponent,
+  AssignEntityGroupToEdgeDialogData
+} from '@home/dialogs/assign-entity-group-to-edge-dialog.component';
 
 @Component({
   selector: 'tb-entity-groups',
@@ -57,6 +61,13 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
   @Input('groupType') inputGroupType: EntityType;
   @Input() customerId: string;
   @Output() groupOpen = new EventEmitter<EntityGroup>();
+
+  /**
+   * Edge 模式：从 edge 详情页进入时（instances/:edgeId/deviceGroups 等），列表只显示
+   * **分配给这台 edge** 的分组，动作换成"分配给 edge / 从 edge 取消分配"。
+   * 新建/删除/共享/权限属于所有者层面的操作，与 edge 分配无关，edge 模式下隐藏。
+   */
+  edgeId: string;
 
   groupType: EntityType;
   groups: EntityGroup[] = [];
@@ -87,8 +98,26 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
 
   ngOnInit() {
     this.groupType = this.inputGroupType ?? this.route.snapshot.data.groupType;
+    // edgeId 在祖先路由段上（':edgeId/deviceGroups' 的子路由是 ''），而 Angular 默认
+    // 不向子路由继承 params，所以必须沿路由树往上找，不能只读当前 snapshot.params。
+    this.edgeId = this.embedded ? null : this.findRouteParam('edgeId');
     this.groupDetailsConfig = createGroupDetailsConfig(this.entityGroupService, action => this.onGroupAction(action));
     this.reload();
+  }
+
+  private findRouteParam(name: string): string {
+    let route = this.route.snapshot;
+    while (route) {
+      if (route.params?.[name]) {
+        return route.params[name];
+      }
+      route = route.parent;
+    }
+    return null;
+  }
+
+  get edgeMode(): boolean {
+    return !!this.edgeId;
   }
 
   get groupTypeTitleKey(): string {
@@ -115,9 +144,47 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
   reload() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: 'createdTime', direction: Direction.DESC });
-    this.entityGroupService.getEntityGroupsByType(this.groupType, pageLink, this.customerId).subscribe((pageData) => {
+    const groups$ = this.edgeMode
+      ? this.entityGroupService.getEdgeEntityGroups(this.edgeId, this.groupType, pageLink)
+      : this.entityGroupService.getEntityGroupsByType(this.groupType, pageLink, this.customerId);
+    groups$.subscribe((pageData) => {
       this.groups = pageData.data;
       this.totalElements = pageData.totalElements;
+    });
+  }
+
+  /** 把一个已有分组分配给这台 edge。候选里排除已分配的，避免重复。 */
+  assignGroupToEdge($event: Event) {
+    $event?.stopPropagation();
+    this.dialog.open<AssignEntityGroupToEdgeDialogComponent, AssignEntityGroupToEdgeDialogData, boolean>(
+      AssignEntityGroupToEdgeDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+        data: {
+          edgeId: this.edgeId,
+          groupType: this.groupType,
+          excludeGroupIds: this.groups.map(g => g.id.id)
+        }
+      }).afterClosed().subscribe((assigned) => {
+      if (assigned) {
+        this.reload();
+      }
+    });
+  }
+
+  /** 从这台 edge 取消分配（不删除分组本身）。确认文案对齐 PE 的同名操作。 */
+  unassignGroupFromEdge($event: Event, group: EntityGroup) {
+    $event?.stopPropagation();
+    this.dialogService.confirm(
+      this.translate.instant('edge.unassign-entity-group-from-edge-title', {entityGroupName: group.name}),
+      this.translate.instant('edge.unassign-entity-group-from-edge-text'),
+      this.translate.instant('action.no'),
+      this.translate.instant('action.yes')
+    ).subscribe((confirmed) => {
+      if (confirmed) {
+        this.entityGroupService.unassignEntityGroupFromEdge(this.edgeId, group.id.id, group.type)
+          .subscribe(() => this.reload());
+      }
     });
   }
 

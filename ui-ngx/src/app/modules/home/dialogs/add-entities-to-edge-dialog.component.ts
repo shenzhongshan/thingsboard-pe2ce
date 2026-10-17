@@ -23,6 +23,8 @@ import { UntypedFormBuilder, UntypedFormControl, UntypedFormGroup, FormGroupDire
 import { DeviceService } from '@core/http/device.service';
 import { EdgeService } from '@core/http/edge.service';
 import { EntityType } from '@shared/models/entity-type.models';
+import { IntegrationService } from '@core/http/integration.service';
+import { SchedulerEventService } from '@core/http/scheduler-event.service';
 import { forkJoin, Observable } from 'rxjs';
 import { AssetService } from '@core/http/asset.service';
 import { EntityViewService } from '@core/http/entity-view.service';
@@ -66,6 +68,8 @@ export class AddEntitiesToEdgeDialogComponent extends
               private entityViewService: EntityViewService,
               private dashboardService: DashboardService,
               private ruleChainService: RuleChainService,
+              private integrationService: IntegrationService,
+              private schedulerEventService: SchedulerEventService,
               @SkipSelf() private errorStateMatcher: ErrorStateMatcher,
               public dialogRef: MatDialogRef<AddEntitiesToEdgeDialogComponent, boolean>,
               public fb: UntypedFormBuilder) {
@@ -99,6 +103,15 @@ export class AddEntitiesToEdgeDialogComponent extends
       case EntityType.DASHBOARD:
         this.assignToEdgeTitle = 'dashboard.assign-dashboard-to-edge-title';
         this.assignToEdgeText = 'dashboard.assign-dashboard-to-edge-text';
+        break;
+      // 这两类的文案 PE 放在 edge.* 命名空间下（其余类型在各自实体的命名空间里）。
+      case EntityType.INTEGRATION:
+        this.assignToEdgeTitle = 'edge.assign-integration-to-edge-title';
+        this.assignToEdgeText = 'edge.assign-integration-to-edge-text';
+        break;
+      case EntityType.SCHEDULER_EVENT:
+        this.assignToEdgeTitle = 'edge.assign-scheduler-event-to-edge-title';
+        this.assignToEdgeText = 'edge.assign-scheduler-event-to-edge-text';
         break;
     }
   }
@@ -141,6 +154,10 @@ export class AddEntitiesToEdgeDialogComponent extends
         return this.dashboardService.assignDashboardToEdge(edgeId, entityId);
       case EntityType.RULE_CHAIN:
         return this.ruleChainService.assignRuleChainToEdge(edgeId, entityId);
+      case EntityType.INTEGRATION:
+        return this.integrationService.assignIntegrationToEdge(edgeId, entityId);
+      case EntityType.SCHEDULER_EVENT:
+        return this.schedulerEventService.assignSchedulerEventToEdge(edgeId, entityId);
     }
   }
 

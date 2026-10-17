@@ -70,4 +70,24 @@ export class IntegrationService {
       defaultHttpOptionsFromConfig(config));
   }
 
+  /** 分配给某台 edge 的集成。只有 edge 模板类型的集成才能被分配（后端会校验）。 */
+  public getEdgeIntegrations(edgeId: string, pageLink: PageLink,
+                             config?: RequestConfig): Observable<PageData<Integration>> {
+    return this.http.get<PageData<Integration>>(
+      `/api/edge/${edgeId}/integrations${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public assignIntegrationToEdge(edgeId: string, integrationId: string,
+                                 config?: RequestConfig): Observable<Integration> {
+    return this.http.post<Integration>(`/api/edge/${edgeId}/integration/${integrationId}`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public unassignIntegrationFromEdge(edgeId: string, integrationId: string,
+                                     config?: RequestConfig): Observable<Integration> {
+    return this.http.delete<Integration>(`/api/edge/${edgeId}/integration/${integrationId}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
 }
