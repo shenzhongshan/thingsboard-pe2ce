@@ -33,16 +33,18 @@ import org.thingsboard.server.common.msg.TbMsg;
 
 @RuleNode(
         type = ComponentType.ACTION,
-        name = "assign to customer",
+        name = "assign to customer (deprecated)",
         configClazz = TbAssignToCustomerNodeConfiguration.class,
-        nodeDescription = "Assign message originator entity to customer",
+        nodeDescription = "Assign message originator entity to customer (deprecated)",
         nodeDetails = "Finds target customer by title and assign message originator entity to this customer. " +
-                "Rule node will create a new customer if it doesn't exist, and 'Create new customer if it doesn't exist' enabled.",
+                "Rule node will create a new customer if it doesn't exist, and 'Create new customer if it doesn't exist' enabled. " +
+                "Deprecated: use the 'change owner' node instead, which supports the same entity types (including Edge) via a single node.",
         configDirective = "tbActionNodeAssignToCustomerConfig",
         icon = "add_circle",
         version = 1,
         docUrl = "https://allshen.org/docs/user-guide/rule-engine-2-0/nodes/action/assign-to-customer/"
 )
+@Deprecated
 public class TbAssignToCustomerNode extends TbAbstractCustomerActionNode<TbAssignToCustomerNodeConfiguration> {
 
     @Override
