@@ -211,11 +211,21 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                                                                             EntityId entityId,
                                                                             JsonNode body,
                                                                             EdgeId sourceEdgeId) {
+        return processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, sourceEdgeId, null);
+    }
+
+    protected List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
+                                                                            EdgeEventType type,
+                                                                            EdgeEventActionType actionType,
+                                                                            EntityId entityId,
+                                                                            JsonNode body,
+                                                                            EdgeId sourceEdgeId,
+                                                                            EntityGroupId entityGroupId) {
         List<ListenableFuture<Void>> futures = new ArrayList<>();
         PageDataIterable<Edge> edges = new PageDataIterable<>(link -> edgeCtx.getEdgeService().findEdgesByTenantId(tenantId, link), 1024);
         for (Edge edge : edges) {
             if (!edge.getId().equals(sourceEdgeId)) {
-                futures.add(saveEdgeEvent(tenantId, edge.getId(), type, actionType, entityId, body));
+                futures.add(saveEdgeEvent(tenantId, edge.getId(), type, actionType, entityId, body, entityGroupId));
             }
         }
         return futures;
@@ -231,8 +241,11 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
         return switch (actionType) {
             case UPDATED, CREDENTIALS_UPDATED, ASSIGNED_TO_CUSTOMER, UNASSIGNED_FROM_CUSTOMER, UPDATED_COMMENT ->
                     UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE;
-            case ADDED, ASSIGNED_TO_EDGE, RELATION_ADD_OR_UPDATE, ADDED_COMMENT -> UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE;
-            case DELETED, UNASSIGNED_FROM_EDGE, RELATION_DELETED, DELETED_COMMENT, ALARM_DELETE -> UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE;
+            // 加入分组 → edge 侧视为"实体出现"，所以是 CREATED；移出 → DELETED。与 PE 一致。
+            case ADDED, ASSIGNED_TO_EDGE, RELATION_ADD_OR_UPDATE, ADDED_COMMENT, ADDED_TO_ENTITY_GROUP ->
+                    UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE;
+            case DELETED, UNASSIGNED_FROM_EDGE, RELATION_DELETED, DELETED_COMMENT, ALARM_DELETE,
+                 REMOVED_FROM_ENTITY_GROUP -> UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE;
             case ALARM_ACK -> UpdateMsgType.ALARM_ACK_RPC_MESSAGE;
             case ALARM_CLEAR -> UpdateMsgType.ALARM_CLEAR_RPC_MESSAGE;
             default -> throw new RuntimeException("Unsupported actionType [" + actionType + "]");
@@ -256,11 +269,31 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 case CREDENTIALS_UPDATED:
                 case ASSIGNED_TO_CUSTOMER:
                 case UNASSIGNED_FROM_CUSTOMER:
+                // 加入分组与 UPDATED 同支：都要推给"与该实体相关的 edge"，而相关性现在
+                // 包含了"实体所在分组被分配给了哪些 edge"（见 findRelatedEdgeIdsByEntityId 的并集查询）。
+                // PE 的同一方法也是把 ADDED_TO_ENTITY_GROUP 并进这一支。
+                case ADDED_TO_ENTITY_GROUP:
                     if (edgeId != null && !edgeId.equals(originatorEdgeId)) {
                         return saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body, entityGroupId);
                     } else {
-                        return processNotificationToRelatedEdges(tenantId, entityId, entityId, type, actionType, originatorEdgeId);
+                        // 必须用带 entityGroupId 的重载，否则下发出去的事件不带组 id
+                        return processNotificationToRelatedEdges(tenantId, entityId, entityId, type, actionType,
+                                originatorEdgeId, body, entityGroupId);
                     }
+                // 移出分组与 DELETED 同支（PE 亦然）。注意不能复用下面 DELETED 分支里写死的
+                // EdgeEventActionType.DELETED —— 那会让 edge 以为实体被删除了，而不是"退出了这个组"。
+                case REMOVED_FROM_ENTITY_GROUP:
+                    if (edgeId != null) {
+                        return saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body, entityGroupId);
+                    }
+                    // 这里**必须**广播给租户下的 edge，不能按关联反查：事件是在
+                    // relationService.deleteRelation 之后发的，成员关系已经没了，
+                    // findRelatedEdgeIdsByEntityId 再也找不到那台原本持有它的 edge。
+                    // PE 的 DELETED / REMOVED_FROM_ENTITY_GROUP 同支同理。对不持有该实体的
+                    // edge 来说这是幂等空操作。groupId 要带上，edge 才知道退出的是哪个组。
+                    return Futures.transform(Futures.allAsList(
+                                    processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, originatorEdgeId, entityGroupId)),
+                            voids -> null, dbCallbackExecutorService);
                 case DELETED:
                     EdgeEventActionType deleted = EdgeEventActionType.DELETED;
                     if (edgeId != null) {
@@ -308,12 +341,24 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
      */
     protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
                                                                        EdgeEventActionType actionType, EdgeId sourceEdgeId, JsonNode body) {
+        return processNotificationToRelatedEdges(tenantId, ownerEntityId, entityId, type, actionType, sourceEdgeId, body, null);
+    }
+
+    /**
+     * 再带 entityGroupId 的版本。分组成员变化必须用这个 —— 实测过（7/8 那次）：走不带
+     * groupId 的重载时，edge 收到的事件 entity_group_id 是 null，edge 只知道"设备加进来了"，
+     * 不知道加进了哪个组，而按分组同步的全部意义就在这个 id 上。对齐 PE 的
+     * pushNotificationToAllRelatedEdges（它的签名里就带 entityGroupId）。
+     */
+    protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
+                                                                       EdgeEventActionType actionType, EdgeId sourceEdgeId, JsonNode body,
+                                                                       EntityGroupId entityGroupId) {
         List<ListenableFuture<Void>> futures = new ArrayList<>();
         PageDataIterableByTenantIdEntityId<EdgeId> edgeIds =
                 new PageDataIterableByTenantIdEntityId<>(edgeCtx.getEdgeService()::findRelatedEdgeIdsByEntityId, tenantId, ownerEntityId, RELATED_EDGES_CACHE_ITEMS);
         for (EdgeId relatedEdgeId : edgeIds) {
             if (!relatedEdgeId.equals(sourceEdgeId)) {
-                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, body));
+                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, body, entityGroupId));
             }
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);
