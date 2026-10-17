@@ -311,4 +311,23 @@ public class SchedulerEventController extends BaseController {
         return checkNotNull(schedulerEventService.unassignSchedulerEventFromEdge(getTenantId(), entityId, edgeId));
     }
 
+    @ApiOperation(value = "Get Edge Scheduler Events (getEdgeSchedulerEvents)",
+            notes = "返回分配给指定 edge 的调度事件分页列表。只有 assign/unassign 是不够的 —— " +
+                    "没有这个列表端点，前端无法展示“这台 edge 分配了哪些调度事件”。对齐 PE 的同名端点。")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = {"/edge/{edgeId}/schedulerEvents"}, params = {"pageSize", "page"})
+    public PageData<SchedulerEventInfo> getEdgeSchedulerEvents(
+            @PathVariable("edgeId") String strEdgeId,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(schedulerEventService.findSchedulerEventInfosByTenantIdAndEdgeId(getTenantId(), edgeId, pageLink));
+    }
+
 }
