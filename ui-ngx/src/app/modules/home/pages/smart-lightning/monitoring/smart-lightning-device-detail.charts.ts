@@ -93,7 +93,7 @@ export const SMART_LIGHTNING_CHART_DEFINITIONS: Readonly<Record<string, readonly
     chart('voltage', '相电压', 1, voltage()),
     chart('leakage', '漏电流', 2, leakage()),
     chart('temperature', '温度', 3, temperature(2)),
-    chart('life', '寿命', 4, life()),
+    chart('life', '剩余寿命', 4, [series('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage)]),
     chart('StrikeCnt', '雷击次数', 5, lightningCount())
   ],
   DES4: [chart('StrikeCnt', '雷击次数', 1, lightningCount())],

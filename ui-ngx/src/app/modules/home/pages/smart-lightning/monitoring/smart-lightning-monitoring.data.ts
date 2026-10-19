@@ -115,7 +115,7 @@ const cardCombinedStatus = (keys: readonly string[], label: string): SmartLightn
 const SMART_LIGHTNING_CARD_METRICS: Readonly<Record<string, readonly SmartLightningCardMetricLayout[]>> = {
   DES4: [cardMetric('RemoteSig'), cardMetric('McbStatus'), cardMetric('GndStatus')],
   DES9: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流')],
-  DESA: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  DESA: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
   DEM2: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2'], '脱扣状态'), cardMetric('LifeLeft')],
   DEM4: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2', 'Trip3', 'Trip4'], '脱扣状态'), cardMetric('LifeLeft')],
   DEA2: [cardMetric('GndStatus'), cardMetric('LeakCurrA'), cardMetric('LifeLeft')],

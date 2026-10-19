@@ -21,7 +21,6 @@
   </aside>
 
   <section class="detail-content">
-    <a class="back-link" href="" (click)="goBack($event)"><tb-icon>arrow_back</tb-icon>{{returnLabel}}</a>
     @if (deviceLoading) {
       <section class="surface detail-page-state" role="status">正在读取设备详情…</section>
     } @else if (deviceLoadError) {
@@ -60,7 +59,10 @@
               @for (metric of metrics; track metric.key) {
                 <div class="metric" [title]="metric.key">
                   <span>{{metric.label}}</span>
-                  <strong>{{metric.value}}{{metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : ''}}</strong>
+                  <!-- 数值和单位作为整体适配可用宽度，遥测更新与窗口缩放后均重新测量。 -->
+                  <strong class="metric-value"
+                          [tbElectricalSafetyFitValue]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')"
+                          [title]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')">{{metric.value}}{{metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : ''}}</strong>
                 </div>
               }
             </div>

@@ -14,6 +14,7 @@ import {ElectricalSafetyRoutingModule} from './electrical-safety-routing.module'
 import {ElectricalSafetyDashboardComponent} from './dashboard/electrical-safety-dashboard.component';
 import {ElectricalSafetyMonitoringComponent} from './monitoring/electrical-safety-monitoring.component';
 import {ElectricalSafetyDeviceDetailComponent} from './monitoring/electrical-safety-device-detail.component';
+import {ElectricalSafetyFitValueDirective} from './monitoring/electrical-safety-fit-value.directive';
 import {ElectricalSafetyDataQueryComponent} from './query/electrical-safety-data-query.component';
 
 @NgModule({
@@ -25,6 +26,7 @@ import {ElectricalSafetyDataQueryComponent} from './query/electrical-safety-data
   ],
   imports: [
     CommonModule,
+    ElectricalSafetyFitValueDirective,
     FormsModule,
     SharedModule,
     DeviceAlarmRecordsModule,

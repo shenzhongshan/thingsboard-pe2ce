@@ -24,7 +24,6 @@
     </tb-smart-lightning-asset-tree>
   </aside>
   <section class="detail-content">
-    <a class="back-link" href="" (click)="goBack($event)"><tb-icon>arrow_back</tb-icon>{{returnLabel}}</a>
     <section class="detail-grid">
       <article class="surface device-summary">
         <div class="summary-top"><div class="device-mark" aria-label="设备图片占位"><tb-icon>electric_meter</tb-icon></div><div class="mock-actions"><button type="button" title="模拟操作，暂不调用设备接口">复位</button><button type="button" title="模拟操作，暂不调用设备接口">漏电自检</button><button type="button" title="模拟操作，暂不调用设备接口">分闸</button><button type="button" title="模拟操作，暂不调用设备接口">合闸</button><button type="button" title="模拟操作，暂不调用设备接口">参数设置</button></div></div>
@@ -123,11 +122,21 @@
       }
       <article class="surface realtime-panel">
         <header><h2>实时数据</h2><time>{{realtimeUpdatedAt}}</time></header>
+        <!-- 首次加载和读取失败独立呈现，避免把默认占位符当成真实的遥测结果。 -->
+        @if (realtimeLoading) {
+          <div class="realtime-state" role="status">正在读取最近一次遥测…</div>
+        } @else if (realtimeLoadError) {
+          <div class="realtime-state error" role="alert">
+            <span>遥测读取失败</span>
+            <button type="button" (click)="retryRealtimeMetrics()">重试</button>
+          </div>
+        } @else {
         <div class="metric-grid">
           <div class="metric" *ngFor="let metric of detail.metrics" [class.abnormal]="metric.value === '异常'">
             <span>{{metric.label}}</span><strong [class.ok]="metric.value === '正常'" [class.abnormal]="metric.value === '异常'">{{metric.value}}</strong>
           </div>
         </div>
+        }
       </article>
     </section>
     <section class="surface alarms-panel">

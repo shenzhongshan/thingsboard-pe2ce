@@ -54,7 +54,18 @@ export interface ElectricalSafetyRealtimeMetricDefinition {
   readonly fallbackValue: string;
   /** 状态值的展示映射；不改变 ThingsBoard 返回的原始遥测。 */
   readonly valueMap?: Readonly<Record<string, string>>;
+  /** 指明该键可参与哪一类看板摘要；不参与的详情测点保持未设置。 */
+  readonly dashboardMetric?: ElectricalSafetyDashboardMetricKey;
 }
+
+/** 看板摘要使用的已核实指标语义；型号数组仍负责声明各键的单位和来源。 */
+export type ElectricalSafetyDashboardMetricKey =
+  | 'fire-residual-current'
+  | 'fire-temperature'
+  | 'safe-leakage-current'
+  | 'safe-total-current'
+  | 'quality-voltage-thd'
+  | 'quality-negative-sequence';
 
 /** 电气安全页面可直接复用的 WebSocket 遥测快照结构。 */
 export interface ElectricalSafetyMonitoringTelemetryValue {
@@ -213,9 +224,10 @@ const telemetryMetric = (
   key: string,
   label: string,
   unit = '',
-  fallbackValue = '__'
+  fallbackValue = '__',
+  dashboardMetric?: ElectricalSafetyDashboardMetricKey
 ): ElectricalSafetyRealtimeMetricDefinition => ({
-  key, label, unit, valueType: 'telemetry', fallbackValue
+  key, label, unit, valueType: 'telemetry', fallbackValue, dashboardMetric
 });
 
 /** 型号中文别名与 thingsboard.yml 产品名称一致，测点数组仍按型号分开维护。 */
@@ -247,18 +259,56 @@ export const electricalSafetyRealtimeMetricDefinitions: Record<
 > = {
   LDH1: [statusMetric('DevStatus', '设备状态')],
   FAP1: [statusMetric('DevStatus', '设备状态')],
-  ESF1: [],
-  E1T2: [],
-  E2C3: [],
+  ESF1: [
+    telemetryMetric('ResCurr', '剩余电流', 'mA', '__', 'fire-residual-current'),
+    telemetryMetric('Temp1', '温度1', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp2', '温度2', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp3', '温度3', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp4', '温度4', '°C', '__', 'fire-temperature')
+  ],
+  E1T2: [
+    telemetryMetric('Temp1', '温度1', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp2', '温度2', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp3', '温度3', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp4', '温度4', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp5', '温度5', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp6', '温度6', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp7', '温度7', '°C', '__', 'fire-temperature'),
+    telemetryMetric('Temp8', '温度8', '°C', '__', 'fire-temperature')
+  ],
+  E2C3: [
+    telemetryMetric('ResCurr1', '剩余电流1', 'mA', '__', 'fire-residual-current'),
+    telemetryMetric('ResCurr2', '剩余电流2', 'mA', '__', 'fire-residual-current'),
+    telemetryMetric('ResCurr3', '剩余电流3', 'mA', '__', 'fire-residual-current')
+  ],
   E1I2: [],
-  CBP4: [],
-  CBP3: [],
-  CBP2: [],
-  CBP1: [],
+  CBP4: [
+    telemetryMetric('LeakValue', '漏电流', 'mA', '__', 'safe-leakage-current'),
+    telemetryMetric('CurrTot', '总电流', 'A', '__', 'safe-total-current')
+  ],
+  CBP3: [
+    telemetryMetric('LeakValue', '漏电流', 'mA', '__', 'safe-leakage-current'),
+    telemetryMetric('CurrTot', '总电流', 'A', '__', 'safe-total-current')
+  ],
+  CBP2: [
+    telemetryMetric('LeakValue', '漏电流', 'mA', '__', 'safe-leakage-current'),
+    telemetryMetric('CurrTot', '总电流', 'A', '__', 'safe-total-current')
+  ],
+  CBP1: [
+    telemetryMetric('LeakValue', '漏电流', 'mA', '__', 'safe-leakage-current'),
+    telemetryMetric('CurrTot', '总电流', 'A', '__', 'safe-total-current')
+  ],
   LDA1: [],
-  E1B2: [],
+  E1B2: [
+    telemetryMetric('NSeqVUnb', '负序电压不平衡度', '%', '__', 'quality-negative-sequence')
+  ],
   E1P1: [],
-  E1E2: [],
+  E1E2: [
+    telemetryMetric('VoltThdA', 'A相电压总谐波畸变率', '%', '__', 'quality-voltage-thd'),
+    telemetryMetric('VoltThdB', 'B相电压总谐波畸变率', '%', '__', 'quality-voltage-thd'),
+    telemetryMetric('VoltThdC', 'C相电压总谐波畸变率', '%', '__', 'quality-voltage-thd'),
+    telemetryMetric('NSeqVUnb', '负序电压不平衡度', '%', '__', 'quality-negative-sequence')
+  ],
   SFE: [],
   SFA: [
     telemetryMetric('Longitude', '经度', '°'),
@@ -274,7 +324,7 @@ export const electricalSafetyRealtimeMetricDefinitions: Record<
     telemetryMetric('PhBCurr', 'B相电流', 'A'),
     telemetryMetric('PhCCurr', 'C相电流', 'A'),
     telemetryMetric('CurrVecSum', '三相电流矢量和', 'A'),
-    telemetryMetric('ResCurr', '剩余电流', 'A'),
+    telemetryMetric('ResCurr', '剩余电流', 'mA', '__', 'fire-residual-current'),
     telemetryMetric('ActPwrA', 'A相有功功率', 'kW'),
     telemetryMetric('ActPwrB', 'B相有功功率', 'kW'),
     telemetryMetric('ActPwrC', 'C相有功功率', 'kW'),
@@ -340,6 +390,20 @@ export function getElectricalSafetyRealtimeMetricDefinitions(
 ): ElectricalSafetyRealtimeMetricDefinition[] {
   const model = resolveElectricalSafetyDeviceModel(deviceProfileName);
   return model ? electricalSafetyRealtimeMetricDefinitions[model] : [];
+}
+
+/** 设备最新遥测变更是否影响任一看板关键指标，命中后复用共享缓存重算摘要。 */
+export function hasElectricalSafetyDashboardMetricUpdate(
+  deviceProfileName: string | null | undefined,
+  changedValues: ReadonlyMap<string, unknown>
+): boolean {
+  const definitions = getElectricalSafetyRealtimeMetricDefinitions(deviceProfileName);
+  for (const definition of definitions) {
+    if (definition.dashboardMetric && changedValues.has(definition.key)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** 按防雷的状态映射规则格式化状态文本；二态状态中数值零为正常，其余数值为异常。 */

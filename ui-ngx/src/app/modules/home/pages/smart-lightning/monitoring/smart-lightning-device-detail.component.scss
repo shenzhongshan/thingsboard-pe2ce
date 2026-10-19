@@ -620,3 +620,28 @@
 .mock-actions {
   display: none;
 }
+
+/* 加载和失败占用实时面板的既有内容区域，保持顶部两张卡片尺寸稳定。 */
+.realtime-state {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #718397;
+  font-size: 12px;
+}
+
+.realtime-state.error { color: #bd3d48; }
+.realtime-state button {
+  padding: 3px 9px;
+  border: 1px solid #b9cde2;
+  border-radius: 4px;
+  color: #195ce8;
+  background: #f7fbff;
+  font: inherit;
+  cursor: pointer;
+}
+.realtime-state button:hover { background: #eaf2ff; }
+.realtime-state button:focus-visible { outline: 2px solid #195ce8; outline-offset: 2px; }

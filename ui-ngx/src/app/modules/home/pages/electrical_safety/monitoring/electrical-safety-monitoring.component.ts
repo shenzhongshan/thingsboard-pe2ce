@@ -1,6 +1,7 @@
 /** 文件职责：用电气安全专属接口和共享实时订阅驱动防雷风格的数据监测页面。 */
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {ActivatedRoute} from '@angular/router';
+import {AssetTreeSelectionStateService} from '@home/pages/smart-lightning/shared/asset-tree/asset-tree-selection-state.service';
 import {auditTime, bufferTime, forkJoin, Subject} from 'rxjs';
 import {takeUntil} from 'rxjs/operators';
 import {EntityType} from '@shared/models/entity-type.models';
@@ -90,11 +91,14 @@ export class ElectricalSafetyMonitoringComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private monitoringRequestId = 0;
   private alarmRequestId = 0;
+  /** 仅首屏恢复一次展开状态，后续 WebSocket 刷新不覆盖用户新的展开操作。 */
+  private rememberedExpandedIds?: readonly string[];
 
   constructor(
     private readonly electricalSafetyApiService: ElectricalSafetyApiService,
     private readonly realtimeService: SmartLightningRealtimeService,
     private readonly route: ActivatedRoute,
+    private readonly assetSelectionState: AssetTreeSelectionStateService,
     private readonly changeDetector: ChangeDetectorRef
   ) {}
 
@@ -142,14 +146,28 @@ export class ElectricalSafetyMonitoringComponent implements OnInit, OnDestroy {
 
     this.realtimeService.acquire();
     // 从详情页返回时恢复根资产和选中节点，仍由新资产树重新校验有效范围。
-    this.selectedRootAssetId = this.route.snapshot.queryParamMap.get('selectedRootAssetId') || '';
-    this.selectedTreeNodeId = this.route.snapshot.queryParamMap.get('selectedAssetId') || '';
+    const params = this.route.snapshot.queryParamMap;
+    const explicitSelection = params.has('selectedRootAssetId') || params.has('selectedAssetId');
+    const remembered = explicitSelection ? undefined : this.assetSelectionState.get('/electrical-safety/monitor');
+    this.selectedRootAssetId = explicitSelection
+      ? params.get('selectedRootAssetId') || '' : remembered?.rootAssetId || '';
+    this.selectedTreeNodeId = explicitSelection
+      ? params.get('selectedAssetId') || '' : remembered?.selectedNodeId || '';
+    this.rememberedExpandedIds = remembered?.expandedIds;
     this.loadMonitoringData(true);
     this.loadActiveAlarmDevices();
   }
 
   /** 页面销毁时释放本页 WebSocket 引用，并终止所有订阅。 */
   ngOnDestroy(): void {
+    // 与防雷使用同一状态组件，但以页面路径隔离，避免两类资产筛选互相覆盖。
+    if (this.assetTree.nodes.size && !this.assetsLoadError) {
+      this.assetSelectionState.save('/electrical-safety/monitor', {
+        rootAssetId: this.selectedRootAssetId,
+        selectedNodeId: this.selectedTreeNodeId,
+        expandedIds: [...this.expandedAssetIds]
+      });
+    }
     this.destroy$.next();
     this.destroy$.complete();
     this.realtimeService.release();
@@ -368,6 +386,10 @@ export class ElectricalSafetyMonitoringComponent implements OnInit, OnDestroy {
           preserveCurrentSelection ? previousRootAssetId : '',
           preserveCurrentSelection ? previousTreeNodeId : ''
         );
+        if (this.rememberedExpandedIds) {
+          this.expandedAssetIds = new Set(this.rememberedExpandedIds.filter((id) => this.assetTree.nodes.has(id)));
+          this.rememberedExpandedIds = undefined;
+        }
         this.applyRealtimeSnapshot();
         this.refreshDevices();
         this.assetsLoading = false;

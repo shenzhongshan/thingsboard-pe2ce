@@ -326,13 +326,14 @@ function countTemperatureStatus(devices: readonly SmartLightningMonitoringRealti
   return {participating, normal, abnormal};
 }
 
-/** LifeLeft 键存在即计入设备总数；有效值不低于 60 才计为正常。 */
+/** DES采用SPD_RUL，其余型号采用LifeLeft；沿用现有60%统计口径，不更改告警规则。 */
 function countLifeStatus(devices: readonly SmartLightningMonitoringRealtimeDeviceSnapshot[]): StatusCount {
   let participating = 0;
   let normal = 0;
   let abnormal = 0;
   for (const device of devices) {
-    const entry = device.values.get('LifeLeft');
+    // 新协议与其他系列分别使用各自的寿命键，不把旧值优先于新协议值。
+    const entry = device.values.has('SPD_RUL') ? device.values.get('SPD_RUL') : device.values.get('LifeLeft');
     if (!hasStoredValue(entry)) {
       continue;
     }

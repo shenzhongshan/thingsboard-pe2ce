@@ -406,6 +406,11 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
 
   /** 只接受时间较新的值，避免首次 HTTP 响应覆盖先到的 WebSocket 更新。 */
   private mergeLatestValue(key: string, ts: number, value: string): void {
+    // 平台为缺失测点返回的“当前时间 + null”是占位数据，不代表设备真实上报。
+    // 同时过滤 HTTP 字符串化后的空值，保留有效的 0/false，防止重新进入详情时产生虚假的新时间。
+    if (value == null || !String(value).trim() || /^(null|undefined)$/i.test(String(value).trim())) {
+      return;
+    }
     if (!Number.isFinite(ts) || ts <= 0) {
       return;
     }
@@ -415,12 +420,18 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
     }
   }
 
-  /** 更新测点卡片、最新时间和可绘制趋势图；未知单位保持空白。 */
+  /** 更新测点卡片；最新时间只取实际展示测点，已排除的平台状态和系统时间键不参与。 */
   private refreshTelemetryPresentation(): void {
     this.metrics = buildElectricalSafetyDetailMetrics(this.availableKeys, this.latestValues, this.deviceModel);
-    const timestamps = [...this.latestValues.values()].map((sample) => sample.ts);
-    this.realtimeUpdatedAt = timestamps.length
-      ? new Date(Math.max(...timestamps)).toLocaleString('zh-CN', {hour12: false}) : '--';
+    let latestTimestamp = 0;
+    for (const metric of this.metrics) {
+      const timestamp = this.latestValues.get(metric.key)?.ts;
+      if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > latestTimestamp) {
+        latestTimestamp = timestamp;
+      }
+    }
+    this.realtimeUpdatedAt = latestTimestamp > 0
+      ? new Date(latestTimestamp).toLocaleString('zh-CN', {hour12: false}) : '--';
   }
 
   /** 按设备型号取得趋势职责，再用设备真实时序键过滤并选出首屏优先图表。 */

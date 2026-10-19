@@ -15,8 +15,10 @@ import {SmartLightningDeviceMapComponent} from '../../smart-lightning/shared/map
 import type {DeviceAlarmDisplayColumn, DeviceAlarmDisplayRow} from '@home/pages/deviceAlarms/shared/alarm-list/device-alarm-records.model';
 import {
   ELECTRICAL_SAFETY_PRODUCT_CATEGORY,
+  hasElectricalSafetyDashboardMetricUpdate,
   parseElectricalSafetyActiveValue,
-  formatElectricalSafetyActivityTime as formatElectricalSafetyTimestamp
+  formatElectricalSafetyActivityTime as formatElectricalSafetyTimestamp,
+  getElectricalSafetyRealtimeMetricDefinitions
 } from '../monitoring/electrical-safety-monitoring.data';
 import {ElectricalSafetyApiService} from '../electrical-safety-api.service';
 import {
@@ -38,10 +40,12 @@ import {
   EMPTY_ELECTRICAL_SAFETY_DEVICE_OVERVIEW,
   hasElectricalSafetyFireRiskMetricUpdate,
   isElectricalSafetyFireFunctionCategory,
-  mapElectricalSafetyAlarms
+  mapElectricalSafetyAlarms,
+  sumElectricalSafetyDashboardAlarmEvents
 } from './electrical-safety-dashboard.data';
 import type {
   ElectricalSafetyAlarmChartItem,
+  ElectricalSafetyDashboardCategory,
   ElectricalSafetyDashboardCard,
   ElectricalSafetyDeviceOverview,
   ElectricalSafetyFireRiskMetric
@@ -72,18 +76,22 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
   /** 追踪设备和资产树两个独立请求是否完成，以区分地图空数据和加载中。 */
   private deviceContextsLoaded = false;
   private assetTreeLoaded = false;
-  /** 防止快速切换周期时，较早返回的 HTTP 响应覆盖当前所选周期数据。 */
-  private alarmStatisticsRequestId = 0;
+  /** 每个周期单独追踪请求版本，避免旧响应覆盖同一周期较新的数据。 */
+  private readonly alarmStatisticsRequestIds = new Map<SmartLightningPeriod, number>();
+  /** 同一周期的普通切换请求只保留一份，周期刷新才允许替换正在执行的请求。 */
+  private readonly alarmStatisticsPeriodsLoading = new Set<SmartLightningPeriod>();
+  /** 缓存各自然周期的功能分类计数，供不同卡片独立选择周期并复用结果。 */
+  private readonly alarmEventCountsByPeriod = new Map<SmartLightningPeriod, ReadonlyMap<string, number>>();
+  /** 当前已应用的活动告警快照请求序号，防止较早周期响应覆盖较新快照。 */
+  private latestAppliedActiveAlarmSnapshotRequestId = 0;
+  /** 跨周期请求统一使用递增序号，保护活动告警设备集合的更新时间顺序。 */
+  private alarmStatisticsRequestSequence = 0;
   /** 独立设备、资产树和告警列表请求只允许最新响应覆盖当前页面。 */
   private deviceContextsRequestId = 0;
   private assetTreeRequestId = 0;
   private alarmInformationRequestId = 0;
   private latestAlarmRequestId = 0;
   private readonly destroy$ = new Subject<void>();
-  /** 当前成功返回的周期告警数量，按功能分类缓存以供火灾卡按既定设备范围汇总。 */
-  private alarmEventCountsByFunctionCategory: ReadonlyMap<string, number> | null = null;
-  /** 告警统计缓存对应的周期；避免切换窗口时短暂显示上个周期的数量。 */
-  private loadedAlarmStatisticsPeriod: SmartLightningPeriod | null = null;
   /** 告警数量事件可能早于数据库事务提交；记录初始数量并延迟复读新增告警。 */
   private realtimeAlarmCount: number | null = null;
   /** WebSocket 告警数量首帧只建立基线，不视为页面进入后的告警变化。 */
@@ -126,11 +134,26 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
   alarmInformationLoading = true;
   /** 活动告警名称查询失败时由共享图表显示错误状态。 */
   alarmInformationLoadError = false;
-  /** 火灾卡片日/周/月选择只影响告警事件数量，不影响在线状态和实时测点。 */
-  fireAlarmPeriod = SmartLightningPeriod.day;
-  /** 周期统计正在加载时用于辅助技术和错误状态展示。 */
-  fireAlarmStatisticsLoading = true;
-  fireAlarmStatisticsLoadError = false;
+  /** 四张分类卡各自维护日/周/月选择；周期只控制本卡的告警次数。 */
+  alarmPeriods: Record<ElectricalSafetyDashboardCategory, SmartLightningPeriod> = {
+    fire: SmartLightningPeriod.day,
+    'safe-electricity': SmartLightningPeriod.day,
+    'power-quality': SmartLightningPeriod.day,
+    'arc-fault': SmartLightningPeriod.day
+  };
+  /** 每张卡的周期统计加载状态独立，失败时不把未知值伪装成零。 */
+  alarmStatisticsLoading: Record<ElectricalSafetyDashboardCategory, boolean> = {
+    fire: true,
+    'safe-electricity': true,
+    'power-quality': true,
+    'arc-fault': true
+  };
+  alarmStatisticsLoadError: Record<ElectricalSafetyDashboardCategory, boolean> = {
+    fire: false,
+    'safe-electricity': false,
+    'power-quality': false,
+    'arc-fault': false
+  };
   /** 最近告警共享表格的真实告警行。 */
   alarmRecords: DeviceAlarmDisplayRow[] = [];
   /** 最近告警记录表沿用电气安全看板的列顺序和宽度。 */
@@ -184,7 +207,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     this.subscribeToRealtimeChanges();
     this.loadDeviceContexts();
     this.loadAssetTree();
-    this.loadDashboardAlarmStatistics(this.fireAlarmPeriod);
+    this.loadDashboardAlarmStatisticsForSelectedPeriods();
     this.loadAlarmInformation();
     this.loadLatestAlarms();
   }
@@ -296,26 +319,31 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     return formatElectricalSafetyFireRiskMetricTooltip(label, metric);
   }
 
-  /** 将所选告警窗口转换为卡片的本地化时间说明。 */
-  get fireAlarmPeriodLabel(): string {
-    if (this.fireAlarmPeriod === SmartLightningPeriod.week) {
+  /** 将单张卡片所选的告警周期转换为本地化标题。 */
+  getAlarmPeriodLabel(category: ElectricalSafetyDashboardCategory): string {
+    const period = this.alarmPeriods[category];
+    if (period === SmartLightningPeriod.week) {
       return '本周';
     }
-    if (this.fireAlarmPeriod === SmartLightningPeriod.month) {
+    if (period === SmartLightningPeriod.month) {
       return '本月';
     }
     return '今日';
   }
 
-  /** 日/周/月切换只重新请求周期告警统计，设备与实时测点快照保持不变。 */
-  selectFireAlarmPeriod(period: SmartLightningPeriod): void {
-    if (period === this.fireAlarmPeriod) {
+  /** 独立切换指定类别的告警统计周期，其他卡片及实时测点不受影响。 */
+  selectAlarmPeriod(category: ElectricalSafetyDashboardCategory, period: SmartLightningPeriod): void {
+    if (period === this.alarmPeriods[category]) {
       return;
     }
-    this.fireAlarmPeriod = period;
-    this.fireAlarmStatisticsLoadError = false;
-    this.fireAlarmStatisticsLoading = true;
+    this.alarmPeriods = {...this.alarmPeriods, [category]: period};
+    this.alarmStatisticsLoadError[category] = false;
+    this.alarmStatisticsLoading[category] = !this.alarmEventCountsByPeriod.has(period);
     this.refreshDeviceDerivedData();
+    if (this.alarmEventCountsByPeriod.has(period)) {
+      this.alarmStatisticsLoading[category] = false;
+      return;
+    }
     this.loadDashboardAlarmStatistics(period);
   }
 
@@ -379,43 +407,71 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 根据选定周期读取电气安全设备的活动告警范围和数据库聚合结果。 */
-  private loadDashboardAlarmStatistics(period: SmartLightningPeriod): void {
-    const requestId = ++this.alarmStatisticsRequestId;
-    if (period === this.fireAlarmPeriod) {
-      this.fireAlarmStatisticsLoading = true;
-      this.fireAlarmStatisticsLoadError = false;
+  /** 为当前卡片所选的每个不同周期各请求一次，并复用响应中的全部功能分类计数。 */
+  private loadDashboardAlarmStatisticsForSelectedPeriods(refresh = false): void {
+    const periods = new Set<SmartLightningPeriod>(Object.values(this.alarmPeriods));
+    for (const period of periods) {
+      this.loadDashboardAlarmStatistics(period, refresh);
     }
+  }
+
+  /** 根据自然周期读取活动告警设备范围和该周期的分类事件数。 */
+  private loadDashboardAlarmStatistics(period: SmartLightningPeriod, refresh = false): void {
+    if (this.alarmEventCountsByPeriod.has(period) && !refresh) {
+      this.setAlarmStatisticsState(period, false, false);
+      return;
+    }
+    if (this.alarmStatisticsPeriodsLoading.has(period) && !refresh) {
+      this.setAlarmStatisticsState(period, true, false);
+      return;
+    }
+    const requestId = ++this.alarmStatisticsRequestSequence;
+    this.alarmStatisticsRequestIds.set(period, requestId);
+    this.alarmStatisticsPeriodsLoading.add(period);
+    this.setAlarmStatisticsState(period, true, false);
     this.electricalSafetyApiService.getDashboardAlarmStatistics(
       ELECTRICAL_SAFETY_PRODUCT_CATEGORY, period).pipe(takeUntil(this.destroy$)).subscribe({
       next: (statistics) => {
-        if (requestId !== this.alarmStatisticsRequestId) {
+        if (requestId !== this.alarmStatisticsRequestIds.get(period)) {
           return;
         }
-        this.activeAlarmDeviceIds = new Set(statistics.activeAlarmDeviceIds || []);
-        this.alarmEventCountsByFunctionCategory = new Map(
+        this.alarmStatisticsPeriodsLoading.delete(period);
+        // 活动设备集合不随周期变化；仅让最新发起的成功响应更新这份实时快照。
+        if (requestId > this.latestAppliedActiveAlarmSnapshotRequestId) {
+          this.activeAlarmDeviceIds = new Set(statistics.activeAlarmDeviceIds || []);
+          this.latestAppliedActiveAlarmSnapshotRequestId = requestId;
+        }
+        this.alarmEventCountsByPeriod.set(period, new Map(
           (statistics.functionCategoryCounts || []).map((count) =>
             [count.functionCategory, count.alarmCount] as const)
-        );
-        this.loadedAlarmStatisticsPeriod = period;
-        if (period === this.fireAlarmPeriod) {
-          this.fireAlarmStatisticsLoading = false;
-          this.fireAlarmStatisticsLoadError = false;
-        }
+        ));
+        this.setAlarmStatisticsState(period, false, false);
         this.refreshDeviceDerivedData();
       },
       error: () => {
-        if (requestId !== this.alarmStatisticsRequestId) {
+        if (requestId !== this.alarmStatisticsRequestIds.get(period)) {
           return;
         }
-        // 后台重读失败时保留上一次成功的告警设备集合，避免看板数字闪回未知。
-        if (period === this.fireAlarmPeriod) {
-          this.fireAlarmStatisticsLoading = false;
-          this.fireAlarmStatisticsLoadError = true;
-          this.refreshDeviceDerivedData();
-        }
+        this.alarmStatisticsPeriodsLoading.delete(period);
+        // 统计重读失败时保留其他周期和活动设备快照，仅标记仍选择此周期的卡片出错。
+        this.setAlarmStatisticsState(period, false, true);
+        this.refreshDeviceDerivedData();
       }
     });
+  }
+
+  /** 只更新当前仍选中指定周期的卡片，切换走的卡片不受旧请求反馈影响。 */
+  private setAlarmStatisticsState(
+    period: SmartLightningPeriod,
+    loading: boolean,
+    loadError: boolean
+  ): void {
+    for (const category of Object.keys(this.alarmPeriods) as ElectricalSafetyDashboardCategory[]) {
+      if (this.alarmPeriods[category] === period) {
+        this.alarmStatisticsLoading[category] = loading;
+        this.alarmStatisticsLoadError[category] = loadError;
+      }
+    }
   }
 
   /** 请求本模块现有的活动告警分页接口，并按真实告警名称生成共享图表数据。 */
@@ -479,11 +535,13 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
   private refreshDeviceDerivedData(): void {
     this.deviceOverview = buildElectricalSafetyDeviceOverview(
       this.deviceContexts, this.activeAlarmDeviceIds);
-    const alarmEventCounts = this.loadedAlarmStatisticsPeriod === this.fireAlarmPeriod
-      ? this.alarmEventCountsByFunctionCategory
-      : null;
+    const alarmEventCounts = new Map<ElectricalSafetyDashboardCategory, number | null>();
+    for (const category of Object.keys(this.alarmPeriods) as ElectricalSafetyDashboardCategory[]) {
+      const functionCategoryCounts = this.alarmEventCountsByPeriod.get(this.alarmPeriods[category]) || null;
+      alarmEventCounts.set(category, sumElectricalSafetyDashboardAlarmEvents(functionCategoryCounts, category));
+    }
     this.monitoringCards = buildElectricalSafetyDashboardCards(
-      this.deviceContexts, this.activeAlarmDeviceIds, alarmEventCounts, this.getArcFaultTelemetrySnapshot());
+      this.deviceContexts, this.activeAlarmDeviceIds, alarmEventCounts, this.getDashboardTelemetrySnapshot());
     this.refreshFireRiskMeasurements();
     this.refreshMapDevices();
   }
@@ -517,21 +575,34 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
       contextsWithResolvedCoordinates, this.assetTree?.roots || [], this.activeAlarmDeviceIds);
   }
 
-  /** 从现有共享 WebSocket 缓存读取电弧设备状态，不为电气安全看板另开订阅。 */
-  private getArcFaultTelemetrySnapshot(): ReadonlyMap<
+  /** 从现有共享 WebSocket 缓存挑选看板所需最新值，不为各类别重复建立订阅。 */
+  private getDashboardTelemetrySnapshot(): ReadonlyMap<
     string,
     ReadonlyMap<string, {ts: number; value: string}>
   > {
     const telemetryByDeviceId = new Map<string, ReadonlyMap<string, {ts: number; value: string}>>();
     for (const context of this.deviceContexts || []) {
-      if (context.productCategory !== ELECTRICAL_SAFETY_PRODUCT_CATEGORY
-        || context.functionCategory?.trim() !== 'arc_fault') {
+      if (context.productCategory !== ELECTRICAL_SAFETY_PRODUCT_CATEGORY) {
         continue;
       }
-      telemetryByDeviceId.set(
-        context.deviceId,
-        this.realtimeService.getLatestTelemetryValues(context.deviceId)
-      );
+      const definitions = getElectricalSafetyRealtimeMetricDefinitions(context.deviceProfileName);
+      if (context.functionCategory?.trim() === 'arc_fault') {
+        telemetryByDeviceId.set(context.deviceId, this.realtimeService.getLatestTelemetryValues(context.deviceId));
+        continue;
+      }
+      const dashboardDefinitions = definitions.filter((definition) => definition.dashboardMetric);
+      if (dashboardDefinitions.length === 0) {
+        continue;
+      }
+      const latestValues = this.realtimeService.getLatestTelemetryValues(context.deviceId);
+      const selectedValues = new Map<string, {ts: number; value: string}>();
+      for (const definition of dashboardDefinitions) {
+        const sample = latestValues.get(definition.key);
+        if (sample) {
+          selectedValues.set(definition.key, sample);
+        }
+      }
+      telemetryByDeviceId.set(context.deviceId, selectedValues);
     }
     return telemetryByDeviceId;
   }
@@ -624,7 +695,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
       }
       this.loadLatestAlarms();
       this.loadAlarmInformation();
-      this.loadDashboardAlarmStatistics(this.fireAlarmPeriod);
+      this.loadDashboardAlarmStatisticsForSelectedPeriods(true);
     });
 
     this.realtimeService.acquire();
@@ -634,7 +705,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
   private reloadDashboardSnapshots(): void {
     this.loadDeviceContexts();
     this.loadAssetTree();
-    this.loadDashboardAlarmStatistics(this.fireAlarmPeriod);
+    this.loadDashboardAlarmStatisticsForSelectedPeriods(true);
     this.loadAlarmInformation();
     this.loadLatestAlarms();
   }
@@ -648,7 +719,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
       this.alarmSettleRefreshSubscription = undefined;
       this.loadLatestAlarms();
       this.loadAlarmInformation();
-      this.loadDashboardAlarmStatistics(this.fireAlarmPeriod);
+      this.loadDashboardAlarmStatisticsForSelectedPeriods(true);
     });
   }
 
@@ -663,6 +734,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     const activeByDeviceId = new Map<string, boolean>();
     const activityTimeByDeviceId = new Map<string, number>();
     let fireRiskMetricsChanged = false;
+    let dashboardMetricsChanged = false;
     let arcFaultMetricsChanged = false;
     let mapCoordinatesChanged = false;
     for (const change of changes) {
@@ -675,6 +747,9 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
       }
       if (hasElectricalSafetyFireRiskMetricUpdate(context.deviceProfileName, change.values)) {
         fireRiskMetricsChanged = true;
+      }
+      if (hasElectricalSafetyDashboardMetricUpdate(context.deviceProfileName, change.values)) {
+        dashboardMetricsChanged = true;
       }
       if (context.functionCategory?.trim() === 'arc_fault' && change.values.size > 0) {
         arcFaultMetricsChanged = true;
@@ -695,10 +770,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     if (mapCoordinatesChanged) {
       this.refreshMapDevices();
     }
-    if (fireRiskMetricsChanged) {
-      this.refreshFireRiskMeasurements();
-    }
-    if (arcFaultMetricsChanged) {
+    if (fireRiskMetricsChanged || dashboardMetricsChanged || arcFaultMetricsChanged) {
       this.refreshDeviceDerivedData();
       this.cd.markForCheck();
     }

@@ -25,12 +25,17 @@ import {TelemetryWebsocketService} from '@core/ws/telemetry-websocket.service';
 /** 防雷、能源和电气安全页面共用的型号测点订阅键；未配置型号不会展示其他设备的值。 */
 export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.from(new Set([
   'RemoteSig', 'McbStatus', 'GndStatus', 'StrikeCnt',
+  // DES9／DESA 新协议诊断键接入现有共享订阅，不另建 WebSocket 连接。
+  'SPD_RUL', 'SPD_Status', 'SPD_RULDay', 'SPD_Alarm', 'SPD_WorstPh', 'SPD_RULA', 'SPD_RULB', 'SPD_RULC', 'SPD_Reason', 'SPD_I1hA', 'SPD_I1hB', 'SPD_I1hC', 'SPD_I24hA', 'SPD_I24hB', 'SPD_I24hC', 'SPD_DeltaT',
   'LeakCurrA', 'LeakCurrB', 'LeakCurrC',
-  'Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp',
+  'Temp1', 'Temp2', 'Temp3', 'Temp4', 'Temp5', 'Temp6', 'Temp7', 'Temp8', 'AmbTemp', 'SpdTemp',
   'PhAVolt', 'PhBVolt', 'PhCVolt', 'VoltStsA', 'VoltStsB', 'VoltStsC',
   'Trip1', 'Trip2', 'Trip3', 'Trip4', 'LifeLeft',
   'GndGridRes', 'SampleCnt', 'SamplePrd', 'Temp',
   'SurgeCnt', 'PeakValue', 'Polarity', 'DevStatus',
+  // 电气安全看板已确认的电流与电能质量指标，仍通过现有共享 WebSocket 订阅获取。
+  'ResCurr1', 'ResCurr2', 'ResCurr3', 'LeakValue', 'CurrTot',
+  'VoltThdA', 'VoltThdB', 'VoltThdC', 'NSeqVUnb',
   // SFA 的以下键来自已确认的型号测点表；每个页面仍只把所属型号配置的键映射到界面。
   'Longitude', 'Latitude', 'LineVoltAB', 'LineVoltBC', 'LineVoltCA', 'Freq',
   'PhACurr', 'PhBCurr', 'PhCCurr', 'CurrVecSum', 'ResCurr',

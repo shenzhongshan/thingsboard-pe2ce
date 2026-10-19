@@ -35,6 +35,10 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   instrumentAddress = '--';
   /** 当前实时数据中最新一条遥测的时间；不再使用固定演示时间。 */
   realtimeUpdatedAt = '--';
+  /** 首次请求完成前展示加载状态，不把默认占位测点误呈现为设备实际数据。 */
+  realtimeLoading = true;
+  /** 原生接口失败必须明确提示，不能通过空对象伪装成设备没有遥测。 */
+  realtimeLoadError = false;
   alarmsLoading = false;
   alarmsLoadError = false;
   /** 资产树告警状态：共享树同时标记当前告警设备及其直属上级资产。 */
@@ -103,6 +107,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
         this.productName = '未配置产品名称';
         this.productSpecification = undefined;
         this.realtimeUpdatedAt = '--';
+        this.realtimeLoading = true;
+        this.realtimeLoadError = false;
         this.currentDeviceProfileName = undefined;
         this.latestRealtimeValues.clear();
         this.resetCharts();
@@ -255,21 +261,31 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   /** 按设备档案读取实时遥测指标；没有上报的测点继续展示占位符。 */
   private loadRealtimeMetrics(deviceId?: string, configureCharts = true): void {
     if (!deviceId) { return; }
+    this.realtimeLoading = true;
+    this.realtimeLoadError = false;
     this.deviceService.getDeviceInfo(deviceId).pipe(
       switchMap((device) => {
         const definitions = getSmartLightningRealtimeMetricDefinitions(device.deviceProfileName);
-        if (!definitions.length) { return of({deviceProfileName: device.deviceProfileName, latest: {}}); }
+        if (!definitions.length) {
+          return of({deviceProfileName: device.deviceProfileName, latest: {}, loadError: false});
+        }
         // 只查询规则链输出的规范键，避免新旧键并存造成统计口径不一致。
         const readKeys = Array.from(new Set(definitions.map((definition) => definition.key)));
         return this.attributeService.getEntityTimeseriesLatest(new DeviceId(deviceId), readKeys).pipe(
-          catchError(() => of({})),
-          switchMap((latest) => of({deviceProfileName: device.deviceProfileName, latest}))
+          switchMap((latest) => of({deviceProfileName: device.deviceProfileName, latest, loadError: false})),
+          catchError(() => of({deviceProfileName: device.deviceProfileName, latest: {}, loadError: true}))
         );
       }),
-      catchError(() => of({deviceProfileName: undefined, latest: {}})),
+      catchError(() => of({deviceProfileName: undefined, latest: {}, loadError: true})),
       takeUntil(this.destroy$)
-    ).subscribe(({deviceProfileName, latest}) => {
+    ).subscribe(({deviceProfileName, latest, loadError}) => {
+      // 切换设备后，上一台设备的延迟响应不能覆盖当前型号和测点时间。
+      if (deviceId !== this.requestedDeviceId) {
+        return;
+      }
       this.currentDeviceProfileName = deviceProfileName;
+      this.realtimeLoading = false;
+      this.realtimeLoadError = loadError;
       if (configureCharts) {
         this.configureCharts(this.requestedDeviceId, deviceProfileName);
       }
@@ -279,10 +295,19 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
           this.mergeRealtimeValue(key, Number(firstValue.ts), String(firstValue.value));
         }
       });
+      // 共享订阅首帧可能早于详情加载；按原始时间合并缓存，避免依赖下一条推送才能补齐。
+      this.realtimeService.getLatestTelemetryValues(deviceId).forEach((sample, key) => {
+        this.mergeRealtimeValue(key, sample.ts, sample.value);
+      });
       this.updateRealtimePresentation();
       this.productSpecification = getSmartLightningProductSpecification(deviceProfileName);
       this.cd.markForCheck();
     });
+  }
+
+  /** 只重试当前设备的实时读取，避免重置已经选好的趋势图周期。 */
+  retryRealtimeMetrics(): void {
+    this.loadRealtimeMetrics(this.requestedDeviceId, false);
   }
 
   /** 将当前设备的 WebSocket 遥测直接合并进卡片、时间和趋势图。 */
@@ -295,6 +320,11 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
 
   /** 仅接受时间更新或相同的值，防止并发 HTTP 响应把 WebSocket 新值覆盖成旧值。 */
   private mergeRealtimeValue(key: string, timestamp: number, value: string): void {
+    // 查询缺失测点时平台可能返回“当前时间 + null”，不能让占位记录覆盖真实值或推新上报时间。
+    // HTTP 已将值转成字符串，因此同时排除原生空值、空文本及文本化的 null/undefined；0 和 false 保留。
+    if (value == null || !String(value).trim() || /^(null|undefined)$/i.test(String(value).trim())) {
+      return;
+    }
     if (!Number.isFinite(timestamp) || timestamp <= 0) { return; }
     const current = this.latestRealtimeValues.get(key);
     if (!current || timestamp >= current.ts) {
@@ -302,7 +332,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     }
   }
 
-  /** 根据合并后的最新快照统一更新实时数据卡片与页面时间。 */
+  /** 根据快照更新卡片；时间只取当前型号展示测点，平台在线状态和活跃时间不参与。 */
   private updateRealtimePresentation(): void {
     const rawValues = new Map<string, unknown>();
     this.latestRealtimeValues.forEach((item, key) => rawValues.set(key, item.value));
@@ -310,7 +340,13 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       ...this.detail,
       metrics: buildSmartLightningRealtimeMetrics(this.currentDeviceProfileName, rawValues, this.detail.metrics)
     };
-    const latestTimestamp = Math.max(0, ...Array.from(this.latestRealtimeValues.values()).map((item) => item.ts));
+    let latestTimestamp = 0;
+    for (const definition of getSmartLightningRealtimeMetricDefinitions(this.currentDeviceProfileName)) {
+      const timestamp = this.latestRealtimeValues.get(definition.key)?.ts;
+      if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > latestTimestamp) {
+        latestTimestamp = timestamp;
+      }
+    }
     this.realtimeUpdatedAt = latestTimestamp > 0
       ? new Date(latestTimestamp).toLocaleString('zh-CN', {hour12: false})
       : '--';

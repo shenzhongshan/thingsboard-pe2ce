@@ -7,6 +7,7 @@ import {
   OnInit
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import {AssetTreeSelectionStateService} from '../shared/asset-tree/asset-tree-selection-state.service';
 import { auditTime, bufferTime, map, Subject, takeUntil } from 'rxjs';
 import { AlarmInfo, AlarmQueryV2, AlarmSearchStatus } from '@shared/models/alarm.models';
 import { DeviceInfo } from '@shared/models/device.models';
@@ -115,6 +116,7 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly realtimeService: SmartLightningRealtimeService,
     private readonly route: ActivatedRoute,
+    private readonly assetSelectionState: AssetTreeSelectionStateService,
     private readonly cd: ChangeDetectorRef
   ) {}
 
@@ -168,6 +170,14 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // 顶部导航不携带详情页的 returnAssetId；离开时独立保存最近一次有效树状态。
+    if (this.assetTree.nodes.size && !this.assetsLoadError) {
+      this.assetSelectionState.save('/smart-lightning/monitoring', {
+        rootAssetId: this.selectedRootAssetId,
+        selectedNodeId: this.selectedTreeNodeId,
+        expandedIds: [...this.expandedAssetIds]
+      });
+    }
     this.destroy$.next();
     this.destroy$.complete();
     this.realtimeService.release();
@@ -344,11 +354,17 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
    * 节点不存在或与根资产筛选不匹配时，安全回退到有效根节点或全部资产。
    */
   private restoreAssetSelection(): void {
-    const requestedRootId = this.route.snapshot.queryParamMap.get('selectedRootAssetId') || '';
+    const params = this.route.snapshot.queryParamMap;
+    const explicitSelection = params.has('selectedRootAssetId') || params.has('selectedAssetId');
+    const remembered = explicitSelection ? undefined : this.assetSelectionState.get('/smart-lightning/monitoring');
+    // 明确的链接参数优先；顶部导航没有参数时才恢复本页面最近的选择。
+    const requestedRootId = explicitSelection
+      ? params.get('selectedRootAssetId') || '' : remembered?.rootAssetId || '';
     const rootAssetId = this.assetTree.roots.some((root) => root.id === requestedRootId)
       ? requestedRootId
       : '';
-    const requestedNodeId = this.route.snapshot.queryParamMap.get('selectedAssetId') || '';
+    const requestedNodeId = explicitSelection
+      ? params.get('selectedAssetId') || '' : remembered?.selectedNodeId || '';
     const selectedNode = this.assetTree.nodes.get(requestedNodeId);
     const rootNodeIds = rootAssetId
       ? getSmartLightningMonitoringRootAssetIds(this.assetTree, rootAssetId)
@@ -360,10 +376,16 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
       this.expandedAssetIds = getSmartLightningDefaultExpandedAssetIds(this.assetTree);
       this.openPathTo(selectedNode.id);
       this.selectAssetNode(selectedNode);
-      return;
+    } else {
+      this.selectRootAsset(rootAssetId, false);
     }
-
-    this.selectRootAsset(rootAssetId, false);
+    // 展开状态同样以最新树为准，已删除或不可见的节点不会被重新带回页面。
+    if (remembered) {
+      this.expandedAssetIds = new Set(remembered.expandedIds.filter((id) => this.assetTree.nodes.has(id)));
+      if (this.selectedTreeNodeId) {
+        this.openPathTo(this.selectedTreeNodeId);
+      }
+    }
   }
 
   /** 展开选中节点的祖先路径，确保返回后所选节点在资产树中可见。 */

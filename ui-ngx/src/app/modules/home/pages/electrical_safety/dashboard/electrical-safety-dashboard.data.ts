@@ -16,6 +16,7 @@ import {
   getElectricalSafetyRealtimeMetricDefinitions
 } from '../monitoring/electrical-safety-monitoring.data';
 import type {
+  ElectricalSafetyDashboardMetricKey,
   ElectricalSafetyMonitoringTelemetryValue,
   ElectricalSafetyRealtimeMetricDefinition
 } from '../monitoring/electrical-safety-monitoring.data';
@@ -23,7 +24,7 @@ import type {
 /** 看板右侧电气安全设备卡片的分组标识。 */
 export type ElectricalSafetyDashboardCategory = 'fire' | 'safe-electricity' | 'power-quality' | 'arc-fault';
 
-/** 单张电气安全类别卡片的设备状态统计及火灾类周期告警事件数。 */
+/** 单张电气安全类别卡片的设备状态统计及所选周期告警事件数。 */
 export interface ElectricalSafetyDashboardCard {
   /** 稳定的分组键，用于模板追踪及对应样式。 */
   key: ElectricalSafetyDashboardCategory;
@@ -49,26 +50,54 @@ export interface ElectricalSafetyDashboardCard {
   alarmDevicePercent: number | null;
   /** 无活动告警设备占该类别设备总数的百分比。 */
   normalPercent: number | null;
-  /** 火灾卡片所含功能分类在所选自然周期内的告警事件数；其他卡片不显示。 */
+  /** 当前卡片所含功能分类在对应日/周/月自然周期内的告警事件数。 */
   alarmEventCount: number | null;
+  /** 安全用电和电力质量卡片展示的实时关键测点；来源详情只通过悬浮提示呈现。 */
+  measurements: ElectricalSafetyDashboardMetric[];
   /** 电弧设备中已上报 DevStatus 状态的设备数；非电弧卡片不使用。 */
   arcFaultStatusDeviceCount: number | null;
   /** 电弧设备中 DevStatus 映射为正常的设备数；非电弧卡片不使用。 */
   arcFaultNormalStatusCount: number | null;
-  /** 兼容原防雷卡片既有口径；当前不从未确认的遥测键推算动作次数。 */
-  totalArcFaultActionCount: number | null;
+  /** 电弧设备中 DevStatus 明确映射为异常的设备数；非电弧卡片不使用。 */
+  arcFaultAbnormalStatusCount: number | null;
+  /** 电弧状态计数悬浮说明，列明规范键与状态约定。 */
+  arcFaultStatusTooltip: string | null;
   /** 电弧设备最近的活动或遥测时间，单位为毫秒。 */
   latestArcFaultReportTime: number | null;
+  /** 最近上报时间的设备、型号和遥测来源，仅在悬浮时展示。 */
+  latestArcFaultReportTooltip: string | null;
+}
+
+/** 一个跨设备汇总的看板遥测指标；不在一级卡面展示设备或键名来源。 */
+export interface ElectricalSafetyDashboardMetric {
+  /** 稳定的语义键，用于模板追踪和数值汇总。 */
+  key: ElectricalSafetyDashboardMetricKey;
+  /** 卡面显示的简短指标名称。 */
+  label: string;
+  /** 该指标最大有效数值；无配置或无有效遥测时为空。 */
+  value: string | null;
+  /** 型号测点表确认的单位。 */
+  unit: string;
+  /** 设备、型号、原始键、原始值和时间组成的悬浮详情。 */
+  tooltip: string;
+  /** 当前类别至少有一个型号配置了该测点，用于区分未配置与无遥测。 */
+  configured: boolean;
 }
 
 /** 火灾卡片中按已核实型号遥测汇总的单个风险测点最大值。 */
 export interface ElectricalSafetyFireRiskMetric {
-  /** 当前已接收的最大原始数值；没有配置或没有遥测时为空。 */
+  /** 当前已接收的最大原始数值；剩余电流按型号配置的 mA 单位直接比较，没有可用遥测时为空。 */
   value: string | null;
-  /** 单位来自该设备型号的规范测点定义；未配置时为空。 */
+  /** 卡面展示单位；剩余电流和型号测点定义一致，不在看板中换算。 */
   unit: string | null;
   /** 该最大值来自的设备名称；没有可用遥测时为空。 */
   sourceDeviceName: string | null;
+  /** 来源设备型号，用于悬浮提示追溯型号测点配置。 */
+  sourceModel: string | null;
+  /** 接收到的原始遥测值；看板展示该值，不执行单位换算。 */
+  rawValue: string | null;
+  /** 型号测点配置的原始单位，用于悬浮提示追溯。 */
+  sourceUnit: string | null;
   /** 只有规范遥测键明确标出 A/B/C 相时才填写，不根据设备型号或中文标签推测。 */
   phase: string | null;
   /** 产生该最大值的最新遥测样本时间戳，单位为毫秒。 */
@@ -124,7 +153,8 @@ const ELECTRICAL_SAFETY_DASHBOARD_CATEGORIES: ReadonlyArray<{
 }> = [
   {key: 'fire', title: '电气火灾监测', icon: 'local_fire_department'},
   {key: 'safe-electricity', title: '安全用电监测', icon: 'electrical_services'},
-  {key: 'power-quality', title: '电力质量监测', icon: 'monitoring'},
+  // 复用项目时序图已使用的 Material Icons 图标，避免 monitoring 字形与现有字体不兼容。
+  {key: 'power-quality', title: '电力质量监测', icon: 'show_chart'},
   {key: 'arc-fault', title: '故障电弧监测', icon: 'crisis_alert'}
 ];
 
@@ -133,11 +163,39 @@ const ELECTRICAL_SAFETY_FIRE_FUNCTION_CATEGORIES = [
   'electrical_fire', 'temperature_monitor', 'leakage_monitor'
 ] as const;
 
+/** 每张看板卡片统计的功能分类集合与后端设备功能分类保持一致。 */
+const ELECTRICAL_SAFETY_DASHBOARD_FUNCTION_CATEGORIES: Readonly<
+  Record<ElectricalSafetyDashboardCategory, readonly string[]>
+> = {
+  fire: ELECTRICAL_SAFETY_FIRE_FUNCTION_CATEGORIES,
+  'safe-electricity': ['safe_electricity', 'input_monitor', 'smart_breaker', 'mains_monitor', 'neutral_ground_voltage'],
+  'power-quality': ['power_quality', 'phase_unbalance'],
+  'arc-fault': ['arc_fault']
+};
+
+/** 首页仅展示这两类卡片的重点遥测，所有键和单位仍来自型号测点定义。 */
+const ELECTRICAL_SAFETY_CATEGORY_METRIC_KEYS: Partial<
+  Record<ElectricalSafetyDashboardCategory, readonly ElectricalSafetyDashboardMetricKey[]>
+> = {
+  'safe-electricity': ['safe-leakage-current', 'safe-total-current'],
+  'power-quality': ['quality-voltage-thd', 'quality-negative-sequence']
+};
+
+/** 看板短标签和单位是语义展示信息；原始遥测键只在悬浮提示中出现。 */
+const ELECTRICAL_SAFETY_DASHBOARD_METRIC_PRESENTATION: Partial<
+  Record<ElectricalSafetyDashboardMetricKey, {label: string; unit: string}>
+> = {
+  'safe-leakage-current': {label: '最大漏电流', unit: 'mA'},
+  'safe-total-current': {label: '总电流', unit: 'A'},
+  'quality-voltage-thd': {label: '电压总谐波畸变', unit: '%'},
+  'quality-negative-sequence': {label: '负序电压不平衡', unit: '%'}
+};
+
 /** 未取得设备上下文时构造四张空卡片；所有业务计数均保持未知而不预置模拟数字。 */
 export function buildElectricalSafetyDashboardCards(
   contexts: readonly ElectricalSafetyDeviceContext[] | null,
   activeAlarmDeviceIds: ReadonlySet<string> | null,
-  alarmEventCountsByFunctionCategory: ReadonlyMap<string, number> | null = null,
+  alarmEventCountsByCategory: ReadonlyMap<ElectricalSafetyDashboardCategory, number | null> | null = null,
   telemetryByDeviceId: ReadonlyMap<
     string,
     ReadonlyMap<string, ElectricalSafetyMonitoringTelemetryValue>
@@ -159,7 +217,14 @@ export function buildElectricalSafetyDashboardCards(
     const normalCount = total === null || alarmDeviceCount === null ? null : total - alarmDeviceCount;
     const arcFaultMetrics = category.key === 'arc-fault' && devices !== null
       ? buildArcFaultDashboardMetrics(devices, telemetryByDeviceId)
-      : {statusDeviceCount: null, normalStatusCount: null, latestReportTime: null};
+      : {
+        statusDeviceCount: null,
+        normalStatusCount: null,
+        abnormalStatusCount: null,
+        statusTooltip: null,
+        latestReportTime: null,
+        latestReportTooltip: null
+      };
     return {
       ...category,
       totalCount: total,
@@ -171,13 +236,73 @@ export function buildElectricalSafetyDashboardCards(
       offlinePercent: calculatePercentage(offlineCount, total),
       alarmDevicePercent: calculatePercentage(alarmDeviceCount, total),
       normalPercent: calculatePercentage(normalCount, total),
-      alarmEventCount: category.key === 'fire'
-        ? sumElectricalSafetyFireAlarmEvents(alarmEventCountsByFunctionCategory)
-        : null,
+      alarmEventCount: alarmEventCountsByCategory?.get(category.key) ?? null,
+      measurements: buildElectricalSafetyCategoryMetrics(category.key, devices, telemetryByDeviceId),
       arcFaultStatusDeviceCount: arcFaultMetrics.statusDeviceCount,
       arcFaultNormalStatusCount: arcFaultMetrics.normalStatusCount,
-      totalArcFaultActionCount: category.key === 'arc-fault' && devices !== null ? 0 : null,
-      latestArcFaultReportTime: arcFaultMetrics.latestReportTime
+      arcFaultAbnormalStatusCount: arcFaultMetrics.abnormalStatusCount,
+      arcFaultStatusTooltip: arcFaultMetrics.statusTooltip,
+      latestArcFaultReportTime: arcFaultMetrics.latestReportTime,
+      latestArcFaultReportTooltip: arcFaultMetrics.latestReportTooltip
+    };
+  });
+}
+
+/** 按型号已标注的 dashboardMetric 汇总重点指标，并将设备与键名放入原生悬浮说明。 */
+function buildElectricalSafetyCategoryMetrics(
+  category: ElectricalSafetyDashboardCategory,
+  devices: readonly ElectricalSafetyDeviceContext[] | null,
+  telemetryByDeviceId: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ElectricalSafetyMonitoringTelemetryValue>
+  >
+): ElectricalSafetyDashboardMetric[] {
+  const metricKeys = ELECTRICAL_SAFETY_CATEGORY_METRIC_KEYS[category] || [];
+  return metricKeys.map((metricKey) => {
+    const presentation = ELECTRICAL_SAFETY_DASHBOARD_METRIC_PRESENTATION[metricKey];
+    let configured = false;
+    let maximumValue: number | null = null;
+    let sourceDevice: ElectricalSafetyDeviceContext | null = null;
+    let sourceDefinition: ElectricalSafetyRealtimeMetricDefinition | null = null;
+    let sourceSample: ElectricalSafetyMonitoringTelemetryValue | null = null;
+
+    for (const device of devices || []) {
+      const definitions = getElectricalSafetyRealtimeMetricDefinitions(device.deviceProfileName);
+      for (const definition of definitions) {
+        if (definition.dashboardMetric !== metricKey) {
+          continue;
+        }
+        configured = true;
+        const sample = telemetryByDeviceId.get(device.deviceId)?.get(definition.key);
+        const numericValue = parseElectricalSafetyTelemetryNumber(sample?.value);
+        if (!sample || numericValue === null
+          || (maximumValue !== null && numericValue <= maximumValue)) {
+          continue;
+        }
+        maximumValue = numericValue;
+        sourceDevice = device;
+        sourceDefinition = definition;
+        sourceSample = sample;
+      }
+    }
+
+    const value = maximumValue === null ? null : formatElectricalSafetyDashboardNumber(maximumValue);
+    return {
+      key: metricKey,
+      label: presentation?.label || metricKey,
+      value,
+      unit: presentation?.unit || '',
+      configured,
+      tooltip: sourceDevice && sourceDefinition && sourceSample
+        ? formatElectricalSafetyDashboardMetricTooltip(
+          presentation?.label || metricKey,
+          value || '--',
+          presentation?.unit || '',
+          sourceDevice,
+          sourceDefinition,
+          sourceSample
+        )
+        : configured ? '暂无该测点的有效遥测' : '当前设备型号未配置此测点'
     };
   });
 }
@@ -189,10 +314,23 @@ function buildArcFaultDashboardMetrics(
     string,
     ReadonlyMap<string, ElectricalSafetyMonitoringTelemetryValue>
   >
-): {statusDeviceCount: number; normalStatusCount: number; latestReportTime: number | null} {
+): {
+  statusDeviceCount: number;
+  normalStatusCount: number | null;
+  abnormalStatusCount: number | null;
+  statusTooltip: string;
+  latestReportTime: number | null;
+  latestReportTooltip: string | null;
+} {
   let statusDeviceCount = 0;
+  let recognizedStatusDeviceCount = 0;
   let normalStatusCount = 0;
+  let abnormalStatusCount = 0;
   let latestReportTime: number | null = null;
+  let latestReportDevice: ElectricalSafetyDeviceContext | null = null;
+  let latestReportParameterKey: string | null = null;
+  const statusModels = new Set<string>();
+  const statusDevices: string[] = [];
 
   for (const device of devices) {
     const latestValues = telemetryByDeviceId.get(device.deviceId);
@@ -205,29 +343,67 @@ function buildArcFaultDashboardMetrics(
         : statusSample.value;
       statusDeviceCount++;
       if (statusValue === '正常') {
+        recognizedStatusDeviceCount++;
         normalStatusCount++;
+      } else if (statusValue === '异常') {
+        recognizedStatusDeviceCount++;
+        abnormalStatusCount++;
       }
+      if (device.deviceProfileName?.trim()) {
+        statusModels.add(device.deviceProfileName.trim());
+      }
+      statusDevices.push(device.deviceName?.trim() || '--');
     }
 
     const activityTime = Number(device.lastActivityTime);
     if (Number.isFinite(activityTime) && activityTime > 0
       && (latestReportTime === null || activityTime > latestReportTime)) {
       latestReportTime = activityTime;
+      latestReportDevice = device;
+      latestReportParameterKey = 'lastActivityTime';
     }
-    latestValues?.forEach((sample) => {
+    latestValues?.forEach((sample, key) => {
       if (Number.isFinite(sample.ts) && sample.ts > 0
         && (latestReportTime === null || sample.ts > latestReportTime)) {
         latestReportTime = sample.ts;
+        latestReportDevice = device;
+        latestReportParameterKey = key;
       }
     });
   }
 
-  return {statusDeviceCount, normalStatusCount, latestReportTime};
+  const statusTooltip = [
+    '遥测键：DevStatus',
+    '状态约定：0 正常，1 异常',
+    `收到状态设备：${statusDeviceCount} 台`,
+    `已识别状态设备：${recognizedStatusDeviceCount} 台`,
+    `未识别状态设备：${statusDeviceCount - recognizedStatusDeviceCount} 台`,
+    `型号：${statusModels.size ? Array.from(statusModels).join('、') : '--'}`,
+    `设备：${statusDevices.slice(0, 5).join('、') || '--'}${statusDevices.length > 5 ? ` 等 ${statusDevices.length} 台` : ''}`
+  ].join('\n');
+  const latestReportTooltip = latestReportDevice && latestReportTime !== null
+    ? [
+      `设备：${latestReportDevice.deviceName || '--'}`,
+      `型号：${latestReportDevice.deviceProfileName || '--'}`,
+      `来源：${latestReportParameterKey || '最近活动时间'}`,
+      `时间：${formatElectricalSafetyActivityTime(latestReportTime)}`
+    ].join('\n')
+    : null;
+
+  return {
+    statusDeviceCount,
+    normalStatusCount: recognizedStatusDeviceCount > 0 ? normalStatusCount : null,
+    abnormalStatusCount: recognizedStatusDeviceCount > 0 ? abnormalStatusCount : null,
+    statusTooltip,
+    latestReportTime,
+    latestReportTooltip
+  };
 }
 
 /**
  * 汇总火灾卡片覆盖设备的实时剩余电流最大值和温度最大值。
- * 只消费各型号已配置的测点定义，不从未确认的遥测键推断单位或业务含义。
+ * 剩余电流各型号已统一按 mA 配置，因此直接比较并展示遥测数值，不进行单位换算。
+ * 只消费各型号已配置的测点定义，不从未确认的遥测键推断业务含义。
  */
 export function buildElectricalSafetyFireRiskMeasurements(
   contexts: readonly ElectricalSafetyDeviceContext[] | null,
@@ -240,6 +416,9 @@ export function buildElectricalSafetyFireRiskMeasurements(
     value: null,
     unit: null,
     sourceDeviceName: null,
+    sourceModel: null,
+    rawValue: null,
+    sourceUnit: null,
     phase: null,
     timestamp: null,
     parameterKey: null,
@@ -249,6 +428,9 @@ export function buildElectricalSafetyFireRiskMeasurements(
     value: null,
     unit: null,
     sourceDeviceName: null,
+    sourceModel: null,
+    rawValue: null,
+    sourceUnit: null,
     phase: null,
     timestamp: null,
     parameterKey: null,
@@ -267,10 +449,15 @@ export function buildElectricalSafetyFireRiskMeasurements(
       if (!isElectricalSafetyFireRiskMetricDefinition(definition)) {
         continue;
       }
-      const isResidualCurrent = definition.label === '剩余电流';
+      const isResidualCurrent = definition.dashboardMetric === 'fire-residual-current';
+      const isTemperature = definition.dashboardMetric === 'fire-temperature';
+      if (!isResidualCurrent && !isTemperature) {
+        continue;
+      }
       if (isResidualCurrent) {
         residualCurrent.configured = true;
-      } else {
+      }
+      if (isTemperature) {
         temperature.configured = true;
       }
       const sample = latestValues?.get(definition.key);
@@ -278,22 +465,30 @@ export function buildElectricalSafetyFireRiskMeasurements(
       if (sample === undefined || numericValue === null) {
         continue;
       }
-      if (isResidualCurrent
-        && (residualCurrentNumericValue === null || numericValue > residualCurrentNumericValue)) {
+      if (isResidualCurrent) {
+        if (residualCurrentNumericValue !== null && numericValue <= residualCurrentNumericValue) {
+          continue;
+        }
         residualCurrentNumericValue = numericValue;
-        residualCurrent.value = sample.value;
+        residualCurrent.value = formatElectricalSafetyDashboardNumber(numericValue);
         residualCurrent.unit = definition.unit || null;
         residualCurrent.sourceDeviceName = context.deviceName?.trim() || null;
+        residualCurrent.sourceModel = context.deviceProfileName?.trim() || null;
+        residualCurrent.rawValue = sample.value;
+        residualCurrent.sourceUnit = definition.unit || null;
         residualCurrent.phase = getElectricalSafetyMetricPhase(definition.key);
         residualCurrent.timestamp = Number.isFinite(sample.ts) ? sample.ts : null;
         residualCurrent.parameterKey = definition.key;
       }
-      if (isElectricalSafetyTemperatureUnit(definition.unit)
+      if (isTemperature && isElectricalSafetyTemperatureUnit(definition.unit)
         && (temperatureNumericValue === null || numericValue > temperatureNumericValue)) {
         temperatureNumericValue = numericValue;
         temperature.value = sample.value;
         temperature.unit = definition.unit || null;
         temperature.sourceDeviceName = context.deviceName?.trim() || null;
+        temperature.sourceModel = context.deviceProfileName?.trim() || null;
+        temperature.rawValue = sample.value;
+        temperature.sourceUnit = definition.unit || null;
         temperature.phase = getElectricalSafetyMetricPhase(definition.key);
         temperature.timestamp = Number.isFinite(sample.ts) ? sample.ts : null;
         temperature.parameterKey = definition.key;
@@ -490,12 +685,13 @@ function getElectricalSafetyMetricPhase(parameterKey: string): string | null {
   return phaseMatch ? `${phaseMatch[1].toUpperCase()}相` : null;
 }
 
-/** 剩余电流按规范中文测点名识别；温度仅接受明确标注为温度单位的型号测点。 */
+/** 火灾风险测点由型号数组中的语义标记确定，避免从名称或单位反向猜测。 */
 function isElectricalSafetyFireRiskMetricDefinition(
   definition: ElectricalSafetyRealtimeMetricDefinition
 ): boolean {
   return definition.valueType === 'telemetry'
-    && (definition.label === '剩余电流' || isElectricalSafetyTemperatureUnit(definition.unit));
+    && (definition.dashboardMetric === 'fire-residual-current'
+      || definition.dashboardMetric === 'fire-temperature');
 }
 
 /** 将已接收的数值遥测解析为有限数字；空值、非数值和无穷值不参与最大值统计。 */
@@ -507,7 +703,31 @@ function parseElectricalSafetyTelemetryNumber(value: string | undefined): number
   return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
-/** 生成火灾风险最大值的原生提示；按防雷规则显示可解析相位，否则显示原始参数键。 */
+/** 显示有限小数并去除无意义的末尾零，保持卡片数值简洁。 */
+function formatElectricalSafetyDashboardNumber(value: number): string {
+  return String(Number(value.toFixed(3)));
+}
+
+/** 生成普通类别测点的来源详情；设备、型号和遥测键只出现在悬浮提示中。 */
+function formatElectricalSafetyDashboardMetricTooltip(
+  label: string,
+  value: string,
+  unit: string,
+  device: ElectricalSafetyDeviceContext,
+  definition: ElectricalSafetyRealtimeMetricDefinition,
+  sample: ElectricalSafetyMonitoringTelemetryValue
+): string {
+  return [
+    `${label}：${value}${unit ? ` ${unit}` : ''}`,
+    `设备：${device.deviceName || '--'}`,
+    `型号：${device.deviceProfileName || '--'}`,
+    `参数：${definition.key}`,
+    `原始值：${sample.value}${definition.unit ? ` ${definition.unit}` : ''}`,
+    `时间：${formatElectricalSafetyActivityTime(sample.ts)}`
+  ].join('\n');
+}
+
+/** 生成火灾风险值的原生提示，包含型号、原始值和单位来源，便于核对实际遥测。 */
 export function formatElectricalSafetyFireRiskMetricTooltip(
   label: string,
   metric: ElectricalSafetyFireRiskMetric
@@ -518,23 +738,29 @@ export function formatElectricalSafetyFireRiskMetricTooltip(
   const sourceDetail = metric.phase
     ? `相位：${metric.phase}`
     : `参数：${metric.parameterKey || '--'}`;
-  return [
+  const details = [
     `${label}：${formattedValue}`,
     `设备：${metric.sourceDeviceName || '--'}`,
+    `型号：${metric.sourceModel || '--'}`,
     sourceDetail,
     `时间：${formatElectricalSafetyActivityTime(metric.timestamp)}`
-  ].join('\n');
+  ];
+  if (metric.rawValue !== null) {
+    details.splice(4, 0, `原始值：${metric.rawValue}${metric.sourceUnit ? ` ${metric.sourceUnit}` : ''}`);
+  }
+  return details.join('\n');
 }
 
-/** 统计成功但某分类没有事件时按零计；请求未成功时保留 null 表示未知。 */
-function sumElectricalSafetyFireAlarmEvents(
-  alarmEventCountsByFunctionCategory: ReadonlyMap<string, number> | null
+/** 按卡片归属汇总后端功能分类告警数；成功但无事件返回 0，未成功时保留 null。 */
+export function sumElectricalSafetyDashboardAlarmEvents(
+  alarmEventCountsByFunctionCategory: ReadonlyMap<string, number> | null,
+  category: ElectricalSafetyDashboardCategory
 ): number | null {
   if (alarmEventCountsByFunctionCategory === null) {
     return null;
   }
   let total = 0;
-  for (const functionCategory of ELECTRICAL_SAFETY_FIRE_FUNCTION_CATEGORIES) {
+  for (const functionCategory of ELECTRICAL_SAFETY_DASHBOARD_FUNCTION_CATEGORIES[category]) {
     total += alarmEventCountsByFunctionCategory.get(functionCategory) || 0;
   }
   return total;
