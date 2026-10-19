@@ -25,6 +25,7 @@ import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEvent;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
@@ -56,7 +57,7 @@ public class CustomerEdgeProcessor extends BaseEdgeProcessor {
                 Customer customer = edgeCtx.getCustomerService().findCustomerById(edgeEvent.getTenantId(), customerId);
                 if (customer != null) {
                     UpdateMsgType msgType = getUpdateMsgType(edgeEvent.getAction());
-                    CustomerUpdateMsg customerUpdateMsg = EdgeMsgConstructorUtils.constructCustomerUpdatedMsg(msgType, customer);
+                    CustomerUpdateMsg customerUpdateMsg = EdgeMsgConstructorUtils.constructCustomerUpdatedMsg(msgType, customer, edgeEvent.getEntityGroupId() != null ? new EntityGroupId(edgeEvent.getEntityGroupId()) : null);
                     return DownlinkMsg.newBuilder()
                             .setDownlinkMsgId(EdgeUtils.nextPositiveInt())
                             .addCustomerUpdateMsg(customerUpdateMsg)

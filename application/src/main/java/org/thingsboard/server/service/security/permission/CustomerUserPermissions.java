@@ -18,11 +18,16 @@ package org.thingsboard.server.service.security.permission;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.DashboardInfo;
+import org.thingsboard.server.common.data.Device;
+import org.thingsboard.server.common.data.EntityView;
 import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.asset.Asset;
+import org.thingsboard.server.common.data.blob.BlobEntity;
+import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.group.EntityGroup;
 import org.thingsboard.server.common.data.id.ApiKeyId;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -180,7 +185,9 @@ public class CustomerUserPermissions extends AbstractPermissions {
                 && perms.hasGenericPermission(resource, operation)) {
             return true;
         }
-        if (!operation.isAllowedForGroupRole()) {
+        if (!operation.isAllowedForGroupRole() || entityId == null) {
+            // entityId is null for CREATE (the entity doesn't exist yet, so it can't already belong
+            // to any group) - only the GENERIC branch above can grant permission in that case.
             return false;
         }
         for (EntityGroupId groupId : entityGroupService.findEntityGroupsForEntity(user.getTenantId(), entityId, user.getCustomerId())) {
@@ -189,6 +196,26 @@ public class CustomerUserPermissions extends AbstractPermissions {
             }
         }
         return false;
+    }
+
+    /**
+     * Resolves the {@link Resource} of an entity that has no id yet (a CREATE in flight, see
+     * {@link #customerEntityPermissionChecker}) from its concrete class instead. Covers exactly the
+     * entity types {@code customerEntityPermissionChecker} is registered for.
+     */
+    private Resource resourceOf(HasTenantId entity) {
+        if (entity instanceof Device) {
+            return Resource.DEVICE;
+        } else if (entity instanceof Asset) {
+            return Resource.ASSET;
+        } else if (entity instanceof EntityView) {
+            return Resource.ENTITY_VIEW;
+        } else if (entity instanceof Edge) {
+            return Resource.EDGE;
+        } else if (entity instanceof BlobEntity) {
+            return Resource.BLOB_ENTITY;
+        }
+        throw new IllegalArgumentException("Cannot resolve Resource for entity type: " + entity.getClass().getSimpleName());
     }
 
     /** The owner an entity belongs to: its customer when customer-assigned, else the tenant. */
@@ -236,7 +263,10 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     // grant. Nobody starts with zero permissions: every user is placed in a default
                     // user group bound to a default role by
                     // EntityGroupService#ensureDefaultUserRoleMembership.
-                    return hasGroupOrGenericPermission(user, Resource.of(entityId.getEntityType()), operation, entityId, ownerOf(user, entity));
+                    // entityId is null for CREATE (nothing persisted yet, see BaseController#checkEntity),
+                    // so the entity type has to come from the entity instance itself instead.
+                    Resource resource = entityId != null ? Resource.of(entityId.getEntityType()) : resourceOf(entity);
+                    return hasGroupOrGenericPermission(user, resource, operation, entityId, ownerOf(user, entity));
                 }
             };
 

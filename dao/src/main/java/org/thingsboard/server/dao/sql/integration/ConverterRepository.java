@@ -34,7 +34,17 @@ public interface ConverterRepository extends JpaRepository<ConverterEntity, UUID
 
     ConverterEntity findByTenantIdAndName(UUID tenantId, String name);
 
-    @Query("SELECT c FROM ConverterEntity c WHERE c.tenantId = :tenantId " +
+    // 模板与普通实体分居两个命名空间：列表页按这个位切分，互不可见。
+    @Query("SELECT c FROM ConverterEntity c WHERE c.tenantId = :tenantId AND c.edgeTemplate = :isEdgeTemplate " +
+            "AND (:textSearch IS NULL OR ilike(c.name, CONCAT('%', :textSearch, '%')) = true)")
+    Page<ConverterEntity> findByTenantIdAndIsEdgeTemplate(@Param("tenantId") UUID tenantId,
+                                                @Param("isEdgeTemplate") boolean isEdgeTemplate,
+                                                @Param("textSearch") String textSearch,
+                                                Pageable pageable);
+
+    // 普通列表必须排除模板，对齐 PE 的 findCoreConvertersByTenantId。少了这个条件，
+    // edge 模板会混进集成中心的转换器列表，用户看到一堆不该出现在那里的东西。
+    @Query("SELECT c FROM ConverterEntity c WHERE c.tenantId = :tenantId AND c.edgeTemplate = false " +
             "AND (:integrationType IS NULL OR c.integrationType = :integrationType) " +
             "AND (:searchText IS NULL OR ilike(c.name, CONCAT('%', :searchText, '%')) = true)")
     Page<ConverterEntity> findByTenantId(@Param("tenantId") UUID tenantId,

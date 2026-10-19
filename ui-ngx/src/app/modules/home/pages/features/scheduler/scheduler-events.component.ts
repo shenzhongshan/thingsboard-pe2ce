@@ -16,6 +16,12 @@
 
 import { Component, OnInit, Renderer2, ViewContainerRef } from '@angular/core';
 import { Store } from '@ngrx/store';
+import { ActivatedRoute } from '@angular/router';
+import { EntityType } from '@shared/models/entity-type.models';
+import {
+  AddEntitiesToEdgeDialogComponent,
+  AddEntitiesToEdgeDialogData
+} from '@home/dialogs/add-entities-to-edge-dialog.component';
 import { AppState } from '@core/core.state';
 import { PageComponent } from '@shared/components/page.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -27,7 +33,7 @@ import { PageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
 import {
   SchedulerEventWithCustomerInfo,
-  schedulerEventTypeNames
+  schedulerEventTypeTranslations
 } from '@shared/models/scheduler-event.models';
 import {
   SchedulerEventDialogComponent,
@@ -72,7 +78,13 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
   calendarWeeks: CalendarCell[][] = [];
   weekDays: string[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  schedulerEventTypeNames = schedulerEventTypeNames;
+  schedulerEventTypeNames = schedulerEventTypeTranslations;
+
+  /**
+   * Edge 模式：从 edge 详情页进来（instances/:edgeId/scheduler）时，只列出**分配给
+   * 这台 edge** 的调度事件，动作换成分配/取消分配。
+   */
+  edgeId: string;
 
   constructor(protected store: Store<AppState>,
               private schedulerEventService: SchedulerEventService,
@@ -81,11 +93,14 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
               private dialog: MatDialog,
               private popoverService: TbPopoverService,
               private renderer: Renderer2,
-              private viewContainerRef: ViewContainerRef) {
+              private viewContainerRef: ViewContainerRef,
+              private route: ActivatedRoute) {
     super(store);
   }
 
   ngOnInit() {
+    // edgeId 在祖先路由段 ':edgeId/scheduler' 上
+    this.edgeId = this.findRouteParam('edgeId');
     this.reload();
   }
 
@@ -124,9 +139,57 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
   private loadList() {
     const pageLink = new PageLink(this.pageSize, this.page, this.textSearch,
       { property: 'createdTime', direction: Direction.DESC });
-    this.schedulerEventService.getSchedulerEvents(pageLink).subscribe((pageData) => {
+    const source$ = this.edgeMode
+      ? this.schedulerEventService.getEdgeSchedulerEvents(this.edgeId, pageLink)
+      : this.schedulerEventService.getSchedulerEvents(pageLink);
+    source$.subscribe((pageData) => {
       this.events = pageData.data;
       this.totalElements = pageData.totalElements;
+    });
+  }
+
+  private findRouteParam(name: string): string {
+    let route = this.route.snapshot;
+    while (route) {
+      if (route.params?.[name]) {
+        return route.params[name];
+      }
+      route = route.parent;
+    }
+    return null;
+  }
+
+  get edgeMode(): boolean {
+    return !!this.edgeId;
+  }
+
+  /** 把一个调度事件分配给这台 edge，让它断网时也能按计划触发。 */
+  assignEventToEdge($event: Event) {
+    $event?.stopPropagation();
+    this.dialog.open<AddEntitiesToEdgeDialogComponent, AddEntitiesToEdgeDialogData, boolean>(
+      AddEntitiesToEdgeDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+        data: { edgeId: this.edgeId, entityType: EntityType.SCHEDULER_EVENT }
+      }).afterClosed().subscribe((assigned) => {
+      if (assigned) {
+        this.reload();
+      }
+    });
+  }
+
+  unassignEventFromEdge($event: Event, event: {id: {id: string}; name: string}) {
+    $event?.stopPropagation();
+    this.dialogService.confirm(
+      this.translate.instant('edge.unassign-scheduler-event-from-edge-title', {schedulerEventName: event.name}),
+      this.translate.instant('edge.unassign-scheduler-event-from-edge-text'),
+      this.translate.instant('action.no'),
+      this.translate.instant('action.yes')
+    ).subscribe((confirmed) => {
+      if (confirmed) {
+        this.schedulerEventService.unassignSchedulerEventFromEdge(this.edgeId, event.id.id)
+          .subscribe(() => this.reload());
+      }
     });
   }
 
@@ -137,7 +200,8 @@ export class SchedulerEventsComponent extends PageComponent implements OnInit {
   }
 
   eventTypeName(event: SchedulerEventWithCustomerInfo): string {
-    return schedulerEventTypeNames.get(event.type) || event.type;
+    const key = schedulerEventTypeTranslations.get(event.type);
+    return key ? this.translate.instant(key) : event.type;
   }
 
   scheduleText(event: SchedulerEventWithCustomerInfo): string {

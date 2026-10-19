@@ -22,6 +22,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasName;
@@ -34,10 +35,11 @@ import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
 /**
- * CE port of PE's entity group. Simplifications: owner is TENANT or CUSTOMER only (PE also
- * allows other owner types), group types limited to USER/CUSTOMER/DEVICE/ASSET/ENTITY_VIEW/
- * DASHBOARD, no edge sync. The "All" group is a real persisted group whose membership is
- * maintained via ordinary Contains/FROM_ENTITY_GROUP relations, matching PE.
+ * CE port of PE's entity group. Owner is TENANT or CUSTOMER only (PE also allows other owner
+ * types). Group types now match PE's seven, including EDGE. The "All" group is a real persisted
+ * group whose membership is maintained via ordinary Contains/FROM_ENTITY_GROUP relations,
+ * matching PE. Groups can be assigned to an edge (see EntityGroupService.assignEntityGroupToEdge);
+ * the edge-side mirror groups are named "[Edge] &lt;name&gt; All" — see isEdgeGroupAll().
  */
 @Schema
 @EqualsAndHashCode(callSuper = true)
@@ -46,11 +48,19 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
 
     private static final long serialVersionUID = 2807349040519543363L;
 
+    // 与 PE 4.3.1.1 一致的 7 种可分组实体。新增一项时务必同步检查所有按 group type 分派的
+    // switch —— BaseEntityGroupService 里是 default -> throw，只加类型不加分支会在运行时
+    // 才炸而编译完全通过。EntityGroupTypeDispatchTest 是这条约束的守卫。
     public static final EntityType[] groupTypes = new EntityType[]{
             EntityType.USER, EntityType.CUSTOMER, EntityType.DEVICE, EntityType.ASSET,
-            EntityType.ENTITY_VIEW, EntityType.DASHBOARD
+            EntityType.ENTITY_VIEW, EntityType.DASHBOARD, EntityType.EDGE
     };
     public static final String GROUP_ALL_NAME = "All";
+    // PE 为每台 edge 自动维护的镜像分组，名字形如 "[Edge] MyEdge All"。
+    public static final String GROUP_EDGE_ALL_STARTS_WITH = "[Edge]";
+    public static final String GROUP_EDGE_ALL_ENDS_WITH = "All";
+    public static final String GROUP_EDGE_ALL_NAME_PATTERN = "[Edge] %s All";
+    public static final String GROUP_EDGE_CUSTOMER_ALL_NAME_PATTERN = "[Edge][%s] %s All";
 
     @Getter @Setter
     @Schema(description = "Type of the entities in the group", accessMode = Schema.AccessMode.READ_ONLY)
@@ -108,6 +118,12 @@ public class EntityGroup extends BaseData<EntityGroupId> implements HasName, Has
     @Override
     public String getName() {
         return name;
+    }
+
+    @Schema(description = "Indicates special edge group 'All' that mirrors the entities living on one edge.",
+            accessMode = Schema.AccessMode.READ_ONLY)
+    public boolean isEdgeGroupAll() {
+        return EdgeUtils.isEdgeGroupAll(name);
     }
 
     public boolean isGroupAll() {

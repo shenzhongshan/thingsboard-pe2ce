@@ -16,6 +16,7 @@
 package org.thingsboard.server.dao.scheduler;
 
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.page.PageData;
@@ -55,5 +56,15 @@ public interface SchedulerEventService {
     void deleteSchedulerEventsByTenantId(TenantId tenantId);
 
     void deleteSchedulerEventsByTenantIdAndCustomerId(TenantId tenantId, CustomerId customerId);
+
+
+    /**
+     * 把调度事件分配给一台 edge。关系走 RelationTypeGroup.EDGE + "Contains"，与规则链/集成一致。
+     */
+    SchedulerEventInfo assignSchedulerEventToEdge(TenantId tenantId, SchedulerEventId schedulerEventId, EdgeId edgeId);
+
+    SchedulerEventInfo unassignSchedulerEventFromEdge(TenantId tenantId, SchedulerEventId schedulerEventId, EdgeId edgeId);
+
+    PageData<SchedulerEventInfo> findSchedulerEventInfosByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink);
 
 }

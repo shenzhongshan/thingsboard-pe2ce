@@ -25,6 +25,8 @@ import { DeviceService } from '@core/http/device.service';
 import { TenantService } from '@core/http/tenant.service';
 import { CustomerService } from '@core/http/customer.service';
 import { EntityGroupService } from '@core/http/entity-group.service';
+import { IntegrationService } from '@core/http/integration.service';
+import { SchedulerEventService } from '@core/http/scheduler-event.service';
 import { UserService } from './user.service';
 import { DashboardService } from '@core/http/dashboard.service';
 import { Direction } from '@shared/models/page/sort-order';
@@ -140,6 +142,8 @@ export class EntityService {
     private aiModelService: AiModelService,
     private entityGroupService: EntityGroupService,
     private roleService: RoleService,
+    private integrationService: IntegrationService,
+    private schedulerEventService: SchedulerEventService,
   ) { }
 
   private getEntityObservable(entityType: EntityType, entityId: string,
@@ -420,6 +424,21 @@ export class EntityService {
       case EntityType.ENTITY_GROUP:
         pageLink.sortOrder.property = 'name';
         entitiesObservable = this.entityGroupService.getEntityGroupsByType(subType as EntityType, pageLink, null, config);
+        break;
+      // 这两类之前没有分支 —— 落到 default 后 tb-entity-list 会渲染成空选择器，
+      // 编译与页面都不报错，只是永远挑不出东西。
+      case EntityType.INTEGRATION:
+        pageLink.sortOrder.property = 'name';
+        // 只有 edge 模板集成能分配给 edge（后端 assignIntegrationToEdge 会拒绝普通集成），
+        // 所以候选直接按 isEdgeTemplate=true 过滤，而不是让用户选完再报 400。
+        entitiesObservable = this.integrationService.getIntegrations(pageLink, true, config);
+        break;
+      case EntityType.SCHEDULER_EVENT:
+        pageLink.sortOrder.property = 'name';
+        // SchedulerEventWithCustomerInfo 不是 BaseData<EntityId> 的结构子类型，但这条路径
+        // 只用到 id/name（tb-entity-list 的需要），与其它分支一致，所以显式放宽。
+        entitiesObservable = this.schedulerEventService.getSchedulerEvents(pageLink, null, config) as
+          unknown as Observable<PageData<BaseData<EntityId>>>;
         break;
       case EntityType.RULE_CHAIN:
         pageLink.sortOrder.property = 'name';

@@ -35,18 +35,20 @@ import org.thingsboard.server.common.msg.TbMsg;
 
 @RuleNode(
         type = ComponentType.ACTION,
-        name = "unassign from customer",
+        name = "unassign from customer (deprecated)",
         configClazz = TbUnassignFromCustomerNodeConfiguration.class,
-        nodeDescription = "Unassign message originator entity from customer",
+        nodeDescription = "Unassign message originator entity from customer (deprecated)",
         nodeDetails = "If the message originator is not assigned to any customer, rule node will do nothing. <br><br>" +
                 "If the incoming message originator is a dashboard, will try to search for the customer by title specified in the configuration. " +
                 "If customer doesn't exist, the exception will be thrown. Otherwise will unassign the dashboard from retrieved customer.<br><br>" +
-                "Other entities can be assigned only to one customer, so specified customer title in the configuration will be ignored if the originator isn't a dashboard.",
+                "Other entities can be assigned only to one customer, so specified customer title in the configuration will be ignored if the originator isn't a dashboard.<br><br>" +
+                "Deprecated: use the 'change owner' node instead, which supports the same entity types (including Edge) via a single node.",
         configDirective = "tbActionNodeUnAssignToCustomerConfig",
         icon = "remove_circle",
         version = 1,
         docUrl = "https://allshen.org/docs/user-guide/rule-engine-2-0/nodes/action/unassign-from-customer/"
 )
+@Deprecated
 public class TbUnassignFromCustomerNode extends TbAbstractCustomerActionNode<TbUnassignFromCustomerNodeConfiguration> {
 
     @Override

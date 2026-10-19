@@ -107,6 +107,39 @@ public abstract class CaffeineTbTransactionalCache<K extends Serializable, V ext
     }
 
     @Override
+    public void evictByPrefix(String prefix) {
+        lock.lock();
+        try {
+            evict(getKeysByPrefix(prefix));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 比较的是 {@code key.toString()}，**不带 cacheName** —— Caffeine 的原生 map 以 K 对象
+     * 为键，cacheName 只出现在 Redis 的 raw key 里。与 Redis 实现各自适配同一个入参前缀；
+     * 这里若误加 cacheName，会一条都匹配不上而且不报错。
+     */
+    @SuppressWarnings("unchecked")
+    private Set<K> getKeysByPrefix(String prefix) {
+        Set<K> keysToEvict = new HashSet<>();
+        // Spring 的 Cache#getNativeCache 声明返回 Object，需显式转成 Caffeine 的原生 cache
+        // 才能枚举键。类型不符时返回空集（本类没有 logger）—— CacheManager 配的就是
+        // Caffeine，走到那个分支说明配置被换过，此时宁可不清也不要抛。
+        Object nativeCache = cache.getNativeCache();
+        if (!(nativeCache instanceof com.github.benmanes.caffeine.cache.Cache<?, ?> caffeineCache)) {
+            return keysToEvict;
+        }
+        caffeineCache.asMap().forEach((key, value) -> {
+            if (key != null && key.toString().startsWith(prefix)) {
+                keysToEvict.add((K) key);
+            }
+        });
+        return keysToEvict;
+    }
+
+    @Override
     public TbCacheTransaction<K, V> newTransactionForKey(K key) {
         return newTransaction(Collections.singletonList(key));
     }

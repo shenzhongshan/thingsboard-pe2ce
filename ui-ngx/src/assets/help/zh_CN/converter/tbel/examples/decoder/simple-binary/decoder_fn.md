@@ -1,19 +1,19 @@
-#### Decoder example JavaScript function
+#### 解码器函数示例
 
 ```javascript
 {:code-style="max-height: 500px;"}
-// Use first 4 bytes as device name 
+// 使用前 4 个字节作为设备名称
 var deviceName = "SN-" + parseBytesToInt(payload, 0, 4);
 
 var result = {
   deviceName: deviceName,
   deviceType: "Thermometer",
   telemetry: {
-    // Use 5th byte as a battery level
+    // 使用第 5 个字节作为电量
     battery: parseBytesToInt(payload, 4, 1),
-    // Use bytes 6 and 7 as a temperature
+    // 使用第 6、7 字节作为温度
     temperature: parseBytesToInt(payload, 5, 2) / 100.0,
-    // Use 8th byte as a saturation level
+    // 使用第 8 个字节作为饱和度
     saturation: parseBytesToInt(payload, 7, 1)
   }
 };

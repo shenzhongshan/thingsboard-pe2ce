@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
         type = ComponentType.ANALYTICS,
         name = "aggregate stream",
         configClazz = TbSimpleAggMsgNodeConfiguration.class,
-        version = 1,
+        version = 2,
         hasQueueName = true,
         nodeDescription = "Aggregates incoming data stream grouped by originator Entity Id",
         nodeDetails = "Calculates MIN/MAX/SUM/AVG/COUNT/UNIQUE over the incoming stream. Messages are grouped by " +
@@ -215,9 +215,20 @@ public class TbSimpleAggMsgNode implements TbNode {
     @Override
     public TbPair<Boolean, JsonNode> upgrade(int fromVersion, JsonNode oldConfiguration) throws TbNodeException {
         boolean hasChanges = false;
-        if (fromVersion == 0 && !oldConfiguration.hasNonNull("outMsgType")) {
-            ((ObjectNode) oldConfiguration).put("outMsgType", TbMsgType.POST_TELEMETRY_REQUEST.name());
-            hasChanges = true;
+        switch (fromVersion) {
+            case 0:
+                if (!oldConfiguration.hasNonNull("outMsgType")) {
+                    ((ObjectNode) oldConfiguration).put("outMsgType", TbMsgType.POST_TELEMETRY_REQUEST.name());
+                    hasChanges = true;
+                }
+            case 1:
+                if (oldConfiguration.has("queueName")) {
+                    hasChanges = true;
+                    ((ObjectNode) oldConfiguration).remove("queueName");
+                }
+                break;
+            default:
+                break;
         }
         return new TbPair<>(hasChanges, oldConfiguration);
     }

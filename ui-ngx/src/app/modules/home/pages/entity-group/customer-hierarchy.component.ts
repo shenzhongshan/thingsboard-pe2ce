@@ -38,7 +38,8 @@ import {
   DashboardGroupEntitiesTableConfigResolver,
   DeviceGroupEntitiesTableConfigResolver,
   EntityViewGroupEntitiesTableConfigResolver,
-  UserGroupEntitiesTableConfigResolver
+  UserGroupEntitiesTableConfigResolver,
+  EdgeGroupEntitiesTableConfigResolver
 } from '@home/pages/entity-group/group-entities-table-config.resolvers';
 
 type NodeKind = 'customerGroup' | 'customer' | 'typeFolder' | 'entityGroup';
@@ -59,13 +60,17 @@ interface HierarchyNode {
   customerId?: string;
 }
 
+// 每个客户下展开的分组文件夹。与 entityGroupTypes（shared/models/entity-group.models.ts）
+// 以及后端 EntityGroup.groupTypes 是同一份清单 —— EDGE 早先漏在这里，分组本身存得下、
+// 独立页面也能开，唯独客户层级视图里看不见。
 const groupTypeFolders: Array<{type: EntityType; nameKey: string; icon: string}> = [
   {type: EntityType.USER, nameKey: 'entity-group.group-type-user', icon: 'account_circle'},
   {type: EntityType.CUSTOMER, nameKey: 'entity-group.group-type-customer', icon: 'supervisor_account'},
   {type: EntityType.ASSET, nameKey: 'entity-group.group-type-asset', icon: 'domain'},
   {type: EntityType.DEVICE, nameKey: 'entity-group.group-type-device', icon: 'devices_other'},
   {type: EntityType.ENTITY_VIEW, nameKey: 'entity-group.group-type-entity-view', icon: 'view_quilt'},
-  {type: EntityType.DASHBOARD, nameKey: 'entity-group.group-type-dashboard', icon: 'dashboard'}
+  {type: EntityType.DASHBOARD, nameKey: 'entity-group.group-type-dashboard', icon: 'dashboard'},
+  {type: EntityType.EDGE, nameKey: 'entity-group.group-type-edge', icon: 'router'}
 ];
 
 const groupTypeIcons = new Map<EntityType, string>(groupTypeFolders.map(f => [f.type, f.icon]));
@@ -108,7 +113,8 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
               private assetGroupResolver: AssetGroupEntitiesTableConfigResolver,
               private entityViewGroupResolver: EntityViewGroupEntitiesTableConfigResolver,
               private dashboardGroupResolver: DashboardGroupEntitiesTableConfigResolver,
-              private userGroupResolver: UserGroupEntitiesTableConfigResolver) {
+              private userGroupResolver: UserGroupEntitiesTableConfigResolver,
+              private edgeGroupResolver: EdgeGroupEntitiesTableConfigResolver) {
     super(store);
     this.groupDetailsConfig = createGroupDetailsConfig(this.entityGroupService, action => this.onGroupAction(action), false);
   }
@@ -334,6 +340,7 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
       case EntityType.ENTITY_VIEW: return this.entityViewGroupResolver;
       case EntityType.DASHBOARD: return this.dashboardGroupResolver;
       case EntityType.USER: return this.userGroupResolver;
+      case EntityType.EDGE: return this.edgeGroupResolver;
     }
   }
 

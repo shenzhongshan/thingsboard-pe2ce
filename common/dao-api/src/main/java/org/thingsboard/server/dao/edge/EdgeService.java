@@ -17,6 +17,7 @@ package org.thingsboard.server.dao.edge;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import org.thingsboard.server.common.data.EntitySubtype;
+import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeInfo;
 import org.thingsboard.server.common.data.edge.EdgeSearchQuery;
@@ -67,6 +68,11 @@ public interface EdgeService extends EntityDaoService {
 
     PageData<EdgeInfo> findEdgeInfosByTenantId(TenantId tenantId, PageLink pageLink);
 
+    /** 只含租户自己持有的 edge（未分配给客户）—— /api/edgeInfos/all 的 includeCustomers=false 分支。 */
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantId(TenantId tenantId, PageLink pageLink);
+
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantIdAndType(TenantId tenantId, String type, PageLink pageLink);
+
     ListenableFuture<List<Edge>> findEdgesByTenantIdAndIdsAsync(TenantId tenantId, List<EdgeId> edgeIds);
 
     void deleteEdgesByTenantId(TenantId tenantId);
@@ -92,6 +98,11 @@ public interface EdgeService extends EntityDaoService {
     PageData<Edge> findEdgesByTenantIdAndEntityId(TenantId tenantId, EntityId ruleChainId, PageLink pageLink);
 
     PageData<EdgeId> findEdgeIdsByTenantIdAndEntityId(TenantId tenantId, EntityId ruleChainId, PageLink pageLink);
+
+    PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIds(TenantId tenantId, List<EntityId> entityIds, EntityType entityType, PageLink pageLink);
+
+    /** 直连分配 ∪ 经分组分配 —— 实体到达 edge 的两条途径的并集。 */
+    PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIdIncludingGroups(TenantId tenantId, EntityId entityId, PageLink pageLink);
 
     PageData<Edge> findEdgesByTenantProfileId(TenantProfileId tenantProfileId, PageLink pageLink);
 

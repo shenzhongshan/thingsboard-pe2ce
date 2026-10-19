@@ -113,6 +113,8 @@ export enum MenuId {
   edges = 'edges',
   edge_instances = 'edge_instances',
   rulechain_templates = 'rulechain_templates',
+  integration_templates = 'integration_templates',
+  converter_templates = 'converter_templates',
   features = 'features',
   otaUpdates = 'otaUpdates',
   version_control = 'version_control',
@@ -791,6 +793,28 @@ export const menuSectionMap = new Map<MenuId, MenuSection>([
     }
   ],
   [
+    MenuId.integration_templates,
+    {
+      id: MenuId.integration_templates,
+      name: 'edge.integration-templates',
+      fullName: 'edge.edge-integration-templates',
+      type: 'link',
+      path: '/edgeManagement/integrations',
+      icon: 'input'
+    }
+  ],
+  [
+    MenuId.converter_templates,
+    {
+      id: MenuId.converter_templates,
+      name: 'edge.converter-templates',
+      fullName: 'edge.edge-converter-templates',
+      type: 'link',
+      path: '/edgeManagement/converters',
+      icon: 'transform'
+    }
+  ],
+  [
     MenuId.features,
     {
       id: MenuId.features,
@@ -1150,7 +1174,9 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.edge_management,
         pages: [
           {id: MenuId.edges},
-          {id: MenuId.rulechain_templates}
+          {id: MenuId.rulechain_templates},
+          {id: MenuId.integration_templates},
+          {id: MenuId.converter_templates}
         ]
       },
       {

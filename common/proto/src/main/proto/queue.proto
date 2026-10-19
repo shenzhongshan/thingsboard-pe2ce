@@ -1350,6 +1350,12 @@ message EdgeNotificationMsgProto {
   PostAttributeMsg postAttributesMsg = 12;
   int64 originatorEdgeIdMSB = 13;
   int64 originatorEdgeIdLSB = 14;
+  // 事件所属的实体分组。PE 把它放在 13/14/15，但 CE 的 13/14 已被 originatorEdgeId 占用，
+  // 挪号会破坏 CE 集群的滚动升级。这条消息只在 CE 节点之间的内部队列上流动，不与 PE edge
+  // 通信，因此无需与 PE 对齐编号，取空闲号即可。
+  int64 entityGroupIdMSB = 15;
+  int64 entityGroupIdLSB = 16;
+  string entityGroupType = 17;
 }
 
 message EdgeHighPriorityMsgProto {

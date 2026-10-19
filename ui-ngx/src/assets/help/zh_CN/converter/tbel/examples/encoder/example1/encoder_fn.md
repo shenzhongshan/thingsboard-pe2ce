@@ -1,35 +1,35 @@
-#### Encoder example JavaScript function
+#### 编码器函数示例
 
 ```javascript
 {:code-style="max-height: 500px;"}
 
-// Encode downlink data from incoming Rule Engine message
+// 将入站规则引擎消息编码为下行数据
 
-// msg - JSON message payload downlink message json
-// msgType - type of message, for ex. 'ATTRIBUTES_UPDATED', 'POST_TELEMETRY_REQUEST', etc.
-// metadata - list of key-value pairs with additional data about the message
-// integrationMetadata - list of key-value pairs with additional data defined in Integration executing this converter
+// msg - 下行消息的 JSON 消息 payload
+// msgType - 消息类型，例如 'ATTRIBUTES_UPDATED'、'POST_TELEMETRY_REQUEST' 等
+// metadata - 关于该消息附加数据的键值对列表
+// integrationMetadata - 执行此转换器的集成中定义的附加数据键值对列表
 
-/** Encoder **/
+/** 编码器 **/
 
 var data = {};
 
-// Process data from incoming message and metadata
+// 处理来自入站消息和元数据的数据
 
 data.tempFreq = msg.temperatureUploadFrequency;
 
 data.firmwareVersion = metadata['ss_firmwareVersion'];
 
-// Result object with encoded downlink payload
+// 包含已编码下行 payload 的结果对象
 var result = {
 
-  // downlink data content type: JSON, TEXT or BINARY (base64 format)
+  // 下行数据内容类型：JSON、TEXT 或 BINARY（base64 格式）
   contentType: "JSON",
 
-  // downlink data
+  // 下行数据
   data: JSON.stringify(data),
 
-  // Optional metadata object presented in key/value format 
+  // 可选的、以键值对形式呈现的元数据对象
   metadata: {topic: metadata['deviceType'] + '/' + metadata['deviceName'] + '/upload'}
 
 };

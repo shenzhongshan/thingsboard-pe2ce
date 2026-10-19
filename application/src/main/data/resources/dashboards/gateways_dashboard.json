@@ -16,7 +16,7 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Gateway list",
+            "entitiesTitle": "{i18n:gateway.widget.gateway-list}",
             "enableSearch": true,
             "enableSelectColumnDisplay": false,
             "enableStickyHeader": true,
@@ -31,7 +31,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Gateway list",
+          "title": "{i18n:gateway.widget.gateway-list}",
           "dropShadow": true,
           "enableFullscreen": false,
           "titleStyle": {
@@ -290,7 +290,7 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "0px",
           "settings": {},
-          "title": "New Gateway configuration",
+          "title": "{i18n:gateway.widget.new-gateway-configuration}",
           "showTitleIcon": false,
           "titleTooltip": "",
           "dropShadow": true,
@@ -364,7 +364,7 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "0px",
           "settings": {},
-          "title": "New Gateway connector",
+          "title": "{i18n:gateway.widget.new-gateway-connector}",
           "showTitleIcon": false,
           "titleTooltip": "",
           "dropShadow": false,
@@ -540,7 +540,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".divider {\n    position: absolute;\n    width: 3px;\n    top: 8px;\n    border-radius: 2px;\n    bottom: 8px;\n    border: 1px solid rgba(31, 70, 144, 1);\n    background-color: rgba(31, 70, 144, 1);\n    left: 10px;\n}\n.divider-green .divider {\n    border: 1px solid rgb(25,128,56);\n    background-color: rgb(25,128,56);\n}\n\n.divider-green .mat-mdc-card-content {\n    color: rgb(25,128,56);\n}\n\n.divider-red .divider {\n    border: 1px solid rgb(203,37,48);\n    background-color: rgb(203,37,48);\n}\n\n.divider-red .mat-mdc-card-content {\n    color: rgb(203,37,48);\n}\n\n.mdc-card {\n    position: relative;\n    padding-left: 10px;\n    margin-bottom: 1px;\n}\n\n.mat-mdc-card-subtitle {\n    font-weight: 400;\n    font-size: 12px;\n}\n\n.mat-mdc-card-header {\n    padding: 8px 16px 0;\n}\n\n.mat-mdc-card-content:last-child {\n    padding-bottom: 8px;\n    font-size: 16px;\n}\n\n.cards-container {\n    height: calc(100% - 1px);\n    justify-content: stretch;\n    align-items: center;\n    margin-bottom: 1px;\n}\n\n::ng-deep.tb-home-widget-link > div {\n    flex-grow: 1;\n}\n\n.tb-home-widget-link {\n    cursor: pointer;\n    width: 100%;\n}\n\n.tb-home-widget-link:hover::after{\n    color: inherit;\n}\n \n.tb-home-widget-link::after{\n    content: 'arrow_forward';\n    display: inline-block;\n    transform: rotate(315deg);\n    font-family: 'Material Icons';\n    font-weight: normal;\n    font-style: normal;\n    font-size: 18px;\n    color: rgba(0, 0, 0, 0.12);\n    vertical-align: bottom;\n    margin-left: 6px;\n}"
           },
-          "title": "Connectors",
+          "title": "{i18n:gateway.widget.connectors}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -643,7 +643,7 @@
             "defaultSortOrder": "-createdTime",
             "useRowStyleFunction": false
           },
-          "title": "Alarms",
+          "title": "{i18n:gateway.widget.alarms}",
           "dropShadow": true,
           "enableFullscreen": false,
           "titleStyle": {
@@ -777,7 +777,7 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "8px",
           "settings": {},
-          "title": "Logs",
+          "title": "{i18n:gateway.widget.logs}",
           "showTitleIcon": false,
           "dropShadow": true,
           "enableFullscreen": true,
@@ -913,7 +913,7 @@
               }
             ]
           },
-          "title": "RPC remote shell",
+          "title": "{i18n:gateway.widget.rpc-remote-shell}",
           "dropShadow": true,
           "enableFullscreen": true,
           "widgetStyle": {
@@ -1033,7 +1033,7 @@
             "disableStickyHeader": false,
             "useRowStyleFunction": false
           },
-          "title": "RPC Logs",
+          "title": "{i18n:gateway.widget.rpc-logs}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -1111,7 +1111,7 @@
               }
             ]
           },
-          "title": "RPC debug terminal",
+          "title": "{i18n:gateway.widget.rpc-debug-terminal}",
           "dropShadow": true,
           "enableFullscreen": true,
           "widgetStyle": {},
@@ -1184,7 +1184,7 @@
               }
             ]
           },
-          "title": "Service RPC",
+          "title": "{i18n:gateway.widget.service-rpc}",
           "datasources": [],
           "showTitleIcon": false,
           "titleTooltip": "",
@@ -1224,7 +1224,7 @@
           "settings": {
             "isConnector": true
           },
-          "title": "Service RPC",
+          "title": "{i18n:gateway.widget.service-rpc}",
           "datasources": [],
           "showTitleIcon": false,
           "titleTooltip": "",
@@ -1347,7 +1347,7 @@
             "disableStickyHeader": false,
             "useRowStyleFunction": false
           },
-          "title": "RPC Logs",
+          "title": "{i18n:gateway.widget.rpc-logs}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -1421,7 +1421,7 @@
               }
             ]
           },
-          "title": "New RPC debug terminal",
+          "title": "{i18n:gateway.widget.new-rpc-debug-terminal}",
           "dropShadow": true,
           "enableFullscreen": true,
           "widgetStyle": {},
@@ -1472,7 +1472,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".action-buttons-container {\r\n    display: flex;\r\n    flex-wrap: wrap;\r\n    flex-direction: row;\r\n    height: 100%;\r\n    width: 100%;\r\n    align-content: center;\r\n}\r\n\r\nbutton {\r\n    flex-grow: 1;\r\n    margin: 10px;\r\n    min-width: 150px;\r\n    height: auto;\r\n    line-height: 36px;\n}"
           },
-          "title": "Service command",
+          "title": "{i18n:gateway.widget.service-command}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -1561,7 +1561,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".action-buttons-container {\r\n    display: flex;\r\n    flex-wrap: wrap;\r\n    flex-direction: row;\r\n    height: 100%;\r\n    width: 100%;\r\n    align-content: start;\r\n}\r\n\r\nbutton {\r\n    flex-grow: 1;\r\n    margin: 10px;\r\n    min-width: 150px;\r\n    height: auto;\r\n    line-height: 36px;\n}"
           },
-          "title": "General configuration",
+          "title": "{i18n:gateway.widget.general-configuration}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -1716,7 +1716,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".mat-mdc-form-field-subscript-wrapper {\n    display: none !important;\n}\n\n.devices-tabs {\n    height: 100%;\n}\n\n::ng-deep .mat-mdc-tab-body-wrapper {\n  height: 100%;\n}"
           },
-          "title": "Gateway devices",
+          "title": "{i18n:gateway.widget.gateway-devices}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -1750,14 +1750,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -1765,7 +1765,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -1891,14 +1891,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -1906,7 +1906,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2032,14 +2032,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2047,7 +2047,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2172,14 +2172,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2187,7 +2187,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2312,14 +2312,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2327,7 +2327,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2452,14 +2452,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2467,7 +2467,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2592,14 +2592,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2607,7 +2607,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2732,14 +2732,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2747,7 +2747,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -2872,14 +2872,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -2887,7 +2887,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3012,14 +3012,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3027,7 +3027,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3152,14 +3152,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3167,7 +3167,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3292,14 +3292,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3307,7 +3307,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3432,14 +3432,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3447,7 +3447,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3572,14 +3572,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3587,7 +3587,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3712,14 +3712,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3727,7 +3727,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3852,14 +3852,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -3867,7 +3867,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -3992,14 +3992,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -4007,7 +4007,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -4161,7 +4161,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".action-buttons-container {\r\n    display: flex;\r\n    flex-wrap: wrap;\r\n    flex-direction: row;\r\n    height: 100%;\r\n    width: 100%;\r\n    align-content: start;\r\n}\r\n\r\nbutton {\r\n    flex-grow: 1;\r\n    margin: 10px;\r\n    min-width: 150px;\r\n    height: auto;\r\n    line-height: 36px;\r\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -4246,7 +4246,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".tb-card-content {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -5866,7 +5866,7 @@
             "cardHtml": "<div class='card'>HTML code here</div>",
             "cardCss": ".card {\n    font-weight: bold;\n    font-size: 32px;\n    color: #999;\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}"
           },
-          "title": "HTML Card",
+          "title": "{i18n:gateway.widget.html-card}",
           "dropShadow": true,
           "enableFullscreen": false,
           "margin": "16px 16px 16px 0",
@@ -6411,7 +6411,7 @@
             },
             "padding": "12px"
           },
-          "title": "Machine resources",
+          "title": "{i18n:gateway.widget.machine-resources}",
           "dropShadow": true,
           "enableFullscreen": false,
           "titleStyle": null,
@@ -6537,7 +6537,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".tb-card-content {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n    align-items: flex-start;\n}\n\n.tb-card-title {\n    width: 100%;\n    display: flex;\n    flex-direction: row;\n    justify-content: space-between;\n    font-size: 1.5rem;\n}\n\n.tb-status {\n    width: 24px;\n    height: 24px;\n    position: relative;\n}\n\n.tb-status.status-ok {\n    background: #F3F6FA;\n    border-radius: 4px;\n}\n\n.tb-status:after {\n    position: absolute;\n    top: 2px;\n    left: 2px;\n    font-family: 'Material Icons Round';\n    font-size: 20px;\n    line-height: 1;\n}\n\n.tb-status.status-ok:after {\n    content: \"check\";\n    color: #198038;\n    font-weight: 600;\n}\n\n.tb-status.status-warn:after {\n    content: \"warning\";\n    color: #FAA405;\n}\n\n.tb-status.status-critical:after {\n    content: \"warning\";\n    color: #D12730;\n}\n\n.tb-value-container {\n    user-select: none;\n}\n\n.tb-count {\n    font-style: normal;\n    font-weight: 500;\n    font-size: 26px;\n    line-height: 36px;\n}\n\n.tb-total {\n    padding-left: 4px;\n    font-weight: 500;\n    font-size: 14px;\n    line-height: 20px;\n    color: rgba(0, 0, 0, 0.54);\n}\n\n@media screen and (min-width: 960px) and (max-width: 1819px) {\n    .tb-status {\n        width: 1.25rem;\n        height: 1.25rem;\n    }\n    .tb-status:after {\n        font-size: 1rem;\n    }\n    .tb-count {\n        font-size: 1.25rem;\n        line-height: 24px;\n    }\n    .tb-total {\n        font-size: 11px;\n        line-height: 16px;\n    }\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -6647,7 +6647,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".tb-card-content {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n    align-items: flex-start;\n}\n\n.tb-card-title {\n    width: 100%;\n    display: flex;\n    flex-direction: row;\n    justify-content: space-between;\n    font-size: 1.5rem;\n}\n\n.tb-status {\n    width: 24px;\n    height: 24px;\n    position: relative;\n}\n\n.tb-status.status-ok {\n    background: #F3F6FA;\n    border-radius: 4px;\n}\n\n.tb-status:after {\n    position: absolute;\n    top: 2px;\n    left: 2px;\n    font-family: 'Material Icons Round';\n    font-size: 20px;\n    line-height: 1;\n}\n\n.tb-status.status-ok:after {\n    content: \"check\";\n    color: #198038;\n    font-weight: 600;\n}\n\n.tb-status.status-warn:after {\n    content: \"warning\";\n    color: #FAA405;\n}\n\n.tb-status.status-critical:after {\n    content: \"warning\";\n    color: #D12730;\n}\n\n.tb-value-container {\n    user-select: none;\n}\n\n.tb-count {\n    font-style: normal;\n    font-weight: 500;\n    font-size: 26px;\n    line-height: 36px;\n}\n\n.tb-total {\n    padding-left: 4px;\n    font-weight: 500;\n    font-size: 14px;\n    line-height: 20px;\n    color: rgba(0, 0, 0, 0.54);\n}\n\n@media screen and (min-width: 960px) and (max-width: 1819px) {\n    .tb-status {\n        width: 1.25rem;\n        height: 1.25rem;\n    }\n    .tb-status:after {\n        font-size: 1rem;\n    }\n    .tb-count {\n        font-size: 1.25rem;\n        line-height: 24px;\n    }\n    .tb-total {\n        font-size: 11px;\n        line-height: 16px;\n    }\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -6757,7 +6757,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".tb-card-content {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n    align-items: flex-start;\n}\n\n.tb-card-title {\n    width: 100%;\n    display: flex;\n    flex-direction: row;\n    justify-content: space-between;\n    font-size: 1.5rem;\n}\n\n.tb-status {\n    width: 24px;\n    height: 24px;\n    position: relative;\n}\n\n.tb-status.status-ok {\n    background: #F3F6FA;\n    border-radius: 4px;\n}\n\n.tb-status:after {\n    position: absolute;\n    top: 2px;\n    left: 2px;\n    font-family: 'Material Icons Round';\n    font-size: 20px;\n    line-height: 1;\n}\n\n.tb-status.status-ok:after {\n    content: \"check\";\n    color: #198038;\n    font-weight: 600;\n}\n\n.tb-status.status-warn:after {\n    content: \"warning\";\n    color: #FAA405;\n}\n\n.tb-status.status-critical:after {\n    content: \"warning\";\n    color: #D12730;\n}\n\n.tb-value-container {\n    user-select: none;\n}\n\n.tb-count {\n    font-style: normal;\n    font-weight: 500;\n    font-size: 26px;\n    line-height: 36px;\n}\n\n.tb-total {\n    padding-left: 4px;\n    font-weight: 500;\n    font-size: 14px;\n    line-height: 20px;\n    color: rgba(0, 0, 0, 0.54);\n}\n\n@media screen and (min-width: 960px) and (max-width: 1819px) {\n    .tb-status {\n        width: 1.25rem;\n        height: 1.25rem;\n    }\n    .tb-status:after {\n        font-size: 1rem;\n    }\n    .tb-count {\n        font-size: 1.25rem;\n        line-height: 24px;\n    }\n    .tb-total {\n        font-size: 11px;\n        line-height: 16px;\n    }\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -6804,7 +6804,7 @@
             "applyDefaultMarkdownStyle": false,
             "markdownCss": ".tb-card-content {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    flex-direction: column;\n    justify-content: space-between;\n}"
           },
-          "title": "Markdown/HTML Card",
+          "title": "{i18n:gateway.widget.markdown-html-card}",
           "showTitleIcon": false,
           "iconColor": "rgba(0, 0, 0, 0.87)",
           "iconSize": "24px",
@@ -6880,7 +6880,7 @@
             "tooltipIndividual": false,
             "showLegend": false
           },
-          "title": "Gateway custom statistics ",
+          "title": "{i18n:gateway.widget.gateway-custom-statistics}",
           "dropShadow": true,
           "enableFullscreen": false,
           "titleStyle": {
@@ -6913,14 +6913,14 @@
           "color": "rgba(0, 0, 0, 0.87)",
           "padding": "4px",
           "settings": {
-            "entitiesTitle": "Devices",
+            "entitiesTitle": "{i18n:gateway.widget.devices}",
             "enableSearch": true,
             "enableSelectColumnDisplay": true,
             "enableStickyHeader": true,
             "enableStickyAction": true,
             "reserveSpaceForHiddenAction": "true",
             "displayEntityName": true,
-            "entityNameColumnTitle": "Device Name",
+            "entityNameColumnTitle": "{i18n:gateway.widget.device-name-column}",
             "displayEntityLabel": false,
             "displayEntityType": false,
             "displayPagination": true,
@@ -6928,7 +6928,7 @@
             "defaultSortOrder": "entityName",
             "useRowStyleFunction": false
           },
-          "title": "Devices",
+          "title": "{i18n:gateway.widget.devices}",
           "dropShadow": true,
           "enableFullscreen": true,
           "titleStyle": {
@@ -7046,7 +7046,7 @@
     },
     "states": {
       "default": {
-        "name": "Gateway List",
+        "name": "{i18n:gateway.widget.gateway-list}",
         "root": true,
         "layouts": {
           "main": {
@@ -7074,7 +7074,7 @@
         }
       },
       "configuration": {
-        "name": "Configuration",
+        "name": "{i18n:gateway.widget.general-configuration}",
         "root": false,
         "layouts": {
           "main": {
@@ -7103,7 +7103,7 @@
         }
       },
       "connectors": {
-        "name": "Connectors",
+        "name": "{i18n:gateway.widget.connectors}",
         "root": false,
         "layouts": {
           "main": {
@@ -7189,7 +7189,7 @@
         }
       },
       "logs": {
-        "name": "Logs",
+        "name": "{i18n:gateway.widget.logs}",
         "root": false,
         "layouts": {
           "main": {
@@ -7217,7 +7217,7 @@
         }
       },
       "connector_logs": {
-        "name": "Logs",
+        "name": "{i18n:gateway.widget.logs}",
         "root": false,
         "layouts": {
           "main": {
@@ -7245,7 +7245,7 @@
         }
       },
       "remote_shell": {
-        "name": "Remote Shell",
+        "name": "{i18n:gateway.widget.rpc-remote-shell}",
         "root": false,
         "layouts": {
           "main": {
@@ -7273,7 +7273,7 @@
         }
       },
       "rpc": {
-        "name": "RPC",
+        "name": "{i18n:gateway.widget.service-rpc}",
         "root": false,
         "layouts": {
           "main": {
@@ -7317,7 +7317,7 @@
         }
       },
       "connector_rpc": {
-        "name": "Connector RPC",
+        "name": "{i18n:gateway.widget.service-rpc}",
         "root": false,
         "layouts": {
           "main": {
@@ -7362,7 +7362,7 @@
         }
       },
       "storage_statistics": {
-        "name": "Storage statistics",
+        "name": "{i18n:gateway.state.storage-statistics}",
         "root": false,
         "layouts": {
           "main": {
@@ -7415,7 +7415,7 @@
         }
       },
       "machine_statistics": {
-        "name": "Machine statistics",
+        "name": "{i18n:gateway.state.machine-statistics}",
         "root": false,
         "layouts": {
           "main": {
@@ -7467,7 +7467,7 @@
         }
       },
       "storage_statistics_info": {
-        "name": "Storage statistics info",
+        "name": "{i18n:gateway.state.storage-statistics-info}",
         "root": false,
         "layouts": {
           "main": {
@@ -7528,7 +7528,7 @@
         }
       },
       "machine_statistics_info": {
-        "name": "Machine statistics info",
+        "name": "{i18n:gateway.state.machine-statistics-info}",
         "root": false,
         "layouts": {
           "main": {
@@ -7589,7 +7589,7 @@
         }
       },
       "gateway_devices_all": {
-        "name": "Gateway devices",
+        "name": "{i18n:gateway.widget.gateway-devices}",
         "root": false,
         "layouts": {
           "main": {
@@ -8093,7 +8093,7 @@
         }
       },
       "custom_statistics": {
-        "name": "Custom statistics",
+        "name": "{i18n:gateway.state.custom-statistics}",
         "root": false,
         "layouts": {
           "main": {

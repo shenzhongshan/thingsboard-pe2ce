@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.SchedulerEventId;
@@ -280,6 +281,53 @@ public class SchedulerEventController extends BaseController {
                     ThingsboardErrorCode.PERMISSION_DENIED);
         }
         return event;
+    }
+
+
+    @ApiOperation(value = "Assign schedulerEvent to edge",
+            notes = "把schedulerEvent分配给一台 edge。分配后它会随全量同步下发；关系走 RelationTypeGroup.EDGE。")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PostMapping(value = {"/edge/{edgeId}/schedulerEvent/{schedulerEventId}"})
+    public SchedulerEventInfo assignSchedulerEventToEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("schedulerEventId") String strSchedulerEventId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        SchedulerEventId entityId = new SchedulerEventId(toUUID(strSchedulerEventId));
+        return checkNotNull(schedulerEventService.assignSchedulerEventToEdge(getTenantId(), entityId, edgeId));
+    }
+
+    @ApiOperation(value = "Unassign schedulerEvent from edge")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @DeleteMapping(value = {"/edge/{edgeId}/schedulerEvent/{schedulerEventId}"})
+    public SchedulerEventInfo unassignSchedulerEventFromEdge(
+            @PathVariable("edgeId") String strEdgeId,
+            @PathVariable("schedulerEventId") String strSchedulerEventId) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.WRITE);
+        SchedulerEventId entityId = new SchedulerEventId(toUUID(strSchedulerEventId));
+        return checkNotNull(schedulerEventService.unassignSchedulerEventFromEdge(getTenantId(), entityId, edgeId));
+    }
+
+    @ApiOperation(value = "Get Edge Scheduler Events (getEdgeSchedulerEvents)",
+            notes = "返回分配给指定 edge 的调度事件分页列表。只有 assign/unassign 是不够的 —— " +
+                    "没有这个列表端点，前端无法展示“这台 edge 分配了哪些调度事件”。对齐 PE 的同名端点。")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    @GetMapping(value = {"/edge/{edgeId}/schedulerEvents"}, params = {"pageSize", "page"})
+    public PageData<SchedulerEventInfo> getEdgeSchedulerEvents(
+            @PathVariable("edgeId") String strEdgeId,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(schedulerEventService.findSchedulerEventInfosByTenantIdAndEdgeId(getTenantId(), edgeId, pageLink));
     }
 
 }

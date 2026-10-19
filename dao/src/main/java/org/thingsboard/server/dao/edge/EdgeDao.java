@@ -71,9 +71,20 @@ public interface EdgeDao extends Dao<Edge>, TenantEntityDao<Edge> {
 
     PageData<EdgeInfo> findEdgeInfosByTenantId(UUID tenantId, PageLink pageLink);
 
+    /** 只含租户自己持有的 edge（未分配给客户）。 */
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantId(UUID tenantId, PageLink pageLink);
+
+    PageData<EdgeInfo> findTenantEdgeInfosByTenantIdAndType(UUID tenantId, String type, PageLink pageLink);
+
     PageData<Edge> findEdgesByTenantIdAndEntityId(UUID tenantId, UUID entityId, EntityType entityType, PageLink pageLink);
 
     PageData<EdgeId> findEdgeIdsByTenantIdAndEntityId(UUID tenantId, UUID entityId, EntityType entityType, PageLink pageLink);
+
+    PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIds(UUID tenantId, List<UUID> entityIds, EntityType entityType, PageLink pageLink);
+
+    PageData<EdgeId> findEdgeIdsByTenantIdAndEntityGroupId(UUID tenantId, UUID entityGroupId, EntityType groupType, PageLink pageLink);
+
+    PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIdIncludingGroups(UUID tenantId, UUID entityId, EntityType entityType, PageLink pageLink);
 
     PageData<Edge> findEdgesByTenantProfileId(UUID tenantProfileId, PageLink pageLink);
 

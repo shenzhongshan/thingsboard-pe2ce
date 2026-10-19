@@ -32,6 +32,7 @@ import { EntityType } from '@shared/models/entity-type.models';
 import { BaseData, HasId } from '@shared/models/base-data';
 import { DeviceInfo, Device } from '@shared/models/device.models';
 import { AssetInfo } from '@shared/models/asset.models';
+import { EdgeInfo } from '@shared/models/edge.models';
 import { Customer } from '@shared/models/customer.model';
 import { User, UserInfo } from '@shared/models/user.model';
 import { Authority } from '@shared/models/authority.enum';
@@ -40,10 +41,12 @@ import { CustomerId } from '@shared/models/id/customer-id';
 import { UserService } from '@core/http/user.service';
 import { DeviceService } from '@core/http/device.service';
 import { AssetService } from '@core/http/asset.service';
+import { EdgeService } from '@core/http/edge.service';
 import { EntityViewService } from '@core/http/entity-view.service';
 import { DashboardService } from '@core/http/dashboard.service';
 import { DevicesTableConfigResolver } from '@home/pages/device/devices-table-config.resolver';
 import { AssetsTableConfigResolver } from '@home/pages/asset/assets-table-config.resolver';
+import { EdgesTableConfigResolver } from '@home/pages/edge/edges-table-config.resolver';
 import { CustomersTableConfigResolver } from '@home/pages/customer/customers-table-config.resolver';
 import { UsersTableConfigResolver } from '@home/pages/user/users-table-config.resolver';
 import { EntityViewsTableConfigResolver } from '@home/pages/entity-view/entity-views-table-config.resolver';
@@ -509,5 +512,35 @@ export class UserGroupEntitiesTableConfigResolver extends TenantUsersTableConfig
   constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
               dialogService: DialogService, dialog: MatDialog, userService: UserService, store: Store<AppState>) {
     super(injector, entityGroupService, translate, dialogService, dialog, userService, store);
+  }
+}
+
+@Injectable()
+export class EdgeGroupEntitiesTableConfigResolver extends GroupEntitiesTableConfigResolver<EdgeInfo> {
+
+  constructor(injector: Injector, entityGroupService: EntityGroupService, translate: TranslateService,
+              dialogService: DialogService, dialog: MatDialog, private edgeService: EdgeService) {
+    super(injector, entityGroupService, translate, dialogService, dialog);
+  }
+
+  protected resolveBase(route: ActivatedRouteSnapshot): Observable<EntityTableConfig<EdgeInfo>> {
+    return Injector.create({providers: [EdgesTableConfigResolver], parent: this.injector})
+      .get(EdgesTableConfigResolver).resolve(route);
+  }
+
+  protected entityTypeTitle(): string {
+    return 'edge.edge-instances';
+  }
+
+  protected groupRouteData(): any {
+    return {edgesType: 'tenant'};
+  }
+
+  protected assignToOwner(customerId: string, entityId: string): Observable<any> {
+    return this.edgeService.assignEdgeToCustomer(customerId, entityId);
+  }
+
+  protected configureGroupAdd(config: EntityTableConfig<EdgeInfo>, group: EntityGroup): void {
+    this.genericDialogAdd(config, group);
   }
 }

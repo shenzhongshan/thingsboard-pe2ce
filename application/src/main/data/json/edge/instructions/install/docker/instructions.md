@@ -1,24 +1,24 @@
-Here is the list of commands that can be used to quickly install ThingsBoard Edge using docker compose and connect to the server.
+以下是使用 docker compose 快速安装 ThingsBoard Edge 并连接到服务器的命令列表。
 
-#### Prerequisites
+#### 前置条件
 
-Install <a href="https://docs.docker.com/engine/install/" target="_blank"> Docker CE</a> and <a href="https://docs.docker.com/compose/install/" target="_blank"> Docker Compose</a>.
+安装 <a href="https://docs.docker.com/engine/install/" target="_blank"> Docker CE</a> 和 <a href="https://docs.docker.com/compose/install/" target="_blank"> Docker Compose</a>。
 
-#### Step 1. Create the ThingsBoard Edge Docker Compose file
+#### 步骤 1. 创建 ThingsBoard Edge 的 Docker Compose 文件
 
-ThingsBoard Edge supports both **in-memory** and **Kafka** queues for message storage and communication between ThingsBoard services.
-It also supports **SQL** and **hybrid** database configurations.
-In this guide, we’ll use the **in-memory** queue and an **SQL** database.
-For more details about the hybrid setup, please refer to the official installation instructions on the <a href="https://allshen.org/docs/user-guide/install/edge/docker/#step-2-choose-queue-andor-database-services" target="_blank">ThingsBoard documentation site</a>.
+ThingsBoard Edge 支持 **内存队列** 和 **Kafka** 两种消息存储及 ThingsBoard 服务间通信方式。
+同时支持 **SQL** 和 **混合（hybrid）** 两种数据库配置。
+本指南使用 **内存队列** 和 **SQL** 数据库。
+关于混合配置的更多细节，请参考 <a href="https://allshen.org/docs/user-guide/install/edge/docker/#step-2-choose-queue-andor-database-services" target="_blank">ThingsBoard 官方安装文档</a>。
 
-Now, create a Docker Compose file for the ThingsBoard Edge service:
+现在，为 ThingsBoard Edge 服务创建一个 Docker Compose 文件：
 
 ```bash
 nano docker-compose.yml
 {:copy-code}
 ```
 
-Add the following lines to the yml file:
+将以下内容添加到 yml 文件中：
 
 ```bash
 services:
@@ -61,28 +61,28 @@ volumes:
 {:copy-code}
 ```
 
-##### [Optional] Update Bind Ports
-If ThingsBoard Edge runs on the same machine as the ThingsBoard Server, you need to update the port configuration to avoid conflicts between the two services.
+##### [可选] 修改绑定端口
+如果 ThingsBoard Edge 与 ThingsBoard Server 运行在同一台机器上，需要修改端口配置以避免两个服务间的端口冲突。
 
-Make sure that ports **18080**, **11883**, and **15683–15688** are not being used by any other applications.
+请确认端口 **18080**、**11883** 和 **15683–15688** 未被其他应用占用。
 
-Then, update the port configuration in the `docker-compose.yml` file accordingly:
+然后，相应地修改 `docker-compose.yml` 文件中的端口配置：
 
 ```bash
 sed -i 's/8080:8080/18080:8080/; s/1883:1883/11883:1883/; s/5683-5688:5683-5688\/udp/15683-15688:5683-5688\/udp/' docker-compose.yml
 {:copy-code}
 ```
 
-#### Step 2. Start ThingsBoard Edge
-Navigate to the directory containing the `docker-compose.yml` file and run the following command to start the ThingsBoard Edge service:
+#### 步骤 2. 启动 ThingsBoard Edge
+进入包含 `docker-compose.yml` 文件的目录，运行以下命令启动 ThingsBoard Edge 服务：
 
 ```bash
 docker compose up -d && docker compose logs -f mytbedge
 {:copy-code}
 ```
 
-#### Step 3. Open ThingsBoard Edge UI
+#### 步骤 3. 打开 ThingsBoard Edge 界面
 
-Once the Edge service has started, open the Edge web interface at http://localhost:8080, or http://localhost:18080 if you modified the HTTP bind port configuration in the previous step.
+Edge 服务启动后，访问 http://localhost:8080 打开 Edge 的 Web 界面；如果上一步修改了 HTTP 绑定端口，则访问 http://localhost:18080。
 
-Log in using your **tenant credentials** from either your local ThingsBoard Server or the **ThingsBoard Live Demo**.
+使用来自本地 ThingsBoard Server 或 **ThingsBoard Live Demo** 的 **租户账号** 登录。

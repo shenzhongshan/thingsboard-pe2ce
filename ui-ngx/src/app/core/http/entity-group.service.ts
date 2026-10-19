@@ -56,6 +56,31 @@ export class EntityGroupService {
     return this.http.get<EntityGroup>(`/api/entityGroup/${entityGroupId}`, defaultHttpOptionsFromConfig(config));
   }
 
+  /**
+   * 分配给某台 edge 的实体分组。PE 的 edge 同步以分组为单位 —— 实体先入组、组再分配给
+   * edge，所以 edge 详情页展示的是"分配给它的分组"而不是平铺实体列表。
+   */
+  public getEdgeEntityGroups(edgeId: string, groupType: EntityType, pageLink: PageLink,
+                             config?: RequestConfig): Observable<PageData<EntityGroup>> {
+    return this.http.get<PageData<EntityGroup>>(
+      `/api/edge/${edgeId}/entityGroups/${groupType}${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public assignEntityGroupToEdge(edgeId: string, entityGroupId: string, groupType: EntityType,
+                                 config?: RequestConfig): Observable<EntityGroup> {
+    return this.http.post<EntityGroup>(
+      `/api/edge/${edgeId}/entityGroup/${entityGroupId}/${groupType}`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public unassignEntityGroupFromEdge(edgeId: string, entityGroupId: string, groupType: EntityType,
+                                     config?: RequestConfig): Observable<EntityGroup> {
+    return this.http.delete<EntityGroup>(
+      `/api/edge/${edgeId}/entityGroup/${entityGroupId}/${groupType}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
   public getEntityGroupsByIds(entityGroupIds: string[], config?: RequestConfig): Observable<EntityGroup[]> {
     if (!entityGroupIds || !entityGroupIds.length) {
       return of([]);

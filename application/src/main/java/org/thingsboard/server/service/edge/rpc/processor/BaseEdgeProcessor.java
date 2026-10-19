@@ -39,6 +39,7 @@ import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EntityIdFactory;
 import org.thingsboard.server.common.data.id.EntityViewId;
@@ -102,7 +103,7 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                                                    EdgeEventActionType action,
                                                    EntityId entityId,
                                                    JsonNode body) {
-        return saveEdgeEvent(tenantId, edgeId, type, action, entityId, body, true);
+        return saveEdgeEvent(tenantId, edgeId, type, action, entityId, body, null, true);
     }
 
     protected ListenableFuture<Void> saveEdgeEvent(TenantId tenantId,
@@ -111,6 +112,27 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                                                    EdgeEventActionType action,
                                                    EntityId entityId,
                                                    JsonNode body,
+                                                   boolean doValidate) {
+        return saveEdgeEvent(tenantId, edgeId, type, action, entityId, body, null, doValidate);
+    }
+
+    protected ListenableFuture<Void> saveEdgeEvent(TenantId tenantId,
+                                                   EdgeId edgeId,
+                                                   EdgeEventType type,
+                                                   EdgeEventActionType action,
+                                                   EntityId entityId,
+                                                   JsonNode body,
+                                                   EntityGroupId entityGroupId) {
+        return saveEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId, true);
+    }
+
+    protected ListenableFuture<Void> saveEdgeEvent(TenantId tenantId,
+                                                   EdgeId edgeId,
+                                                   EdgeEventType type,
+                                                   EdgeEventActionType action,
+                                                   EntityId entityId,
+                                                   JsonNode body,
+                                                   EntityGroupId entityGroupId,
                                                    boolean doValidate) {
         if (doValidate) {
             ListenableFuture<Optional<AttributeKvEntry>> future =
@@ -123,10 +145,10 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                     return Futures.immediateFuture(null);
                 }
                 if (activeOpt.get().getBooleanValue().isPresent() && activeOpt.get().getBooleanValue().get()) {
-                    return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body);
+                    return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId);
                 } else {
                     if (doSaveIfEdgeIsOffline(type, action)) {
-                        return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body);
+                        return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId);
                     } else {
                         log.trace("Edge is not active at the moment. Skipping event. tenantId [{}], edgeId [{}], type[{}], " +
                                         "action [{}], entityId [{}], body [{}]",
@@ -136,7 +158,7 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 }
             }, dbCallbackExecutorService);
         } else {
-            return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body);
+            return doSaveEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId);
         }
     }
 
@@ -144,20 +166,25 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
         return switch (action) {
             case TIMESERIES_UPDATED, ALARM_ACK, ALARM_CLEAR, ALARM_ASSIGNED, ALARM_UNASSIGNED, ADDED_COMMENT,
                  UPDATED_COMMENT, DELETED -> true;
+            // 这些类型即使 edge 当前离线也要落库排队，等重连时补发。对齐 PE 的同名方法 ——
+            // 后半段（ROLE 起）是 PE 独有的类型，CE 之前直接丢弃，离线期间的白标/菜单/翻译/
+            // 密钥/集成改动重连后永远不会到达 edge。
             default -> switch (type) {
                 case ALARM, ALARM_COMMENT, RULE_CHAIN, RULE_CHAIN_METADATA, USER, CUSTOMER, TENANT, TENANT_PROFILE,
                      WIDGETS_BUNDLE, WIDGET_TYPE, ADMIN_SETTINGS, OTA_PACKAGE, QUEUE, RELATION, CALCULATED_FIELD, AI_MODEL, API_KEY, NOTIFICATION_TEMPLATE,
-                     NOTIFICATION_TARGET, NOTIFICATION_RULE -> true;
+                     NOTIFICATION_TARGET, NOTIFICATION_RULE,
+                     ROLE, INTEGRATION, CONVERTER, WHITE_LABELING, LOGIN_WHITE_LABELING, CUSTOM_TRANSLATION,
+                     CUSTOM_MENU, MAIL_TEMPLATES, SECRET -> true;
                 default -> false;
             };
         };
     }
 
-    private ListenableFuture<Void> doSaveEdgeEvent(TenantId tenantId, EdgeId edgeId, EdgeEventType type, EdgeEventActionType action, EntityId entityId, JsonNode body) {
+    private ListenableFuture<Void> doSaveEdgeEvent(TenantId tenantId, EdgeId edgeId, EdgeEventType type, EdgeEventActionType action, EntityId entityId, JsonNode body, EntityGroupId entityGroupId) {
         log.debug("Pushing event to edge queue. tenantId [{}], edgeId [{}], type[{}], action [{}], entityId [{}], body [{}]",
                 tenantId, edgeId, type, action, entityId, body);
 
-        EdgeEvent edgeEvent = EdgeUtils.constructEdgeEvent(tenantId, edgeId, type, action, entityId, body);
+        EdgeEvent edgeEvent = EdgeUtils.constructEdgeEvent(tenantId, edgeId, type, action, entityId, body, entityGroupId);
         return edgeCtx.getEdgeEventService().saveAsync(edgeEvent);
     }
 
@@ -171,22 +198,34 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 futures.add(saveEdgeEvent(edge.getTenantId(), edge.getId(), type, actionType, entityId, body, false));
             }
         } else {
-            futures = processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, null, sourceEdgeId);
+            // body 必须透传：自定义菜单这类事件没有一等实体可查，内容全在 body 里。
+            // 之前这里写死 null，与 PE 不一致，对非系统租户等于把内容丢了。
+            futures = processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, sourceEdgeId);
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);
     }
 
-    private List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
+    protected List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
                                                                             EdgeEventType type,
                                                                             EdgeEventActionType actionType,
                                                                             EntityId entityId,
                                                                             JsonNode body,
                                                                             EdgeId sourceEdgeId) {
+        return processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, sourceEdgeId, null);
+    }
+
+    protected List<ListenableFuture<Void>> processActionForAllEdgesByTenantId(TenantId tenantId,
+                                                                            EdgeEventType type,
+                                                                            EdgeEventActionType actionType,
+                                                                            EntityId entityId,
+                                                                            JsonNode body,
+                                                                            EdgeId sourceEdgeId,
+                                                                            EntityGroupId entityGroupId) {
         List<ListenableFuture<Void>> futures = new ArrayList<>();
         PageDataIterable<Edge> edges = new PageDataIterable<>(link -> edgeCtx.getEdgeService().findEdgesByTenantId(tenantId, link), 1024);
         for (Edge edge : edges) {
             if (!edge.getId().equals(sourceEdgeId)) {
-                futures.add(saveEdgeEvent(tenantId, edge.getId(), type, actionType, entityId, body));
+                futures.add(saveEdgeEvent(tenantId, edge.getId(), type, actionType, entityId, body, entityGroupId));
             }
         }
         return futures;
@@ -202,8 +241,11 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
         return switch (actionType) {
             case UPDATED, CREDENTIALS_UPDATED, ASSIGNED_TO_CUSTOMER, UNASSIGNED_FROM_CUSTOMER, UPDATED_COMMENT ->
                     UpdateMsgType.ENTITY_UPDATED_RPC_MESSAGE;
-            case ADDED, ASSIGNED_TO_EDGE, RELATION_ADD_OR_UPDATE, ADDED_COMMENT -> UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE;
-            case DELETED, UNASSIGNED_FROM_EDGE, RELATION_DELETED, DELETED_COMMENT, ALARM_DELETE -> UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE;
+            // 加入分组 → edge 侧视为"实体出现"，所以是 CREATED；移出 → DELETED。与 PE 一致。
+            case ADDED, ASSIGNED_TO_EDGE, RELATION_ADD_OR_UPDATE, ADDED_COMMENT, ADDED_TO_ENTITY_GROUP ->
+                    UpdateMsgType.ENTITY_CREATED_RPC_MESSAGE;
+            case DELETED, UNASSIGNED_FROM_EDGE, RELATION_DELETED, DELETED_COMMENT, ALARM_DELETE,
+                 REMOVED_FROM_ENTITY_GROUP -> UpdateMsgType.ENTITY_DELETED_RPC_MESSAGE;
             case ALARM_ACK -> UpdateMsgType.ALARM_ACK_RPC_MESSAGE;
             case ALARM_CLEAR -> UpdateMsgType.ALARM_CLEAR_RPC_MESSAGE;
             default -> throw new RuntimeException("Unsupported actionType [" + actionType + "]");
@@ -216,6 +258,7 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
         EdgeEventActionType actionType = EdgeEventActionType.valueOf(edgeNotificationMsg.getAction());
         EntityId entityId = EntityIdFactory.getByEdgeEventTypeAndUuid(type, new UUID(edgeNotificationMsg.getEntityIdMSB(), edgeNotificationMsg.getEntityIdLSB()));
         EdgeId originatorEdgeId = safeGetEdgeId(edgeNotificationMsg.getOriginatorEdgeIdMSB(), edgeNotificationMsg.getOriginatorEdgeIdLSB());
+        EntityGroupId entityGroupId = safeGetEntityGroupId(edgeNotificationMsg);
         if (type.isAllEdgesRelated()) {
             return processEntityNotificationForAllEdges(tenantId, type, actionType, entityId, originatorEdgeId);
         } else {
@@ -226,15 +269,35 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 case CREDENTIALS_UPDATED:
                 case ASSIGNED_TO_CUSTOMER:
                 case UNASSIGNED_FROM_CUSTOMER:
+                // 加入分组与 UPDATED 同支：都要推给"与该实体相关的 edge"，而相关性现在
+                // 包含了"实体所在分组被分配给了哪些 edge"（见 findRelatedEdgeIdsByEntityId 的并集查询）。
+                // PE 的同一方法也是把 ADDED_TO_ENTITY_GROUP 并进这一支。
+                case ADDED_TO_ENTITY_GROUP:
                     if (edgeId != null && !edgeId.equals(originatorEdgeId)) {
-                        return saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body);
+                        return saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body, entityGroupId);
                     } else {
-                        return processNotificationToRelatedEdges(tenantId, entityId, entityId, type, actionType, originatorEdgeId);
+                        // 必须用带 entityGroupId 的重载，否则下发出去的事件不带组 id
+                        return processNotificationToRelatedEdges(tenantId, entityId, entityId, type, actionType,
+                                originatorEdgeId, body, entityGroupId);
                     }
+                // 移出分组与 DELETED 同支（PE 亦然）。注意不能复用下面 DELETED 分支里写死的
+                // EdgeEventActionType.DELETED —— 那会让 edge 以为实体被删除了，而不是"退出了这个组"。
+                case REMOVED_FROM_ENTITY_GROUP:
+                    if (edgeId != null) {
+                        return saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body, entityGroupId);
+                    }
+                    // 这里**必须**广播给租户下的 edge，不能按关联反查：事件是在
+                    // relationService.deleteRelation 之后发的，成员关系已经没了，
+                    // findRelatedEdgeIdsByEntityId 再也找不到那台原本持有它的 edge。
+                    // PE 的 DELETED / REMOVED_FROM_ENTITY_GROUP 同支同理。对不持有该实体的
+                    // edge 来说这是幂等空操作。groupId 要带上，edge 才知道退出的是哪个组。
+                    return Futures.transform(Futures.allAsList(
+                                    processActionForAllEdgesByTenantId(tenantId, type, actionType, entityId, body, originatorEdgeId, entityGroupId)),
+                            voids -> null, dbCallbackExecutorService);
                 case DELETED:
                     EdgeEventActionType deleted = EdgeEventActionType.DELETED;
                     if (edgeId != null) {
-                        return saveEdgeEvent(tenantId, edgeId, type, deleted, entityId, body);
+                        return saveEdgeEvent(tenantId, edgeId, type, deleted, entityId, body, entityGroupId);
                     } else {
                         return Futures.transform(Futures.allAsList(processActionForAllEdgesByTenantId(tenantId, type, deleted, entityId, body, originatorEdgeId)),
                                 voids -> null, dbCallbackExecutorService);
@@ -242,7 +305,7 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
                 case ASSIGNED_TO_EDGE:
                 case UNASSIGNED_FROM_EDGE:
                     if (originatorEdgeId == null) {
-                        ListenableFuture<Void> future = saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body);
+                        ListenableFuture<Void> future = saveEdgeEvent(tenantId, edgeId, type, actionType, entityId, body, entityGroupId);
                         return Futures.transformAsync(future, unused -> {
                             if (type.equals(EdgeEventType.RULE_CHAIN)) {
                                 return updateDependentRuleChains(tenantId, new RuleChainId(entityId.getId()), edgeId);
@@ -269,12 +332,33 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
 
     protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
                                                                        EdgeEventActionType actionType, EdgeId sourceEdgeId) {
+        return processNotificationToRelatedEdges(tenantId, ownerEntityId, entityId, type, actionType, sourceEdgeId, null);
+    }
+
+    /**
+     * 带 body 的版本。白标/自定义翻译这类"设置型"事件没有一等实体 id，内容全在 body 里，
+     * 丢了 body 就等于没下发。
+     */
+    protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
+                                                                       EdgeEventActionType actionType, EdgeId sourceEdgeId, JsonNode body) {
+        return processNotificationToRelatedEdges(tenantId, ownerEntityId, entityId, type, actionType, sourceEdgeId, body, null);
+    }
+
+    /**
+     * 再带 entityGroupId 的版本。分组成员变化必须用这个 —— 实测过（7/8 那次）：走不带
+     * groupId 的重载时，edge 收到的事件 entity_group_id 是 null，edge 只知道"设备加进来了"，
+     * 不知道加进了哪个组，而按分组同步的全部意义就在这个 id 上。对齐 PE 的
+     * pushNotificationToAllRelatedEdges（它的签名里就带 entityGroupId）。
+     */
+    protected ListenableFuture<Void> processNotificationToRelatedEdges(TenantId tenantId, EntityId ownerEntityId, EntityId entityId, EdgeEventType type,
+                                                                       EdgeEventActionType actionType, EdgeId sourceEdgeId, JsonNode body,
+                                                                       EntityGroupId entityGroupId) {
         List<ListenableFuture<Void>> futures = new ArrayList<>();
         PageDataIterableByTenantIdEntityId<EdgeId> edgeIds =
                 new PageDataIterableByTenantIdEntityId<>(edgeCtx.getEdgeService()::findRelatedEdgeIdsByEntityId, tenantId, ownerEntityId, RELATED_EDGES_CACHE_ITEMS);
         for (EdgeId relatedEdgeId : edgeIds) {
             if (!relatedEdgeId.equals(sourceEdgeId)) {
-                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, null));
+                futures.add(saveEdgeEvent(tenantId, relatedEdgeId, type, actionType, entityId, body, entityGroupId));
             }
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);
@@ -300,6 +384,13 @@ public abstract class BaseEdgeProcessor implements EdgeProcessor {
             }
         }
         return Futures.transform(Futures.allAsList(futures), voids -> null, dbCallbackExecutorService);
+    }
+
+    private EntityGroupId safeGetEntityGroupId(TransportProtos.EdgeNotificationMsgProto msg) {
+        if (msg.getEntityGroupIdMSB() != 0L || msg.getEntityGroupIdLSB() != 0L) {
+            return new EntityGroupId(new UUID(msg.getEntityGroupIdMSB(), msg.getEntityGroupIdLSB()));
+        }
+        return null;
     }
 
     private ListenableFuture<Void> processEntityNotificationForAllEdges(TenantId tenantId, EdgeEventType type, EdgeEventActionType actionType, EntityId entityId, EdgeId sourceEdgeId) {

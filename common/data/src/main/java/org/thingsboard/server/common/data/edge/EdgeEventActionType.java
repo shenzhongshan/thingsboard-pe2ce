@@ -43,6 +43,11 @@ public enum EdgeEventActionType {
     DELETED_COMMENT(ActionType.DELETED_COMMENT),
     ASSIGNED_TO_EDGE(ActionType.ASSIGNED_TO_EDGE),
     UNASSIGNED_FROM_EDGE(ActionType.UNASSIGNED_FROM_EDGE),
+    // 分组成员变化。实测过（probe_group_membership_events.py）：没有这两个 action 时，
+    // 往"已分配给 edge 的分组"里加/删实体，edge 一条事件都收不到，只能等下一次全量同步。
+    // 与 PE 同名；PE 把它们分别并入 ENTITY_CREATED / ENTITY_DELETED 下行消息。
+    ADDED_TO_ENTITY_GROUP(ActionType.ADDED_TO_ENTITY_GROUP),
+    REMOVED_FROM_ENTITY_GROUP(ActionType.REMOVED_FROM_ENTITY_GROUP),
     CREDENTIALS_REQUEST(null), // deprecated
     ENTITY_MERGE_REQUEST(null); // deprecated
 

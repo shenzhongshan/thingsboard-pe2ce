@@ -26,6 +26,7 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cluster.TbClusterService;
 import org.thingsboard.server.common.data.EdgeUtils;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.OtaPackageInfo;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.alarm.Alarm;
@@ -35,11 +36,14 @@ import org.thingsboard.server.common.data.alarm.EntityAlarm;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.cf.CalculatedField;
 import org.thingsboard.server.common.data.domain.Domain;
+import org.thingsboard.server.common.data.converter.Converter;
+import org.thingsboard.server.common.data.integration.Integration;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.common.data.rule.RuleChain;
@@ -145,6 +149,18 @@ public class EdgeEventSourcingListener {
             return;
         }
         try {
+            if (event.getEntityGroup() != null) {
+                // "All" 组代表"owner 下的全部实体"，不是一个可下发的选择；
+                // "[Edge] X All" 更是这台 edge 自身的镜像，推回去会形成循环。
+                if (event.getEntityGroup().isGroupAll()) {
+                    log.trace("[{}] skipping event in case of 'All' group: {}", event.getTenantId(), event);
+                    return;
+                }
+                if (ActionType.ASSIGNED_TO_EDGE.equals(event.getActionType()) && event.getEntityGroup().isEdgeGroupAll()) {
+                    log.trace("[{}] skipping event in case of 'Edge All' group: {}", event.getTenantId(), event);
+                    return;
+                }
+            }
             if (event.getEntityId().getEntityType().equals(EntityType.RULE_CHAIN) && event.getEdgeId() != null && event.getActionType().equals(ActionType.ASSIGNED_TO_EDGE)) {
                 try {
                     Edge edge = JacksonUtil.fromString(event.getBody(), Edge.class);
@@ -157,9 +173,13 @@ public class EdgeEventSourcingListener {
                 }
             }
             log.trace("[{}] ActionEntityEvent called: {}", event.getTenantId(), event);
+            EntityType entityGroupType = event.getEntityGroup() != null ? event.getEntityGroup().getType() : null;
+            EntityGroupId entityGroupId = event.getEntityGroup() != null ? event.getEntityGroup().getId() : null;
+            // 显式类型优先：owner-scoped 设置（白标/菜单/翻译）的 entityId 是所有者 id，
+            // 传 null 会让下游反推成 TENANT/CUSTOMER。其余场景仍走反推，保持原行为。
             tbClusterService.sendNotificationMsgToEdge(event.getTenantId(), event.getEdgeId(), event.getEntityId(),
-                    event.getBody(), null, EdgeUtils.getEdgeEventActionTypeByActionType(event.getActionType()),
-                    edgeSynchronizationManager.getEdgeId().get());
+                    event.getBody(), event.getEdgeEventType(), EdgeUtils.getEdgeEventActionTypeByActionType(event.getActionType()),
+                    entityGroupType, entityGroupId, edgeSynchronizationManager.getEdgeId().get());
         } catch (Exception e) {
             log.error("[{}] failed to process ActionEntityEvent: {}", event.getTenantId(), event, e);
         }
@@ -199,6 +219,18 @@ public class EdgeEventSourcingListener {
                 case RULE_CHAIN:
                     if (entity instanceof RuleChain ruleChain) {
                         return RuleChainType.EDGE.equals(ruleChain.getType());
+                    }
+                    break;
+                // 只有 edge 模板才下发。普通集成/转换器在云端有运行实例，推给 edge 会变成
+                // 两个进程同时连同一个外部端点。
+                case CONVERTER:
+                    if (entity instanceof Converter converter) {
+                        return converter.isEdgeTemplate();
+                    }
+                    break;
+                case INTEGRATION:
+                    if (entity instanceof Integration integration) {
+                        return integration.isEdgeTemplate();
                     }
                     break;
                 case USER:
@@ -256,6 +288,12 @@ public class EdgeEventSourcingListener {
     private EdgeEventType getEdgeEventTypeForEntityEvent(Object entity) {
         if (entity instanceof AlarmComment) {
             return EdgeEventType.ALARM_COMMENT;
+        }
+        // 设备分组 OTA 配置的 entityId 是分组 id，反推只会得到 ENTITY_GROUP ——
+        // 事件会被当成"分组本身变了"下发，真正的 OTA 配置到不了 edge。
+        // 这里必须显式指定，否则补了 dao 侧的 publishEvent 也依然无效。
+        if (entity instanceof DeviceGroupOtaPackage) {
+            return EdgeEventType.DEVICE_GROUP_OTA;
         }
         return null;
     }

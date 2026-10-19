@@ -33,11 +33,13 @@ public class TbChangeOriginatorNodeConfiguration implements NodeConfiguration<Tb
     private RelationsQuery relationsQuery;
     private String entityType;
     private String entityNamePattern;
+    private boolean preserveOriginatorIfCustomer;
 
     @Override
     public TbChangeOriginatorNodeConfiguration defaultConfiguration() {
         TbChangeOriginatorNodeConfiguration configuration = new TbChangeOriginatorNodeConfiguration();
         configuration.setOriginatorSource(CUSTOMER);
+        configuration.setPreserveOriginatorIfCustomer(true);
 
         RelationsQuery relationsQuery = new RelationsQuery();
         relationsQuery.setDirection(EntitySearchDirection.FROM);

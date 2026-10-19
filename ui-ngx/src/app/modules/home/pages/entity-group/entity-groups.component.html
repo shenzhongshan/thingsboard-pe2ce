@@ -39,10 +39,18 @@
         </mat-form-field>
         <button mat-icon-button type="button" (click)="exitSearchMode()"><mat-icon>close</mat-icon></button>
       } @else {
-        <button mat-icon-button type="button" (click)="addGroup()"
-                matTooltip="{{ 'entity-group.add' | translate }}" matTooltipPosition="above">
-          <mat-icon>add</mat-icon>
-        </button>
+        @if (edgeMode) {
+          <!-- edge 模式下"新增"不是建分组，而是把已有分组分配给这台 edge -->
+          <button mat-icon-button type="button" (click)="assignGroupToEdge($event)"
+                  matTooltip="{{ 'edge.assign-to-edge' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button type="button" (click)="addGroup()"
+                  matTooltip="{{ 'entity-group.add' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        }
         <button mat-icon-button type="button" (click)="reload()"
                 matTooltip="{{ 'action.refresh' | translate }}" matTooltipPosition="above">
           <mat-icon>refresh</mat-icon>
@@ -77,6 +85,20 @@
           <th mat-header-cell *matHeaderCellDef style="width: 150px;"></th>
           <td mat-cell *matCellDef="let g">
             <div class="flex flex-row items-center justify-end">
+              @if (edgeMode) {
+                <!-- edge 模式只保留"取消分配"与"详情"：新建/删除/共享/公开属于所有者
+                     层面的操作，与 edge 分配无关，放在这里会误导（点删除会真的删掉分组）。
+                     动作集合与 PE 的 edge 分组页一致。 -->
+                <button mat-icon-button type="button" (click)="unassignGroupFromEdge($event, g)"
+                        matTooltip="{{ 'edge.unassign-from-edge' | translate }}" matTooltipPosition="above">
+                  <mat-icon>portable_wifi_off</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="editGroup($event, g)"
+                        [disabled]="isGroupAll(g)"
+                        matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              } @else {
               @if (groupType === EntityType.USER) {
                 <button mat-icon-button type="button" (click)="openPermissions($event, g)"
                         matTooltip="{{ 'entity-group.permissions' | translate }}" matTooltipPosition="above">
@@ -110,6 +132,7 @@
                       matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
                 <mat-icon>delete</mat-icon>
               </button>
+              }
             </div>
           </td>
         </ng-container>

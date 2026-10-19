@@ -1,11 +1,11 @@
-Create a docker compose file for ThingsBoard Edge upgrade process:
+为 ThingsBoard Edge 升级流程创建一个 docker compose 文件：
 
 ```bash
 > docker-compose-upgrade.yml && nano docker-compose-upgrade.yml
 {:copy-code}
 ```
 
-Add the following lines to the yml file:
+将以下内容添加到 yml 文件中：
 
 ```bash
 services:
@@ -39,7 +39,7 @@ volumes:
 {:copy-code}
 ```
 
-Execute the following command to start an upgrade process:
+执行以下命令启动升级流程：
 
 ```bash
 docker compose -f docker-compose-upgrade.yml up --abort-on-container-exit

@@ -40,6 +40,7 @@ import java.util.UUID;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_ACTION_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_BODY_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_EDGE_ID_PROPERTY;
+import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_ENTITY_GROUP_ID_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_ENTITY_ID_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_SEQUENTIAL_ID_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EDGE_EVENT_TABLE_NAME;
@@ -83,6 +84,9 @@ public class EdgeEventEntity extends BaseSqlEntity<EdgeEvent> implements BaseEnt
     @Column(name = EDGE_EVENT_UID_PROPERTY)
     private String edgeEventUid;
 
+    @Column(name = EDGE_EVENT_ENTITY_GROUP_ID_PROPERTY)
+    private UUID entityGroupId;
+
     @Column(name = TS_COLUMN)
     private long ts;
 
@@ -107,6 +111,7 @@ public class EdgeEventEntity extends BaseSqlEntity<EdgeEvent> implements BaseEnt
         this.edgeEventAction = edgeEvent.getAction();
         this.entityBody = edgeEvent.getBody();
         this.edgeEventUid = edgeEvent.getUid();
+        this.entityGroupId = edgeEvent.getEntityGroupId();
     }
 
     @Override
@@ -123,6 +128,9 @@ public class EdgeEventEntity extends BaseSqlEntity<EdgeEvent> implements BaseEnt
         edgeEvent.setBody(entityBody);
         edgeEvent.setUid(edgeEventUid);
         edgeEvent.setSeqId(seqId);
+        if (entityGroupId != null) {
+            edgeEvent.setEntityGroupId(entityGroupId);
+        }
         return edgeEvent;
     }
 

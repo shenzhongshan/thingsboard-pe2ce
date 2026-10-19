@@ -101,96 +101,15 @@ ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id uuid;
 -- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather than SQL
 -- NULL, because the name-uniqueness lookup is an equality match and "= NULL" never matches.
 ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;
+-- Which entity group this edge event belongs to. PE's edge sync is group-centric:
+-- DeviceUpdateMsg and friends carry entityGroupIdMSB/LSB and the value is threaded from here.
+-- NULL means the event is not group-scoped (rule chains, admin settings, ...).
+ALTER TABLE edge_event ADD COLUMN IF NOT EXISTS entity_group_id uuid;
 
--- EXISTING CUSTOMER USER PERMISSIONS BACKFILL START
---
--- 新版用户权限从“用户所属 USER 实体组 + 组角色授权”计算。新建用户会在
--- BaseEntityGroupService.ensureDefaultUserRoleMembership 中自动补齐这两类关系，
--- 但升级前已经存在的客户用户不会重新执行创建流程，因此必须在升级时补齐。
--- 本段只处理客户用户默认组和默认角色，并通过 NOT EXISTS 保证重复执行安全。
+-- 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS edge_license_key varchar;
+ALTER TABLE edge ADD COLUMN IF NOT EXISTS cloud_endpoint varchar(255);
 
--- 历史角色记录可能在 customer_id 字段加入前已经存在；租户级角色统一使用
--- ThingsBoard 的 NULL_UUID 哨兵值，避免后续按 customer_id 等值查询时匹配失败。
-UPDATE role
-SET customer_id = '13814000-1dd2-11b2-8080-808080808080'
-WHERE customer_id IS NULL;
-
--- 为每个客户的 Customer Users 默认用户组授予同租户的 Customer User 通用角色。
--- md5 结果是稳定的 32 位十六进制值，可直接转换为 UUID；这样脚本即使重复执行，
--- 也不会因为随机主键产生重复授权。
-INSERT INTO group_permission (
-    id,
-    created_time,
-    tenant_id,
-    role_id,
-    user_group_id,
-    entity_group_id,
-    entity_group_type,
-    is_public
-)
-SELECT
-    md5(customer_users.id::text || ':' || customer_user_role.id::text || ':default-customer-user-role')::uuid,
-    (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint,
-    customer_users.tenant_id,
-    customer_user_role.id,
-    customer_users.id,
-    NULL,
-    NULL,
-    FALSE
-FROM entity_group customer_users
-JOIN role customer_user_role
-  ON customer_user_role.tenant_id = customer_users.tenant_id
- AND customer_user_role.customer_id = '13814000-1dd2-11b2-8080-808080808080'
- AND customer_user_role.name = 'Customer User'
- AND customer_user_role.type = 'GENERIC'
-WHERE customer_users.type = 'USER'
-  AND customer_users.name = 'Customer Users'
-  AND customer_users.owner_id <> '13814000-1dd2-11b2-8080-808080808080'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM group_permission existing_permission
-      WHERE existing_permission.user_group_id = customer_users.id
-        AND existing_permission.role_id = customer_user_role.id
-        AND existing_permission.entity_group_id IS NULL
-  );
-
--- 把升级前已经存在的客户用户加入其所属客户的 Customer Users 默认用户组。
--- relation 的方向与 ensureDefaultUserRoleMembership 保持一致：用户组 Contains 用户。
-INSERT INTO relation (
-    from_id,
-    from_type,
-    to_id,
-    to_type,
-    relation_type_group,
-    relation_type,
-    additional_info,
-    version
-)
-SELECT
-    customer_users.id,
-    'ENTITY_GROUP',
-    customer_user.id,
-    'USER',
-    'FROM_ENTITY_GROUP',
-    'Contains',
-    NULL,
-    0
-FROM tb_user customer_user
-JOIN entity_group customer_users
-  ON customer_users.tenant_id = customer_user.tenant_id
- AND customer_users.owner_id = customer_user.customer_id
- AND customer_users.type = 'USER'
- AND customer_users.name = 'Customer Users'
-WHERE customer_user.authority = 'CUSTOMER_USER'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM relation existing_membership
-      WHERE existing_membership.from_id = customer_users.id
-        AND existing_membership.from_type = 'ENTITY_GROUP'
-        AND existing_membership.to_id = customer_user.id
-        AND existing_membership.to_type = 'USER'
-        AND existing_membership.relation_type_group = 'FROM_ENTITY_GROUP'
-        AND existing_membership.relation_type = 'Contains'
-  );
-
--- EXISTING CUSTOMER USER PERMISSIONS BACKFILL END
+-- edge 模板位：模板只存不跑，不计配额，随 edge 同步下发。
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;

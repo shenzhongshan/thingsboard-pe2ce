@@ -23,11 +23,8 @@ import "queue.proto";
 
 package edge;
 
-// Interface exported by the ThingsBoard Edge Transport.
 service EdgeRpcService {
-
   rpc handleMsgs(stream RequestMsg) returns (stream ResponseMsg) {}
-
 }
 
 enum EdgeVersion {
@@ -48,21 +45,37 @@ enum EdgeVersion {
   V_4_2_1_2 = 14;
   V_4_2_2 = 4220;
   V_4_2_2_1 = 4221;
-  V_4_2_2_2 = 4222;
-  V_4_2_2_3 = 4223;
   V_4_3_0_1 = 15;
   V_4_3_1 = 4310;
   V_4_3_1_1 = 4311;
-  V_4_3_1_2 = 4312;
-  V_4_3_1_3 = 4313;
-  V_4_4_0 = 4400;
-
   V_LATEST = 99999;
 }
 
-/**
- * Data Structures;
- */
+enum RequestMsgType {
+  CONNECT_RPC_MESSAGE = 0;
+  UPLINK_RPC_MESSAGE = 1;
+  SYNC_REQUEST_RPC_MESSAGE = 2;
+}
+
+enum ConnectResponseCode {
+  ACCEPTED = 0;
+  BAD_CREDENTIALS = 1;
+  SERVER_UNAVAILABLE = 2;
+}
+
+enum UpdateMsgType {
+  ENTITY_CREATED_RPC_MESSAGE = 0;
+  ENTITY_UPDATED_RPC_MESSAGE = 1;
+  ENTITY_DELETED_RPC_MESSAGE = 2;
+  ALARM_ACK_RPC_MESSAGE = 3;
+  ALARM_CLEAR_RPC_MESSAGE = 4;
+}
+
+enum EdgeEntityType {
+  DEVICE = 0;
+  ASSET = 1;
+}
+
 message RequestMsg {
   RequestMsgType msgType = 1;
   ConnectRequestMsg connectRequestMsg = 2;
@@ -78,12 +91,6 @@ message ResponseMsg {
   EdgeUpdateMsg edgeUpdateMsg = 4;
 }
 
-enum RequestMsgType {
-  CONNECT_RPC_MESSAGE = 0;
-  UPLINK_RPC_MESSAGE = 1;
-  SYNC_REQUEST_RPC_MESSAGE = 2;
-}
-
 message EdgeUpdateMsg {
   EdgeConfiguration configuration = 1;
 }
@@ -93,12 +100,6 @@ message ConnectRequestMsg {
   string edgeSecret = 2;
   EdgeVersion edgeVersion = 3;
   optional int32 maxInboundMessageSize = 4;
-}
-
-enum ConnectResponseCode {
-  ACCEPTED = 0;
-  BAD_CREDENTIALS = 1;
-  SERVER_UNAVAILABLE = 2;
 }
 
 message ConnectResponseMsg {
@@ -112,7 +113,8 @@ message SyncRequestMsg {
   optional bool fullSync = 2;
 }
 
-message SyncCompletedMsg {}
+message SyncCompletedMsg {
+}
 
 message EdgeConfiguration {
   int64 edgeIdMSB = 1;
@@ -125,90 +127,21 @@ message EdgeConfiguration {
   string type = 8;
   string routingKey = 9;
   string secret = 10;
-  string additionalInfo = 11;
-  string cloudType = 12;
+  string edgeLicenseKey = 11;
+  string cloudEndpoint = 12;
+  string additionalInfo = 13;
+  string cloudType = 14;
+  int32 licenseVersion = 15;
 }
 
-enum UpdateMsgType {
-  ENTITY_CREATED_RPC_MESSAGE = 0;
-  ENTITY_UPDATED_RPC_MESSAGE = 1;
-  ENTITY_DELETED_RPC_MESSAGE = 2;
-  ALARM_ACK_RPC_MESSAGE = 3;
-  ALARM_CLEAR_RPC_MESSAGE = 4;
-  // use 6 as a next number
-}
-
-message CalculatedFieldUpdateMsg{
+message CalculatedFieldUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
   string entity = 4;
 }
 
-message AiModelUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message ApiKeyUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message EntityGroupUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message RoleUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message GroupPermissionUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message ConverterUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message IntegrationUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message SchedulerEventUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message ReportTemplateUpdateMsg{
-  UpdateMsgType msgType = 1;
-  int64 idMSB = 2;
-  int64 idLSB = 3;
-  string entity = 4;
-}
-
-message SecretUpdateMsg{
+message AiModelUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
@@ -248,14 +181,23 @@ message DashboardUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 12;
+  optional int64 entityGroupIdMSB = 8;
+  optional int64 entityGroupIdLSB = 9;
+  string entity = 13;
 }
 
 message DeviceUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 18;
+  optional int64 entityGroupIdMSB = 13;
+  optional int64 entityGroupIdLSB = 14;
+  string entity = 20;
+}
+
+message DeviceGroupOtaPackageUpdateMsg {
+  UpdateMsgType msgType = 1;
+  string entity = 2;
 }
 
 message DeviceProfileUpdateMsg {
@@ -280,21 +222,25 @@ message AssetUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 12;
+  optional int64 entityGroupIdMSB = 10;
+  optional int64 entityGroupIdLSB = 11;
+  string entity = 14;
 }
 
 message EntityViewUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 12;
+  optional int64 entityGroupIdMSB = 12;
+  optional int64 entityGroupIdLSB = 13;
+  string entity = 14;
 }
 
 message AlarmUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 18;
+  string entity = 19;
 }
 
 message AlarmCommentUpdateMsg {
@@ -306,7 +252,9 @@ message CustomerUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 14;
+  optional int64 entityGroupIdMSB = 17;
+  optional int64 entityGroupIdLSB = 18;
+  string entity = 19;
 }
 
 message RelationUpdateMsg {
@@ -318,7 +266,9 @@ message UserUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
   int64 idLSB = 3;
-  string entity = 11;
+  optional int64 entityGroupIdMSB = 11;
+  optional int64 entityGroupIdLSB = 12;
+  string entity = 13;
 }
 
 message WidgetsBundleUpdateMsg {
@@ -326,6 +276,7 @@ message WidgetsBundleUpdateMsg {
   int64 idMSB = 2;
   int64 idLSB = 3;
   optional string widgets = 9;
+  optional int32 order = 10;
   string entity = 11;
 }
 
@@ -396,9 +347,7 @@ message NotificationTemplateUpdateMsg {
   optional string entity = 4;
 }
 
-// DEPRECATED. FOR REMOVAL
 message RuleChainMetadataRequestMsg {
-  option deprecated = true;
   int64 ruleChainIdMSB = 1;
   int64 ruleChainIdLSB = 2;
 }
@@ -422,30 +371,22 @@ message CalculatedFieldRequestMsg {
   string entityType = 3;
 }
 
-// DEPRECATED. FOR REMOVAL
 message UserCredentialsRequestMsg {
-  option deprecated = true;
   int64 userIdMSB = 1;
   int64 userIdLSB = 2;
 }
 
-// DEPRECATED. FOR REMOVAL
 message DeviceCredentialsRequestMsg {
-  option deprecated = true;
   int64 deviceIdMSB = 1;
   int64 deviceIdLSB = 2;
 }
 
-// DEPRECATED. FOR REMOVAL
 message WidgetBundleTypesRequestMsg {
-  option deprecated = true;
   int64 widgetBundleIdMSB = 1;
   int64 widgetBundleIdLSB = 2;
 }
 
-// DEPRECATED. FOR REMOVAL
 message EntityViewsRequestMsg {
-  option deprecated = true;
   int64 entityIdMSB = 1;
   int64 entityIdLSB = 2;
   string entityType = 3;
@@ -478,6 +419,78 @@ message RpcResponseMsg {
   string error = 2;
 }
 
+message EntityGroupRequestMsg {
+  int64 entityGroupIdMSB = 1;
+  int64 entityGroupIdLSB = 2;
+  string type = 3;
+}
+
+message SchedulerEventUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 14;
+}
+
+message EntityGroupUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string name = 4;
+  string entity = 11;
+}
+
+message ReportTemplateUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message WhiteLabelingProto {
+  string entity = 1;
+  optional UpdateMsgType msgType = 2;
+}
+
+message CustomMenuProto {
+  optional UpdateMsgType msgType = 1;
+  optional string entity = 2;
+  optional string assigneeList = 3;
+}
+
+message CustomTranslationUpdateMsg {
+  optional UpdateMsgType msgType = 1;
+  optional string entity = 2;
+}
+
+message RoleProto {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 12;
+}
+
+message GroupPermissionProto {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 12;
+}
+
+message ConverterUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 9;
+}
+
+message IntegrationUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 18;
+}
+
 message OtaPackageUpdateMsg {
   UpdateMsgType msgType = 1;
   int64 idMSB = 2;
@@ -492,9 +505,19 @@ message QueueUpdateMsg {
   string entity = 14;
 }
 
-/**
- * Main Messages;
- */
+message EncryptionKeyUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
+message SecretUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
 
 message UplinkMsg {
   int32 uplinkMsgId = 1;
@@ -503,37 +526,33 @@ message UplinkMsg {
   repeated DeviceCredentialsUpdateMsg deviceCredentialsUpdateMsg = 4;
   repeated AlarmUpdateMsg alarmUpdateMsg = 5;
   repeated RelationUpdateMsg relationUpdateMsg = 6;
-  repeated RuleChainMetadataRequestMsg ruleChainMetadataRequestMsg = 7 [deprecated = true];
+  repeated RuleChainMetadataRequestMsg ruleChainMetadataRequestMsg = 7;
   repeated AttributesRequestMsg attributesRequestMsg = 8;
   repeated RelationRequestMsg relationRequestMsg = 9;
-  repeated UserCredentialsRequestMsg userCredentialsRequestMsg = 10 [deprecated = true];
-  repeated DeviceCredentialsRequestMsg deviceCredentialsRequestMsg = 11 [deprecated = true];
+  repeated UserCredentialsRequestMsg userCredentialsRequestMsg = 10;
+  repeated DeviceCredentialsRequestMsg deviceCredentialsRequestMsg = 11;
   repeated DeviceRpcCallMsg deviceRpcCallMsg = 12;
-  repeated WidgetBundleTypesRequestMsg widgetBundleTypesRequestMsg = 14 [deprecated = true];
-  repeated EntityViewsRequestMsg entityViewsRequestMsg = 15 [deprecated = true];
-  repeated AssetUpdateMsg assetUpdateMsg = 16;
-  repeated DashboardUpdateMsg dashboardUpdateMsg = 17;
-  repeated EntityViewUpdateMsg entityViewUpdateMsg = 18;
-  repeated AssetProfileUpdateMsg assetProfileUpdateMsg = 19;
-  repeated DeviceProfileUpdateMsg deviceProfileUpdateMsg = 20;
-  repeated ResourceUpdateMsg resourceUpdateMsg = 21;
-  repeated AlarmCommentUpdateMsg alarmCommentUpdateMsg = 22;
-  repeated RuleChainUpdateMsg ruleChainUpdateMsg = 23;
-  repeated RuleChainMetadataUpdateMsg ruleChainMetadataUpdateMsg = 24;
-  repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 25;
-  repeated CalculatedFieldRequestMsg calculatedFieldRequestMsg = 26;
-  repeated AiModelUpdateMsg aiModelUpdateMsg = 27;
-  repeated UserUpdateMsg userUpdateMsg = 28;
-  repeated UserCredentialsUpdateMsg userCredentialsUpdateMsg = 29;
-  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 30;
-  repeated EntityGroupUpdateMsg entityGroupUpdateMsg = 31;
-  repeated RoleUpdateMsg roleUpdateMsg = 32;
-  repeated GroupPermissionUpdateMsg groupPermissionUpdateMsg = 33;
-  repeated ConverterUpdateMsg converterUpdateMsg = 34;
-  repeated IntegrationUpdateMsg integrationUpdateMsg = 35;
-  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 36;
-  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 37;
-  repeated SecretUpdateMsg secretUpdateMsg = 38;
+  repeated WidgetBundleTypesRequestMsg widgetBundleTypesRequestMsg = 14;
+  repeated EntityViewsRequestMsg entityViewsRequestMsg = 15;
+  repeated EntityGroupRequestMsg entityGroupEntitiesRequestMsg = 16;
+  repeated EntityGroupRequestMsg entityGroupPermissionsRequestMsg = 17;
+  repeated AssetUpdateMsg assetUpdateMsg = 18;
+  repeated DashboardUpdateMsg dashboardUpdateMsg = 19;
+  repeated EntityViewUpdateMsg entityViewUpdateMsg = 20;
+  repeated AssetProfileUpdateMsg assetProfileUpdateMsg = 21;
+  repeated DeviceProfileUpdateMsg deviceProfileUpdateMsg = 22;
+  repeated ResourceUpdateMsg resourceUpdateMsg = 23;
+  repeated AlarmCommentUpdateMsg alarmCommentUpdateMsg = 24;
+  repeated RuleChainUpdateMsg ruleChainUpdateMsg = 25;
+  repeated RuleChainMetadataUpdateMsg ruleChainMetadataUpdateMsg = 26;
+  repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 27;
+  repeated CalculatedFieldRequestMsg calculatedFieldRequestMsg = 28;
+  repeated AiModelUpdateMsg aiModelUpdateMsg = 29;
+  repeated UserUpdateMsg userUpdateMsg = 30;
+  repeated UserCredentialsUpdateMsg userCredentialsUpdateMsg = 31;
+  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 32;
+  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 33;
+  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 101;
 }
 
 message UplinkResponseMsg {
@@ -548,11 +567,18 @@ message DownlinkResponseMsg {
   int32 downlinkMsgId = 3;
 }
 
+message ApiKeyUpdateMsg {
+  UpdateMsgType msgType = 1;
+  int64 idMSB = 2;
+  int64 idLSB = 3;
+  string entity = 4;
+}
+
 message DownlinkMsg {
   int32 downlinkMsgId = 1;
   SyncCompletedMsg syncCompletedMsg = 2;
   repeated EntityDataProto entityData = 3;
-  repeated DeviceCredentialsRequestMsg deviceCredentialsRequestMsg = 4 [deprecated = true];
+  repeated DeviceCredentialsRequestMsg deviceCredentialsRequestMsg = 4;
   repeated DeviceUpdateMsg deviceUpdateMsg = 5;
   repeated DeviceProfileUpdateMsg deviceProfileUpdateMsg = 6;
   repeated DeviceCredentialsUpdateMsg deviceCredentialsUpdateMsg = 7;
@@ -570,28 +596,33 @@ message DownlinkMsg {
   repeated WidgetTypeUpdateMsg widgetTypeUpdateMsg = 19;
   repeated AdminSettingsUpdateMsg adminSettingsUpdateMsg = 20;
   repeated DeviceRpcCallMsg deviceRpcCallMsg = 21;
-  repeated OtaPackageUpdateMsg otaPackageUpdateMsg = 22;
-  repeated QueueUpdateMsg queueUpdateMsg = 23;
-  repeated AssetProfileUpdateMsg assetProfileUpdateMsg = 24;
-  EdgeConfiguration edgeConfiguration = 25;
-  repeated TenantUpdateMsg tenantUpdateMsg = 26;
-  repeated TenantProfileUpdateMsg tenantProfileUpdateMsg = 27;
-  repeated ResourceUpdateMsg resourceUpdateMsg = 28;
-  repeated AlarmCommentUpdateMsg alarmCommentUpdateMsg = 29;
-  repeated OAuth2ClientUpdateMsg oAuth2ClientUpdateMsg = 30;
-  repeated NotificationRuleUpdateMsg notificationRuleUpdateMsg = 31;
-  repeated NotificationTargetUpdateMsg notificationTargetUpdateMsg = 32;
-  repeated NotificationTemplateUpdateMsg notificationTemplateUpdateMsg = 33;
-  repeated OAuth2DomainUpdateMsg oAuth2DomainUpdateMsg = 34;
-  repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 35;
-  repeated AiModelUpdateMsg aiModelUpdateMsg = 36;
-  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 37;
-  repeated EntityGroupUpdateMsg entityGroupUpdateMsg = 38;
-  repeated RoleUpdateMsg roleUpdateMsg = 39;
-  repeated GroupPermissionUpdateMsg groupPermissionUpdateMsg = 40;
-  repeated ConverterUpdateMsg converterUpdateMsg = 41;
-  repeated IntegrationUpdateMsg integrationUpdateMsg = 42;
-  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 43;
-  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 44;
-  repeated SecretUpdateMsg secretUpdateMsg = 45;
+  repeated SchedulerEventUpdateMsg schedulerEventUpdateMsg = 31;
+  repeated EntityGroupUpdateMsg entityGroupUpdateMsg = 32;
+  repeated RoleProto roleMsg = 33;
+  repeated GroupPermissionProto groupPermissionMsg = 34;
+  repeated ConverterUpdateMsg converterMsg = 35;
+  repeated IntegrationUpdateMsg integrationMsg = 36;
+  repeated OtaPackageUpdateMsg otaPackageUpdateMsg = 37;
+  repeated QueueUpdateMsg queueUpdateMsg = 38;
+  repeated AssetProfileUpdateMsg assetProfileUpdateMsg = 39;
+  EdgeConfiguration edgeConfiguration = 40;
+  repeated TenantUpdateMsg tenantUpdateMsg = 41;
+  repeated TenantProfileUpdateMsg tenantProfileUpdateMsg = 42;
+  repeated ResourceUpdateMsg resourceUpdateMsg = 43;
+  WhiteLabelingProto whiteLabelingProto = 44;
+  CustomMenuProto customMenuProto = 45;
+  repeated AlarmCommentUpdateMsg alarmCommentUpdateMsg = 46;
+  repeated DeviceGroupOtaPackageUpdateMsg deviceGroupOtaPackageUpdateMsg = 47;
+  repeated OAuth2ClientUpdateMsg oAuth2ClientUpdateMsg = 48;
+  repeated NotificationRuleUpdateMsg notificationRuleUpdateMsg = 49;
+  repeated NotificationTargetUpdateMsg notificationTargetUpdateMsg = 50;
+  repeated NotificationTemplateUpdateMsg notificationTemplateUpdateMsg = 51;
+  CustomTranslationUpdateMsg customTranslationUpdateMsg = 100;
+  repeated OAuth2DomainUpdateMsg oAuth2DomainUpdateMsg = 52;
+  repeated CalculatedFieldUpdateMsg calculatedFieldUpdateMsg = 53;
+  repeated EncryptionKeyUpdateMsg encryptionKeyUpdateMsg = 54;
+  repeated SecretUpdateMsg secretUpdateMsg = 55;
+  repeated AiModelUpdateMsg aiModelUpdateMsg = 56;
+  repeated ReportTemplateUpdateMsg reportTemplateUpdateMsg = 57;
+  repeated ApiKeyUpdateMsg apiKeyUpdateMsg = 101;
 }

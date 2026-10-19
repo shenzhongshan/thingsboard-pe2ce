@@ -803,6 +803,10 @@ CREATE TABLE IF NOT EXISTS edge (
     routing_key varchar(255),
     secret varchar(255),
     tenant_id uuid,
+    -- 随 EdgeConfiguration 下发给 edge（proto 字段 11/12）。edge 用它们完成自身的授权
+    -- 与回连配置；缺了这两列，PE edge 在握手后拿到的是空串。
+    edge_license_key varchar,
+    cloud_endpoint varchar(255),
     version BIGINT DEFAULT 1,
     CONSTRAINT edge_name_unq_key UNIQUE (tenant_id, name),
     CONSTRAINT edge_routing_key_unq_key UNIQUE (routing_key)
@@ -819,6 +823,7 @@ CREATE TABLE IF NOT EXISTS edge_event (
     edge_event_action varchar(255),
     body varchar(10000000),
     tenant_id uuid,
+    entity_group_id uuid,
     ts bigint NOT NULL
 ) PARTITION BY RANGE(created_time);
 ALTER TABLE IF EXISTS edge_event ALTER COLUMN seq_id SET CYCLE;
@@ -1098,8 +1103,11 @@ CREATE TABLE IF NOT EXISTS converter (
     configuration VARCHAR(10000000),
     additional_info VARCHAR,
     external_id UUID,
+    -- edge 模板转换器：只存不跑，随所属集成下发到 edge，在 edge 本地实例化。
+    is_edge_template BOOLEAN DEFAULT false,
     version BIGINT NOT NULL DEFAULT 1
 );
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS external_id UUID;
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
@@ -1122,6 +1130,8 @@ CREATE TABLE IF NOT EXISTS integration (
     configuration VARCHAR(10000000),
     additional_info VARCHAR,
     external_id UUID,
+    -- edge 模板集成：云端不启动、不校验连通性、不计租户配额，只作为下发给 edge 的蓝图。
+    is_edge_template BOOLEAN DEFAULT false,
     version BIGINT NOT NULL DEFAULT 1
 );
 ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);

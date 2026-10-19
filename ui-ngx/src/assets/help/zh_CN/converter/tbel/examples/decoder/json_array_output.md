@@ -1,4 +1,4 @@
-#### Decoder JSON array output example
+#### 解码器 JSON 数组输出示例
 
 ```json
 [

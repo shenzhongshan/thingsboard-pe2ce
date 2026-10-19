@@ -237,6 +237,14 @@ public class DefaultPlatformIntegrationService extends AbstractPartitionBasedSer
 
     @Override
     public void onIntegrationUpdated(Integration integration) {
+        if (integration.isEdgeTemplate()) {
+            // 模板只存不跑：它是给 edge 用的蓝本，连接配置里通常还带着 ${{attr}} 占位符，
+            // 在云上真去连只会一路报错，还白占一份连接。启动路径已由
+            // IntegrationRepository.findAllEnabledNonTemplate 排除，这里挡的是保存路径 ——
+            // 少了这道，enabled=true 的模板一保存就会被 startIntegration 拉起来（实测见过）。
+            stopIntegration(integration.getId());
+            return;
+        }
         if (integration.isRemote()) {
             // executed by a separate process: never start it in-process, just push the new config
             // down the gRPC stream so the remote picks it up without restarting

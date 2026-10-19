@@ -19,6 +19,7 @@ import { CommonModule } from '@angular/common';
 import { SharedModule } from '@shared/shared.module';
 import { HomeDialogsModule } from '@home/dialogs/home-dialogs.module';
 import { HomeComponentsModule } from '@home/components/home-components.module';
+import { IntegrationCenterModule } from '@home/pages/integration/integration-center.module';
 import { EdgeRoutingModule } from '@home/pages/edge/edge-routing.module';
 import { EdgeComponent } from '@modules/home/pages/edge/edge.component';
 import { EdgeTableHeaderComponent } from '@home/pages/edge/edge-table-header.component';
@@ -37,6 +38,8 @@ import { EdgeInstructionsDialogComponent } from './edge-instructions-dialog.comp
     SharedModule,
     HomeDialogsModule,
     HomeComponentsModule,
+    // edgeManagement/{integrations,converters} 两条模板路由复用集成中心的组件。
+    IntegrationCenterModule,
     EdgeRoutingModule
   ]
 })

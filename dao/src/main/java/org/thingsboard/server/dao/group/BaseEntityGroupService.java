@@ -60,6 +60,13 @@ import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.role.RoleService;
 import org.thingsboard.server.dao.sql.group.EntityGroupRepository;
 import org.thingsboard.server.dao.user.UserService;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.common.data.EdgeUtils;
+import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.ArrayList;
@@ -86,6 +93,13 @@ public class BaseEntityGroupService implements EntityGroupService {
     @Autowired
     @Lazy
     private GroupPermissionService groupPermissionService;
+
+    // 同样字段注入 + @Lazy：edge 侧的分组分配会反过来调用本服务
+    // （PE 的 assignTenantAdministratorsAndUsersGroupToEdge 就是这么用的），
+    // 做成构造依赖会在启动时形成不可解的环。
+    @Autowired
+    @Lazy
+    private EdgeService edgeService;
 
     private final EntityGroupRepository entityGroupRepository;
     private final RelationService relationService;
@@ -312,10 +326,36 @@ public class BaseEntityGroupService implements EntityGroupService {
     private void addRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
         relationService.saveRelation(tenantId,
                 new EntityRelation(entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP));
+        publishMembershipEvent(tenantId, entityGroupId, entityId, ActionType.ADDED_TO_ENTITY_GROUP);
     }
 
     private void removeRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
         relationService.deleteRelation(tenantId, entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP);
+        publishMembershipEvent(tenantId, entityGroupId, entityId, ActionType.REMOVED_FROM_ENTITY_GROUP);
+    }
+
+    /**
+     * 成员变化要通知已分配该分组的 edge。实测过：没有这一步，往"已分配给 edge 的分组"里
+     * 加实体，edge 一条事件都收不到，必须等下一次全量同步才知道组里多了东西。
+     *
+     * <p>entityId 填**成员实体**（不是分组），entityGroup 带上分组本身 ——
+     * 下游靠 entityGroup 定位该推给哪些 edge，并把 groupId 写进 edge_event。与 PE 一致。
+     *
+     * <p>发布点放在这两个私有漏斗里，而不是公开的 add/removeEntitiesToEntityGroup：
+     * ensureAllGroupMembership / moveAllGroupMembership 等内部路径也会改成员，同样要通知。
+     */
+    private void publishMembershipEvent(TenantId tenantId, EntityGroupId entityGroupId,
+                                        EntityId entityId, ActionType actionType) {
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            return;
+        }
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId)
+                .entityId(entityId)
+                .actionType(actionType)
+                .entityGroup(entityGroup)
+                .build());
     }
 
     @Override
@@ -389,6 +429,7 @@ public class BaseEntityGroupService implements EntityGroupService {
             case USER -> userService.findUsersByTenantId(tenantId, pageLink);
             case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantId(tenantId, pageLink);
             case DASHBOARD -> dashboardService.findDashboardsByTenantId(tenantId, pageLink);
+            case EDGE -> edgeService.findEdgeInfosByTenantId(tenantId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
     }
@@ -403,6 +444,7 @@ public class BaseEntityGroupService implements EntityGroupService {
             case USER -> userService.findCustomerUsers(tenantId, customerId, pageLink);
             case ENTITY_VIEW -> entityViewService.findEntityViewInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             case DASHBOARD -> dashboardService.findDashboardsByTenantIdAndCustomerId(tenantId, customerId, pageLink);
+            case EDGE -> edgeService.findEdgeInfosByTenantIdAndCustomerId(tenantId, customerId, pageLink);
             default -> throw new DataValidationException("Unsupported entity group type!");
         };
     }
@@ -462,6 +504,7 @@ public class BaseEntityGroupService implements EntityGroupService {
                 case USER -> userService.findUserById(tenantId, new UserId(entityId.getId()));
                 case ENTITY_VIEW -> entityViewService.findEntityViewInfoById(tenantId, new EntityViewId(entityId.getId()));
                 case DASHBOARD -> dashboardService.findDashboardInfoById(tenantId, new DashboardId(entityId.getId()));
+                case EDGE -> edgeService.findEdgeInfoById(tenantId, new EdgeId(entityId.getId()));
                 default -> null;
             };
         } catch (Exception e) {
@@ -674,6 +717,170 @@ public class BaseEntityGroupService implements EntityGroupService {
         permission.setUserGroupId(userGroupId);
         permission.setRoleId(roleId);
         groupPermissionService.saveGroupPermission(tenantId, permission);
+    }
+
+
+    // ---- edge 分组分配 ----
+    // PE 的 edge 同步以分组为单位。这里建立的是 edge -> group 的 EDGE 关系，
+    // 与成员关系（group -> entity，FROM_ENTITY_GROUP）完全独立。
+    // 发布的 ActionEntityEvent 带上 entityGroup，EdgeEventSourcingListener 会把它
+    // 变成 edge_event.entity_group_id，最终成为实体消息上的 entityGroupIdMSB/LSB。
+
+    public static final String EDGE_ENTITY_GROUP_RELATION_PREFIX = "EDGE_ENTITY_GROUP_";
+
+    @Override
+    public EntityGroup findOrCreateEdgeAllGroup(TenantId tenantId, Edge edge, EntityType groupType) {
+        // PE 在 edge 的 owner 下维护一组 "[Edge] <edgeName> All"（客户所有时带客户名），
+        // 代表"这台 edge 上有哪些该类型的实体"。上行实体到达云端时需要一个归属，就放这里。
+        CustomerId ownerId = edge.getCustomerId() != null && !edge.getCustomerId().isNullUid()
+                ? edge.getCustomerId() : null;
+        String customerName = null;
+        if (ownerId != null) {
+            Customer customer = customerService.findCustomerById(tenantId, ownerId);
+            customerName = customer != null ? customer.getName() : null;
+        }
+        String groupName = EdgeUtils.getEdgeGroupAllName(customerName, edge.getName());
+
+        EntityGroup group = findEntityGroupByTypeAndName(tenantId, ownerId, groupType, groupName);
+        if (group == null) {
+            group = new EntityGroup();
+            group.setName(groupName);
+            group.setType(groupType);
+            group.setOwnerId(ownerId != null ? ownerId : tenantId);
+            group = saveEntityGroup(tenantId, group);
+        }
+        // 幂等：组已存在但尚未挂到这台 edge 上时补一条关系。
+        if (!Boolean.TRUE.equals(getUninterruptibly(
+                checkEntityGroupAssignedToEdgeAsync(tenantId, edge.getId(), group.getId(), groupType)))) {
+            assignEntityGroupToEdge(tenantId, group.getId(), edge.getId(), groupType);
+        }
+        return group;
+    }
+
+
+
+    @Override
+    public void assignTenantAdministratorsAndUsersGroupToEdge(TenantId tenantId, EdgeId edgeId) {
+        // 新建 edge 时把租户级用户组挂上去，用户随后经 EntityGroupEdgeEventFetcher(USER) 同步过去。
+        // 少了这步，按分组同步的 edge 会一个用户都收不到 —— 没人能登录 edge。
+        ensureDefaultGroups(tenantId, null, EntityType.USER);
+        for (String groupName : new String[]{EntityGroup.GROUP_ALL_NAME, TENANT_ADMINS_GROUP}) {
+            EntityGroup group = findEntityGroupByTypeAndName(tenantId, null, EntityType.USER, groupName);
+            if (group != null) {
+                assignEntityGroupToEdge(tenantId, group.getId(), edgeId, EntityType.USER);
+            }
+        }
+    }
+
+    @Override
+    public void renameEdgeAllGroups(TenantId tenantId, Edge edge, String oldEdgeName, String oldCustomerName, String newCustomerName) {
+        // "[Edge] X All" 的组名里嵌了 edge 名（客户所有时还嵌了客户名），所以 edge 或客户
+        // 改名后必须跟着改，否则 findOrCreateEdgeAllGroup 按新名字找不到旧组，会再建一个，
+        // 同一台 edge 就出现两个镜像分组。
+        CustomerId ownerId = edge.getCustomerId() != null && !edge.getCustomerId().isNullUid()
+                ? edge.getCustomerId() : null;
+        List<String[]> renames = new ArrayList<>();
+        renames.add(new String[]{EdgeUtils.getEdgeGroupAllName(oldEdgeName),
+                EdgeUtils.getEdgeGroupAllName(edge.getName())});
+        if (ownerId != null && oldCustomerName != null && newCustomerName != null) {
+            renames.add(new String[]{EdgeUtils.getEdgeGroupAllName(oldCustomerName, oldEdgeName),
+                    EdgeUtils.getEdgeGroupAllName(newCustomerName, edge.getName())});
+        }
+        for (EntityType groupType : EntityGroup.groupTypes) {
+            for (String[] rename : renames) {
+                if (rename[0].equals(rename[1])) {
+                    continue;
+                }
+                EntityGroup group = findEntityGroupByTypeAndName(tenantId, ownerId, groupType, rename[0]);
+                if (group != null) {
+                    group.setName(rename[1]);
+                    saveEntityGroup(tenantId, group);
+                }
+            }
+        }
+    }
+
+    private static <V> V getUninterruptibly(ListenableFuture<V> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
+
+
+    @Override
+    public EntityGroup assignEntityGroupToEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType) {
+        log.trace("Executing assignEntityGroupToEdge, tenantId [{}], entityGroupId [{}], edgeId [{}]", tenantId, entityGroupId, edgeId);
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            throw new DataValidationException("Can't assign non-existent entity group to edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't assign entity group to non-existent edge!");
+        }
+        relationService.saveRelation(tenantId, new EntityRelation(edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE));
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(entityGroupId)
+                .actionType(ActionType.ASSIGNED_TO_EDGE).entityGroup(entityGroup).build());
+        return entityGroup;
+    }
+
+    @Override
+    public EntityGroup unassignEntityGroupFromEdge(TenantId tenantId, EntityGroupId entityGroupId, EdgeId edgeId, EntityType groupType) {
+        log.trace("Executing unassignEntityGroupFromEdge, tenantId [{}], entityGroupId [{}], edgeId [{}]", tenantId, entityGroupId, edgeId);
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            throw new DataValidationException("Can't unassign non-existent entity group from edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't unassign entity group from non-existent edge!");
+        }
+        relationService.deleteRelation(tenantId, edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE);
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(entityGroupId)
+                .actionType(ActionType.UNASSIGNED_FROM_EDGE).entityGroup(entityGroup).build());
+        return entityGroup;
+    }
+
+
+    @Override
+    public PageData<EntityId> findEntityIds(TenantId tenantId, EntityType groupType, EntityGroupId entityGroupId, PageLink pageLink) {
+        // edge 全量同步按页取组成员。"All" 组的成员来自 owner 维度的查询，普通组来自
+        // FROM_ENTITY_GROUP 关系；两种都在这里统一切页，调用方不必区分。
+        List<EntityId> all = findAllEntityIds(tenantId, entityGroupId);
+        int total = all.size();
+        int from = Math.min(pageLink.getPage() * pageLink.getPageSize(), total);
+        int to = Math.min(from + pageLink.getPageSize(), total);
+        int totalPages = pageLink.getPageSize() > 0 ? (int) Math.ceil((double) total / pageLink.getPageSize()) : 1;
+        return new PageData<>(all.subList(from, to), totalPages, total, to < total);
+    }
+
+    @Override
+    public PageData<EntityGroup> findEdgeEntityGroupsByType(TenantId tenantId, EdgeId edgeId, EntityType groupType, PageLink pageLink) {
+        log.trace("Executing findEdgeEntityGroupsByType, tenantId [{}], edgeId [{}], groupType [{}]", tenantId, edgeId, groupType);
+        return DaoUtil.toPageData(entityGroupRepository.findEdgeEntityGroupsByType(
+                edgeId.getId(), EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public PageData<EntityGroup> findEdgeEntityGroupsByOwnerIdAndType(TenantId tenantId, EdgeId edgeId, EntityId ownerId, EntityType groupType, PageLink pageLink) {
+        log.trace("Executing findEdgeEntityGroupsByOwnerIdAndType, tenantId [{}], edgeId [{}], ownerId [{}]", tenantId, edgeId, ownerId);
+        return DaoUtil.toPageData(entityGroupRepository.findEdgeEntityGroupsByOwnerIdAndType(
+                edgeId.getId(), ownerId.getId(), EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), DaoUtil.toPageable(pageLink)));
+    }
+
+    @Override
+    public ListenableFuture<Boolean> checkEntityGroupAssignedToEdgeAsync(TenantId tenantId, EdgeId edgeId, EntityGroupId entityGroupId, EntityType groupType) {
+        log.trace("Executing checkEntityGroupAssignedToEdgeAsync, tenantId [{}], edgeId [{}], entityGroupId [{}]", tenantId, edgeId, entityGroupId);
+        return relationService.checkRelationAsync(tenantId, edgeId, entityGroupId,
+                EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(), RelationTypeGroup.EDGE);
     }
 
 }

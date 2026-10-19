@@ -26,7 +26,7 @@ import { DashboardsTableConfigResolver } from '@home/pages/dashboard/dashboards-
 import { RuleChainsTableConfigResolver } from '@home/pages/rulechain/rulechains-table-config.resolver';
 import { DashboardPageComponent } from '@home/components/dashboard-page/dashboard-page.component';
 import { dashboardBreadcumbLabelFunction, DashboardResolver } from '@home/pages/dashboard/dashboard-routing.module';
-import { BreadCrumbConfig } from '@shared/components/breadcrumb';
+import { BreadCrumbConfig, BreadCrumbLabelFunction } from '@shared/components/breadcrumb';
 import { RuleChainPageComponent } from '@home/pages/rulechain/rulechain-page.component';
 import { ConfirmOnExitGuard } from '@core/guards/confirm-on-exit.guard';
 import { RuleChainType } from '@shared/models/rule-chain.models';
@@ -42,6 +42,110 @@ import {
 import { EntityDetailsPageComponent } from '@home/components/entity/entity-details-page.component';
 import { entityDetailsPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
 import { MenuId } from '@core/services/menu.models';
+import { IntegrationsComponent } from '@home/pages/integration/integration/integrations.component';
+import { ConvertersComponent } from '@home/pages/integration/converter/converters.component';
+import {
+  IntegrationEntityDetailsPageComponent
+} from '@home/pages/integration/integration-entity-details-page.component';
+import { EntityType } from '@shared/models/entity-type.models';
+import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
+import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
+import {
+  AssetGroupEntitiesTableConfigResolver,
+  DashboardGroupEntitiesTableConfigResolver,
+  DeviceGroupEntitiesTableConfigResolver,
+  EdgeGroupEntitiesTableConfigResolver,
+  EntityViewGroupEntitiesTableConfigResolver,
+  UserGroupEntitiesTableConfigResolver
+} from '@home/pages/entity-group/group-entities-table-config.resolvers';
+import { EdgeTitleResolver } from '@home/pages/edge/edge-title.resolver';
+import {
+  SchedulerEventsComponent
+} from '@home/pages/features/scheduler/scheduler-events.component';
+import { groupMembersPageBreadcrumbLabelFunction } from '@home/pages/home-pages.models';
+
+const edgeIntegrationEntityBreadcrumbLabelFunction: BreadCrumbLabelFunction<IntegrationEntityDetailsPageComponent>
+  = ((route, translate, component) => component.entityName);
+
+/**
+ * "<edge 名>: <类型>" 形式的面包屑，对齐 PE 的 edge 子页面。
+ * edgeTitle 由 EdgeTitleResolver 放进 route.data。
+ */
+const edgeScopedBreadcrumbLabelFunction =
+  (titleKey: string): BreadCrumbLabelFunction<any> =>
+    ((route, translate) => {
+      const edgeTitle = route.data.edgeTitle;
+      const typeLabel = translate.instant(titleKey);
+      return edgeTitle ? `${edgeTitle}: ${typeLabel}` : typeLabel;
+    });
+
+/**
+ * edge 详情页下的 5 个实体分组页面。PE 的 edge 同步以分组为单位 —— 实体先入组、
+ * 组再分配给 edge，所以这里展示的是"分配给这台 edge 的分组"。
+ * 类型与图标取自 PE 4.3.1.1 前端包里的同名路由。
+ */
+const edgeEntityGroupRoutes: Routes = [
+  { type: EntityType.DEVICE, path: 'deviceGroups', icon: 'devices_other',
+    title: 'edge.manage-device-groups', resolver: DeviceGroupEntitiesTableConfigResolver },
+  { type: EntityType.ASSET, path: 'assetGroups', icon: 'domain',
+    title: 'edge.manage-asset-groups', resolver: AssetGroupEntitiesTableConfigResolver },
+  { type: EntityType.ENTITY_VIEW, path: 'entityViewGroups', icon: 'view_quilt',
+    title: 'edge.manage-entity-view-groups', resolver: EntityViewGroupEntitiesTableConfigResolver },
+  { type: EntityType.DASHBOARD, path: 'dashboardGroups', icon: 'dashboard',
+    title: 'edge.manage-dashboard-groups', resolver: DashboardGroupEntitiesTableConfigResolver },
+  { type: EntityType.USER, path: 'userGroups', icon: 'account_circle',
+    title: 'edge.manage-user-groups', resolver: UserGroupEntitiesTableConfigResolver }
+].map(({type, path, icon, title, resolver}) => ({
+  path: `:edgeId/${path}`,
+  data: {
+    auth: [Authority.TENANT_ADMIN],
+    breadcrumb: {
+      labelFunction: edgeScopedBreadcrumbLabelFunction(
+        'entity-group.group-type-' + type.toLowerCase().replace(/_/g, '-')),
+      icon
+    } as BreadCrumbConfig<any>,
+    backNavigationCommands: ['../..']
+  },
+  resolve: {
+    edgeTitle: EdgeTitleResolver
+  },
+  children: [
+    {
+      path: '',
+      component: EntityGroupsComponent,
+      // AuthGuard 只看最深一层 activated route 的 data.auth，父路由上的不生效。
+      data: {
+        auth: [Authority.TENANT_ADMIN],
+        title,
+        groupType: type
+      }
+    },
+    {
+      path: ':entityGroupId',
+      data: {
+        auth: [Authority.TENANT_ADMIN],
+        breadcrumb: {
+          labelFunction: groupMembersPageBreadcrumbLabelFunction,
+          icon: 'view_list'
+        } as BreadCrumbConfig<GroupMembersPageComponent>
+      },
+      children: [
+        {
+          path: '',
+          component: GroupMembersPageComponent,
+          data: {
+            auth: [Authority.TENANT_ADMIN],
+            title,
+            groupType: type
+          },
+          resolve: {
+            entitiesTableConfig: resolver
+          }
+        }
+      ]
+    }
+  ]
+}));
 
 const routes: Routes = [
   {
@@ -300,6 +404,126 @@ const routes: Routes = [
                 }
               }
             ]
+          },
+          // PE 的 edge 详情页是**按分组**组织的（deviceGroups/assetGroups/... 共 5 个），
+          // 外加 integrations 与 scheduler。PE 没有平铺的 assets/devices 页 —— 那是上面
+          // 那几条，属于 CE 独有的"实体直连分配给 edge"能力，一并保留。
+          // 路由形状、图标、面包屑（"<edge 名>: <类型>"）取自 PE 4.3.1.1 的前端包。
+          ...edgeEntityGroupRoutes,
+          {
+            path: ':edgeId/integrations',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                labelFunction: edgeScopedBreadcrumbLabelFunction('edge.integrations'),
+                icon: 'input'
+              } as BreadCrumbConfig<any>,
+              backNavigationCommands: ['../..']
+            },
+            resolve: {
+              edgeTitle: EdgeTitleResolver
+            },
+            children: [
+              {
+                path: '',
+                component: IntegrationsComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'edge.manage-integrations'
+                }
+              }
+            ]
+          },
+          {
+            path: ':edgeId/scheduler',
+            data: {
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              breadcrumb: {
+                labelFunction: edgeScopedBreadcrumbLabelFunction('scheduler.scheduler-events'),
+                icon: 'schedule'
+              } as BreadCrumbConfig<any>,
+              backNavigationCommands: ['../..']
+            },
+            resolve: {
+              edgeTitle: EdgeTitleResolver
+            },
+            children: [
+              {
+                path: '',
+                component: SchedulerEventsComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+                  title: 'edge.manage-scheduler-events'
+                }
+              }
+            ]
+          },
+        ]
+      },
+      {
+        // Edge 实例本身可以分组（PE 4.3.1.1 的 groupTypes 含 EDGE）。
+        // 结构镜像 asset-routing 的 groups 分支。注意每个叶子路由都要带 auth ——
+        // AuthGuard 只看最深一层 activated route 的 data.auth，父路由上的不生效。
+        path: 'groups',
+        data: {
+          auth: [Authority.TENANT_ADMIN],
+          breadcrumb: {
+            label: 'entity-group.group-type-edge',
+            icon: 'workspaces'
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: EntityGroupsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'entity-group.group-type-edge',
+              groupType: EntityType.EDGE
+            }
+          },
+          {
+            path: ':entityGroupId',
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              breadcrumb: {
+                labelFunction: groupMembersPageBreadcrumbLabelFunction,
+                icon: 'view_list'
+              } as BreadCrumbConfig<GroupMembersPageComponent>
+            },
+            children: [
+              {
+                path: '',
+                component: GroupMembersPageComponent,
+                data: {
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'entity-group.group-type-edge',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              },
+              {
+                path: ':entityId',
+                component: EntityDetailsPageComponent,
+                canDeactivate: [ConfirmOnExitGuard],
+                data: {
+                  breadcrumb: {
+                    labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                    icon: 'router'
+                  } as BreadCrumbConfig<EntityDetailsPageComponent>,
+                  auth: [Authority.TENANT_ADMIN],
+                  title: 'edge.edge-instances',
+                  edgesType: 'tenant',
+                  groupType: EntityType.EDGE
+                },
+                resolve: {
+                  entitiesTableConfig: EdgeGroupEntitiesTableConfigResolver
+                }
+              }
+            ]
           }
         ]
       },
@@ -367,6 +591,75 @@ const routes: Routes = [
             }
           }
         ]
+      },
+      // 集成 / 转换器模板。复用集成中心那套组件，靠 data.isEdgeTemplate 切换命名空间。
+      // auth 必须写在叶子路由上：CE 的 AuthGuard 只看最深一层 activated route 的 data.auth，
+      // 写在这一层的分组节点上不会生效。
+      {
+        path: 'integrations',
+        data: {
+          breadcrumb: {
+            menuId: MenuId.integration_templates
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: IntegrationsComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-integration-templates',
+              isEdgeTemplate: true
+            }
+          },
+          {
+            path: ':integrationId',
+            component: IntegrationEntityDetailsPageComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-integration-templates',
+              kind: 'integration',
+              isEdgeTemplate: true,
+              breadcrumb: {
+                labelFunction: edgeIntegrationEntityBreadcrumbLabelFunction,
+                icon: 'input'
+              } as BreadCrumbConfig<IntegrationEntityDetailsPageComponent>
+            }
+          }
+        ]
+      },
+      {
+        path: 'converters',
+        data: {
+          breadcrumb: {
+            menuId: MenuId.converter_templates
+          }
+        },
+        children: [
+          {
+            path: '',
+            component: ConvertersComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-converter-templates',
+              isEdgeTemplate: true
+            }
+          },
+          {
+            path: ':converterId',
+            component: IntegrationEntityDetailsPageComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN],
+              title: 'edge.edge-converter-templates',
+              kind: 'converter',
+              isEdgeTemplate: true,
+              breadcrumb: {
+                labelFunction: edgeIntegrationEntityBreadcrumbLabelFunction,
+                icon: 'transform'
+              } as BreadCrumbConfig<IntegrationEntityDetailsPageComponent>
+            }
+          }
+        ]
       }
     ]
   },
@@ -431,7 +724,14 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
   providers: [
-    EdgesTableConfigResolver
+    EdgesTableConfigResolver,
+    EdgeGroupEntitiesTableConfigResolver,
+    EdgeTitleResolver,
+    DeviceGroupEntitiesTableConfigResolver,
+    AssetGroupEntitiesTableConfigResolver,
+    EntityViewGroupEntitiesTableConfigResolver,
+    DashboardGroupEntitiesTableConfigResolver,
+    UserGroupEntitiesTableConfigResolver
   ]
 })
 export class EdgeRoutingModule {

@@ -22,7 +22,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.thingsboard.server.common.data.audit.ActionType;
+import org.thingsboard.server.common.data.id.EdgeId;
+import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.common.data.relation.RelationTypeGroup;
+import org.thingsboard.server.dao.edge.EdgeService;
+import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
+import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.common.util.DebugModeUtil;
@@ -55,6 +63,14 @@ public class BaseIntegrationService implements IntegrationService {
     @Autowired
     private ApplicationEventPublisher eventPublisher;
 
+    @Autowired
+    private RelationService relationService;
+
+    // @Lazy：edge 侧的清理逻辑会反过来查集成，构造依赖会在启动时成环。
+    @Autowired
+    @Lazy
+    private EdgeService edgeService;
+
     private final IntegrationRepository integrationRepository;
     private final ConverterRepository converterRepository;
     private final TbTenantProfileCache tbTenantProfileCache;
@@ -77,8 +93,14 @@ public class BaseIntegrationService implements IntegrationService {
         if (integration.getDefaultConverterId() == null) {
             throw new DataValidationException("Integration uplink converter should be specified!");
         }
-        if (converterRepository.findById(integration.getDefaultConverterId().getId()).isEmpty()) {
+        var uplinkConverter = converterRepository.findById(integration.getDefaultConverterId().getId());
+        if (uplinkConverter.isEmpty()) {
             throw new DataValidationException("Integration is referencing a non-existent uplink converter!");
+        }
+        // 模板与普通实体是两个互不相交的命名空间：模板集成下发到 edge 后要在那边找到它的
+        // 转换器，而普通转换器不会被下发；反过来普通集成引用模板转换器，云端跑起来也会缺件。
+        if (uplinkConverter.get().isEdgeTemplate() != integration.isEdgeTemplate()) {
+            throw new DataValidationException("Edge integration can't have non-edge converter and vise versa!");
         }
         if (StringUtils.isEmpty(integration.getRoutingKey())) {
             integration.setRoutingKey(UUID.randomUUID().toString());
@@ -121,7 +143,7 @@ public class BaseIntegrationService implements IntegrationService {
 
     @Override
     public List<Integration> findAllEnabledIntegrations() {
-        return DaoUtil.convertDataList(integrationRepository.findAllByEnabledTrue());
+        return DaoUtil.convertDataList(integrationRepository.findAllEnabledNonTemplate());
     }
 
     @Override
@@ -173,6 +195,62 @@ public class BaseIntegrationService implements IntegrationService {
     @Override
     public EntityType getEntityType() {
         return EntityType.INTEGRATION;
+    }
+
+
+    // ---- edge 分配 ----
+    // 只有 edge 模板集成能分配给 edge：普通集成在云端有运行实例，下发给 edge 会变成
+    // 两个进程同时连同一个外部端点。
+    @Override
+    public Integration assignIntegrationToEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId) {
+        Integration integration = findIntegrationById(tenantId, integrationId);
+        if (integration == null) {
+            throw new DataValidationException("Can't assign non-existent integration to edge!");
+        }
+        if (!integration.isEdgeTemplate()) {
+            // 普通集成在云端有运行实例；下发给 edge 会变成两个进程同时连同一个外部端点
+            // （同一个 MQTT topic / 同一个 Kafka 消费组），消息被随机瓜分。
+            throw new DataValidationException("Only edge template integration can be assigned to edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't assign integration to non-existent edge!");
+        }
+        relationService.saveRelation(tenantId,
+                new EntityRelation(edgeId, integrationId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE));
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(integrationId)
+                .actionType(ActionType.ASSIGNED_TO_EDGE).build());
+        return integration;
+    }
+
+    @Override
+    public Integration unassignIntegrationFromEdge(TenantId tenantId, IntegrationId integrationId, EdgeId edgeId) {
+        Integration integration = findIntegrationById(tenantId, integrationId);
+        if (integration == null) {
+            throw new DataValidationException("Can't unassign non-existent integration from edge!");
+        }
+        if (edgeService.findEdgeById(tenantId, edgeId) == null) {
+            throw new DataValidationException("Can't unassign integration from non-existent edge!");
+        }
+        relationService.deleteRelation(tenantId, edgeId, integrationId,
+                EntityRelation.CONTAINS_TYPE, RelationTypeGroup.EDGE);
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId).edgeId(edgeId).entityId(integrationId)
+                .actionType(ActionType.UNASSIGNED_FROM_EDGE).build());
+        return integration;
+    }
+
+    @Override
+    public PageData<Integration> findIntegrationsByTenantIdAndEdgeId(TenantId tenantId, EdgeId edgeId, PageLink pageLink) {
+        return DaoUtil.toPageData(integrationRepository.findByTenantIdAndEdgeId(
+                tenantId.getId(), edgeId.getId(), pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
+    }
+
+
+    @Override
+    public PageData<Integration> findTenantEdgeTemplateIntegrations(TenantId tenantId, PageLink pageLink) {
+        return DaoUtil.toPageData(integrationRepository.findByTenantIdAndIsEdgeTemplate(
+                tenantId.getId(), true, pageLink.getTextSearch(), DaoUtil.toPageable(pageLink)));
     }
 
 }

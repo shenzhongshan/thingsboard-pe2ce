@@ -224,7 +224,12 @@ public enum ActionType {
      * Entity added to an entity group. Does not push to rule engine - PE has no TbMsgType for this
      * either, so the no-arg constructor is used deliberately to avoid a TbMsgType ripple.
      */
-    ADDED_TO_ENTITY_GROUP;
+    ADDED_TO_ENTITY_GROUP,
+    /**
+     * Entity removed from an entity group. Same rationale as the value above: no TbMsgType in PE
+     * either, so the no-arg constructor is deliberate.
+     */
+    REMOVED_FROM_ENTITY_GROUP;
 
     @Getter
     private final boolean read;

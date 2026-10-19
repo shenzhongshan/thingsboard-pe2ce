@@ -1,4 +1,4 @@
-#### Decoder example metadata
+#### 解码器示例元数据
 
 | Key        | Value |
 |------------|-------|

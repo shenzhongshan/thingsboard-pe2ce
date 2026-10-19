@@ -30,14 +30,18 @@ export class IntegrationService {
   constructor(private http: HttpClient) {
   }
 
-  public getIntegrations(pageLink: PageLink, config?: RequestConfig): Observable<PageData<Integration>> {
-    return this.http.get<PageData<Integration>>(`/api/integrations${pageLink.toQuery()}`,
+  public getIntegrations(pageLink: PageLink, isEdgeTemplate = false,
+                         config?: RequestConfig): Observable<PageData<Integration>> {
+    return this.http.get<PageData<Integration>>(
+      `/api/integrations${pageLink.toQuery()}&isEdgeTemplate=${isEdgeTemplate}`,
       defaultHttpOptionsFromConfig(config));
   }
 
   /** Integrations with their runtime status and 24h activity series, in one request. */
-  public getIntegrationInfos(pageLink: PageLink, config?: RequestConfig): Observable<PageData<IntegrationInfo>> {
-    return this.http.get<PageData<IntegrationInfo>>(`/api/integrationInfos${pageLink.toQuery()}`,
+  public getIntegrationInfos(pageLink: PageLink, isEdgeTemplate = false,
+                             config?: RequestConfig): Observable<PageData<IntegrationInfo>> {
+    return this.http.get<PageData<IntegrationInfo>>(
+      `/api/integrationInfos${pageLink.toQuery()}&isEdgeTemplate=${isEdgeTemplate}`,
       defaultHttpOptionsFromConfig(config));
   }
 
@@ -63,6 +67,26 @@ export class IntegrationService {
 
   public getIntegrationStatus(integrationId: string, config?: RequestConfig): Observable<IntegrationStatus> {
     return this.http.get<IntegrationStatus>(`/api/integration/${integrationId}/status`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  /** 分配给某台 edge 的集成。只有 edge 模板类型的集成才能被分配（后端会校验）。 */
+  public getEdgeIntegrations(edgeId: string, pageLink: PageLink,
+                             config?: RequestConfig): Observable<PageData<Integration>> {
+    return this.http.get<PageData<Integration>>(
+      `/api/edge/${edgeId}/integrations${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public assignIntegrationToEdge(edgeId: string, integrationId: string,
+                                 config?: RequestConfig): Observable<Integration> {
+    return this.http.post<Integration>(`/api/edge/${edgeId}/integration/${integrationId}`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public unassignIntegrationFromEdge(edgeId: string, integrationId: string,
+                                     config?: RequestConfig): Observable<Integration> {
+    return this.http.delete<Integration>(`/api/edge/${edgeId}/integration/${integrationId}`,
       defaultHttpOptionsFromConfig(config));
   }
 
