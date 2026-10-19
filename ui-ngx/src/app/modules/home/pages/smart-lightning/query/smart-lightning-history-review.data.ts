@@ -88,7 +88,7 @@ export const getSmartLightningTelemetryParameterUnit = (
   return definitions.find((item) => item.key === key)?.unit || '';
 };
 
-/** 回顾趋势只展示数值参数，状态/枚举值不放入单选列表。 */
+/** 防雷仅展示当前型号已配置中文语义的数值参数；外部模块传入定义时保持既有过滤行为。 */
 export const filterSmartLightningTelemetryParameters = (
   deviceProfileName: string,
   keys: string[],
@@ -101,6 +101,11 @@ export const filterSmartLightningTelemetryParameters = (
       return false;
     }
     const definition = definitions.find((item) => item.key === key);
+    // 防雷型号测点清单已完整：旧键、未知键不能以纯英文形式混入历史回顾。
+    // 电气安全等调用方显式传入定义时，保留其原有筛选契约。
+    if (metricDefinitions === undefined && !definition) {
+      return false;
+    }
     return definition?.valueType !== 'status' && definition?.chartable !== false && !/(status|state)$/i.test(key);
   });
 };

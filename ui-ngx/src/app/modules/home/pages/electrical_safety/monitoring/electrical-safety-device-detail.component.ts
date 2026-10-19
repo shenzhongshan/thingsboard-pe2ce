@@ -706,6 +706,17 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
       type: 'line' as const,
       smooth: true,
       data: item.points,
+      // 每条曲线使用自身测点单位；保留ECharts原生时间、图例标记和轴触发提示。
+      tooltip: {
+        valueFormatter: (value: unknown): string => {
+          // 时间序列数据为[时间戳,数值]，提示只格式化数值，不改变存储数据或精度。
+          const numericValue = Array.isArray(value) ? value[1] : value;
+          if (numericValue === null || numericValue === undefined || numericValue === '') {
+            return '--';
+          }
+          return `${numericValue}${item.definition.unit}`;
+        }
+      },
       symbol: 'none',
       lineStyle: {width: 2.2, color: colors[index % colors.length]},
       areaStyle: {color: 'rgba(25,92,232,.04)'}

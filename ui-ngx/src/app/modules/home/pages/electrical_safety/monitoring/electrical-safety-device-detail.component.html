@@ -58,10 +58,10 @@
             <div class="metric-grid">
               @for (metric of metrics; track metric.key) {
                 <div class="metric" [title]="metric.key">
-                  <span>{{metric.label}}</span>
+                  <span [title]="metric.label">{{metric.label}}</span>
                   <!-- 数值和单位作为整体适配可用宽度，遥测更新与窗口缩放后均重新测量。 -->
                   <strong class="metric-value"
-                          [tbElectricalSafetyFitValue]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')"
+                          [tbTelemetryFitValue]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')"
                           [title]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')">{{metric.value}}{{metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : ''}}</strong>
                 </div>
               }

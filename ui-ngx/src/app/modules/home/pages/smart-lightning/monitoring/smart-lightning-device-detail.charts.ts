@@ -63,7 +63,7 @@ const phaseSeries = (
   label: string,
   unit: string
 ): SmartLightningChartSeriesDefinition[] => keys.map((key, index) => {
-  const suffix = key.startsWith('Ph') || key.startsWith('LeakCurr') ? String.fromCharCode(65 + index) : key.startsWith('Temp') ? String(index + 1) : key === 'AmbTemp' ? '环境' : key === 'SpdTemp' ? 'SPD' : '';
+  const suffix = key.startsWith('Ph') || key.startsWith('LeakCurr') ? String.fromCharCode(65 + index) : key.startsWith('Temp') ? String(index + 1) : '';
   return series(key, `${suffix}${label}`, unit);
 });
 
@@ -80,10 +80,32 @@ const leakage = (count = 3): SmartLightningChartSeriesDefinition[] =>
   phaseSeries(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'].slice(0, count), '相漏电流', SMART_LIGHTNING_UNITS.leakageCurrent);
 const temperature = (count: number, keys: readonly string[] = ['Temp1', 'Temp2', 'Temp3', 'Temp4']): SmartLightningChartSeriesDefinition[] =>
   phaseSeries(keys.slice(0, count), '温度', SMART_LIGHTNING_UNITS.temperature);
-const life = (): SmartLightningChartSeriesDefinition[] =>
-  [series('LifeLeft', '防雷器寿命', SMART_LIGHTNING_UNITS.percentage)];
 const lightningCount = (): SmartLightningChartSeriesDefinition[] =>
   [series('StrikeCnt', '雷击次数', SMART_LIGHTNING_UNITS.count)];
+/** 新版SPD寿命与诊断曲线按单位独立分组；只引用已入库原值，不作倍率换算。 */
+const spdLife = (): SmartLightningChartSeriesDefinition[] =>
+  [series('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage)];
+/** DES9／DESA／DEM4具有三相健康度，DEM2仅有A相；平均漏流仅为DES9／DESA配置。 */
+const spdDiagnosticCharts = (priority: number, threePhase: boolean, hasAverageLeakage = threePhase): SmartLightningChartDefinition[] => {
+  const definitions = [
+    chart('spdHealth', '分相健康度', priority,
+      (threePhase ? ['A', 'B', 'C'] : ['A']).map((phase) =>
+        series(`SPD_RUL${phase}`, `${phase}相健康度`, SMART_LIGHTNING_UNITS.percentage))),
+    chart('spdLifeDays', '剩余寿命天数', priority + 1, [series('SPD_RULDay', '剩余寿命天数', '天')]),
+    chart('spdTemperatureRise', '温升指标', priority + 2,
+      [series('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)])
+  ];
+  if (hasAverageLeakage) {
+    // 平均值由设备直接上报，不在前端根据瞬时漏流重新计算。
+    definitions.push(
+      chart('spdLeakage1h', '1小时平均漏流', priority + 3, ['A', 'B', 'C'].map((phase) =>
+        series(`SPD_I1h${phase}`, `${phase}相1小时平均漏流`, SMART_LIGHTNING_UNITS.leakageCurrent))),
+      chart('spdLeakage24h', '24小时平均漏流', priority + 4, ['A', 'B', 'C'].map((phase) =>
+        series(`SPD_I24h${phase}`, `${phase}相24小时平均漏流`, SMART_LIGHTNING_UNITS.leakageCurrent)))
+    );
+  }
+  return definitions;
+};
 /**
  * 按型号定义趋势图优先级。此处只定义“该产品负责监测什么”，不读取接口、不生成演示数据。
  * 规则：先按产品职责排序，再由可用规范遥测键过滤，最终最多显示四个趋势图。
@@ -93,70 +115,95 @@ export const SMART_LIGHTNING_CHART_DEFINITIONS: Readonly<Record<string, readonly
     chart('voltage', '相电压', 1, voltage()),
     chart('leakage', '漏电流', 2, leakage()),
     chart('temperature', '温度', 3, temperature(2)),
-    chart('life', '剩余寿命', 4, [series('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage)]),
-    chart('StrikeCnt', '雷击次数', 5, lightningCount())
+    chart('life', '剩余寿命', 4, spdLife()),
+    chart('StrikeCnt', '雷击次数', 5, lightningCount()),
+    ...spdDiagnosticCharts(6, true)
   ],
   DES4: [chart('StrikeCnt', '雷击次数', 1, lightningCount())],
   DES9: [
     chart('leakage', '漏电流', 1, leakage()),
     chart('temperature', '温度', 2, temperature(2)),
-    chart('StrikeCnt', '雷击次数', 3, lightningCount())
+    chart('StrikeCnt', '雷击次数', 3, lightningCount()),
+    chart('life', '剩余寿命', 4, spdLife()),
+    ...spdDiagnosticCharts(5, true)
   ],
   DEM2: [
     chart('temperature', '温度', 1, temperature(2)),
-    chart('life', '寿命', 2, life()),
-    chart('StrikeCnt', '雷击次数', 3, lightningCount())
+    chart('life', '剩余寿命', 2, spdLife()),
+    chart('StrikeCnt', '雷击次数', 3, lightningCount()),
+    ...spdDiagnosticCharts(4, false)
   ],
   DEM4: [
     chart('temperature', '温度', 1, temperature(4)),
-    chart('life', '寿命', 2, life()),
-    chart('StrikeCnt', '雷击次数', 3, lightningCount())
+    chart('life', '剩余寿命', 2, spdLife()),
+    chart('StrikeCnt', '雷击次数', 3, lightningCount()),
+    ...spdDiagnosticCharts(4, true, false)
   ],
   DEA2: [
     chart('leakage', '漏电流', 1, leakage(1)),
     chart('temperature', '温度', 2, temperature(2)),
-    chart('life', '寿命', 3, life()),
-    chart('StrikeCnt', '雷击次数', 4, lightningCount())
+    chart('life', '剩余寿命', 3, spdLife()),
+    chart('StrikeCnt', '雷击次数', 4, lightningCount()),
+    ...spdDiagnosticCharts(5, false),
+    // DEA2仅有A相平均漏流，使用实际报文中的无L键；直接画上报值，不重新聚合或换算。
+    chart('spdLeakage1h', '1小时平均漏流', 8,
+      [series('SPD_I1hA', 'A相1小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent)]),
+    chart('spdLeakage24h', '24小时平均漏流', 9,
+      [series('SPD_I24hA', 'A相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent)])
   ],
   DEA4: [
     chart('leakage', '漏电流', 1, leakage()),
     chart('temperature', '温度', 2, temperature(4)),
-    chart('life', '寿命', 3, life()),
-    chart('StrikeCnt', '雷击次数', 4, lightningCount())
+    chart('life', '剩余寿命', 3, spdLife()),
+    chart('StrikeCnt', '雷击次数', 4, lightningCount()),
+    ...spdDiagnosticCharts(5, true, false),
+    // 按用户确认使用不带L的三相平均漏流键，不重新计算平均值或执行换算。
+    chart('spdLeakage1h', '1小时平均漏流', 8, ['A', 'B', 'C'].map((phase) =>
+      series(`SPD_I1h${phase}`, `${phase}相1小时平均漏流`, SMART_LIGHTNING_UNITS.leakageCurrent))),
+    chart('spdLeakage24h', '24小时平均漏流', 9, ['A', 'B', 'C'].map((phase) =>
+      series(`SPD_I24h${phase}`, `${phase}相24小时平均漏流`, SMART_LIGHTNING_UNITS.leakageCurrent)))
   ],
   ESM0: [
-    chart('temperature', '温度', 1, [series('SpdTemp', 'SPD温度', SMART_LIGHTNING_UNITS.temperature)]),
+    chart('temperature', '温度', 1, [series('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature)]),
     chart('StrikeCnt', '雷击次数', 2, lightningCount())
   ],
   ESM3: [
     chart('voltage', '相电压', 1, voltage()),
     chart('leakage', '漏电流', 2, leakage()),
-    chart('temperature', '温度', 3, temperature(2, ['AmbTemp', 'SpdTemp'])),
-    chart('life', '寿命', 4, life()),
-    chart('StrikeCnt', '雷击次数', 5, lightningCount())
+    // 温度图例与实时数据保持一致，按Temp1／Temp2显示温度1／温度2。
+    chart('temperature', '温度', 3, [
+      series('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature),
+      series('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature)
+    ]),
+    chart('life', '剩余寿命', 4, spdLife()),
+    chart('StrikeCnt', '雷击次数', 5, lightningCount()),
+    ...spdDiagnosticCharts(6, true)
   ],
   G1A3: [
     chart('GndGridRes', '地网阻值', 1, [series('GndGridRes', '地网阻值', SMART_LIGHTNING_UNITS.resistance)]),
-    chart('SampleCnt', '采集次数', 2, [series('SampleCnt', '采集次数', SMART_LIGHTNING_UNITS.count)]),
-    chart('SamplePrd', '采集周期', 3, [series('SamplePrd', '采集周期', SMART_LIGHTNING_UNITS.interval)])
+    chart('GndVolt', '地网电压', 2, [series('GndVolt', '地网电压', SMART_LIGHTNING_UNITS.voltage)]),
+    chart('SampleCnt', '采集次数', 3, [series('SampleCnt', '采集次数', SMART_LIGHTNING_UNITS.count)]),
+    chart('SamplePrd', '采集周期', 4, [series('SamplePrd', '采集周期', SMART_LIGHTNING_UNITS.interval)])
+    // ResDecimal仅在实时信息中展示，不作为连续物理量绘图，也不参与阻值换算。
   ],
   M1AI: [
-    chart('peakCurrent', '雷电流峰值', 1, [series('PeakValue', '雷电流峰值', SMART_LIGHTNING_UNITS.lightningCurrent)]),
-    chart('SurgeCnt', '电涌次数', 2, [series('SurgeCnt', '电涌次数', SMART_LIGHTNING_UNITS.count)]),
-    chart('StrikeDur', '持续时间', 3, [series('StrikeDur', '持续时间', SMART_LIGHTNING_UNITS.duration)]),
-    chart('Charge', '电荷量', 4, [series('Charge', '电荷量', SMART_LIGHTNING_UNITS.charge)]),
+    chart('peakCurrent', '雷电峰值', 1, [series('PeakCur', '雷电峰值', SMART_LIGHTNING_UNITS.lightningCurrent)]),
+    chart('StrikeCnt', '雷击次数', 2, [series('StrikeCnt', '雷击次数', SMART_LIGHTNING_UNITS.count)]),
+    chart('KeepTime', '持续时间', 3, [series('KeepTime', '持续时间', SMART_LIGHTNING_UNITS.duration)]),
+    chart('EleCharge', '电荷量', 4, [series('EleCharge', '电荷量', SMART_LIGHTNING_UNITS.electricCharge)]),
     chart('PeakVolt', '峰值电压', 5, [series('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage)]),
-    chart('SpecEnergy', '单位能量', 6, [series('SpecEnergy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy)]),
-    chart('WaveImp', '波阻抗', 7, [series('WaveImp', '波阻抗', SMART_LIGHTNING_UNITS.resistance)])
+    chart('Energy', '单位能量', 6, [series('Energy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy)]),
+    chart('CharImpe', '波阻抗值', 7, [series('CharImpe', '波阻抗值', SMART_LIGHTNING_UNITS.resistance)])
+    // 极性为枚举，不绘制成连续物理量曲线；实际报文没有年月日字段。
   ],
   L2AI: [
-    chart('peakCurrent', '瞬态电流峰值', 1, [series('PeakValue', '瞬态电流峰值', SMART_LIGHTNING_UNITS.lightningCurrent)]),
+    chart('peakCurrent', '雷电峰值', 1, [series('PeakCur', '雷电峰值', SMART_LIGHTNING_UNITS.lightningCurrent)]),
     chart('SurgeCnt', '电涌次数', 2, [series('SurgeCnt', '电涌次数', SMART_LIGHTNING_UNITS.count)]),
-    chart('StrikeDur', '持续时间', 3, [series('StrikeDur', '持续时间', SMART_LIGHTNING_UNITS.duration)]),
-    chart('Charge', '电荷量', 4, [series('Charge', '电荷量', SMART_LIGHTNING_UNITS.charge)]),
+    chart('KeepTime', '持续时间', 3, [series('KeepTime', '持续时间', SMART_LIGHTNING_UNITS.duration)]),
+    chart('EleCharge', '电荷量', 4, [series('EleCharge', '电荷量', SMART_LIGHTNING_UNITS.electricCharge)]),
     chart('PeakVolt', '峰值电压', 5, [series('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage)]),
-    chart('SpecEnergy', '单位能量', 6, [series('SpecEnergy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy)]),
-    chart('WaveImp', '波阻抗', 7, [series('WaveImp', '波阻抗', SMART_LIGHTNING_UNITS.resistance)])
+    chart('Energy', '单位能量', 6, [series('Energy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy)]),
+    chart('CharImpe', '波阻抗值', 7, [series('CharImpe', '波阻抗值', SMART_LIGHTNING_UNITS.resistance)])
   ],
   DEP4: [
     chart('temperature', '温度', 1, [series('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature)]),

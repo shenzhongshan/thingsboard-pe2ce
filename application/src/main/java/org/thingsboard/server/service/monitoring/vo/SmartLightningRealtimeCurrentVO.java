@@ -18,7 +18,7 @@ public class SmartLightningRealtimeCurrentVO {
     private final int onlineDevices;
     private final int offlineDevices;
     private final int alarmDeviceCount;
-    /** 各设备最新 SurgeCnt 累计值之和。 */
+    /** 各设备按型号读取的最新累计值之和（M1AI为StrikeCnt，L2AI为SurgeCnt）。 */
     private final long totalSurgeCount;
     /** 所有设备中时间戳最新的一条 PeakValue。 */
     private final Double latestPeakCurrent;

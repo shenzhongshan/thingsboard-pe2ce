@@ -17,6 +17,7 @@ export const SMART_LIGHTNING_UNITS = {
   interval: 'min',
   duration: 'μs',
   charge: 'As',
+  electricCharge: 'C',
   specificEnergy: 'kJ/Ω',
   empty: ''
 } as const;

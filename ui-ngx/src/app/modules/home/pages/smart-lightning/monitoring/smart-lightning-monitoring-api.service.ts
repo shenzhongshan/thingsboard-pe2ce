@@ -188,11 +188,12 @@ export interface SmartLightningSpdMonitoringSummary {
   /** 温度正常设备数，以及有任意 Temp 键的设备总数；同一设备任一温度异常即不计为正常。 */
   temperatureNormalCount: number;
   temperatureDeviceCount: number;
-  /** LifeLeft 不低于 60% 的设备数，以及有 LifeLeft 参数的设备总数。 */
+  /** SPD_RUL 不低于 20% 的设备数，以及有 SPD_RUL 参数的设备总数。 */
   degradationNormalCount: number;
   degradationDeviceCount: number;
   /** 所选周期内 StrikeCnt 的累计增量。 */
-  lightningCount: number;
+  /** 无基线且仅有首条累计值时为null，不将历史累计误算为本周期次数。 */
+  lightningCount: number | null;
   /** 所选周期内温度的最大值和最小值。 */
   temperatureExtrema: SmartLightningSpdMetricExtrema;
   /** 所选周期内漏电流的最大值和最小值。 */
@@ -209,7 +210,8 @@ export interface SmartLightningCurrentMonitoringSummary {
   alarmCount: number;
   /** 所选周期内按告警类型统计的数量，接口已按数量降序返回。 */
   alarmTypeTotals: SmartLightningAlarmTypeTotal[];
-  eventCount: number;
+  /** 任一设备增量尚不可确定时为null。 */
+  eventCount: number | null;
   maxPeakCurrent: number | null;
   /** 后端返回的雷击脉冲峰值电流单位；产品说明书规定为 kA。 */
   peakCurrentUnit?: string | null;

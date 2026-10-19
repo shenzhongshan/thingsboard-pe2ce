@@ -15,7 +15,7 @@
 ///
 
 export const environment = {
-  appTitle: '微物联',
+  appTitle: '',
   production: true,
 // @ts-ignore
   tbVersion: TB_VERSION,

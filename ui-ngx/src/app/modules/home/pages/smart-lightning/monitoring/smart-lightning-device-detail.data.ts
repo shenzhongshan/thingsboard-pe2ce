@@ -56,6 +56,8 @@ export interface SmartLightningRealtimeMetricDefinition {
  */
 const ALARM_STATUS_VALUES: Readonly<Record<string, string>> = {0: '正常', 1: '异常'};
 const POLARITY_VALUES: Readonly<Record<string, string>> = {0: '负极', 1: '正极'};
+/** M1AI新版协议与L2AI分开维护极性方向，不改变未更新型号的定义。 */
+const M1AI_POLARITY_VALUES: Readonly<Record<string, string>> = {0: '正极性', 1: '负极性'};
 
 const statusMetric = (
   key: string,
@@ -91,12 +93,13 @@ const resolveStatusDisplayValue = (
 };
 
 /** 将雷电流极性遥测值转换为中文显示文本，未识别值保留原文且不改遥测快照。 */
-export const formatSmartLightningPolarityLabel = (value: unknown): string => {
+export const formatSmartLightningPolarityLabel = (value: unknown, deviceProfileName?: string): string => {
   if (value === null || value === undefined || String(value).trim() === '') {
     return '--';
   }
   const rawText = String(value);
-  return resolveStatusDisplayValue(rawText, POLARITY_VALUES) || rawText;
+  const valueMap = resolveSmartLightningDeviceModel(deviceProfileName) === 'M1AI' ? M1AI_POLARITY_VALUES : POLARITY_VALUES;
+  return resolveStatusDisplayValue(rawText, valueMap) || rawText;
 };
 
 const telemetryMetric = (
@@ -121,7 +124,7 @@ const SMART_LIGHTNING_MODEL_ALIASES: Readonly<Record<string, readonly string[]>>
   ESM0: ['ESM0', 'ESM防雷监测模组（基础版）', 'ESM防雷监测模组(基础版)'],
   ESM3: ['ESM3', 'ESM防雷监测模组（旗舰版）', 'ESM防雷监测模组(旗舰版)'],
   G1A3: ['G1A3', 'FR接地电阻监测模块'],
-  M1AI: ['M1AI', 'FL雷电流监测模块（峰值型）', 'FL雷电流监测模块(峰值型)'],
+  M1AI: ['M1AI', 'FL雷电流监测模块', 'FL雷电流监测模块（峰值型）', 'FL雷电流监测模块(峰值型)'],
   L2AI: ['L2AI', 'FL瞬态电流监测模块'],
   DEP4: ['DEP4', 'FSP防雷监测底座']
 };
@@ -137,28 +140,34 @@ export const resolveSmartLightningDeviceModel = (deviceProfileName?: string): st
     .find(([, aliases]) => aliases.some((alias) => alias.toUpperCase() === upperValue))?.[0];
 };
 
-/** DES9／DESA 共用的新协议诊断项；枚举和告警位码保持原始整数，仅在展示时解释。 */
+/** DES9／DESA 共用的新协议诊断项；枚举和告警序号保持原始整数，仅在展示时解释。 */
 const DES_DEVICE_STATES: Readonly<Record<string, string>> = {
   0: '初始化', 1: '学习中', 2: '学习保持', 3: '事件', 4: '正常',
   5: '观察', 6: '预警', 7: '危急', 8: '故障'
 };
 const DES_DEGRADATION_REASONS: Readonly<Record<string, string>> = {0: '无', 1: '漏流', 2: '温升', 3: '趋势', 4: '雷击'};
-const DES_ALARM_BITS = [
-  '遥信脱扣', 'PE接地异常', '电压状态报警', 'L1漏流偏高', 'L2漏流偏高',
-  'L3漏流偏高', '温升异常', '剩余寿命偏低', '雷击后漏流上升', '健康度偏低',
-  '建议更换', '漏流接近饱和', '温度高危', '传感器异常', '基准学习失败'
-];
-/** 仅解析协议定义的15位告警；非法值及未知高位保留原文便于排查。 */
-const formatDesAlarmCode = (rawText: string): string => {
+/**
+ * 所有已接入SPD诊断型号统一按整数告警序号查表，不仅针对编码6；禁止按位组合解释。
+ * 0按协议“正常”处理，不将旧表bit0的遥信脱扣误当作编码0异常；未知码保留原值。
+ */
+const SPD_ALARM_CODE_LABELS: Readonly<Record<string, string>> = {
+  0: '正常', 1: 'PE接地异常', 2: '电压状态报警',
+  3: 'L1漏流偏高', 4: 'L2漏流偏高', 5: 'L3漏流偏高',
+  6: '温升异常', 7: '剩余寿命偏低', 8: '雷击后漏流上升',
+  9: '健康度偏低', 10: '建议更换', 11: '漏流接近饱和',
+  12: '温度高危', 13: '传感器异常', 14: '基准学习失败'
+};
+/** 按实际设备的单个告警序号查表，不执行位运算或组合告警解释。 */
+const formatSpdAlarmCode = (rawText: string): string => {
   const code = Number(rawText);
-  if (!Number.isInteger(code) || code < 0 || code > 32767) {
+  if (!Number.isInteger(code)) {
     return rawText;
   }
-  return code === 0 ? '正常' : DES_ALARM_BITS.filter((_, bit) => (code & (1 << bit)) !== 0).join('、');
+  return SPD_ALARM_CODE_LABELS[String(code)] ?? rawText;
 };
 const desDiagnosticStatusMetrics = (): SmartLightningRealtimeMetricDefinition[] => [
   statusMetric('SPD_Status', '设备状态', '__', DES_DEVICE_STATES),
-  statusMetric('SPD_Alarm', '告警码', '__', {}),
+  statusMetric('SPD_Alarm', '告警码', '__', SPD_ALARM_CODE_LABELS),
   statusMetric('SPD_WorstPh', '最差相', '__', {0: 'A相', 1: 'B相', 2: 'C相'}),
   statusMetric('SPD_Reason', '退化原因', '__', DES_DEGRADATION_REASONS)
 ];
@@ -214,40 +223,69 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature, '__'),
     ...desDiagnosticNumericMetrics()
   ],
+  // DEM2新版14项：仅使用本型号已确认的键，状态优先；诊断枚举及告警序号解释与DES共用，数值不换算。
   DEM2: [
-    statusMetric('VoltStsA', 'A相电压状态'), statusMetric('GndStatus', '接地状态'),
-    statusMetric('Trip1', '脱扣1'), statusMetric('Trip2', '脱扣2'),
+    statusMetric('PhAStatus', 'A相电压状态'),
+    statusMetric('GndStatus', '接地状态'),
+    statusMetric('TripSW1', '脱扣1'),
+    statusMetric('TripSW2', '脱扣2'),
+    statusMetric('SPD_Status', '设备状态', '__', DES_DEVICE_STATES),
+    statusMetric('SPD_Alarm', '告警码', '__', SPD_ALARM_CODE_LABELS),
+    statusMetric('SPD_Reason', '退化原因', '__', DES_DEGRADATION_REASONS),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('LifeLeft', '预估寿命', SMART_LIGHTNING_UNITS.percentage)
+    telemetryMetric('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULDay', '剩余寿命天数', '天'),
+    telemetryMetric('SPD_RULA', 'A相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)
   ],
+  // DEM4新版23项：状态优先，复用已确认的SPD枚举及告警序号解释，数值保持原值。
   DEM4: [
-    statusMetric('VoltStsA', 'A相电压状态'), statusMetric('VoltStsB', 'B相电压状态'),
-    statusMetric('VoltStsC', 'C相电压状态'), statusMetric('GndStatus', '接地状态'),
-    statusMetric('Trip1', '脱扣1'), statusMetric('Trip2', '脱扣2'),
-    statusMetric('Trip3', '脱扣3'), statusMetric('Trip4', '脱扣4'),
+    statusMetric('PhAStatus', 'A相电压状态'),
+    statusMetric('PhBStatus', 'B相电压状态'),
+    statusMetric('PhCStatus', 'C相电压状态'),
+    statusMetric('GndStatus', '接地状态'),
+    statusMetric('TripSW1', '脱扣1'), statusMetric('TripSW2', '脱扣2'),
+    statusMetric('TripSW3', '脱扣3'), statusMetric('TripSW4', '脱扣4'),
+    ...desDiagnosticStatusMetrics(),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp3', '温度3', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp4', '温度4', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('LifeLeft', '预估寿命', SMART_LIGHTNING_UNITS.percentage)
+    telemetryMetric('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULDay', '剩余寿命天数', '天'),
+    telemetryMetric('SPD_RULA', 'A相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULB', 'B相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULC', 'C相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)
   ],
+  // DEA2新版17项：单相测点独立配置，平均漏流键以实际报文为准，不带L。
   DEA2: [
-    statusMetric('VoltStsA', 'A相电压状态'), statusMetric('GndStatus', '接地状态'),
-    statusMetric('Trip1', '脱扣1'), statusMetric('Trip2', '脱扣2'),
+    statusMetric('PhAStatus', 'A相电压状态'), statusMetric('GndStatus', '接地状态'),
+    statusMetric('TripSW1', '脱扣1'), statusMetric('TripSW2', '脱扣2'),
+    statusMetric('SPD_Status', '设备状态', '__', DES_DEVICE_STATES),
+    statusMetric('SPD_Alarm', '告警码', '__', SPD_ALARM_CODE_LABELS),
+    statusMetric('SPD_Reason', '退化原因', '__', DES_DEGRADATION_REASONS),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('LeakCurrA', 'A相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
     telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('LifeLeft', '预估寿命', SMART_LIGHTNING_UNITS.percentage)
+    telemetryMetric('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULDay', '剩余寿命天数', '天'),
+    telemetryMetric('SPD_RULA', 'A相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_I1hA', 'A相1小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I24hA', 'A相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)
   ],
+  // DEA4新版32项：三相状态、诊断和数值按型号独立配置，平均漏流键按用户确认不带L。
   DEA4: [
-    statusMetric('VoltStsA', 'A相电压状态'), statusMetric('VoltStsB', 'B相电压状态'),
-    statusMetric('VoltStsC', 'C相电压状态'), statusMetric('GndStatus', '接地状态'),
-    statusMetric('Trip1', '脱扣1'), statusMetric('Trip2', '脱扣2'),
-    statusMetric('Trip3', '脱扣3'), statusMetric('Trip4', '脱扣4'),
+    statusMetric('PhAStatus', 'A相电压状态'), statusMetric('PhBStatus', 'B相电压状态'),
+    statusMetric('PhCStatus', 'C相电压状态'), statusMetric('GndStatus', '接地状态'),
+    statusMetric('TripSW1', '脱扣1'), statusMetric('TripSW2', '脱扣2'),
+    statusMetric('TripSW3', '脱扣3'), statusMetric('TripSW4', '脱扣4'),
+    ...desDiagnosticStatusMetrics(),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('LeakCurrA', 'A相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
     telemetryMetric('LeakCurrB', 'B相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
@@ -256,15 +294,31 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp3', '温度3', SMART_LIGHTNING_UNITS.temperature),
     telemetryMetric('Temp4', '温度4', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('LifeLeft', '预估寿命', SMART_LIGHTNING_UNITS.percentage)
+    telemetryMetric('SPD_RUL', '剩余寿命', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULDay', '剩余寿命天数', '天'),
+    telemetryMetric('SPD_RULA', 'A相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULB', 'B相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_RULC', 'C相健康度', SMART_LIGHTNING_UNITS.percentage),
+    telemetryMetric('SPD_I1hA', 'A相1小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I1hB', 'B相1小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I1hC', 'C相1小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I24hA', 'A相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I24hB', 'B相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_I24hC', 'C相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
+    telemetryMetric('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)
   ],
+  // ESM基础版仅有5项，温度名称与协议键Temp1对应，不保留旧显示别名。
   ESM0: [
-    statusMetric('RemoteSig', '遥信状态'), statusMetric('McbStatus', '空开状态'),
-    statusMetric('GndStatus', '接地状态'), telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
-    telemetryMetric('SpdTemp', 'SPD温度', SMART_LIGHTNING_UNITS.temperature)
+    statusMetric('RemoteSig', 'SPD状态'), statusMetric('McbStatus', '空开状态'),
+    statusMetric('GndStatus', '接地状态'),
+    telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
+    telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature)
   ],
+  // ESM旗舰版使用28个实际协议键，温度直接显示为温度1／温度2，平均漏流键不带L。
   ESM3: [
-    statusMetric('RemoteSig', '遥信状态'), statusMetric('McbStatus', '空开状态'), statusMetric('GndStatus', '接地状态'),
+    statusMetric('RemoteSig', 'SPD状态'), statusMetric('McbStatus', '空开状态'),
+    statusMetric('GndStatus', '接地状态'),
+    ...desDiagnosticStatusMetrics(),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
     telemetryMetric('PhAVolt', 'A相电压', SMART_LIGHTNING_UNITS.voltage),
     telemetryMetric('PhBVolt', 'B相电压', SMART_LIGHTNING_UNITS.voltage),
@@ -272,30 +326,39 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('LeakCurrA', 'A相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
     telemetryMetric('LeakCurrB', 'B相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
     telemetryMetric('LeakCurrC', 'C相漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
-    telemetryMetric('AmbTemp', '环境温度', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('SpdTemp', 'SPD温度', SMART_LIGHTNING_UNITS.temperature),
-    telemetryMetric('LifeLeft', '预估寿命', SMART_LIGHTNING_UNITS.percentage)
+    telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature),
+    telemetryMetric('Temp2', '温度2', SMART_LIGHTNING_UNITS.temperature),
+    ...desDiagnosticNumericMetrics()
   ],
-  G1A3: [telemetryMetric('SampleCnt', '采集次数', SMART_LIGHTNING_UNITS.count), telemetryMetric('SamplePrd', '采集周期', SMART_LIGHTNING_UNITS.interval), telemetryMetric('GndGridRes', '地网阻值', SMART_LIGHTNING_UNITS.resistance)],
+  // G1A3只展示已确认的5个新键；小数位字段按表中单位展示，不驱动阻值缩放。
+  G1A3: [
+    telemetryMetric('SampleCnt', '采集次数', SMART_LIGHTNING_UNITS.count),
+    telemetryMetric('SamplePrd', '采集周期', SMART_LIGHTNING_UNITS.interval),
+    telemetryMetric('GndVolt', '地网电压', SMART_LIGHTNING_UNITS.voltage),
+    telemetryMetric('GndGridRes', '地网阻值', SMART_LIGHTNING_UNITS.resistance),
+    telemetryMetric('ResDecimal', '阻值小数位', SMART_LIGHTNING_UNITS.resistance)
+  ],
+  // M1AI仅使用实际报文8项；峰值键PeakCur，极性0正1负，不作倍率换算。
   M1AI: [
-    telemetryMetric('SurgeCnt', '电涌次数', SMART_LIGHTNING_UNITS.count),
-    telemetryMetric('PeakValue', '峰值', SMART_LIGHTNING_UNITS.lightningCurrent),
-    statusMetric('Polarity', '极性', '__', POLARITY_VALUES),
-    telemetryMetric('StrikeDur', '持续时间', SMART_LIGHTNING_UNITS.duration),
-    telemetryMetric('Charge', '电荷量', SMART_LIGHTNING_UNITS.charge),
-    telemetryMetric('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage),
-    telemetryMetric('SpecEnergy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy),
-    telemetryMetric('WaveImp', '波阻抗', SMART_LIGHTNING_UNITS.resistance)
+    statusMetric('Polarity', '雷电极性', '__', M1AI_POLARITY_VALUES),
+    telemetryMetric('StrikeCnt', '雷击次数', SMART_LIGHTNING_UNITS.count),
+    telemetryMetric('PeakCur', '雷电峰值', SMART_LIGHTNING_UNITS.lightningCurrent),
+    telemetryMetric('KeepTime', '持续时间', SMART_LIGHTNING_UNITS.duration),
+    telemetryMetric('CharImpe', '波阻抗值', SMART_LIGHTNING_UNITS.resistance),
+    telemetryMetric('EleCharge', '电荷量', SMART_LIGHTNING_UNITS.electricCharge),
+    telemetryMetric('Energy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy),
+    telemetryMetric('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage)
   ],
+  // L2AI实际报文8项：只读新键，计数为SurgeCnt；未重新确认的极性方向保持原配置。
   L2AI: [
+    statusMetric('Polarity', '雷电极性', '__', POLARITY_VALUES),
     telemetryMetric('SurgeCnt', '电涌次数', SMART_LIGHTNING_UNITS.count),
-    telemetryMetric('PeakValue', '峰值', SMART_LIGHTNING_UNITS.lightningCurrent),
-    statusMetric('Polarity', '极性', '__', POLARITY_VALUES),
-    telemetryMetric('StrikeDur', '持续时间', SMART_LIGHTNING_UNITS.duration),
-    telemetryMetric('Charge', '电荷量', SMART_LIGHTNING_UNITS.charge),
-    telemetryMetric('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage),
-    telemetryMetric('SpecEnergy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy),
-    telemetryMetric('WaveImp', '波阻抗', SMART_LIGHTNING_UNITS.resistance)
+    telemetryMetric('PeakCur', '雷电峰值', SMART_LIGHTNING_UNITS.lightningCurrent),
+    telemetryMetric('KeepTime', '持续时间', SMART_LIGHTNING_UNITS.duration),
+    telemetryMetric('CharImpe', '波阻抗值', SMART_LIGHTNING_UNITS.resistance),
+    telemetryMetric('EleCharge', '电荷量', SMART_LIGHTNING_UNITS.electricCharge),
+    telemetryMetric('Energy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy),
+    telemetryMetric('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage)
   ],
   DEP4: [
     statusMetric('RemoteSig', '遥信状态'),
@@ -323,7 +386,7 @@ export const formatSmartLightningRealtimeMetricValue = (
   }
   const rawText = String(rawValue);
   const displayValue = definition.valueMap
-    ? (definition.key === 'SPD_Alarm' ? formatDesAlarmCode(rawText) : resolveStatusDisplayValue(rawText, definition.valueMap)) || rawText
+    ? (definition.valueMap === SPD_ALARM_CODE_LABELS ? formatSpdAlarmCode(rawText) : resolveStatusDisplayValue(rawText, definition.valueMap)) || rawText
     : rawText;
   return displayValue + definition.unit;
 };
@@ -347,12 +410,12 @@ export const buildSmartLightningRealtimeMetrics = (
     }
     const rawText = String(rawValue);
     const value = definition.valueMap
-      ? (definition.key === 'SPD_Alarm' ? formatDesAlarmCode(rawText) : resolveStatusDisplayValue(rawText, definition.valueMap)) ?? rawText
+      ? (definition.valueMap === SPD_ALARM_CODE_LABELS ? formatSpdAlarmCode(rawText) : resolveStatusDisplayValue(rawText, definition.valueMap)) ?? rawText
       : rawText;
     return {
       label: definition.label,
       value: `${value}${definition.unit}`,
-      // 告警码为位集合，任一有效告警位置位即突出显示；枚举值不套用二态规则。
+      // 告警码按序号解释，已知非零告警及未知正整数码突出显示；设备状态不套用二态规则。
       isAbnormal: definition.valueType === 'status' && (value === '异常' ||
         (definition.key === 'SPD_Alarm' && Number.isInteger(Number(rawText)) && Number(rawText) > 0))
     };

@@ -25,8 +25,8 @@ public class LightningCurrentMonitoringSummaryDTO {
     private final int alarmCount;
     /** 统计周期内按告警类型汇总的数量，按数量降序排列。 */
     private final List<AlarmTypeTotalDTO> alarmTypeTotals;
-    /** 各雷电流设备在所选周期内的 SurgeCnt 增量之和；单条记录直接采用该值。 */
-    private final long eventCount;
+    /** 各雷电流设备在所选周期内对应型号计数键的增量之和（M1AI为StrikeCnt，L2AI为SurgeCnt）；无基线且只有一条有效记录时为null；多条记录从首条开始计算已观测增量。 */
+    private final Long eventCount;
     /** 周期内最大峰值电流；没有任何设备上报时为 null。 */
     private final Double maxPeakCurrent;
     /** 峰值电流单位，固定为 kA，与雷电流监测模块说明书保持一致。 */
@@ -35,7 +35,7 @@ public class LightningCurrentMonitoringSummaryDTO {
     private final String maxPeakDeviceName;
     /** 峰值发生时间（毫秒时间戳）。 */
     private final Long maxPeakTime;
-    /** 峰值时刻最近的极性（正极性/负极性），无对应记录时为 null。 */
+    /** 峰值同一设备、同一遥测时间戳的极性（正极性/负极性），无对应记录时为 null。 */
     private final String maxPeakPolarity;
     /** 周期内最小峰值电流；没有任何设备上报时为 null。 */
     private final Double minPeakCurrent;
@@ -43,7 +43,7 @@ public class LightningCurrentMonitoringSummaryDTO {
     private final String minPeakDeviceName;
     /** 最小峰值发生时间（毫秒时间戳）。 */
     private final Long minPeakTime;
-    /** 最小峰值时刻最近的极性（正极性/负极性），无对应记录时为 null。 */
+    /** 最小峰值同一设备、同一遥测时间戳的极性（正极性/负极性），无对应记录时为 null。 */
     private final String minPeakPolarity;
     /** 周期内上报过峰值遥测的设备数量。 */
     private final int reportingDeviceCount;

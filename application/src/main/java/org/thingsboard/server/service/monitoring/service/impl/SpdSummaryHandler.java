@@ -23,7 +23,9 @@ import org.thingsboard.server.service.monitoring.dto.SpdMetricExtremaDTO;
 import org.thingsboard.server.service.monitoring.dto.SpdMonitoringSummaryDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
+import org.thingsboard.server.service.monitoring.util.MonitoringTelemetryAccumulator;
 import org.thingsboard.server.service.monitoring.util.SpdMonitoringCalculator;
+import org.thingsboard.server.service.monitoring.util.SpdTelemetryKeyDefinitions;
 import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
@@ -31,8 +33,10 @@ import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -52,15 +56,16 @@ final class SpdSummaryHandler {
     /** 直接读取规则链已转换的接地和空开实时状态，不使用旧测点键。 */
     private static final List<String> GROUND_STATUS_KEYS = List.of("GndStatus");
     private static final List<String> BREAKER_STATUS_KEYS = List.of("McbStatus");
-    /** 周期温度最值查询使用的扁平键列表。 */
+    /** 周期温度最值查询键，包含DEP4的Temp；实际查询仍按各型号白名单裁剪。 */
     private static final List<String> PERIODIC_TEMPERATURE_KEYS = List.of(
-            "Temp1", "Temp2", "Temp3", "Temp4", "AmbTemp", "SpdTemp");
+            "Temp", "Temp1", "Temp2", "Temp3", "Temp4");
     /** 周期电压最值查询使用的规范键。 */
     private static final List<String> VOLTAGE_KEYS = List.of(
             "PhAVolt", "PhBVolt", "PhCVolt");
     /** 规则链输出的累计雷击次数键。 */
     private static final String LIGHTNING_COUNT_KEY = "StrikeCnt";
-    private static final List<String> LIFE_KEYS = List.of("LifeLeft");
+    /** 仅读取新协议寿命键，缺失时不使用历史旧键补值。 */
+    private static final List<String> LIFE_KEYS = List.of("SPD_RUL");
 
     /** 复用智能防雷设备服务，负责权限过滤和设备上下文查询。 */
     private final SmartLightningDeviceService smartLightningDeviceService;
@@ -93,7 +98,7 @@ final class SpdSummaryHandler {
 
         SmartLightningDashboardSupport.AlarmRecordAggregate alarmAggregate = SmartLightningDashboardSupport.collectAlarmRecords(
                 user, deviceIds, window, alarmStatisticsService);
-        // 发现设备已有温度键后，一次读取周期指标和各实时状态键。
+        // 发现已有温度键后逐页折叠周期指标，最新状态仍独立读取单条记录。
         List<String> temperatureKeys = findTemperatureKeys(user, devices);
         SpdTelemetryReadResult telemetry = readSpdTelemetry(user, devices, window, temperatureKeys);
         // 周期遥测统一通过 ThingsBoard TimeseriesService 读取，保持 SQL、Timescale、Cassandra
@@ -109,7 +114,7 @@ final class SpdSummaryHandler {
         SpdMetricExtremaDTO voltageExtrema = findMetricExtrema(
                 telemetry.entriesByDevice, devices, VOLTAGE_KEYS, false,
                 window.getStartTs(), window.getEndTs());
-        long lightningCount = calculateLightningCount(telemetry.entriesByDevice, window.getStartTs());
+        Long lightningCount = telemetry.lightningCount;
         RealtimeStatusAggregate realtime = summarizeRealtimeStatus(telemetry.entriesByDevice, temperatureKeys);
         int total = devices.size();
         return new SpdMonitoringSummaryDTO(
@@ -154,16 +159,16 @@ final class SpdSummaryHandler {
     }
 
     /**
-     * 一次读取所有 SPD 设备的周期漏流和最新实时参数。
+     * 流式读取所有SPD设备的周期指标和最新实时参数。
      *
-     * <p>每台设备只发起一次异步时序查询，周期指标使用所选窗口，状态、温度和寿命
-     * 的实时判断使用最近一条记录，避免前端或服务层按参数重复访问数据库。</p>
+     * <p>同型号按白名单分组，周期指标逐键翻页并立即折叠；状态、温度和寿命的实时
+     * 判断独立使用最近一条记录，既不保留完整历史，也不让周期选择影响当前状态。</p>
      *
      * @param user 当前登录用户
      * @param devices 已经过权限和功能分类筛选的设备
      * @param window 漏流统计窗口
      * @param temperatureKeys 当前设备实际存在的温度键，用于追加最新值查询
-     * @return 按设备原顺序排列的时序记录
+     * @return 按设备原顺序排列的极值、最新值代表样本和已观测累计增量
      * @throws ThingsboardException 时序查询失败时抛出
      */
     private SpdTelemetryReadResult readSpdTelemetry(
@@ -171,20 +176,61 @@ final class SpdSummaryHandler {
             List<MonitoringDeviceContextBO> devices,
             MonitoringPeriodWindow window,
             List<String> temperatureKeys) throws ThingsboardException {
-        return new SpdTelemetryReadResult(SmartLightningDashboardSupport.readTelemetryInBatches(
-                timeseriesService,
-                user,
-                devices,
-                spdTelemetryQueries(window, temperatureKeys),
-                "Failed to read SPD telemetry"));
+        // 同型号支持键相同，先按白名单分组，继续复用既有有界批量查询。
+        Map<Set<String>, List<MonitoringDeviceContextBO>> groups = new LinkedHashMap<>();
+        for (MonitoringDeviceContextBO device : devices) {
+            Set<String> supported = SpdTelemetryKeyDefinitions.supportedKeys(device);
+            if (!supported.isEmpty()) {
+                groups.computeIfAbsent(supported, ignored -> new ArrayList<>()).add(device);
+            }
+        }
+        List<ReadTsKvQuery> candidates = spdTelemetryQueries(window, temperatureKeys);
+        Map<UUID, MonitoringTelemetryAccumulator> summariesById = new HashMap<>();
+        for (Map.Entry<Set<String>, List<MonitoringDeviceContextBO>> group : groups.entrySet()) {
+            List<ReadTsKvQuery> queries = new ArrayList<>();
+            for (ReadTsKvQuery query : candidates) {
+                if (group.getKey().contains(query.getKey())) {
+                    queries.add(query);
+                }
+            }
+            // 不把空查询传给时序服务，避免未知型号或空交集触发全键读取。
+            if (queries.isEmpty()) {
+                continue;
+            }
+            List<MonitoringDeviceContextBO> groupDevices = group.getValue();
+            List<MonitoringTelemetryAccumulator> summaries = SmartLightningDashboardSupport.readTelemetryInBatches(
+                    timeseriesService, user, groupDevices, queries, Set.of(LIGHTNING_COUNT_KEY),
+                    "Failed to read SPD telemetry");
+            for (int index = 0; index < groupDevices.size(); index++) {
+                summariesById.put(groupDevices.get(index).getDeviceId(), summaries.get(index));
+            }
+        }
+        // 恢复原设备顺序，保证峰值来源、计数和设备名称仍按相同索引对应。
+        List<List<TsKvEntry>> orderedEntries = new ArrayList<>();
+        Long lightningCount = 0L;
+        for (MonitoringDeviceContextBO device : devices) {
+            MonitoringTelemetryAccumulator summary = summariesById.get(device.getDeviceId());
+            orderedEntries.add(summary == null ? Collections.emptyList() : summary.representativeEntries());
+            Long delta = 0L;
+            if (summary != null) {
+                delta = summary.counterDelta(LIGHTNING_COUNT_KEY);
+            }
+            // 未知增量向上保留，不能把部分设备的已知次数当成完整总数。
+            if (delta == null) {
+                lightningCount = null;
+            } else if (lightningCount != null) {
+                lightningCount += delta;
+            }
+        }
+        return new SpdTelemetryReadResult(orderedEntries, lightningCount);
     }
 
 
     /**
      * 从当前用户可见的 SPD 设备已存在遥测键中发现所有温度键。
      *
-     * <p>每批使用 ThingsBoard 时序服务查询键名，不假设温度键固定为 Temp1 至 Temp4；
-     * 后续型号新增任何包含 Temp 的键也会进入最新状态统计。</p>
+     * <p>每批使用 ThingsBoard 时序服务查询键名，仅识别已确认的温度规范键；
+     * 查询时继续按型号白名单裁剪，历史遗留测点不参与统计。</p>
      *
      * @param user 当前登录用户
      * @param devices 当前看板权限范围内的 SPD 设备
@@ -296,50 +342,6 @@ final class SpdSummaryHandler {
             }
         }
         return result.toDTO();
-    }
-
-    /**
-     * 计算 SPD 设备在所选周期内的 StrikeCnt 增量。
-     *
-     * <p>该键是累计计数器，不直接把每次上报值相加；先取周期开始前的最近值作为基线，
-     * 再按时间顺序计算相邻差值。设备重启导致计数回退时由公共计算器按新计数段处理。</p>
-     */
-    private long calculateLightningCount(List<List<TsKvEntry>> entriesByDevice, long windowStartTs) {
-        long total = 0;
-        for (List<TsKvEntry> entries : entriesByDevice) {
-            Double baseline = null;
-            long baselineTs = Long.MIN_VALUE;
-            List<TsKvEntry> readings = new ArrayList<>();
-            // 分离周期开始前的最近基线和周期内样本，并忽略无效或负计数。
-            for (TsKvEntry entry : entries) {
-                if (!LIGHTNING_COUNT_KEY.equals(entry.getKey())) {
-                    continue;
-                }
-                Double value = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
-                if (value == null || value < 0) {
-                    continue;
-                }
-                if (entry.getTs() < windowStartTs) {
-                    if (entry.getTs() > baselineTs) {
-                        baselineTs = entry.getTs();
-                        baseline = value;
-                    }
-                } else {
-                    readings.add(entry);
-                }
-            }
-            // 计数器按时间排序后交给公共计算器处理回退、重启和增量累加。
-            readings.sort(Comparator.comparingLong(TsKvEntry::getTs));
-            List<Double> samples = new ArrayList<>();
-            for (TsKvEntry reading : readings) {
-                Double value = MonitoringValueParser.parseFiniteDouble(reading.getValueAsString());
-                if (value != null) {
-                    samples.add(value);
-                }
-            }
-            total += SpdMonitoringCalculator.counterDelta(baseline, samples);
-        }
-        return total;
     }
 
     /** 将每台设备最新的接地、空开、温度和寿命值统计为正常设备数及有参数设备总数。 */
@@ -479,12 +481,15 @@ final class SpdSummaryHandler {
         return "未知相位";
     }
 
-    /** 保存一次批量时序查询返回的各设备记录，避免同一设备重复请求。 */
+    /** 保存按设备排列的紧凑代表样本及流式计数结果，不保留完整历史记录。 */
     private static final class SpdTelemetryReadResult {
         private final List<List<TsKvEntry>> entriesByDevice;
 
-        private SpdTelemetryReadResult(List<List<TsKvEntry>> entriesByDevice) {
+        private final Long lightningCount;
+
+        private SpdTelemetryReadResult(List<List<TsKvEntry>> entriesByDevice, Long lightningCount) {
             this.entriesByDevice = entriesByDevice;
+            this.lightningCount = lightningCount;
         }
     }
 

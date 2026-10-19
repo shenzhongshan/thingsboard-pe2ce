@@ -133,6 +133,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
 
   private readonly charts = new Map<string, ECharts>();
   private readonly destroy$ = new Subject<void>();
+  /** 累计计数变化后回读服务端周期增量，合并同批设备更新，避免在浏览器推断历史基线。 */
+  private readonly counterRefreshRequests$ = new Subject<'spd' | 'lightning'>();
   private resizeObserver?: ResizeObserver;
   private realtimeAlarmCount: number | null = null;
   private initialAlarmLoadFinished = false;
@@ -546,6 +548,18 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
    * 设备上下文变化后的校准，以及告警统计和窗口边界校准。
    */
   private subscribeToRealtimeChanges(): void {
+    this.counterRefreshRequests$.pipe(
+      bufferTime(600),
+      filter((targets) => targets.length > 0),
+      takeUntil(this.destroy$)
+    ).subscribe((targets) => {
+      if (targets.includes('spd')) {
+        this.loadSpdSummary();
+      }
+      if (targets.includes('lightning')) {
+        this.loadLightningSummary();
+      }
+    });
     this.realtimeService.deviceTelemetryChanged$.pipe(
       bufferTime(100),
       filter((changes) => changes.length > 0),
@@ -749,7 +763,8 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     const leakageSamples: SmartLightningPeriodicExtremaSample[] = [];
     const voltageSamples: SmartLightningPeriodicExtremaSample[] = [];
     const peakSamples: Array<SmartLightningPeriodicExtremaSample & {polarity?: string | null}> = [];
-    const temperatureKeys = new Set(['Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp']);
+    // 与后端周期温度统计一致，DEP4的Temp也参与实时极值更新。
+    const temperatureKeys = new Set(['Temp', 'Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp']);
     const leakageKeys = new Set(['LeakCurrA', 'LeakCurrB', 'LeakCurrC']);
     const voltageKeys = new Set(['PhAVolt', 'PhBVolt', 'PhCVolt']);
     let mapCoordinatesChanged = false;
@@ -771,6 +786,13 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
       }
 
       const functionCategory = String(device.functionCategory || '').trim().toLowerCase();
+      // 首条累计值只建立观测起点；后续上报后由后端重算，未知次数才能自动更新为已观测增量。
+      if (functionCategory === 'spd_monitor' && change.values.has('StrikeCnt')) {
+        this.counterRefreshRequests$.next('spd');
+      } else if (functionCategory === 'lightning_current'
+          && (change.values.has('StrikeCnt') || change.values.has('SurgeCnt'))) {
+        this.counterRefreshRequests$.next('lightning');
+      }
       for (const [key, incoming] of change.values) {
         // 服务层可能收到乱序帧；始终采用共享缓存中时间戳最新的该键。
         const telemetry = latestValues.get(key) || incoming;
@@ -794,17 +816,19 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
         }
       }
 
+      // M1AI与L2AI均按实际报文读取PeakCur，不回退旧峰值键。
+      const peakKey = 'PeakCur';
       if (functionCategory === 'lightning_current' &&
-        (change.values.has('PeakValue') || change.values.has('Polarity'))) {
+        (change.values.has(peakKey) || change.values.has('Polarity'))) {
         // 峰值和极性可能分别到达；仅时间戳一致时才将极性绑定到该峰值，避免误配来源。
-        const peak = change.values.get('PeakValue') || latestValues.get('PeakValue');
+        const peak = change.values.get(peakKey) || latestValues.get(peakKey);
         const polarity = latestValues.get('Polarity');
-        if (peak && (change.values.has('PeakValue') || change.values.has('Polarity'))) {
-          const sample = this.createPeriodicSample(device.deviceName, 'PeakValue', peak);
+        if (peak && (change.values.has(peakKey) || change.values.has('Polarity'))) {
+          const sample = this.createPeriodicSample(device.deviceName, peakKey, peak);
           if (sample) {
             peakSamples.push({
               ...sample,
-              polarity: polarity?.ts === peak.ts ? this.normalizeDashboardPolarity(polarity.value) : null
+              polarity: polarity?.ts === peak.ts ? this.normalizeDashboardPolarity(polarity.value, device.deviceProfileName) : null
             });
           }
         }
@@ -939,16 +963,9 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   }
 
   /** 看板周期最值接口返回“正/负极性”，增量也统一为相同中文标签。 */
-  private normalizeDashboardPolarity(value: string): string {
+  private normalizeDashboardPolarity(value: string, deviceProfileName?: string): string {
     const normalized = String(value ?? '').trim();
-    const numeric = Number(normalized);
-    if (Number.isFinite(numeric) && numeric === 1) {
-      return '正极性';
-    }
-    if (Number.isFinite(numeric) && numeric === 0) {
-      return '负极性';
-    }
-    const label = formatSmartLightningPolarityLabel(normalized);
+    const label = formatSmartLightningPolarityLabel(normalized, deviceProfileName);
     if (label === '正极') {
       return '正极性';
     }

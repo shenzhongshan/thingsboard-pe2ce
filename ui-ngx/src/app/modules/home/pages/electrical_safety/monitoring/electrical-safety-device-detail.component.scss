@@ -708,3 +708,32 @@
     grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
   }
 }
+
+/* 实时测点统一格子高度：长标题及位码描述不撑高所在行，完整内容通过原生悬浮提示查看。 */
+.realtime-panel .metric-grid {
+  grid-auto-rows: 62px;
+}
+
+.realtime-panel .metric {
+  grid-template-rows: 22px minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+}
+
+.realtime-panel .metric > span,
+.realtime-panel .metric > strong {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* 数值和单位统一交给共享指令按实际宽度缩放，不使用省略号替代实时数据。 */
+.realtime-panel .metric > strong.metric-value {
+  text-overflow: clip;
+}

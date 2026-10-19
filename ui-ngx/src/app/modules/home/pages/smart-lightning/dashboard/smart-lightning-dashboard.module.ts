@@ -17,8 +17,11 @@ import { LogModule } from '../../log/log.module';
 import { DeviceAlarmRecordsModule } from '../../deviceAlarms/shared/alarm-list/device-alarm-records.module';
 import { DeviceAlarmInformationChartModule } from '../../deviceAlarms/shared/alarm-information/device-alarm-information-chart.module';
 
+// 两个模块共用同一个字号适配指令，避免只修改一侧。
+import {TelemetryFitValueDirective} from '../shared/telemetry/telemetry-fit-value.directive';
+
 @NgModule({
   declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent],
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
+  imports: [TelemetryFitValueDirective, CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
 })
 export class SmartLightningDashboardModule {}

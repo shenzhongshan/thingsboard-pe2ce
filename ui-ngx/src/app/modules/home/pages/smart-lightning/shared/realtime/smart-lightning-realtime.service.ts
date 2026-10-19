@@ -28,11 +28,15 @@ export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.
   // DES9／DESA 新协议诊断键接入现有共享订阅，不另建 WebSocket 连接。
   'SPD_RUL', 'SPD_Status', 'SPD_RULDay', 'SPD_Alarm', 'SPD_WorstPh', 'SPD_RULA', 'SPD_RULB', 'SPD_RULC', 'SPD_Reason', 'SPD_I1hA', 'SPD_I1hB', 'SPD_I1hC', 'SPD_I24hA', 'SPD_I24hB', 'SPD_I24hC', 'SPD_DeltaT',
   'LeakCurrA', 'LeakCurrB', 'LeakCurrC',
-  'Temp1', 'Temp2', 'Temp3', 'Temp4', 'Temp5', 'Temp6', 'Temp7', 'Temp8', 'AmbTemp', 'SpdTemp',
-  'PhAVolt', 'PhBVolt', 'PhCVolt', 'VoltStsA', 'VoltStsB', 'VoltStsC',
-  'Trip1', 'Trip2', 'Trip3', 'Trip4', 'LifeLeft',
-  'GndGridRes', 'SampleCnt', 'SamplePrd', 'Temp',
-  'SurgeCnt', 'PeakValue', 'Polarity', 'DevStatus',
+  'Temp1', 'Temp2', 'Temp3', 'Temp4', 'Temp5', 'Temp6', 'Temp7', 'Temp8',
+  'PhAVolt', 'PhBVolt', 'PhCVolt',
+  // DEM2／DEM4新版状态键接入现有订阅，其他型号继续使用各自定义的键。
+  'PhAStatus', 'PhBStatus', 'PhCStatus', 'TripSW1', 'TripSW2', 'TripSW3', 'TripSW4',
+  // G1A3新版地网电压、小数位与原有阻值共用现有订阅。
+  'GndGridRes', 'GndVolt', 'ResDecimal', 'SampleCnt', 'SamplePrd', 'Temp',
+  'SurgeCnt', 'Polarity', 'DevStatus',
+  // M1AI／L2AI共用的新测点键；两种计数键已包含在共享集合中。
+  'PeakCur', 'KeepTime', 'CharImpe', 'EleCharge', 'Energy', 'PeakVolt',
   // 电气安全看板已确认的电流与电能质量指标，仍通过现有共享 WebSocket 订阅获取。
   'ResCurr1', 'ResCurr2', 'ResCurr3', 'LeakValue', 'CurrTot',
   'VoltThdA', 'VoltThdB', 'VoltThdC', 'NSeqVUnb',

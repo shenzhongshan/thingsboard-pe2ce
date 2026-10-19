@@ -20,14 +20,14 @@ import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.monitoring.dto.LightningCurrentMonitoringSummaryDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
-import org.thingsboard.server.service.monitoring.util.SpdMonitoringCalculator;
+import org.thingsboard.server.service.monitoring.util.MonitoringTelemetryAccumulator;
+import org.thingsboard.server.service.monitoring.util.LightningCurrentProtocolSupport;
 import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -45,7 +45,7 @@ final class LightningCurrentSummaryHandler {
     private static final String FUNCTION_CATEGORY = "lightning_current";
     /** 规则链输出的雷电监测规范键，不直接查询设备原始测点键。 */
     private static final List<String> TELEMETRY_KEYS = List.of(
-            "PeakValue", "SurgeCnt", "Polarity");
+            "PeakCur", "StrikeCnt", "SurgeCnt");
 
     /** 复用智能防雷设备服务，负责权限过滤和设备上下文查询。 */
     private final SmartLightningDeviceService smartLightningDeviceService;
@@ -140,15 +140,16 @@ final class LightningCurrentSummaryHandler {
         }
         LightningAggregate result = LightningAggregate.empty();
         // 按设备分批读取周期规范键，并确保结果索引与设备列表一一对应。
-        List<List<TsKvEntry>> entriesByDevice = SmartLightningDashboardSupport.readTelemetryInBatches(
+        List<MonitoringTelemetryAccumulator> summaries = SmartLightningDashboardSupport.readTelemetryInBatches(
                 timeseriesService,
                 user,
                 devices,
                 telemetryQueries(window),
+                Set.of("StrikeCnt", "SurgeCnt"),
                 "Failed to read lightning telemetry");
-        for (int index = 0; index < entriesByDevice.size(); index++) {
+        for (int index = 0; index < summaries.size(); index++) {
             MonitoringDeviceContextBO device = devices.get(index);
-            List<TsKvEntry> entries = entriesByDevice.get(index);
+            List<TsKvEntry> entries = summaries.get(index).representativeEntries();
             // 先计算单设备峰值范围，再将该设备的极值合并到全部设备结果。
             PeakRangeResult peakRange = findPeakRange(entries);
             if (peakRange.maximum != null) {
@@ -156,29 +157,34 @@ final class LightningCurrentSummaryHandler {
                 if (result.maxPeakCurrent == null || peakRange.maximum > result.maxPeakCurrent) {
                     result.maxPeakCurrent = peakRange.maximum;
                     result.maxPeakDeviceName = device.getDeviceName();
+                    result.maxPeakDevice = device;
                     result.maxPeakTime = peakRange.maximumTime;
-                    result.maxPeakPolarity = peakRange.maximumPolarity;
                 }
                 if (peakRange.minimum != null
                         && (result.minPeakCurrent == null || peakRange.minimum < result.minPeakCurrent)) {
                     result.minPeakCurrent = peakRange.minimum;
                     result.minPeakDeviceName = device.getDeviceName();
+                    result.minPeakDevice = device;
                     result.minPeakTime = peakRange.minimumTime;
-                    result.minPeakPolarity = peakRange.minimumPolarity;
                 }
             }
-            // SurgeCnt 是设备累计计数器：只有一条时直接使用该值；
-            // 有多条时保留相邻差值逻辑，避免把每次上报的累计值重复相加。
-            result.eventCount += calculateSurgeCountDelta(entries, window.getStartTs());
+            // 按型号计算增量；无基线的单条累计值不可确定，整个汇总保持未知，避免少计后显示为完整总数。
+            Long delta = summaries.get(index).counterDelta(LightningCurrentProtocolSupport.counterKey(device));
+            if (delta == null) {
+                result.eventCount = null;
+            } else if (result.eventCount != null) {
+                result.eventCount += delta;
+            }
         }
+        resolveAggregatePolarities(user, result);
         return result;
     }
 
     /**
-     * 为三个规范遥测键创建时序查询条件。
+     * 为峰值及不同型号计数键创建周期查询条件；极性在最终极值确定后精确读取。
      *
      * @param window 查询的起止时间
-     * @return 周期内 PeakValue/SurgeCnt/Polarity 查询及周期开始前的 SurgeCnt 基线查询
+     * @return 周期内峰值和两种计数键，以及周期开始前的计数基线查询
      */
     private List<ReadTsKvQuery> telemetryQueries(MonitoringPeriodWindow window) {
         List<ReadTsKvQuery> queries = new ArrayList<>();
@@ -192,138 +198,102 @@ final class LightningCurrentSummaryHandler {
                     "ASC"));
         }
         // 仅为累计计数器读取周期开始前最近一条记录，供周期增量计算使用。
-        queries.add(new BaseReadTsKvQuery(
-                "SurgeCnt",
-                0,
-                window.getStartTs(),
-                1,
-                "DESC"));
+        // 两种型号分别使用各自的计数键，聚合时只选择当前型号对应的一组记录。
+        for (String countKey : List.of("StrikeCnt", "SurgeCnt")) {
+            queries.add(new BaseReadTsKvQuery(countKey, 0, window.getStartTs(), 1, "DESC"));
+        }
         return queries;
     }
 
     /**
-     * 从单台设备的遥测结果中找到 PeakValue 最大值和最小值，并关联最近的极性值。
+     * 从单台设备的规范峰值代表样本中确定最大值、最小值及各自时间戳。
      *
      * @param entries 当前设备在统计周期内的遥测记录
-     * @return 该设备的峰值范围及最大、最小值对应的时间和极性
+     * @return 该设备的峰值范围及最大、最小值对应的时间；极性留待全局极值确定后读取
      */
     private PeakRangeResult findPeakRange(List<TsKvEntry> entries) {
         PeakRangeResult result = PeakRangeResult.empty();
         for (TsKvEntry entry : entries) {
-            if (!isPeakKey(entry.getKey())) {
+            if (!LightningCurrentProtocolSupport.PEAK_CURRENT_KEY.equals(entry.getKey())) {
                 continue;
             }
             Double value = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
             if (value == null) {
                 continue;
             }
-            // PeakValue 已由规则链完成单位和精度转换，后端只取峰值绝对值参与比较。
+            // 峰值已为设备上报工程值，后端仅取绝对值比较，不进行单位换算。
             double normalizedValue = Math.abs(value);
             if (result.maximum == null || normalizedValue > result.maximum) {
                 result.maximum = normalizedValue;
                 result.maximumTime = entry.getTs();
-                result.maximumPolarity = findNearestPolarity(entries, entry.getTs());
             }
             if (result.minimum == null || normalizedValue < result.minimum) {
                 result.minimum = normalizedValue;
                 result.minimumTime = entry.getTs();
-                result.minimumPolarity = findNearestPolarity(entries, entry.getTs());
             }
         }
         return result;
     }
 
-    /**
-     * 计算单台设备在所选周期内的 SurgeCnt 增量。
-     *
-     * <p>{@code SurgeCnt} 是规则链输出的累计雷击次数，因此存在多条记录时
-     * 仍按相邻值的正向差值累计，避免重复计算；只有一条有效记录时没有前值可作差，
-     * 直接使用这条记录。若后续值小于前值，说明设备计数器发生归零或重启，
-     * 当前值作为新一段计数加入结果。</p>
-     *
-     * @param entries 当前设备的周期遥测和周期开始前的基线记录
-     * @param windowStartTs 当前统计周期起始时间
-     * @return 周期内雷击次数；没有有效 SurgeCnt 时返回 0
-     */
-    private long calculateSurgeCountDelta(List<TsKvEntry> entries, long windowStartTs) {
-        List<TsKvEntry> readings = new ArrayList<>();
-        Double baseline = null;
-        long baselineTs = Long.MIN_VALUE;
-        // 将周期开始前记录中时间最近的一条作为基线，只收集周期内有效计数器读数。
-        for (TsKvEntry entry : entries) {
-            if (!"SurgeCnt".equals(entry.getKey())) {
-                continue;
-            }
-            Double value = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
-            if (value == null || value < 0) {
-                continue;
-            }
-            if (entry.getTs() < windowStartTs) {
-                if (entry.getTs() > baselineTs) {
-                    baselineTs = entry.getTs();
-                    baseline = value;
-                }
-            } else {
-                readings.add(entry);
-            }
-        }
-        // 按发生时间排序后计算相邻差值，避免累计计数器被重复相加。
-        readings.sort(Comparator.comparingLong(TsKvEntry::getTs));
-        List<Double> samples = new ArrayList<>();
-        for (TsKvEntry reading : readings) {
-            samples.add(MonitoringValueParser.parseFiniteDouble(reading.getValueAsString()));
-        }
-        return SpdMonitoringCalculator.counterDelta(baseline, samples);
+    /** 精确读取最终极值同设备、同时间戳的极性；缺失返回null，查询失败向上传播。 */
+    private String readPeakPolarity(SecurityUser user, MonitoringDeviceContextBO device, long timestamp)
+            throws ThingsboardException {
+        List<ReadTsKvQuery> queries = List.of(
+                new BaseReadTsKvQuery("Polarity", timestamp, timestamp + 1, 1, "ASC"));
+        List<MonitoringTelemetryAccumulator> summaries = SmartLightningDashboardSupport.readTelemetryInBatches(
+                timeseriesService, user, List.of(device), queries, Set.of(), "Failed to read peak polarity");
+        return findPolarityAtTimestamp(summaries.get(0).representativeEntries(), timestamp,
+                LightningCurrentProtocolSupport.isM1ai(device));
     }
 
-    /** 判断遥测键是否为规则链输出的雷电峰值键。 */
-    private boolean isPeakKey(String key) {
-        return "PeakValue".equals(key);
+    /** 只为全局最终两个极值读取极性，整个请求最多追加两个时间点查询，不逐设备重复查询。 */
+    private void resolveAggregatePolarities(SecurityUser user, LightningAggregate aggregate)
+            throws ThingsboardException {
+        if (aggregate.maxPeakCurrent == null) {
+            return;
+        }
+        aggregate.maxPeakPolarity = readPeakPolarity(user, aggregate.maxPeakDevice, aggregate.maxPeakTime);
+        if (aggregate.maxPeakDevice.getDeviceId().equals(aggregate.minPeakDevice.getDeviceId())
+                && aggregate.maxPeakTime.equals(aggregate.minPeakTime)) {
+            aggregate.minPeakPolarity = aggregate.maxPeakPolarity;
+        } else {
+            aggregate.minPeakPolarity = readPeakPolarity(user, aggregate.minPeakDevice, aggregate.minPeakTime);
+        }
     }
 
     /**
-     * 查找距离峰值时间最近的 Polarity 记录。
+     * 从单台设备的遥测中匹配与峰值时间戳完全相同的Polarity。
+     * 一次报文同时上报全部测点；缺少同时间戳极性时返回空，不借用其他事件的极性。
      *
      * @param entries 当前设备的周期遥测
-     * @param timestamp 峰值发生时间
+     * @param timestamp 峰值遥测时间戳（毫秒）
+     * @param m1ai 是否采用M1AI新版极性定义
      * @return 中文极性名称；没有对应记录时返回 null
      */
-    private String findNearestPolarity(List<TsKvEntry> entries, long timestamp) {
-        String polarity = null;
-        long nearestDistance = Long.MAX_VALUE;
+    private String findPolarityAtTimestamp(List<TsKvEntry> entries, long timestamp, boolean m1ai) {
         for (TsKvEntry entry : entries) {
-            if (!"Polarity".equals(entry.getKey())) {
-                continue;
-            }
-            long distance = Math.abs(entry.getTs() - timestamp);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                polarity = toPolarityLabel(entry.getValueAsString());
+            if ("Polarity".equals(entry.getKey()) && entry.getTs() == timestamp) {
+                return LightningCurrentProtocolSupport.polarityLabel(entry.getValueAsString(), m1ai);
             }
         }
-        return polarity;
+        return null;
     }
 
-    /** 将规则链输出的极性编码转换为页面显示文本。 */
-    private String toPolarityLabel(String value) {
-        if ("1".equals(value)) {
-            return "正极性";
-        }
-        if ("0".equals(value)) {
-            return "负极性";
-        }
-        return value;
-    }
 
     /** 保存所有设备合并后的中间聚合结果。 */
     private static final class LightningAggregate {
-        private long eventCount;
+        /** 任一设备增量不可确定时为null，否则汇总各设备已观测增量。 */
+        private Long eventCount = 0L;
         private Double maxPeakCurrent;
         private String maxPeakDeviceName;
+        /** 全局最大值来源设备，仅供聚合结束后精确读取极性。 */
+        private MonitoringDeviceContextBO maxPeakDevice;
         private Long maxPeakTime;
         private String maxPeakPolarity;
         private Double minPeakCurrent;
         private String minPeakDeviceName;
+        /** 全局最小值来源设备，不向接口额外暴露内部上下文。 */
+        private MonitoringDeviceContextBO minPeakDevice;
         private Long minPeakTime;
         private String minPeakPolarity;
         private int reportingDeviceCount;
@@ -338,10 +308,8 @@ final class LightningCurrentSummaryHandler {
     private static final class PeakRangeResult {
         private Double maximum;
         private Long maximumTime;
-        private String maximumPolarity;
         private Double minimum;
         private Long minimumTime;
-        private String minimumPolarity;
 
         /** 创建一个没有峰值记录的空结果。 */
         private static PeakRangeResult empty() {

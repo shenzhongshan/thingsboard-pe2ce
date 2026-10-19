@@ -33,5 +33,6 @@ public class SmartLightningRealtimeSpdDTO {
     private final String maximumLeakageDeviceName;
     private final String maximumLeakageParameter;
     private final Long maximumLeakageTime;
+    /** 综合平台活动告警、型号支持的遥测异常及离线状态；异常提示不等于平台告警数量。 */
     private final String status;
 }

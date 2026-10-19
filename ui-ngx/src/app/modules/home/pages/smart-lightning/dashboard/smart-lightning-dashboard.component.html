@@ -143,14 +143,14 @@
               <div title="正常设备数 / 有 GndStatus 参数的设备总数"><span>接地状态</span><strong class="green">{{spdSummary.groundStatusNormalCount}}/{{spdSummary.groundStatusDeviceCount}}</strong></div>
               <div title="正常设备数 / 有 McbStatus 参数的设备总数"><span>空开状态</span><strong class="green">{{spdSummary.breakerStatusNormalCount}}/{{spdSummary.breakerStatusDeviceCount}}</strong></div>
               <div title="正常设备数 / 有温度键（键名包含 Temp）的设备总数；同一设备任一温度达到 65℃ 即不计为正常"><span>温度状态</span><strong class="green">{{spdSummary.temperatureNormalCount}}/{{spdSummary.temperatureDeviceCount}}</strong></div>
-              <div title="正常设备数 / 有 LifeLeft 参数的设备总数（LifeLeft 不低于 60%）"><span>寿命状态</span><strong class="green">{{spdSummary.degradationNormalCount}}/{{spdSummary.degradationDeviceCount}}</strong></div>
+              <div title="正常设备数 / 有 SPD_RUL 参数的设备总数（SPD_RUL 不低于 20%）"><span>寿命状态</span><strong class="green">{{spdSummary.degradationNormalCount}}/{{spdSummary.degradationDeviceCount}}</strong></div>
             </div>
           </section>
           <section class="monitoring-primary-metric spd-primary-metric" aria-label="SPD周期统计指标">
             <div class="spd-periodic-grid">
               <div class="spd-periodic-item spd-periodic-count">
                 <span>雷击次数</span>
-                <strong class="blue">{{spdSummary.lightningCount}}次</strong>
+                <strong class="blue">{{spdSummary.lightningCount == null ? '__' : spdSummary.lightningCount + '次'}}</strong>
               </div>
               <div class="spd-periodic-item">
                 <span>温度</span>
@@ -218,7 +218,7 @@
             <span>本周期告警数</span><strong class="red" [attr.title]="formatLightningAlarmTooltip(lightningSummary)">{{lightningSummary.alarmCount}}</strong>
           </section>
           <section class="monitoring-primary-metric lightning-primary-metric" aria-label="雷击次数和峰值电流范围">
-            <div><span>雷击次数</span><strong class="blue">{{lightningSummary.eventCount}}</strong></div>
+            <div><span>雷击次数</span><strong class="blue">{{lightningSummary.eventCount ?? '__'}}</strong></div>
             <div><span>最大峰值</span><strong class="blue" [attr.title]="formatLightningMaximumTooltip(lightningSummary)">{{formatLightningPeak(lightningSummary.maxPeakCurrent)}}</strong></div>
             <div><span>最小峰值</span><strong class="blue" [attr.title]="formatLightningMinimumTooltip(lightningSummary)">{{formatLightningPeak(lightningSummary.minPeakCurrent)}}</strong></div>
           </section>

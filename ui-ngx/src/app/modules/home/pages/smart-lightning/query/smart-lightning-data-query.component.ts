@@ -26,6 +26,7 @@ import {
   SmartLightningQueryStatus
 } from './smart-lightning-data-query.data';
 import {SmartLightningHistoryReviewDialogComponent} from './smart-lightning-history-review-dialog.component';
+import {resolveSmartLightningDeviceModel} from '../monitoring/smart-lightning-device-detail.data';
 import {
   SmartLightningDeviceTelemetryChange,
   SmartLightningRealtimeService
@@ -278,7 +279,8 @@ export class SmartLightningDataQueryComponent implements OnInit, OnDestroy {
       data: {
         deviceId: row.id,
         deviceName: row.deviceName,
-        deviceProfileName: row.deviceType
+        // 自定义档案名称无法匹配型号时，用已确认的产品名称取得中文测点定义。
+        deviceProfileName: resolveSmartLightningDeviceModel(row.deviceType) ? row.deviceType : row.productName
       },
       width: '980px',
       maxWidth: '96vw',

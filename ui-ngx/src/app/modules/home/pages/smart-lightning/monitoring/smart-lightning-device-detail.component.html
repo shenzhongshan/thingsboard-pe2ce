@@ -132,8 +132,8 @@
           </div>
         } @else {
         <div class="metric-grid">
-          <div class="metric" *ngFor="let metric of detail.metrics" [class.abnormal]="metric.value === '异常'">
-            <span>{{metric.label}}</span><strong [class.ok]="metric.value === '正常'" [class.abnormal]="metric.value === '异常'">{{metric.value}}</strong>
+          <div class="metric" *ngFor="let metric of detail.metrics" [class.abnormal]="metric.value === '异常'" [title]="metric.label + '：' + metric.value">
+            <span [title]="metric.label">{{metric.label}}</span><strong class="metric-value" [tbTelemetryFitValue]="metric.value" [title]="metric.value" [class.ok]="metric.value === '正常'" [class.abnormal]="metric.value === '异常'">{{metric.value}}</strong>
           </div>
         </div>
         }

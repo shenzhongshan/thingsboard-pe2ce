@@ -20,6 +20,7 @@ import org.thingsboard.server.service.monitoring.dto.GroundMonitoringSummaryDTO;
 import org.thingsboard.server.service.monitoring.dto.GroundResistanceExtremaDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.util.MonitoringValueParser;
+import org.thingsboard.server.service.monitoring.util.MonitoringTelemetryAccumulator;
 import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.query.util.ServiceQueryDefaults;
@@ -105,17 +106,18 @@ final class GroundSummaryHandler {
                 QUERY_PAGE_SIZE,
                 Aggregation.NONE,
                 "ASC"));
-        List<List<TsKvEntry>> entriesByDevice = SmartLightningDashboardSupport.readTelemetryInBatches(
+        List<MonitoringTelemetryAccumulator> summaries = SmartLightningDashboardSupport.readTelemetryInBatches(
                 timeseriesService,
                 user,
                 groundDevices,
                 queries,
+                Set.of(),
                 "Failed to read ground resistance telemetry");
         ResistanceExtremaAggregate result = new ResistanceExtremaAggregate();
         // 逐设备检查有效数值；解析失败或非有限值不参与极值比较。
-        for (int index = 0; index < entriesByDevice.size(); index++) {
+        for (int index = 0; index < summaries.size(); index++) {
             MonitoringDeviceContextBO device = groundDevices.get(index);
-            for (TsKvEntry entry : entriesByDevice.get(index)) {
+            for (TsKvEntry entry : summaries.get(index).representativeEntries()) {
                 Double resistanceValue = MonitoringValueParser.parseFiniteDouble(entry.getValueAsString());
                 if (resistanceValue == null) {
                     continue;

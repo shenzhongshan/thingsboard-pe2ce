@@ -558,7 +558,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   }
   /** 按真实历史遥测点生成 ECharts 配置；没有点时只显示空状态提示。 */
   private createChartOption(id: string): EChartsOption {
-    const definition = this.chartDefinitions.find((item) => item.id === id);
+    // 更多参数中的图表也必须从完整定义读取单位。
+    const definition = this.allChartDefinitions.find((item) => item.id === id);
     const chartData = this.chartSeriesData[id] || [];
     const period = this.selectedChartPeriods[id] || 'day';
     const chartWindow = getSmartLightningChartWindow(period);
@@ -578,6 +579,17 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       type: 'line' as const,
       smooth: true,
       data: item.points,
+      // 每条曲线使用自身测点单位；保留ECharts原生时间、图例标记和轴触发提示。
+      tooltip: {
+        valueFormatter: (value: unknown): string => {
+          // 时间序列数据为[时间戳,数值]，提示只格式化数值，不改变存储数据或精度。
+          const numericValue = Array.isArray(value) ? value[1] : value;
+          if (numericValue === null || numericValue === undefined || numericValue === '') {
+            return '--';
+          }
+          return `${numericValue}${item.definition.unit}`;
+        }
+      },
       symbol: 'none',
       lineStyle: {width: 2.2, color: colors[index % colors.length]},
       areaStyle: {color: 'rgba(25,92,232,.04)'}

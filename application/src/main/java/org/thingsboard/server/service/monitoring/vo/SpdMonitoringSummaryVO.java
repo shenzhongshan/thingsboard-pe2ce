@@ -49,12 +49,12 @@ public class SpdMonitoringSummaryVO {
     private final int temperatureNormalCount;
     /** 至少上报过温度的设备数。 */
     private final int temperatureDeviceCount;
-    /** 寿命不低于 60% 的设备数。 */
+    /** 寿命不低于 20% 的设备数。 */
     private final int degradationNormalCount;
     /** 至少上报过寿命的设备数。 */
     private final int degradationDeviceCount;
-    /** 周期内 StrikeCnt 累计增量。 */
-    private final long lightningCount;
+    /** 周期内StrikeCnt已观测增量之和；任一设备无基线且仅有一条有效值时为null。 */
+    private final Long lightningCount;
     /** 周期温度最大值和最小值。 */
     private final SpdMetricExtremaVO temperatureExtrema;
     /** 周期漏电流最大值和最小值。 */

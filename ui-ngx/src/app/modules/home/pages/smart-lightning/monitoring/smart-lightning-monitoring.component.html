@@ -63,7 +63,7 @@
               <div><dt>空开状态</dt><dd class="analysis-counts" title="正常设备数 / 有 McbStatus 参数的设备总数">{{analysis.spd.breakerStatusNormalCount}}/{{analysis.spd.breakerStatusDeviceCount}}</dd></div>
               <div><dt>接地状态</dt><dd class="analysis-counts" title="正常设备数 / 有 GndStatus 参数的设备总数">{{analysis.spd.groundStatusNormalCount}}/{{analysis.spd.groundStatusDeviceCount}}</dd></div>
               <div><dt>温度状态</dt><dd class="analysis-counts" title="正常设备数 / 有温度键（键名包含 Temp）的设备总数；同一设备任一温度达到 65℃ 即不计为正常">{{analysis.spd.temperatureNormalCount}}/{{analysis.spd.temperatureDeviceCount}}</dd></div>
-              <div><dt>寿命状态</dt><dd class="analysis-counts" title="正常设备数 / 有 LifeLeft 参数的设备总数（LifeLeft 不低于 60%）">{{analysis.spd.lifeNormalCount}}/{{analysis.spd.lifeDeviceCount}}</dd></div>
+              <div><dt>寿命状态</dt><dd class="analysis-counts" title="正常设备数 / 有 SPD_RUL 参数的设备总数（SPD_RUL 不低于 20%）">{{analysis.spd.lifeNormalCount}}/{{analysis.spd.lifeDeviceCount}}</dd></div>
               <div class="analysis-key-metric" [title]="'设备：' + (analysis.spd.maximumLeakageDeviceName || '--') + '\n参数：' + realtimeParameterLabel(analysis.spd.maximumLeakageParameter) + '\n时间：' + formatRealtimeTime(analysis.spd.maximumLeakageTime)"><dt>最大漏流</dt><dd>{{formatRealtimeValue(analysis.spd.maximumLeakage, units.leakageCurrent)}}</dd></div>
             </dl>
           </article>

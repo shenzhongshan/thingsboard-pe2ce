@@ -1,3 +1,4 @@
+import {formatSmartLightningPolarityLabel, getSmartLightningRealtimeMetricDefinitions, resolveSmartLightningDeviceModel} from './smart-lightning-device-detail.data';
 /** 文件职责：根据已订阅的设备最新遥测快照，计算数据监测页的实时汇总。 */
 import type {
   SmartLightningRealtimeAnalysis,
@@ -12,6 +13,10 @@ import type {
 export interface SmartLightningMonitoringRealtimeDeviceSnapshot {
   readonly deviceId: string;
   readonly deviceName: string;
+  /** 设备档案用于选择型号协议，不能将不同型号极性编码混用。 */
+  readonly deviceProfileName?: string;
+  /** 档案为自定义名称时，用明确的产品名称匹配既有型号定义。 */
+  readonly productName?: string;
   readonly functionCategory: string;
   readonly active: unknown;
   readonly values: ReadonlyMap<string, {readonly ts: number; readonly value: unknown}>;
@@ -47,7 +52,8 @@ export function buildSmartLightningMonitoringRealtimeAnalysis(
   activeAlarmDeviceIds: ReadonlySet<string>,
   fallbackLatestArcReportTime: number | null = null
 ): SmartLightningRealtimeAnalysis {
-  const spdDevices = snapshots.filter((device) => device.functionCategory === 'spd_monitor');
+  const spdDevices = snapshots.filter((device) => device.functionCategory === 'spd_monitor')
+    .map(filterSupportedSpdTelemetry);
   const groundDevices = snapshots.filter((device) => device.functionCategory === 'ground_resistance');
   const currentDevices = snapshots.filter((device) => device.functionCategory === 'lightning_current');
   const arcFaultDevices = snapshots.filter((device) => device.functionCategory === 'arc_fault');
@@ -59,6 +65,16 @@ export function buildSmartLightningMonitoringRealtimeAnalysis(
   const arcFault = buildArcFault(arcFaultDevices, activeAlarmDeviceIds, fallbackLatestArcReportTime);
 
   return {overall, spd, ground, lightningCurrent, arcFault};
+}
+
+/** 复用实时卡片的型号测点定义裁剪快照，防止其他型号的历史键参与WebSocket重算。 */
+function filterSupportedSpdTelemetry(
+  device: SmartLightningMonitoringRealtimeDeviceSnapshot
+): SmartLightningMonitoringRealtimeDeviceSnapshot {
+  const profile = resolveSmartLightningDeviceModel(device.deviceProfileName)
+    ? device.deviceProfileName : device.productName;
+  const supported = new Set(getSmartLightningRealtimeMetricDefinitions(profile).map((item) => item.key));
+  return {...device, values: new Map([...device.values].filter(([key]) => supported.has(key)))};
 }
 
 /** 汇总整体设备数、在线数和有活动告警的设备数。 */
@@ -80,6 +96,8 @@ function buildSpd(
   const groundStatus = countBinaryStatus(devices, 'GndStatus');
   const temperatureStatus = countTemperatureStatus(devices);
   const lifeStatus = countLifeStatus(devices);
+  // 与Java计算器使用相同状态口径；只读取已按型号裁剪的快照。
+  const protocolStatus = summarizeSpdProtocolStatus(devices);
   let maximumLeakage: NumericSource | null = null;
 
   for (const device of devices) {
@@ -95,12 +113,15 @@ function buildSpd(
     }
   }
 
-  const hasAbnormalTelemetry = breakerStatus.abnormal > 0 || groundStatus.abnormal > 0 ||
+  const hasAbnormalTelemetry = protocolStatus.abnormal || breakerStatus.abnormal > 0 || groundStatus.abnormal > 0 ||
     temperatureStatus.abnormal > 0 || lifeStatus.abnormal > 0;
   let status = resolveStatus(counts.totalDevices, counts.offlineDevices, counts.alarmDeviceCount, hasAbnormalTelemetry);
+  if (status === '正常' && protocolStatus.needsAttention) {
+    status = '需关注';
+  }
   if (counts.totalDevices > 0 && counts.alarmDeviceCount === 0 && counts.offlineDevices === 0 &&
       breakerStatus.participating === 0 && groundStatus.participating === 0 &&
-      temperatureStatus.participating === 0 && lifeStatus.participating === 0 && maximumLeakage == null) {
+      temperatureStatus.participating === 0 && lifeStatus.participating === 0 && maximumLeakage == null && !protocolStatus.reported) {
     status = '数据不足';
   }
 
@@ -120,6 +141,56 @@ function buildSpd(
     maximumLeakageTime: maximumLeakage?.ts ?? null,
     status
   };
+}
+
+/** 与SpdMonitoringCalculator一致的协议状态键，不将诊断说明字段当作报警开关。 */
+const SPD_PROTOCOL_STATUS_KEYS = [
+  'RemoteSig', 'McbStatus', 'GndStatus', 'PhAStatus', 'PhBStatus', 'PhCStatus',
+  'TripSW1', 'TripSW2', 'TripSW3', 'TripSW4', 'SPD_Status', 'SPD_Alarm'
+] as const;
+
+/**
+ * 前端只计算遥测诊断提示，平台告警设备数量仍来自活动告警ID集合。
+ * 初始化／学习／事件及未知编码提示关注；缺失字段不算正常，也不算异常。
+ */
+function summarizeSpdProtocolStatus(devices: readonly SmartLightningMonitoringRealtimeDeviceSnapshot[]): {
+  reported: boolean; abnormal: boolean; needsAttention: boolean;
+} {
+  let reported = false;
+  let abnormal = false;
+  let needsAttention = false;
+  for (const device of devices) {
+    for (const key of SPD_PROTOCOL_STATUS_KEYS) {
+      const entry = device.values.get(key);
+      if (!hasStoredValue(entry)) {
+        continue;
+      }
+      reported = true;
+      const value = parseFiniteNumber(entry);
+      if (value == null || !Number.isInteger(value)) {
+        needsAttention = true;
+        continue;
+      }
+      if (key === 'SPD_Status') {
+        if (value >= 6 && value <= 8) {
+          abnormal = true;
+        } else if (value !== 4) {
+          needsAttention = true;
+        }
+      } else if (key === 'SPD_Alarm') {
+        if (value >= 1 && value <= 14) {
+          abnormal = true;
+        } else if (value !== 0) {
+          needsAttention = true;
+        }
+      } else if (value === 1) {
+        abnormal = true;
+      } else if (value !== 0) {
+        needsAttention = true;
+      }
+    }
+  }
+  return {reported, abnormal, needsAttention};
 }
 
 /** 汇总接地电阻的当前最大、最小值及对应设备和时间。 */
@@ -175,19 +246,22 @@ function buildCurrent(
   let latestPeakPolarity: string | null = null;
 
   for (const device of devices) {
-    const surgeCount = parseFiniteNumber(device.values.get('SurgeCnt'));
+    const countKey = resolveSmartLightningDeviceModel(device.deviceProfileName) === 'M1AI' ? 'StrikeCnt' : 'SurgeCnt';
+    const surgeCount = parseFiniteNumber(device.values.get(countKey));
     if (surgeCount != null && surgeCount >= 0) {
       // 与 Java Math.round 对非负累计值的结果一致。
       totalSurgeCount += Math.floor(surgeCount + 0.5);
     }
 
-    const peakEntry = device.values.get('PeakValue');
+    // 两种雷电流型号均使用实际报文PeakCur，不回退旧峰值键。
+    const peakKey = 'PeakCur';
+    const peakEntry = device.values.get(peakKey);
     const peak = parseFiniteNumber(peakEntry);
     const peakTime = getTimestamp(peakEntry);
     if (peak != null && peakTime != null && (latestPeak == null || peakTime > (latestPeak.ts ?? 0))) {
       latestPeak = createNumericSource(Math.abs(peak), device, undefined, peakEntry);
       const polarity = device.values.get('Polarity');
-      latestPeakPolarity = hasStoredValue(polarity) ? String(polarity.value) : null;
+      latestPeakPolarity = hasStoredValue(polarity) ? formatSmartLightningPolarityLabel(polarity.value, device.deviceProfileName) : null;
     }
   }
 
@@ -311,7 +385,7 @@ function countTemperatureStatus(devices: readonly SmartLightningMonitoringRealti
   let abnormal = 0;
   for (const device of devices) {
     const temperatures = [...device.values.entries()]
-      .filter(([key, entry]) => key.includes('Temp') && hasStoredValue(entry))
+      .filter(([key, entry]) => /^Temp[1-4]?$/.test(key) && hasStoredValue(entry))
       .map(([, entry]) => parseFiniteNumber(entry));
     if (!temperatures.length) {
       continue;
@@ -326,20 +400,20 @@ function countTemperatureStatus(devices: readonly SmartLightningMonitoringRealti
   return {participating, normal, abnormal};
 }
 
-/** DES采用SPD_RUL，其余型号采用LifeLeft；沿用现有60%统计口径，不更改告警规则。 */
+/** 仅采用新协议SPD_RUL；剩余寿命达到20%计为正常，与后端统计保持一致。 */
 function countLifeStatus(devices: readonly SmartLightningMonitoringRealtimeDeviceSnapshot[]): StatusCount {
   let participating = 0;
   let normal = 0;
   let abnormal = 0;
   for (const device of devices) {
-    // 新协议与其他系列分别使用各自的寿命键，不把旧值优先于新协议值。
-    const entry = device.values.has('SPD_RUL') ? device.values.get('SPD_RUL') : device.values.get('LifeLeft');
+    // 缺少新协议寿命时保持缺失，不使用历史旧键补值。
+    const entry = device.values.get('SPD_RUL');
     if (!hasStoredValue(entry)) {
       continue;
     }
     participating++;
     const value = parseFiniteNumber(entry);
-    if (value != null && value >= 60) {
+    if (value != null && value >= 20) {
       normal++;
     } else {
       abnormal++;

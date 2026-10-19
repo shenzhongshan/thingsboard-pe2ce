@@ -116,16 +116,16 @@ const SMART_LIGHTNING_CARD_METRICS: Readonly<Record<string, readonly SmartLightn
   DES4: [cardMetric('RemoteSig'), cardMetric('McbStatus'), cardMetric('GndStatus')],
   DES9: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流')],
   DESA: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
-  DEM2: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2'], '脱扣状态'), cardMetric('LifeLeft')],
-  DEM4: [cardMetric('GndStatus'), cardCombinedStatus(['Trip1', 'Trip2', 'Trip3', 'Trip4'], '脱扣状态'), cardMetric('LifeLeft')],
-  DEA2: [cardMetric('GndStatus'), cardMetric('LeakCurrA'), cardMetric('LifeLeft')],
-  DEA4: [cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  DEM2: [cardMetric('GndStatus'), cardCombinedStatus(['TripSW1', 'TripSW2'], '脱扣状态'), cardMetric('SPD_RUL')],
+  DEM4: [cardMetric('GndStatus'), cardCombinedStatus(['TripSW1', 'TripSW2', 'TripSW3', 'TripSW4'], '脱扣状态'), cardMetric('SPD_RUL')],
+  DEA2: [cardMetric('GndStatus'), cardMetric('LeakCurrA'), cardMetric('SPD_RUL')],
+  DEA4: [cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
   ESM0: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMetric('StrikeCnt')],
-  ESM3: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('LifeLeft')],
+  ESM3: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
   DEP4: [cardMetric('RemoteSig'), cardMetric('StrikeCnt'), cardMetric('Temp')],
   G1A3: [cardMetric('GndGridRes')],
-  M1AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
-  L2AI: [cardMetric('PeakValue'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
+  M1AI: [cardMetric('PeakCur'), cardMetric('StrikeCnt'), cardMetric('Polarity')],
+  L2AI: [cardMetric('PeakCur'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
 };
 
 /** 将遥测记录转为卡片提示文本，同时保留原始键、原始值与时间戳。 */

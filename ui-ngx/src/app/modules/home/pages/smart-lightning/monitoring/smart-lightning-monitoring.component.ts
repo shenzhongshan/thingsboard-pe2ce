@@ -660,6 +660,9 @@ export class SmartLightningMonitoringComponent implements OnInit, OnDestroy {
         return {
           deviceId,
           deviceName: device.name || deviceId,
+          deviceProfileName: device.deviceProfileName,
+          productName: typeof this.nodeDeviceAttributes.get(deviceId)?.productName === 'string'
+            ? String(this.nodeDeviceAttributes.get(deviceId)?.productName) : undefined,
           functionCategory: typeof functionCategory === 'string' ? functionCategory : '',
           active: activeValue,
           values

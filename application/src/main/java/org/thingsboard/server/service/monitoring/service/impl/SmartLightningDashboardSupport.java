@@ -13,6 +13,8 @@ import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.kv.ReadTsKvQuery;
+import org.thingsboard.server.common.data.kv.BaseReadTsKvQuery;
+import org.thingsboard.server.common.data.kv.Aggregation;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
 import org.thingsboard.server.service.alarms.bo.AlarmDimensionCountBO;
@@ -22,6 +24,7 @@ import org.thingsboard.server.service.monitoring.bo.MonitoringDeviceContextBO;
 import org.thingsboard.server.service.monitoring.dto.AlarmTypeTotalDTO;
 import org.thingsboard.server.service.monitoring.service.SmartLightningDeviceService;
 import org.thingsboard.server.service.monitoring.util.MonitoringDeviceFilters;
+import org.thingsboard.server.service.monitoring.util.MonitoringTelemetryAccumulator;
 import org.thingsboard.server.service.query.util.CountValueSupport;
 import org.thingsboard.server.service.query.util.MonitoringPeriodWindow;
 import org.thingsboard.server.service.security.model.SecurityUser;
@@ -42,45 +45,85 @@ final class SmartLightningDashboardSupport {
     }
 
     /**
-     * 统一分批读取一组设备的周期遥测，并保持返回结果与设备列表顺序一致。
+     * 分批、逐键、逐页读取设备周期遥测，读取后立即折叠为极值、最新状态和累计差值。
      *
-     * <p>ThingsBoard 当前没有“多个实体 + 多个历史键”的同步批量接口，因此这里仍通过
-     * {@link TimeseriesService} 并发读取，但统一限制每批 Future 数量。单台设备失败时返回
-     * 空列表，不影响同批其他设备；调用方只负责自己的指标聚合。</p>
+     * <p>每轮只保留固定设备批次的当前单键页；历史页不会追加到结果集合。
+     * 首批及续页使用同一失败策略，任何读取失败均抛出异常，禁止以部分数据冒充完整统计。
+     * limit=1的基线及最新值查询只读取一次，历史查询按左闭右开时间游标继续。</p>
      */
-    static List<List<TsKvEntry>> readTelemetryInBatches(
+    static List<MonitoringTelemetryAccumulator> readTelemetryInBatches(
             TimeseriesService timeseriesService,
             SecurityUser user,
             List<MonitoringDeviceContextBO> devices,
             List<ReadTsKvQuery> queries,
+            Set<String> counterKeys,
             String errorMessage) throws ThingsboardException {
-        if (devices.isEmpty()) {
-            return Collections.emptyList();
+        List<MonitoringTelemetryAccumulator> summaries = new ArrayList<>();
+        for (int index = 0; index < devices.size(); index++) {
+            summaries.add(new MonitoringTelemetryAccumulator(counterKeys));
         }
-        // 按固定上限切分设备列表，控制每轮并发请求数并保持原始设备顺序。
-        List<List<TsKvEntry>> entriesByDevice = new ArrayList<>();
         for (int batchStart = 0; batchStart < devices.size(); batchStart += TELEMETRY_BATCH_SIZE) {
             int batchEnd = Math.min(batchStart + TELEMETRY_BATCH_SIZE, devices.size());
-            List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
-            for (int index = batchStart; index < batchEnd; index++) {
-                MonitoringDeviceContextBO device = devices.get(index);
-                futures.add(timeseriesService.findAll(
-                        user.getTenantId(), new DeviceId(device.getDeviceId()), queries));
-            }
-            try {
-                // 等待当前批次完成；成功列表会把单项失败表示为空结果，便于保留其他设备数据。
-                List<List<TsKvEntry>> batchEntries = Futures.successfulAsList(futures).get();
-                for (List<TsKvEntry> entries : batchEntries) {
-                    entriesByDevice.add(entries == null ? Collections.emptyList() : entries);
+            for (ReadTsKvQuery query : queries) {
+                List<ListenableFuture<List<TsKvEntry>>> futures = new ArrayList<>();
+                for (int index = batchStart; index < batchEnd; index++) {
+                    futures.add(timeseriesService.findAll(user.getTenantId(),
+                            new DeviceId(devices.get(index).getDeviceId()), List.of(query)));
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
-            } catch (ExecutionException e) {
-                throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
+                try {
+                    // allAsList保留单项失败，不再将异常伪装为空遥测。
+                    List<List<TsKvEntry>> pages = new ArrayList<>(Futures.allAsList(futures).get());
+                    for (int index = batchStart; index < batchEnd; index++) {
+                        List<TsKvEntry> page = pages.get(index - batchStart);
+                        consumeTelemetryPages(timeseriesService, user, devices.get(index),
+                                query, page, summaries.get(index));
+                        // 当前设备处理结束后释放首批页引用，下一轮仅保留紧凑聚合状态。
+                        pages.set(index - batchStart, Collections.emptyList());
+                        futures.set(index - batchStart, null);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
+                } catch (ExecutionException e) {
+                    throw new ThingsboardException(errorMessage, e, ThingsboardErrorCode.DATABASE);
+                }
             }
         }
-        return entriesByDevice;
+        return summaries;
+    }
+
+    /** 消费单设备、单键的全部页；只在局部变量中保存当前页，聚合器跨页保留必要状态。 */
+    private static void consumeTelemetryPages(
+            TimeseriesService timeseriesService, SecurityUser user,
+            MonitoringDeviceContextBO device, ReadTsKvQuery query, List<TsKvEntry> firstPage,
+            MonitoringTelemetryAccumulator summary) throws ExecutionException, InterruptedException {
+        boolean ascending = "ASC".equalsIgnoreCase(query.getOrder());
+        long startTs = query.getStartTs();
+        long endTs = query.getEndTs();
+        List<TsKvEntry> page = firstPage;
+        while (true) {
+            summary.accept(query, page);
+            if (query.getAggregation() != Aggregation.NONE || query.getLimit() <= 1
+                    || page.size() < query.getLimit()) {
+                return;
+            }
+            long boundary = ascending ? Long.MIN_VALUE : Long.MAX_VALUE;
+            for (TsKvEntry entry : page) {
+                boundary = ascending ? Math.max(boundary, entry.getTs())
+                        : Math.min(boundary, entry.getTs());
+            }
+            if (ascending) {
+                startTs = boundary + 1;
+            } else {
+                endTs = boundary;
+            }
+            if (startTs >= endTs) {
+                return;
+            }
+            ReadTsKvQuery nextPage = new BaseReadTsKvQuery(query, startTs, endTs);
+            page = timeseriesService.findAll(user.getTenantId(),
+                    new DeviceId(device.getDeviceId()), List.of(nextPage)).get();
+        }
     }
 
     /**
