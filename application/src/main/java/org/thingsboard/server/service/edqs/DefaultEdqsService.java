@@ -72,6 +72,7 @@ import org.thingsboard.server.queue.provider.EdqsClientQueueFactory;
 import org.thingsboard.server.queue.util.AfterStartUp;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -155,9 +156,21 @@ public class DefaultEdqsService implements EdqsService {
                     requestEdqsSync(new EdqsSyncRequest());
                 } else if (syncState.getStatus() != EdqsSyncStatus.FINISHED) {
                     requestEdqsSync(new EdqsSyncRequest(syncState.getObjectTypes()));
+                } else if (isCoveredSetUnknown(syncState.getSyncedTypes())) {
+                    // We cannot tell which types the last sync covered. Re-sync everything via the full
+                    // path on purpose: an enumerated request would skip relations, attributes, latest
+                    // timeseries and loadKeyDictionary().
+                    log.info("EDQS sync state has no record of covered types. Requesting full re-sync");
+                    requestEdqsSync(new EdqsSyncRequest());
                 } else {
-                    // only if topic/RocksDB is not empty and sync is finished
-                    onSyncStatusUpdate(EdqsSyncStatus.FINISHED);
+                    Set<ObjectType> unsynced = getUnsyncedResidentTypes(syncState);
+                    if (unsynced.isEmpty()) {
+                        // only if topic/RocksDB is not empty and sync is finished
+                        onSyncStatusUpdate(EdqsSyncStatus.FINISHED);
+                    } else {
+                        log.info("EDQS resident types not covered by any completed sync: {}. Requesting incremental sync", unsynced);
+                        requestEdqsSync(new EdqsSyncRequest(unsynced));
+                    }
                 }
             } catch (Throwable e) {
                 log.error("Failed to start EDQS service", e);
@@ -221,7 +234,7 @@ public class DefaultEdqsService implements EdqsService {
 
                         edqsSyncService.sync(syncRequest);
 
-                        saveSyncState(EdqsSyncStatus.FINISHED);
+                        saveSyncFinished(syncRequest);
                         broadcastSyncStatusUpdate(EdqsSyncStatus.FINISHED);
                     } catch (Exception e) {
                         log.error("Failed to complete sync", e);
@@ -380,13 +393,79 @@ public class DefaultEdqsService implements EdqsService {
         saveSyncState(status, null);
     }
 
-    @SneakyThrows
     private void saveSyncState(EdqsSyncStatus status, Set<ObjectType> objectTypes) {
-        EdqsSyncState state = new EdqsSyncState(status, objectTypes);
+        // carry the accounting forward - a status transition must not erase what has been synced
+        EdqsSyncState current = getSyncState();
+        saveSyncState(status, objectTypes, current != null ? current.getSyncedTypes() : null);
+    }
+
+    @SneakyThrows
+    private void saveSyncState(EdqsSyncStatus status, Set<ObjectType> objectTypes, Set<ObjectType> syncedTypes) {
+        EdqsSyncState state = new EdqsSyncState(status, objectTypes, syncedTypes);
         log.info("New EDQS sync state: {}", state);
         attributesService.save(TenantId.SYS_TENANT_ID, TenantId.SYS_TENANT_ID, AttributeScope.SERVER_SCOPE, new BaseAttributeKvEntry(
                 new JsonDataEntry("edqsSyncState", JacksonUtil.toString(state)),
                 System.currentTimeMillis())).get(30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Records the sync as finished, adding the resident types it covered to the accounting. Called
+     * under {@code syncLock}, so the read-modify-write of {@code syncedTypes} is safe here.
+     */
+    private void saveSyncFinished(EdqsSyncRequest syncRequest) {
+        EdqsSyncState current = getSyncState();
+        Set<ObjectType> previouslySynced = current != null ? current.getSyncedTypes() : null;
+        Set<ObjectType> covered = getCoveredResidentTypes(syncRequest);
+
+        if (isCoveredSetUnknown(previouslySynced) && covered.isEmpty()) {
+            // A sync over structural types only (e.g. a resumed ATTRIBUTE_KV request) covers no
+            // resident entity type, so nothing was learned: the covered set must stay *unknown*
+            // rather than become *empty*. Writing an empty set would disarm the full-re-sync
+            // fallback - the next startup would see a non-null set, enumerate entity types only,
+            // and never sync relations, attributes, latest timeseries or the key dictionary.
+            saveSyncState(EdqsSyncStatus.FINISHED, null, null);
+            return;
+        }
+
+        EnumSet<ObjectType> syncedTypes = EnumSet.noneOf(ObjectType.class);
+        if (previouslySynced != null) {
+            syncedTypes.addAll(previouslySynced);
+        }
+        syncedTypes.addAll(covered);
+        saveSyncState(EdqsSyncStatus.FINISHED, null, syncedTypes);
+    }
+
+    /**
+     * Whether we cannot tell which resident types a completed sync covered. Null means the state
+     * predates this accounting; empty is not reachable from a correct run - any sync that covers a
+     * resident type records at least that one - so it is treated as unknown too, which self-heals
+     * states written before the guard above existed.
+     */
+    static boolean isCoveredSetUnknown(Set<ObjectType> syncedTypes) {
+        return syncedTypes == null || syncedTypes.isEmpty();
+    }
+
+    static Set<ObjectType> getCoveredResidentTypes(EdqsSyncRequest syncRequest) {
+        Set<ObjectType> requested = syncRequest.getObjectTypes();
+        if (requested == null || requested.isEmpty()) {
+            // a full sync covers every resident type; copy - the static set is mutable
+            return EnumSet.copyOf(ObjectType.edqsTenantTypes);
+        }
+        EnumSet<ObjectType> covered = EnumSet.noneOf(ObjectType.class);
+        requested.stream().filter(ObjectType.edqsTenantTypes::contains).forEach(covered::add);
+        return covered;
+    }
+
+    /**
+     * Resident entity types that no completed sync has covered - in practice the types added to
+     * {@link ObjectType#edqsTenantTypes} since the last sync ran. Deliberately ignores RELATION,
+     * ATTRIBUTE_KV and LATEST_TS_KV: those are structural rather than newly introduced, and an
+     * enumerated request cannot top them up correctly because that path skips the key dictionary.
+     */
+    static Set<ObjectType> getUnsyncedResidentTypes(EdqsSyncState syncState) {
+        EnumSet<ObjectType> unsynced = EnumSet.copyOf(ObjectType.edqsTenantTypes);
+        unsynced.removeAll(syncState.getSyncedTypes());
+        return unsynced;
     }
 
     @PreDestroy

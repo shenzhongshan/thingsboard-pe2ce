@@ -45,8 +45,10 @@ import org.thingsboard.server.dao.model.sqlts.latest.TsKvLatestEntity;
 import org.thingsboard.server.dao.sql.relation.RelationRepository;
 import org.thingsboard.server.dao.sqlts.latest.TsKvLatestRepository;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,6 +84,9 @@ public abstract class EdqsSyncService {
 
     private final Map<ObjectType, AtomicInteger> counters = new ConcurrentHashMap<>();
 
+    /** Types whose sync resolves int key ids through the key dictionary. */
+    private static final Set<ObjectType> KEY_DICTIONARY_DEPENDENT_TYPES = Set.of(ATTRIBUTE_KV, LATEST_TS_KV);
+
     public abstract boolean isSyncNeeded();
 
     public void sync(EdqsSyncRequest syncRequest) {
@@ -91,6 +96,12 @@ public abstract class EdqsSyncService {
 
         if (syncRequest.getObjectTypes() != null && !syncRequest.getObjectTypes().isEmpty()) {
             log.info("Sync request for entity types: {}", syncRequest.getObjectTypes());
+            if (!Collections.disjoint(syncRequest.getObjectTypes(), KEY_DICTIONARY_DEPENDENT_TYPES)) {
+                // Data point types resolve int key ids through the dictionary. The full-sync path below
+                // preloads it in bulk; without that, getStrKeyOrFetchFromDb() degrades to one single-row
+                // query per distinct key. Load once here regardless of how many such types were asked for.
+                loadKeyDictionary();
+            }
             for (ObjectType objectType : syncRequest.getObjectTypes()) {
                 syncObjectType(objectType);
             }
