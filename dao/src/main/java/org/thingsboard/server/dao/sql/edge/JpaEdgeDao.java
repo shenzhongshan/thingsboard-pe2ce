@@ -33,6 +33,7 @@ import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.dao.DaoUtil;
 import org.thingsboard.server.dao.edge.EdgeDao;
+import org.thingsboard.server.dao.group.BaseEntityGroupService;
 import org.thingsboard.server.dao.model.sql.EdgeEntity;
 import org.thingsboard.server.dao.model.sql.EdgeInfoEntity;
 import org.thingsboard.server.dao.sql.JpaAbstractDao;
@@ -231,6 +232,46 @@ public class JpaEdgeDao extends JpaAbstractDao<EdgeEntity, Edge> implements Edge
                         entityId,
                         entityType.name(),
                         pageLink.getTextSearch(),
+                        DaoUtil.toPageable(pageLink))).mapData(EdgeId::fromUUID);
+    }
+
+    @Override
+    public PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIds(UUID tenantId, List<UUID> entityIds, EntityType entityType, PageLink pageLink) {
+        log.debug("Try to find edge ids by tenantId [{}], entityIds [{}], entityType [{}], pageLink [{}]", tenantId, entityIds, entityType, pageLink);
+        if (entityIds == null || entityIds.isEmpty()) {
+            // IN () 在 Postgres 里是语法错误，空集合必须在进 SQL 前短路掉。
+            return PageData.emptyPageData();
+        }
+        return DaoUtil.pageToPageData(
+                edgeRepository.findIdsByTenantIdAndEntityIds(
+                        tenantId,
+                        entityIds,
+                        entityType.name(),
+                        DaoUtil.toPageable(pageLink))).mapData(EdgeId::fromUUID);
+    }
+
+    @Override
+    public PageData<EdgeId> findEdgeIdsByTenantIdAndEntityGroupId(UUID tenantId, UUID entityGroupId, EntityType groupType, PageLink pageLink) {
+        log.debug("Try to find edge ids by tenantId [{}], entityGroupId [{}], groupType [{}], pageLink [{}]", tenantId, entityGroupId, groupType, pageLink);
+        return DaoUtil.pageToPageData(
+                edgeRepository.findIdsByTenantIdAndEntityIdAndRelationType(
+                        tenantId,
+                        entityGroupId,
+                        EntityType.ENTITY_GROUP.name(),
+                        BaseEntityGroupService.EDGE_ENTITY_GROUP_RELATION_PREFIX + groupType.name(),
+                        DaoUtil.toPageable(pageLink))).mapData(EdgeId::fromUUID);
+    }
+
+    @Override
+    public PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIdIncludingGroups(UUID tenantId, UUID entityId, EntityType entityType, PageLink pageLink) {
+        log.debug("Try to find edge ids (direct + via groups) by tenantId [{}], entityId [{}], entityType [{}], pageLink [{}]", tenantId, entityId, entityType, pageLink);
+        return DaoUtil.pageToPageData(
+                edgeRepository.findIdsByTenantIdAndEntityIdIncludingGroups(
+                        tenantId,
+                        entityId,
+                        entityType.name(),
+                        // 分组类型 == 实体类型：DEVICE 分组装的就是设备
+                        BaseEntityGroupService.EDGE_ENTITY_GROUP_RELATION_PREFIX + entityType.name(),
                         DaoUtil.toPageable(pageLink))).mapData(EdgeId::fromUUID);
     }
 

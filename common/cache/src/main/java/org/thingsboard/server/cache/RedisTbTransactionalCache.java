@@ -50,6 +50,37 @@ public abstract class RedisTbTransactionalCache<K extends Serializable, V extend
     static final byte[] BINARY_NULL_VALUE = RedisSerializer.java().serialize(NullValue.INSTANCE);
     static final JedisPool MOCK_POOL = new JedisPool(); //non-null pool required for JedisConnection to trigger closing jedis connection
 
+    /**
+     * 服务端 SCAN + DEL，避免把键全量拉回客户端。与 PE 的同名脚本逐字一致，
+     * SHA 也取 PE 的值 —— executeScript 会先试 evalSha，失败再 scriptLoad 回退，
+     * 所以 SHA 对不上也只是慢一次，不会出错（有单测钉住两者一致）。
+     *
+     * <p><b>要求 Redis >= 5</b>：更早的版本把脚本按原文复制到从库，禁止在非确定性命令
+     * （SCAN）之后执行写命令（DEL），会直接报 "Write commands not allowed after non
+     * deterministic commands"。Redis 5 起默认按效果复制，限制取消。实测确认过：在
+     * Redis 2.8 上这段脚本执行失败。本项目的缓存后端是 Valkey 8
+     * （docker/docker-compose.valkey-*.yml），满足该要求，因此保持与 PE 一致未作改动；
+     * 若将来要支持 3.2~4.x，需在脚本开头加 redis.replicate_commands()（并同步更新 SHA）。
+     */
+    static final byte[] EVICT_BY_PREFIX_LUA_SCRIPT = StringRedisSerializer.UTF_8.serialize(
+            "local prefix = ARGV[1]\n" +
+            "local count = tonumber(ARGV[2]) or 1000\n" +
+            "local cursor = \"0\"\n" +
+            "local keysToDelete = {}\n" +
+            "repeat\n" +
+            "    local result = redis.call(\"SCAN\", cursor, \"MATCH\", prefix .. \"*\", \"COUNT\", count)\n" +
+            "    cursor = result[1]\n" +
+            "    for i, key in ipairs(result[2]) do\n" +
+            "        table.insert(keysToDelete, key)\n" +
+            "    end\n" +
+            "until cursor == \"0\"\n" +
+            "if #keysToDelete > 0 then\n" +
+            "    redis.call(\"DEL\", unpack(keysToDelete))\n" +
+            "end\n" +
+            "return #keysToDelete\n");
+    static final byte[] EVICT_BY_PREFIX_SHA = StringRedisSerializer.UTF_8.serialize("837605bb2289f85b0ebf1c10fa8cbd5833bea3ac");
+    private static final int EVICT_BY_PREFIX_BATCH_SIZE = 1000;
+
     @Autowired
     private FstStatsService fstStatsService;
 
@@ -174,6 +205,22 @@ public abstract class RedisTbTransactionalCache<K extends Serializable, V extend
                 //We need to put the value in case of Redis, because evict will NOT cancel concurrent transaction used to "get" the missing value from cache.
                 connection.stringCommands().set(rawKey, getRawValue(value), evictExpiration, RedisStringCommands.SetOption.UPSERT);
             }
+        }
+    }
+
+    @Override
+    public void evictByPrefix(String prefix) {
+        if (!cacheEnabled) {
+            return;
+        }
+        // 拼上 cacheName：raw key 是 cacheName + key.toString()，调用方传的是纯 key 前缀。
+        byte[] rawPrefix = StringRedisSerializer.UTF_8.serialize(cacheName + prefix);
+        byte[] rawBatchSize = StringRedisSerializer.UTF_8.serialize(String.valueOf(EVICT_BY_PREFIX_BATCH_SIZE));
+        // getConnection(rawPrefix) 在 cluster 模式下按前缀算 slot。调用方让前缀以
+        // {hashTag} 开头，同前缀的键必然同 slot，所以扫这一个节点就够。
+        try (RedisConnection connection = getConnection(rawPrefix)) {
+            executeScript(connection, EVICT_BY_PREFIX_SHA, EVICT_BY_PREFIX_LUA_SCRIPT,
+                    ReturnType.INTEGER, 0, rawPrefix, rawBatchSize);
         }
     }
 

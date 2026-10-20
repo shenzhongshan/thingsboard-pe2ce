@@ -261,4 +261,23 @@ public class IntegrationController extends BaseController {
         return checkNotNull(integrationService.unassignIntegrationFromEdge(getTenantId(), entityId, edgeId));
     }
 
+    @ApiOperation(value = "Get Edge Integrations (getEdgeIntegrations)",
+            notes = "返回分配给指定 edge 的集成分页列表。只有 assign/unassign 是不够的 —— " +
+                    "没有这个列表端点，前端无法展示“这台 edge 分配了哪些集成”。对齐 PE 的同名端点。")
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @GetMapping(value = {"/edge/{edgeId}/integrations"}, params = {"pageSize", "page"})
+    public PageData<Integration> getEdgeIntegrations(
+            @PathVariable("edgeId") String strEdgeId,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder) throws ThingsboardException {
+        checkParameter("edgeId", strEdgeId);
+        EdgeId edgeId = new EdgeId(toUUID(strEdgeId));
+        checkEdgeId(edgeId, Operation.READ);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
+        return checkNotNull(integrationService.findIntegrationsByTenantIdAndEdgeId(getTenantId(), edgeId, pageLink));
+    }
+
 }

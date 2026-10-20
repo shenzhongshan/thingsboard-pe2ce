@@ -16,6 +16,7 @@
 package org.thingsboard.server.dao.ota;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.thingsboard.server.common.data.Device;
@@ -27,6 +28,8 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.ota.OtaPackageType;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
+import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.model.sql.DeviceGroupOtaPackageEntity;
 import org.thingsboard.server.dao.sql.ota.DeviceGroupOtaPackageRepository;
@@ -43,6 +46,7 @@ public class BaseDeviceGroupOtaPackageService implements DeviceGroupOtaPackageSe
     private final DeviceGroupOtaPackageRepository deviceGroupOtaPackageRepository;
     private final EntityGroupService entityGroupService;
     private final DeviceService deviceService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public DeviceGroupOtaPackage findDeviceGroupOtaPackageByGroupIdAndType(TenantId tenantId, EntityGroupId groupId, OtaPackageType type) {
@@ -75,12 +79,23 @@ public class BaseDeviceGroupOtaPackageService implements DeviceGroupOtaPackageSe
         deviceGroupOtaPackage.setId(id);
         DeviceGroupOtaPackage saved = deviceGroupOtaPackageRepository.save(new DeviceGroupOtaPackageEntity(deviceGroupOtaPackage)).toData();
         cascadeToMemberDevices(tenantId, saved);
+        // entityId 用分组 id（与 PE 一致）：这条配置是挂在设备分组上的，edge 按分组认领。
+        // 类型由 EdgeEventSourcingListener 的 DeviceGroupOtaPackage 分支显式给出 ——
+        // 否则会被反推成 ENTITY_GROUP。
+        eventPublisher.publishEvent(SaveEntityEvent.builder()
+                .tenantId(tenantId).entity(saved).entityId(saved.getGroupId()).build());
         return saved;
     }
 
     @Override
     public void deleteDeviceGroupOtaPackage(TenantId tenantId, EntityGroupId groupId, OtaPackageType type) {
+        // 先读后删：DELETED 事件的 body 要带删除前的内容，edge 侧已无从回查。
+        DeviceGroupOtaPackage existing = findDeviceGroupOtaPackageByGroupIdAndType(tenantId, groupId, type);
         deviceGroupOtaPackageRepository.deleteByGroupIdAndOtaPackageType(groupId.getId(), type);
+        if (existing != null) {
+            eventPublisher.publishEvent(DeleteEntityEvent.builder()
+                    .tenantId(tenantId).entity(existing).entityId(groupId).build());
+        }
     }
 
     /**

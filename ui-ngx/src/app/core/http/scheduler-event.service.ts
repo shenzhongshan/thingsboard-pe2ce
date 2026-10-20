@@ -73,4 +73,24 @@ export class SchedulerEventService {
     return this.http.delete<void>(`/api/schedulerEvent/${schedulerEventId}`, defaultHttpOptionsFromConfig(config));
   }
 
+  /** 分配给某台 edge 的调度事件 —— 让它在断网时也能按计划触发。 */
+  public getEdgeSchedulerEvents(edgeId: string, pageLink: PageLink,
+                                config?: RequestConfig): Observable<PageData<SchedulerEventWithCustomerInfo>> {
+    return this.http.get<PageData<SchedulerEventWithCustomerInfo>>(
+      `/api/edge/${edgeId}/schedulerEvents${pageLink.toQuery()}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public assignSchedulerEventToEdge(edgeId: string, schedulerEventId: string,
+                                    config?: RequestConfig): Observable<SchedulerEvent> {
+    return this.http.post<SchedulerEvent>(`/api/edge/${edgeId}/schedulerEvent/${schedulerEventId}`, null,
+      defaultHttpOptionsFromConfig(config));
+  }
+
+  public unassignSchedulerEventFromEdge(edgeId: string, schedulerEventId: string,
+                                        config?: RequestConfig): Observable<SchedulerEvent> {
+    return this.http.delete<SchedulerEvent>(`/api/edge/${edgeId}/schedulerEvent/${schedulerEventId}`,
+      defaultHttpOptionsFromConfig(config));
+  }
+
 }

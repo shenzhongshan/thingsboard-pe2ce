@@ -37,12 +37,14 @@ import org.thingsboard.server.common.data.AttributeScope;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
-import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.edge.EdgeInfo;
 import org.thingsboard.server.common.data.edge.EdgeSearchQuery;
+import org.thingsboard.server.common.data.group.EntityGroup;
+import org.thingsboard.server.common.data.id.ConverterId;
 import org.thingsboard.server.common.data.id.CustomerId;
+import org.thingsboard.server.common.data.id.EntityGroupId;
 import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.HasId;
@@ -50,7 +52,6 @@ import org.thingsboard.server.common.data.id.IdBased;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.id.TenantProfileId;
-import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.common.data.kv.KvEntry;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageDataIterable;
@@ -66,6 +67,8 @@ import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
+import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.integration.IntegrationService;
 import org.thingsboard.server.dao.relation.RelationService;
 import org.thingsboard.server.dao.rule.RuleChainService;
 import org.thingsboard.server.dao.service.DataValidator;
@@ -73,7 +76,6 @@ import org.thingsboard.server.dao.service.PaginatedRemover;
 import org.thingsboard.server.dao.service.Validator;
 import org.thingsboard.server.dao.sql.JpaExecutorService;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
-import org.thingsboard.server.dao.user.UserService;
 import org.thingsboard.server.exception.DataValidationException;
 
 import java.util.ArrayList;
@@ -105,9 +107,6 @@ public class EdgeServiceImpl extends AbstractCachedEntityService<EdgeCacheKey, E
     private EdgeDao edgeDao;
 
     @Autowired
-    private UserService userService;
-
-    @Autowired
     private RuleChainService ruleChainService;
 
     @Autowired
@@ -132,6 +131,15 @@ public class EdgeServiceImpl extends AbstractCachedEntityService<EdgeCacheKey, E
 
     @Autowired
     private EntityCountService countService;
+
+    // 不加 @Lazy：环已经在 BaseIntegrationService 那一侧用 @Lazy 断开了（它注入 EdgeService）。
+    // 两侧都加反而没必要，与 PE 的 EdgeServiceImpl 保持一致。
+    @Autowired
+    private IntegrationService integrationService;
+
+    // 同理：BaseEntityGroupService 注入 EdgeService 时已加了 @Lazy。
+    @Autowired
+    private EntityGroupService entityGroupService;
 
     @Value("${edges.enabled}")
     @Getter
@@ -479,6 +487,27 @@ public class EdgeServiceImpl extends AbstractCachedEntityService<EdgeCacheKey, E
     }
 
     @Override
+    public PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIdIncludingGroups(TenantId tenantId, EntityId entityId, PageLink pageLink) {
+        log.trace("Executing findEdgeIdsByTenantIdAndEntityIdIncludingGroups, tenantId [{}], entityId [{}], pageLink [{}]", tenantId, entityId, pageLink);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        validatePageLink(pageLink);
+        return edgeDao.findEdgeIdsByTenantIdAndEntityIdIncludingGroups(tenantId.getId(), entityId.getId(),
+                entityId.getEntityType(), pageLink);
+    }
+
+    @Override
+    public PageData<EdgeId> findEdgeIdsByTenantIdAndEntityIds(TenantId tenantId, List<EntityId> entityIds, EntityType entityType, PageLink pageLink) {
+        log.trace("Executing findEdgeIdsByTenantIdAndEntityIds, tenantId [{}], entityIds [{}], entityType [{}], pageLink [{}]", tenantId, entityIds, entityType, pageLink);
+        Validator.validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
+        validatePageLink(pageLink);
+        if (entityIds == null || entityIds.isEmpty()) {
+            return PageData.emptyPageData();
+        }
+        return edgeDao.findEdgeIdsByTenantIdAndEntityIds(tenantId.getId(),
+                entityIds.stream().map(EntityId::getId).collect(Collectors.toList()), entityType, pageLink);
+    }
+
+    @Override
     public PageData<Edge> findEdgesByTenantProfileId(TenantProfileId tenantProfileId, PageLink pageLink) {
         log.trace("Executing findEdgesByTenantProfileId, tenantProfileId [{}], pageLink [{}]", tenantProfileId, pageLink);
         Validator.validateId(tenantProfileId, id -> "Incorrect tenantProfileId " + id);
@@ -543,22 +572,51 @@ public class EdgeServiceImpl extends AbstractCachedEntityService<EdgeCacheKey, E
                 return convertToEdgeIds(findEdgesByTenantIdAndCustomerId(tenantId, new CustomerId(entityId.getId()), pageLink));
             case EDGE:
                 return new PageData<>(List.of(new EdgeId(entityId.getId())), 1, 1, false);
+            // 这五类实体到达 edge 有两条途径：直连分配，或经"分组分配给 edge"。
+            // 必须查并集 —— 实测过（probe_group_aware.py）：只查直连时，靠分组到达 edge
+            // 的设备/资产/仪表板，首次全量同步能拿到，之后的任何更新都查不到关联 edge
+            // 而被静默丢弃。USER 原先走"按租户/客户广播"分支，会把用户更新推给租户下
+            // 每一台 edge（包括与该用户毫无关系的），这里一并收紧为按实际关联下发。
+            //
+            // 走缓存（relatedEdgesService）。结果依赖分组成员关系与分组→edge 分配，
+            // 这两类变更的失效由 RelatedEdgesSourcingListener 负责：成员增删精确清该实体，
+            // 分组分配/取消分配/删除则整租户清空（受影响的成员集合未知或已不可枚举）。
             case DEVICE:
             case ASSET:
             case ENTITY_VIEW:
             case DASHBOARD:
-            case RULE_CHAIN:
-                return relatedEdgesService.findEdgeIdsByEntityId(tenantId, entityId, pageLink);
             case USER:
-                User userById = userService.findUserById(tenantId, new UserId(entityId.getId()));
-                if (userById == null) {
+                return relatedEdgesService.findEdgeIdsByEntityIdIncludingGroups(tenantId, entityId, pageLink);
+            case RULE_CHAIN:
+            // SCHEDULER_EVENT / INTEGRATION 与 RULE_CHAIN 同属"逐台 edge 显式分配"的实体：
+            // assignXxxToEdge 建的是 EntityRelation(edgeId -> entityId, CONTAINS_TYPE,
+            // RelationTypeGroup.EDGE)，正是 findIdsByTenantIdAndEntityId 的查询条件。
+            // 缺这两个 case 会落到 default 返回空分页 —— 首次分配能下发（那条路径带显式
+            // edgeId），但之后对实体本身的任何修改都查不到关联 edge，被静默丢弃。
+            // 分支归并方式对齐 PE 的同名方法。
+            case SCHEDULER_EVENT:
+            case INTEGRATION:
+                return relatedEdgesService.findEdgeIdsByEntityId(tenantId, entityId, pageLink);
+            case ENTITY_GROUP:
+                // 分组→edge 的关系类型里嵌了分组类型（EDGE_ENTITY_GROUP_DEVICE 等），
+                // 所以得先知道这个组是什么类型。缺这个 case 的后果不只是"分组本身改了
+                // 不下发"：DEVICE_GROUP_OTA 的 entityId 就是分组 id，它的保存路径
+                // 完全依赖这里 —— 实测过，少了它保存静默无事件，而删除因为会回退成
+                // 按租户广播反而正常，表现为"删得了、存不了"的不对称。
+                EntityGroup entityGroup = entityGroupService.findEntityGroupById(tenantId, new EntityGroupId(entityId.getId()));
+                if (entityGroup == null || entityGroup.getType() == null) {
                     return PageData.emptyPageData();
                 }
-                if (userById.getCustomerId() == null || userById.getCustomerId().isNullUid()) {
-                    return convertToEdgeIds(findEdgesByTenantId(tenantId, pageLink));
-                } else {
-                    return convertToEdgeIds(findEdgesByTenantIdAndCustomerId(tenantId, userById.getCustomerId(), pageLink));
-                }
+                return edgeDao.findEdgeIdsByTenantIdAndEntityGroupId(tenantId.getId(), entityId.getId(),
+                        entityGroup.getType(), pageLink);
+            case CONVERTER:
+                // 转换器自己从不分配给 edge —— 它跟着引用它的集成走。所以要先查出哪些集成
+                // 引用了它，再取这些集成所在 edge 的并集。否则单独改一个解码脚本不会下发，
+                // 只有连带改了集成才会（IntegrationEdgeProcessor 构造下行时会捎带转换器）。
+                List<EntityId> integrationIds = integrationService
+                        .findIntegrationsByConverterId(tenantId, new ConverterId(entityId.getId()))
+                        .stream().map(integration -> (EntityId) integration.getId()).collect(Collectors.toList());
+                return findEdgeIdsByTenantIdAndEntityIds(tenantId, integrationIds, EntityType.INTEGRATION, pageLink);
             case TENANT_PROFILE:
                 return convertToEdgeIds(findEdgesByTenantProfileId(new TenantProfileId(entityId.getId()), pageLink));
             default:

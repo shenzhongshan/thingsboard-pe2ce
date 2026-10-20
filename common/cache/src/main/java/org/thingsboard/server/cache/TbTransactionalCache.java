@@ -37,6 +37,19 @@ public interface TbTransactionalCache<K extends Serializable, V extends Serializ
 
     void evictOrPut(K key, V value);
 
+    /**
+     * 按键前缀批量失效。用于"受影响的键集合未知"的场景 —— 例如一个实体分组被分配给
+     * edge 后，该组全部成员的 related-edges 结果都变了，但成员列表此刻可能已不可枚举。
+     *
+     * <p><b>前缀不含 cacheName</b>：Redis 实现会自己拼上 cacheName（它的 raw key 是
+     * {@code cacheName + key.toString()}），而 Caffeine 实现比较的是 {@code key.toString()}
+     * 本身。调用方传的是纯 key 前缀，两种实现各自适配。传错了不会报错，只是一条都匹配不上。
+     *
+     * <p>Redis 下请让前缀以 {@code {hashTag}} 开头（如 {@code "{tenantId}"}），这样
+     * 同前缀的键必然同 slot，cluster 模式只需扫描一个节点。参见 CLUSTER KEYSLOT。
+     */
+    void evictByPrefix(String prefix);
+
     TbCacheTransaction<K, V> newTransactionForKey(K key);
 
     /**

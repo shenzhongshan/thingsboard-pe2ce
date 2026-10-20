@@ -139,12 +139,6 @@ public class EdgeSyncCursor {
             if (edge.getCustomerId() != null && !EntityId.NULL_UUID.equals(edge.getCustomerId().getId())) {
                 fetchers.add(new ReportTemplateEdgeEventFetcher(ctx.getReportTemplateService(), edge.getCustomerId()));
             }
-            // ENTITY_GROUP, INTEGRATION and SCHEDULER_EVENT are deliberately absent. PE fetches
-            // those per-edge (findEdgeEntityGroupsByType / findIntegrationsByTenantIdAndEdgeId /
-            // findSchedulerEventsByTenantIdAndEdgeId) because in PE they are individually assigned
-            // to an edge. CE has no such assignment, and falling back to "push every tenant one"
-            // would hand every edge all integration connection configs - so these stay unsynced
-            // until edge assignment exists for them.
         }
     }
 

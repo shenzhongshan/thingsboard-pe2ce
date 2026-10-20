@@ -32,6 +32,7 @@ import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.id.EdgeId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.EntityViewId;
 import org.thingsboard.server.common.data.id.TenantId;
@@ -41,6 +42,7 @@ import org.thingsboard.server.dao.asset.AssetService;
 import org.thingsboard.server.dao.customer.CustomerService;
 import org.thingsboard.server.dao.dashboard.DashboardService;
 import org.thingsboard.server.dao.device.DeviceService;
+import org.thingsboard.server.dao.edge.EdgeService;
 import org.thingsboard.server.dao.entityview.EntityViewService;
 import org.thingsboard.server.dao.user.UserService;
 
@@ -63,11 +65,13 @@ public class OwnerService {
     private final DashboardService dashboardService;
     private final UserService userService;
     private final RoleService roleService;
+    private final EdgeService edgeService;
 
     public EntityId getOwner(TenantId tenantId, EntityId entityId) {
         return switch (entityId.getEntityType()) {
             case DEVICE -> deviceService.findDeviceById(tenantId, (DeviceId) entityId).getOwnerId();
             case ASSET -> assetService.findAssetById(tenantId, (AssetId) entityId).getOwnerId();
+            case EDGE -> edgeService.findEdgeById(tenantId, (EdgeId) entityId).getOwnerId();
             case ENTITY_VIEW -> ownerOf(entityViewService.findEntityViewById(tenantId, (EntityViewId) entityId).getCustomerId(), tenantId);
             // dashboard.customer_id is the owner. Deliberately NOT assignedCustomers: that is the
             // share list, a dashboard can be shared with several customers, and picking "the first"
@@ -153,6 +157,13 @@ public class OwnerService {
                     assetService.assignAssetToCustomer(tenantId, (AssetId) entityId, (CustomerId) newOwnerId);
                 } else {
                     assetService.unassignAssetFromCustomer(tenantId, (AssetId) entityId);
+                }
+            }
+            case EDGE -> {
+                if (toCustomer) {
+                    edgeService.assignEdgeToCustomer(tenantId, (EdgeId) entityId, (CustomerId) newOwnerId);
+                } else {
+                    edgeService.unassignEdgeFromCustomer(tenantId, (EdgeId) entityId);
                 }
             }
             case ENTITY_VIEW -> {

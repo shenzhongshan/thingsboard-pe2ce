@@ -9,6 +9,7 @@ ThingsBoard is an open-source IoT platform for data collection, processing, visu
 - **Looking for a specific controller/API?** Jump to [REST Controllers](50-application/controllers.md).
 - **Working on the frontend?** Start with [Frontend Overview](70-frontend/README.md).
 - **Debugging database issues?** See [SQL Schema & Migrations](20-dao/sql-schema.md).
+- **Cutting a release, or adding a schema change?** Read [Versioning & Upgrade Guide](04-upgrade-and-release.md) ([中文](04-upgrade-and-release.zh-CN.md)) first — picking the wrong version segment silently skips migrations.
 
 ## Document Map
 
@@ -19,6 +20,8 @@ docs/architecture/
 ├── 01-build-system.md                           Maven reactor, build commands, packaging
 ├── 02-deployment-modes.md                       Monolith, Core+RE split, Microservices, Install
 ├── 03-service-code-mapping.md                   Service→Docker image→Maven module→Main class→Source pkgs
+├── 04-upgrade-and-release.md                    Version numbering, the two upgrade paths, release rules
+├── 04-upgrade-and-release.zh-CN.md              ^ 中文版
 │
 ├── 10-common/                                   ── Common Shared Modules ──
 │   ├── README.md                                Module overview & dependency graph

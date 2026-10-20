@@ -400,8 +400,17 @@ implements WhiteLabelingService {
         whiteLabeling.setTenantId(tenantId);
         whiteLabeling.setType(WhiteLabelingType.MAIL_TEMPLATES);
         whiteLabeling.setSettings(mailTemplates);
-        JsonNode result = this.whiteLabelingDao.save(tenantId, whiteLabeling).getSettings();
-        return result;
+        // 注意：这里直接打 dao，**没有**走 doSaveWhiteLabelingSettings 那个漏斗，
+        // 所以增量下发要在本方法里单独发一次。实测过：只在漏斗里发的话，
+        // 改邮件模板接口返回 200 但 edge 永远收不到事件。
+        WhiteLabeling saved = this.whiteLabelingDao.save(tenantId, whiteLabeling);
+        this.eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId)
+                .entityId(getEntityIdForEvent(tenantId, saved.getCustomerId()))
+                .edgeEventType(EdgeEventType.MAIL_TEMPLATES)
+                .actionType(ActionType.UPDATED)
+                .build());
+        return saved.getSettings();
     }
 
     @Override
@@ -464,6 +473,21 @@ implements WhiteLabelingService {
         return customerId != null && !customerId.isNullUid() ? customerId : tenantId;
     }
 
+    /**
+     * 白标类型 → edge 事件类型。只有这三种会下发给 edge；SELF_REGISTRATION /
+     * TERMS_OF_USE / PRIVACY_POLICY 在 PE 侧同样不产生 edge 事件，返回 null 表示跳过。
+     *
+     * <p>刻意不写 {@code default -> throw}：这个枚举以后加值时，不该让"保存白标"整体失败。
+     */
+    private static EdgeEventType toEdgeEventType(WhiteLabelingType type) {
+        return switch (type) {
+            case LOGIN -> EdgeEventType.LOGIN_WHITE_LABELING;
+            case GENERAL -> EdgeEventType.WHITE_LABELING;
+            case MAIL_TEMPLATES -> EdgeEventType.MAIL_TEMPLATES;
+            default -> null;
+        };
+    }
+
     private static boolean isValidUrl(String url) {
         try {
             new java.net.URL(url).toURI();
@@ -485,6 +509,18 @@ implements WhiteLabelingService {
             if (whiteLabeling.getDomainId() != null) {
                 Domain domain = this.domainService.findDomainById(tenantId, whiteLabeling.getDomainId());
                 this.publishEvictEvent(new WhiteLabelingEvictEvent(WhiteLabelingCacheKey.forTypeAndDomain(whiteLabeling.getType(), domain.getName())));
+            }
+            // 增量下发给已连接的 edge。少了这一步，edge 首次全量同步能拿到白标，
+            // 之后租户再改就永远收不到了（接收侧 WhiteLabelingEdgeProcessor 一直在等这个事件）。
+            // entityId 填所有者（租户或客户）而非实体自身 —— 接收侧按它分派 TENANT/CUSTOMER 两条路径。
+            EdgeEventType edgeEventType = toEdgeEventType(saved.getType());
+            if (edgeEventType != null) {
+                this.eventPublisher.publishEvent(ActionEntityEvent.builder()
+                        .tenantId(tenantId)
+                        .entityId(getEntityIdForEvent(saved.getTenantId(), saved.getCustomerId()))
+                        .edgeEventType(edgeEventType)
+                        .actionType(ActionType.UPDATED)
+                        .build());
             }
             return saved;
         }
@@ -579,6 +615,18 @@ implements WhiteLabelingService {
             if (whiteLabeling.getDomainId() != null) {
                 Domain domain = this.domainService.findDomainById(tenantId, whiteLabeling.getDomainId());
                 this.publishEvictEvent(new WhiteLabelingEvictEvent(WhiteLabelingCacheKey.forTypeAndDomain(type, domain.getName())));
+            }
+            // 删除要带 body：edge 侧收到 DELETED 时已无法回查内容，只能靠消息自带
+            // （WhiteLabelingEdgeProcessor 对 DELETED 正是读 body，其余动作才回查）。
+            EdgeEventType edgeEventType = toEdgeEventType(type);
+            if (edgeEventType != null) {
+                this.eventPublisher.publishEvent(ActionEntityEvent.builder()
+                        .tenantId(tenantId)
+                        .entityId(getEntityIdForEvent(tenantId, customerId))
+                        .edgeEventType(edgeEventType)
+                        .actionType(ActionType.DELETED)
+                        .body(JacksonUtil.toString(whiteLabeling))
+                        .build());
             }
         }
     }

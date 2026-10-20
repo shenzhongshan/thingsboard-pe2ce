@@ -43,6 +43,7 @@ import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.RuleChainId;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.ota.DeviceGroupOtaPackage;
 import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.common.data.rule.RuleChain;
@@ -174,8 +175,10 @@ public class EdgeEventSourcingListener {
             log.trace("[{}] ActionEntityEvent called: {}", event.getTenantId(), event);
             EntityType entityGroupType = event.getEntityGroup() != null ? event.getEntityGroup().getType() : null;
             EntityGroupId entityGroupId = event.getEntityGroup() != null ? event.getEntityGroup().getId() : null;
+            // 显式类型优先：owner-scoped 设置（白标/菜单/翻译）的 entityId 是所有者 id，
+            // 传 null 会让下游反推成 TENANT/CUSTOMER。其余场景仍走反推，保持原行为。
             tbClusterService.sendNotificationMsgToEdge(event.getTenantId(), event.getEdgeId(), event.getEntityId(),
-                    event.getBody(), null, EdgeUtils.getEdgeEventActionTypeByActionType(event.getActionType()),
+                    event.getBody(), event.getEdgeEventType(), EdgeUtils.getEdgeEventActionTypeByActionType(event.getActionType()),
                     entityGroupType, entityGroupId, edgeSynchronizationManager.getEdgeId().get());
         } catch (Exception e) {
             log.error("[{}] failed to process ActionEntityEvent: {}", event.getTenantId(), event, e);
@@ -285,6 +288,12 @@ public class EdgeEventSourcingListener {
     private EdgeEventType getEdgeEventTypeForEntityEvent(Object entity) {
         if (entity instanceof AlarmComment) {
             return EdgeEventType.ALARM_COMMENT;
+        }
+        // 设备分组 OTA 配置的 entityId 是分组 id，反推只会得到 ENTITY_GROUP ——
+        // 事件会被当成"分组本身变了"下发，真正的 OTA 配置到不了 edge。
+        // 这里必须显式指定，否则补了 dao 侧的 publishEvent 也依然无效。
+        if (entity instanceof DeviceGroupOtaPackage) {
+            return EdgeEventType.DEVICE_GROUP_OTA;
         }
         return null;
     }

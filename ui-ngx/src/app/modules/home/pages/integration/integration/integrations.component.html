@@ -31,10 +31,18 @@
         </mat-form-field>
         <button mat-icon-button type="button" (click)="exitSearchMode()"><mat-icon>close</mat-icon></button>
       } @else {
-        <button mat-icon-button type="button" (click)="addIntegration()"
-                matTooltip="{{ 'integration.add-integration' | translate }}" matTooltipPosition="above">
-          <mat-icon>add</mat-icon>
-        </button>
+        @if (edgeMode) {
+          <!-- edge 模式下"新增"不是建集成，而是把已有的 edge 模板集成分配给这台 edge -->
+          <button mat-icon-button type="button" (click)="assignIntegrationToEdge($event)"
+                  matTooltip="{{ 'edge.assign-to-edge' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        } @else {
+          <button mat-icon-button type="button" (click)="addIntegration()"
+                  matTooltip="{{ 'integration.add-integration' | translate }}" matTooltipPosition="above">
+            <mat-icon>add</mat-icon>
+          </button>
+        }
         <button mat-icon-button type="button" (click)="reload()"
                 matTooltip="{{ 'action.refresh' | translate }}" matTooltipPosition="above">
           <mat-icon>refresh</mat-icon>
@@ -99,10 +107,19 @@
                       [matTooltip]="debugTooltip(i)" matTooltipPosition="above">
                 <tb-icon>{{ isDebugActive(i) ? 'mdi:bug' : 'mdi:bug-outline' }}</tb-icon>
               </button>
-              <button mat-icon-button type="button" (click)="deleteIntegration($event, i)"
-                      matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
-                <mat-icon>delete</mat-icon>
-              </button>
+              @if (edgeMode) {
+                <!-- edge 模式下给的是"取消分配"而不是"删除"：这里列的是分配关系，
+                     删除会把集成本身删掉，那不是用户在这个页面想做的事。 -->
+                <button mat-icon-button type="button" (click)="unassignIntegrationFromEdge($event, i)"
+                        matTooltip="{{ 'edge.unassign-from-edge' | translate }}" matTooltipPosition="above">
+                  <mat-icon>portable_wifi_off</mat-icon>
+                </button>
+              } @else {
+                <button mat-icon-button type="button" (click)="deleteIntegration($event, i)"
+                        matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              }
             </div>
           </td>
         </ng-container>

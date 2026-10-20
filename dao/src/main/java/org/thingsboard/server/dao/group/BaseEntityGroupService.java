@@ -326,10 +326,36 @@ public class BaseEntityGroupService implements EntityGroupService {
     private void addRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
         relationService.saveRelation(tenantId,
                 new EntityRelation(entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP));
+        publishMembershipEvent(tenantId, entityGroupId, entityId, ActionType.ADDED_TO_ENTITY_GROUP);
     }
 
     private void removeRelation(TenantId tenantId, EntityGroupId entityGroupId, EntityId entityId) {
         relationService.deleteRelation(tenantId, entityGroupId, entityId, GROUP_RELATION_TYPE, RelationTypeGroup.FROM_ENTITY_GROUP);
+        publishMembershipEvent(tenantId, entityGroupId, entityId, ActionType.REMOVED_FROM_ENTITY_GROUP);
+    }
+
+    /**
+     * 成员变化要通知已分配该分组的 edge。实测过：没有这一步，往"已分配给 edge 的分组"里
+     * 加实体，edge 一条事件都收不到，必须等下一次全量同步才知道组里多了东西。
+     *
+     * <p>entityId 填**成员实体**（不是分组），entityGroup 带上分组本身 ——
+     * 下游靠 entityGroup 定位该推给哪些 edge，并把 groupId 写进 edge_event。与 PE 一致。
+     *
+     * <p>发布点放在这两个私有漏斗里，而不是公开的 add/removeEntitiesToEntityGroup：
+     * ensureAllGroupMembership / moveAllGroupMembership 等内部路径也会改成员，同样要通知。
+     */
+    private void publishMembershipEvent(TenantId tenantId, EntityGroupId entityGroupId,
+                                        EntityId entityId, ActionType actionType) {
+        EntityGroup entityGroup = findEntityGroupById(tenantId, entityGroupId);
+        if (entityGroup == null) {
+            return;
+        }
+        eventPublisher.publishEvent(ActionEntityEvent.builder()
+                .tenantId(tenantId)
+                .entityId(entityId)
+                .actionType(actionType)
+                .entityGroup(entityGroup)
+                .build());
     }
 
     @Override
