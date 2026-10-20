@@ -58,10 +58,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.thingsboard.server.utils.LwM2mObjectModelUtils.toLwm2mResource;
@@ -90,6 +93,10 @@ public class InstallScripts {
     public static final String DASHBOARDS_DIR = "dashboards";
     public static final String MODELS_LWM2M_DIR = "lwm2m-registry";
     public static final String RESOURCES_DIR = "resources";
+
+    // Velocity '$var' -> FreeMarker '${var}'. Same pattern PE uses, see convertVelocityVarsToFreeMarker.
+    private static final Pattern VELOCITY_VAR_PATTERN = Pattern.compile("\\$([a-zA-Z]+)");
+    private static final String FREEMARKER_VAR_REPLACEMENT = "\\${$1}";
 
     public static final String JSON_EXT = ".json";
     public static final String SVG_EXT = ".svg";
@@ -490,10 +497,81 @@ public class InstallScripts {
      * real templates instead of falling back to the bundled .ftl files.
      */
     public void loadMailTemplates() {
+        whiteLabelingService.saveMailTemplates(TenantId.SYS_TENANT_ID, readMailTemplates());
+    }
+
+    /**
+     * Refreshes the system-level MAIL_TEMPLATES white labeling against the shipped defaults, keeping
+     * whatever the operator has edited. Run on every upgrade - without it, templates added or renamed
+     * in a release never reach an existing database, since {@link #loadMailTemplates()} only runs on
+     * a fresh install.
+     * <p>
+     * Merge rules, matching PE: iterate the keys of the shipped file, so a key present in both sides
+     * keeps the stored (customised) body, a key only in the file is seeded, and a key dropped from the
+     * file is pruned.
+     */
+    public void updateMailTemplates() {
+        JsonNode storedTemplates = whiteLabelingService.findMailTemplatesByTenantId(TenantId.SYS_TENANT_ID, TenantId.SYS_TENANT_ID);
+        if (storedTemplates == null || storedTemplates.isEmpty()) {
+            log.info("No system mail templates stored yet, loading the shipped defaults");
+            loadMailTemplates();
+            return;
+        }
+
+        MailTemplatesMerge merge = mergeMailTemplates(storedTemplates, readMailTemplates());
+        JsonNode result = convertVelocityVarsToFreeMarker(merge.merged());
+        whiteLabelingService.saveMailTemplates(TenantId.SYS_TENANT_ID, result);
+        log.info("Updated system mail templates: {} kept, {} seeded, {} pruned", merge.kept(), merge.seeded(), merge.pruned());
+    }
+
+    /**
+     * Rewrites Velocity-style {@code $var} references into FreeMarker {@code ${var}}, which is what
+     * {@code DefaultMailService} renders with. Templates stored by very old installs - or carried over
+     * from PE - can still hold the Velocity form, and FreeMarker emits them verbatim instead of
+     * substituting, so the recipient sees a literal "$userName".
+     * <p>
+     * Idempotent: an already-converted {@code ${var}} has a brace after the dollar, so it cannot match
+     * again. Note the pattern is deliberately PE's - it runs over the whole JSON, bodies included, so a
+     * template that legitimately contains {@code $word} prose would also be rewritten; the conversion
+     * count is logged so that shows up rather than happening silently.
+     */
+    static JsonNode convertVelocityVarsToFreeMarker(JsonNode mailTemplates) {
+        String asString = JacksonUtil.toString(mailTemplates);
+        Matcher matcher = VELOCITY_VAR_PATTERN.matcher(asString);
+        int converted = 0;
+        while (matcher.find()) {
+            converted++;
+        }
+        if (converted == 0) {
+            return mailTemplates;
+        }
+        log.info("Converting {} Velocity-style variable references in mail templates to FreeMarker", converted);
+        return JacksonUtil.toJsonNode(matcher.reset().replaceAll(FREEMARKER_VAR_REPLACEMENT));
+    }
+
+    static MailTemplatesMerge mergeMailTemplates(JsonNode storedTemplates, JsonNode shippedTemplates) {
+        ObjectNode merged = JacksonUtil.newObjectNode();
+        int kept = 0;
+        int seeded = 0;
+        for (Iterator<String> it = shippedTemplates.fieldNames(); it.hasNext(); ) {
+            String template = it.next();
+            if (storedTemplates.has(template)) {
+                merged.set(template, storedTemplates.get(template));
+                kept++;
+            } else {
+                merged.set(template, shippedTemplates.get(template));
+                seeded++;
+            }
+        }
+        return new MailTemplatesMerge(merged, kept, seeded, storedTemplates.size() - kept);
+    }
+
+    record MailTemplatesMerge(ObjectNode merged, int kept, int seeded, int pruned) {}
+
+    private JsonNode readMailTemplates() {
         Path mailTemplatesFile = Paths.get(getDataDir(), JSON_DIR, SYSTEM_DIR, MAIL_TEMPLATES_DIR, MAIL_TEMPLATES_JSON);
         try {
-            JsonNode mailTemplates = JacksonUtil.toJsonNode(mailTemplatesFile.toFile());
-            whiteLabelingService.saveMailTemplates(TenantId.SYS_TENANT_ID, mailTemplates);
+            return JacksonUtil.toJsonNode(mailTemplatesFile.toFile());
         } catch (Exception e) {
             log.error("Unable to load mail templates from json: [{}]", mailTemplatesFile);
             throw new RuntimeException("Unable to load mail templates from json", e);
