@@ -30,9 +30,15 @@ public class DefaultDatabaseSchemaSettingsService implements DatabaseSchemaSetti
 
     // map of versions from which the upgrade to the current version is possible
     // key - supported version prefix, value - display name
+    // 4.4.0 is listed alongside its predecessors so that an offline upgrade *within* the current
+    // family is possible. It is needed whenever a release touches @RuleNode(version) or requires a
+    // Java-level data migration: SystemPatchApplier can do neither, yet it still advances
+    // schema_version, after which the offline path would be refused as "already upgraded".
+    // Downgrades are rejected by the magnitude check in validateSchemaSettings().
     private static final Map<String, String> SUPPORTED_VERSIONS_FOR_UPGRADE = Map.of(
             "4.3.0", "4.3.0.x",
-            "4.3.1", "4.3.1.x"
+            "4.3.1", "4.3.1.x",
+            "4.4.0", "4.4.0.x"
     );
 
     private final ProjectInfo projectInfo;
@@ -56,6 +62,15 @@ public class DefaultDatabaseSchemaSettingsService implements DatabaseSchemaSetti
         String dbSchemaVersion = getDbSchemaVersion();
         if (dbSchemaVersion.equals(getPackageSchemaVersion())) {
             onSchemaSettingsError("Upgrade failed: database already upgraded to current version. You can set SKIP_SCHEMA_VERSION_CHECK to 'true' if force re-upgrade needed.");
+        }
+
+        // Guards the same-family entry in SUPPORTED_VERSIONS_FOR_UPGRADE: with 4.4.0.x accepted as a
+        // source, a downgrade (DB 4.4.0.5, package 4.4.0.2) would otherwise pass every check above and
+        // run the migrations backwards. Nothing else in this class compares version magnitudes.
+        if (toDbSchemaVersion(dbSchemaVersion) > getPackageSchemaVersionForDb()) {
+            onSchemaSettingsError(String.format("Upgrade failed: database version '%s' is newer than the package version '%s'. Downgrade is not supported.",
+                    dbSchemaVersion, getPackageSchemaVersion()
+            ));
         }
 
         if (SUPPORTED_VERSIONS_FOR_UPGRADE.keySet().stream().noneMatch(dbSchemaVersion::startsWith)) {
@@ -124,7 +139,12 @@ public class DefaultDatabaseSchemaSettingsService implements DatabaseSchemaSetti
     }
 
     private long getPackageSchemaVersionForDb() {
-        String[] versionParts = getPackageSchemaVersion().split("\\.");
+        return toDbSchemaVersion(getPackageSchemaVersion());
+    }
+
+    /** Packs a normalized {@code major.minor.maintenance.patch} string into the stored bigint form. */
+    private long toDbSchemaVersion(String normalizedVersion) {
+        String[] versionParts = normalizedVersion.split("\\.");
 
         long major = Integer.parseInt(versionParts[0]);
         long minor = Integer.parseInt(versionParts[1]);
