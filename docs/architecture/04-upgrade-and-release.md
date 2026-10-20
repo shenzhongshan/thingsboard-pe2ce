@@ -3,9 +3,11 @@
 How this fork numbers its releases, which upgrade path each release takes, and what each path can
 and cannot do. **Read this before bumping a version or adding a database change.**
 
-Chinese version: [04-upgrade-and-release.zh-CN.md](04-upgrade-and-release.zh-CN.md). The two are
-equivalent — edit one, update the other. `docs/tools/upgrade_doc_conformance.py` validates this
-English copy.
+> **The Chinese version [04-upgrade-and-release.zh-CN.md](04-upgrade-and-release.zh-CN.md) is
+> authoritative.** This English copy exists for comparison against upstream CE. Land changes in the
+> Chinese version first, then mirror them here. `docs/tools/upgrade_doc_conformance.py` validates
+> the Chinese copy; `docs/tools/doc_translation_parity.py` checks that the two stay structurally
+> aligned.
 
 Everything below was measured against the code in this repository, not inherited from upstream
 documentation. Where a claim is easy to get wrong, the source file and line are named so you can

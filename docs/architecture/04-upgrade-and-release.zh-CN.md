@@ -3,8 +3,9 @@
 本 fork 如何编号发布、每次发布走哪条升级路径、每条路径各能做什么和不能做什么。
 **改版本号或加数据库变更之前先读这篇。**
 
-英文版：[04-upgrade-and-release.md](04-upgrade-and-release.md)。两份内容等价，改一份请同步另一份；
-`docs/tools/upgrade_doc_conformance.py` 校验的是英文版。
+**本文是权威版。** 英文版 [04-upgrade-and-release.md](04-upgrade-and-release.md) 是对照上游 CE 的参照
+副本。改动请先落在本文，再同步英文版。`docs/tools/upgrade_doc_conformance.py` 校验的是本文，
+`docs/tools/doc_translation_parity.py` 校验两版结构是否仍然对齐。
 
 下面所有结论都是对本仓库代码实测得出的，不沿用上游文档的说法。凡是容易弄错的地方都点出了源文件，
 便于你复核而不是只能信这一页。schema 的原始机制（表清单、版本打包格式、时序表布局）见

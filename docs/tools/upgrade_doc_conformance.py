@@ -18,7 +18,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # This script lives in <repo root>/docs/tools/, so two levels up is the repo root. This used to be
 # a hardcoded absolute path, which broke the moment the directory was renamed or moved.
 CE = os.path.dirname(os.path.dirname(HERE))
-DOC = os.path.join(CE, "docs", "architecture", "04-upgrade-and-release.md")
+# The Chinese copy is the authoritative one, so that is what gets validated. The two assertions
+# that read the document body - link resolution and section numbering - are language-agnostic.
+# docs/tools/doc_translation_parity.py is what keeps the English copy in step.
+DOC = os.path.join(CE, "docs", "architecture", "04-upgrade-and-release.zh-CN.md")
 
 
 def read(p):
