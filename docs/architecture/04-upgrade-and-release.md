@@ -3,6 +3,10 @@
 How this fork numbers its releases, which upgrade path each release takes, and what each path can
 and cannot do. **Read this before bumping a version or adding a database change.**
 
+Chinese version: [04-upgrade-and-release.zh-CN.md](04-upgrade-and-release.zh-CN.md). The two are
+equivalent — edit one, update the other. `docs/tools/upgrade_doc_conformance.py` validates this
+English copy.
+
 Everything below was measured against the code in this repository, not inherited from upstream
 documentation. Where a claim is easy to get wrong, the source file and line are named so you can
 re-check instead of trusting this page. For the raw schema mechanics (table inventory, packed
@@ -84,7 +88,7 @@ The last two rows combined are the failure mode worth memorising:
 Do not decide this from memory. Run the checker:
 
 ```bash
-python _tooling/release_upgrade_path_check.py thingsboard-ce <baseline-ref>
+python docs/tools/release_upgrade_path_check.py [repo-root] [baseline-ref]
 ```
 
 It diffs the baseline against the **working tree** — uncommitted changes included, so "forgot to
@@ -106,10 +110,14 @@ It also fails loudly rather than passing silently if it cannot read the baseline
 `git diff`, recognise the `updateData()` body, or parse `SUPPORTED_VERSIONS_FOR_UPGRADE` — a check
 that cannot evaluate its input must not report success.
 
-The script lives in the surrounding `pe_refactor/_tooling/` directory, which is not a git
-repository, so it is not versioned with this source tree. It ships with
-`release_upgrade_path_check_test.py` (8 scenarios, including a false-positive control that must
-*not* fire).
+Both arguments are optional: the repo root defaults to two levels above the script, and the
+baseline to the most recent `v*` tag. The repository has no release tags of its own yet, so for now
+pass the baseline explicitly.
+
+The script lives in [`docs/tools/`](../tools/README.md) alongside its self-test and
+`upgrade_doc_conformance.py`, which re-derives every factual claim on this page. See
+[docs/tools/README.md](../tools/README.md) for invocation details, exit codes, and the warning that
+the self-test rewrites working-tree files.
 
 ## 5. Upgrade gates
 
@@ -339,7 +347,7 @@ is numerically the same version: no upgrade path triggers, and the offline path 
 ```
 1.  mvn versions:set -DnewVersion=4.4.0.101 -DgenerateBackupPoms=false
 2.  edit ui-ngx/package.json to 4.4.0.101
-3.  python _tooling/release_upgrade_path_check.py thingsboard-ce <previous-release-tag>
+3.  python docs/tools/release_upgrade_path_check.py . <previous-release-tag>
         -> must exit 0; if it demands a minor bump, go back to step 1 with 4.5.0.0
 4.  mvn clean install -T6 -DskipTests          (add packaging flags per 01-build-system.md)
 5.  commit, tag v4.4.0.101, push the tag
