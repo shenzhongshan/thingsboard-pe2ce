@@ -220,7 +220,141 @@ Patterns that earned their place during this work:
 - **Mutate to prove tests are not vacuous.** Break the logic deliberately and confirm precisely the
   expected cases fail.
 
-## 9. Related documents
+## 9. Release lines and branches
+
+### What the upgrade machinery forces
+
+A branching model cannot be chosen freely here. Four properties of the code constrain it:
+
+1. **`schema_version` is global and monotonic, and downgrades are rejected** (section 5). A database
+   at `4.4.0.105` can never be served by a `4.4.0.103` build. Parallel release lines must therefore
+   occupy **disjoint version ranges** — you cannot interleave them.
+2. **Inside one `major.minor`, every release takes the hot-patch path** (section 3). A maintenance
+   branch can only ship what the hot patch can do: no rule node config migration, no `updateData()`.
+   A fix needing either of those cannot be released inside its own line.
+3. **A `maintenance` bump is also a hot patch** (`SystemPatchApplier.isVersionIncreased()`). So
+   `4.4.0.5 -> 4.4.1.0` does *not* start a new line, it looks like a patch. **Only `minor`
+   identifies a line.**
+4. **`lts/schema_update.sql` is cumulative and family-scoped.** Append-only files conflict on every
+   cross-branch merge, so the merge direction has to be fixed by convention, not improvised.
+
+### The model
+
+```
+major . minor . maintenance . patch
+        ^^^^^   ^^^^^^^^^^^   ^^^^^
+        line    frozen at 0   the only counter inside a line
+```
+
+| Branch | Lifetime | Purpose |
+|---|---|---|
+| `mydev-pe` | long-lived | development, where work lands first |
+| `master` | long-lived | integration; `mydev-pe` merges here |
+| `release/4.4` | long-lived | the 4.4 line — ships `4.4.0.101`, `.102`, ... |
+| `release/4.5` | long-lived | cut from `master` when `minor` bumps |
+
+Tag every release `v<full-version>` (e.g. `v4.4.0.101`) on its release branch. Tags matter more than
+the branch: a release branch keeps moving as hotfixes land, so only a tag can take you back to
+exactly what was shipped. The repository currently has 35 upstream tags and **zero** of its own, so
+this is new discipline, not an existing one.
+
+Prefer `release/<major>.<minor>` over the date-stamped `arelease-pro-<date>` branch that exists
+today: a date cannot tell you which line it belongs to, and with multiple lines alive that is the
+question you actually need answered.
+
+### Fix propagation: always merge forward
+
+Apply a fix to the **oldest line that needs it**, then merge forward:
+
+```
+release/4.4  ──┐
+               ├─→ release/4.5 ──→ master ──→ mydev-pe
+hotfix lands ──┘
+```
+
+Never cherry-pick a fix independently into several lines. Two independent cherry-picks of the same
+change to `lts/schema_update.sql` produce two textually different append-only files that will
+conflict forever and may drift in declaration (the failure mode rule 7 of the checker exists to
+catch — see section 4).
+
+### Per-line obligations
+
+Each release branch carries its **own copy** of these, and they are not interchangeable:
+
+| Item | Why it is per-line |
+|---|---|
+| `SUPPORTED_VERSIONS_FOR_UPGRADE` | `release/4.5` must whitelist `"4.4.0"` as its predecessor; `release/4.4` must not list `4.5` |
+| `upgrade/basic/schema_update.sql` | On `release/4.5` this is the 4.4→4.5 delta; on `release/4.4` it is the 4.3→4.4 delta |
+| `upgrade/lts/schema_update.sql` | Cumulative within that line only |
+
+When cutting `release/4.5` from `master`: add `"4.4.0"` to the whitelist, and decide what `basic`
+should contain for the new line. Checker rule 8 fails if the predecessor entry is missing.
+
+### What a customer can and cannot do
+
+| Move | Possible? |
+|---|---|
+| `4.4.0.101 -> 4.4.0.105` | yes, hot patch — swap the jar and restart |
+| `4.4.0.105 -> 4.5.0.0` | yes, offline upgrade — `4.4.0` must be whitelisted on the 4.5 build |
+| `4.5.0.0 -> 4.4.0.106` | **no** — rejected by the downgrade gate, and there is no supported path back |
+| `4.4.0.101 -> 4.6.0.0` skipping 4.5 | only if `release/4.6` whitelists `4.4.0` as well |
+
+That third row is the one to tell operators about before they upgrade: **moving a database to a new
+line is one-way.** Snapshot the database first.
+
+## 10. Finalising a version
+
+The version is **not** centrally defined. It is repeated in **77 places**:
+
+- 76 `pom.xml` files — the root `<version>` plus each module's `<parent><version>`, which Maven
+  requires verbatim (there is no `${revision}` indirection configured). That is every source pom in
+  the tree; a naive `grep` also hits a 77th copy under `msa/web-ui/target/`, which is a build
+  artifact, not a file to edit.
+- `ui-ngx/package.json` — currently `"4.4.0"`, note **without** the `-SNAPSHOT` suffix the poms carry
+
+Neither `versions-maven-plugin` nor `maven-release-plugin` is declared in the build, so the bump is
+either 77 manual edits or a plugin invoked by coordinates:
+
+```bash
+# all 76 poms at once; then edit ui-ngx/package.json by hand
+mvn -q versions:set -DnewVersion=4.4.0.101 -DgenerateBackupPoms=false
+```
+
+### The qualifier carries no version information
+
+`ProjectInfo.getProjectVersion()` strips every character that is not a digit or a dot, so:
+
+| Maven version | Resulting schema version |
+|---|---|
+| `4.4.0.102-SNAPSHOT` | `4.4.0.102` |
+| `4.4.0-SNAPSHOT` | `4.4.0.0` |
+| `4.3.1.1-PE-SNAPSHOT` | `4.3.1.1` |
+
+**Dropping `-SNAPSHOT` is therefore not a release.** Shipping `4.4.0-SNAPSHOT` and then `4.4.0`
+is numerically the same version: no upgrade path triggers, and the offline path would refuse it as
+*"already upgraded"*. The bump must be in the digits. Pinned by `ProjectInfoVersionTest`.
+
+### Release sequence
+
+```
+1.  mvn versions:set -DnewVersion=4.4.0.101 -DgenerateBackupPoms=false
+2.  edit ui-ngx/package.json to 4.4.0.101
+3.  python _tooling/release_upgrade_path_check.py thingsboard-ce <previous-release-tag>
+        -> must exit 0; if it demands a minor bump, go back to step 1 with 4.5.0.0
+4.  mvn clean install -T6 -DskipTests          (add packaging flags per 01-build-system.md)
+5.  commit, tag v4.4.0.101, push the tag
+6.  mvn versions:set -DnewVersion=4.4.0.102-SNAPSHOT -DgenerateBackupPoms=false
+7.  edit ui-ngx/package.json, commit as "back to snapshot"
+```
+
+Step 3 before step 4, not after: the checker decides whether the number you just set is even legal
+for this change set, and building first wastes the build.
+
+Step 6 matters because of the stripping rule above — leaving the poms at the released number makes
+the next development build indistinguishable from the release, so a developer's local database gets
+stamped with a version that was never shipped.
+
+## 11. Related documents
 
 - [SQL Schema & Migration](20-dao/sql-schema.md) — table inventory, packed version format, index and
   function files
