@@ -104,3 +104,39 @@ ALTER TABLE edge ADD COLUMN IF NOT EXISTS cloud_endpoint varchar(255);
 -- edge 模板位：模板只存不跑，不计配额，随 edge 同步下发。
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
 ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
+
+-- 下面这些列原先只存在于 dao 的 schema-entities.sql（新装 + 离线升级会跑）
+-- 或 upgrade/basic（只有离线升级会跑）。SystemPatchApplier 两者都不执行，
+-- 所以同族补丁发布（换 jar 重启）的库拿不到它们。全部幂等，与上述文件刻意重复，
+-- 这样两条升级路径都能落地 —— 改这些列时三处要同步。
+ALTER TABLE customer ADD COLUMN IF NOT EXISTS parent_customer_id UUID;
+ALTER TABLE customer ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
+ALTER TABLE tb_user ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
+ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id UUID;
+ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;
+ALTER TABLE converter ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
+ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_remote BOOLEAN DEFAULT false;
+
+ALTER TABLE rule_chain ADD COLUMN IF NOT EXISTS notes varchar(1000000);
+
+ALTER TABLE IF EXISTS edge_event ALTER COLUMN seq_id SET CYCLE;
+
+-- 同样只在 schema-entities.sql 里的外键。整个 lts 文件是一次 jdbcTemplate.execute，
+-- 这是本文件第一个 DO $$ 块：pgJDBC 必须正确处理 dollar-quoting（不能把块内的分号
+-- 当成语句分隔符），否则 updateLtsSqlSchema() 抛异常会被 applyPatchIfNeeded() 的
+-- catch 吞掉，整个补丁（视图/widget/邮件模板）静默跳过。
+-- 已实跑验证：SystemPatchApplier 走完整条链路并打出 "patch update completed successfully"，
+-- 全程零 SQL/JDBC 异常。注意 FK 已存在时走的是 IF NOT EXISTS 的跳过分支，
+-- 内层 ALTER 的执行未被覆盖（它逐字来自 schema-entities.sql，那条路径一直在跑）。
+DO
+$$
+    BEGIN
+        IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conname = 'fk_device_profile_ota_package') THEN
+            ALTER TABLE ota_package
+                ADD CONSTRAINT fk_device_profile_ota_package
+                    FOREIGN KEY (device_profile_id) REFERENCES device_profile (id)
+                        ON DELETE CASCADE;
+        END IF;
+    END;
+$$;

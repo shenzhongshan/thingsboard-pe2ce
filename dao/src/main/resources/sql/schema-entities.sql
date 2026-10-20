@@ -14,6 +14,24 @@
 -- limitations under the License.
 --
 
+-- 约定：本文件是**全新安装**的唯一真相，只写 CREATE TABLE / CREATE INDEX。
+-- 新增列请写进对应的 CREATE TABLE 块，不要在文件尾部追加
+-- "ALTER TABLE x ADD COLUMN IF NOT EXISTS y"：那种写法在新装时是 no-op
+-- （CREATE TABLE 已经建好了列），只对存量库有意义，而存量库的入口是
+-- application/src/main/data/upgrade/。
+--
+-- 所以每个列恰好声明两次，各管一条路径：
+--   这里的 CREATE TABLE            -> 全新安装
+--   upgrade/lts/schema_update.sql  -> 存量库（离线升级 + SystemPatchApplier 热补丁都会跑）
+-- upgrade/basic 只在跨 minor 的离线升级跑，而那条路径上 lts 也会跑，
+-- 所以 basic 里的列变更属于冗余，不要新增。
+-- _tooling/release_upgrade_path_check.py 会强制这套约定。
+--
+-- 两个例外（不可折进 CREATE TABLE，刻意留在文件里）：
+--   ota_package 的 fk_device_profile_ota_package —— device_profile 与 ota_package 互相引用，
+--     必须等两张表都建好再加，所以包在 DO $$ IF NOT EXISTS 块里；
+--   edge_event.seq_id SET CYCLE —— 改的是已有 identity 列的序列属性，不是加列。
+
 CREATE TABLE IF NOT EXISTS tb_schema_settings
 (
     schema_version bigint NOT NULL,
@@ -139,6 +157,11 @@ CREATE TABLE IF NOT EXISTS customer (
     external_id uuid,
     is_public boolean,
     version BIGINT DEFAULT 1,
+    -- PE parity: self-referencing parent customer id for multi-level sub-customer hierarchies.
+    -- No FK constraint, matching PE's own schema (a customer can be reparented without a
+    -- DB-level cascade).
+    parent_customer_id uuid,
+    custom_menu_id uuid,
     CONSTRAINT customer_title_unq_key UNIQUE (tenant_id, title),
     CONSTRAINT customer_external_id_unq_key UNIQUE (tenant_id, external_id)
 );
@@ -160,9 +183,6 @@ CREATE TABLE IF NOT EXISTS dashboard (
     version BIGINT DEFAULT 1,
     CONSTRAINT dashboard_external_id_unq_key UNIQUE (tenant_id, external_id)
 );
--- CREATE TABLE IF NOT EXISTS is a no-op on an existing database, so a new column needs its own
--- ALTER to reach one. Without this line only a fresh install would get dashboard.customer_id.
-ALTER TABLE dashboard ADD COLUMN IF NOT EXISTS customer_id uuid;
 
 CREATE TABLE IF NOT EXISTS rule_chain (
     id uuid NOT NULL CONSTRAINT rule_chain_pkey PRIMARY KEY,
@@ -491,7 +511,8 @@ CREATE TABLE IF NOT EXISTS tb_user (
     last_name varchar(255),
     phone varchar(255),
     tenant_id uuid,
-    version BIGINT DEFAULT 1
+    version BIGINT DEFAULT 1,
+    custom_menu_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS tenant_profile (
@@ -1084,11 +1105,6 @@ CREATE TABLE IF NOT EXISTS custom_menu (
     config VARCHAR(10000000)
 );
 
-ALTER TABLE customer ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
-ALTER TABLE tb_user ADD COLUMN IF NOT EXISTS custom_menu_id UUID;
--- PE parity: self-referencing parent customer id for multi-level sub-customer hierarchies.
--- No FK constraint, matching PE's own schema (a customer can be reparented without a DB-level cascade).
-ALTER TABLE customer ADD COLUMN IF NOT EXISTS parent_customer_id UUID;
 CREATE INDEX IF NOT EXISTS idx_customer_tenant_id_parent_customer_id ON customer(tenant_id, parent_customer_id);
 
 CREATE TABLE IF NOT EXISTS converter (
@@ -1107,10 +1123,6 @@ CREATE TABLE IF NOT EXISTS converter (
     is_edge_template BOOLEAN DEFAULT false,
     version BIGINT NOT NULL DEFAULT 1
 );
-ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
-ALTER TABLE converter ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
-ALTER TABLE converter ADD COLUMN IF NOT EXISTS external_id UUID;
-ALTER TABLE converter ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS integration (
     id UUID NOT NULL CONSTRAINT integration_pkey PRIMARY KEY,
@@ -1124,6 +1136,7 @@ CREATE TABLE IF NOT EXISTS integration (
     secret VARCHAR(255),
     enabled BOOLEAN,
     allow_create_devices_or_assets BOOLEAN,
+    -- remote integrations run in a separate process and connect back over gRPC
     is_remote BOOLEAN DEFAULT false,
     debug_mode BOOLEAN DEFAULT false,
     debug_settings VARCHAR(1024),
@@ -1134,11 +1147,6 @@ CREATE TABLE IF NOT EXISTS integration (
     is_edge_template BOOLEAN DEFAULT false,
     version BIGINT NOT NULL DEFAULT 1
 );
-ALTER TABLE integration ADD COLUMN IF NOT EXISTS debug_settings VARCHAR(1024);
-ALTER TABLE integration ADD COLUMN IF NOT EXISTS external_id UUID;
-ALTER TABLE integration ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
--- remote integrations run in a separate process and connect back over gRPC
-ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_remote BOOLEAN DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS entity_group (
     id UUID NOT NULL CONSTRAINT entity_group_pkey PRIMARY KEY,
@@ -1159,6 +1167,9 @@ CREATE TABLE IF NOT EXISTS role (
     id UUID NOT NULL CONSTRAINT role_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
     tenant_id UUID,
+    -- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather
+    -- than SQL NULL, because the name-uniqueness lookup is an equality match and "= NULL"
+    -- never matches.
     customer_id UUID,
     name VARCHAR(255),
     type VARCHAR(255),
@@ -1167,11 +1178,6 @@ CREATE TABLE IF NOT EXISTS role (
     external_id UUID,
     version BIGINT NOT NULL DEFAULT 1
 );
-ALTER TABLE role ADD COLUMN IF NOT EXISTS external_id UUID;
--- Owner of the role. Follows PE: tenant-level roles store the NULL_UUID sentinel rather than SQL
--- NULL, because the name-uniqueness lookup is an equality match and "= NULL" never matches.
-ALTER TABLE role ADD COLUMN IF NOT EXISTS customer_id UUID;
-ALTER TABLE role ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS group_permission (
     id UUID NOT NULL CONSTRAINT group_permission_pkey PRIMARY KEY,
@@ -1211,8 +1217,6 @@ CREATE TABLE IF NOT EXISTS scheduler_event (
     external_id UUID,
     version BIGINT NOT NULL DEFAULT 1
 );
-ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS external_id UUID;
-ALTER TABLE scheduler_event ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 -- CE port of PE's report engine. Simplifications vs PE: report.configuration is opaque JSON
 -- (no ~260-class strongly-typed config hierarchy — see ReportComponentType javadoc); no FK on
@@ -1231,8 +1235,6 @@ CREATE TABLE IF NOT EXISTS report_template (
     external_id UUID,
     version BIGINT NOT NULL DEFAULT 1
 );
-ALTER TABLE report_template ADD COLUMN IF NOT EXISTS external_id UUID;
-ALTER TABLE report_template ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS report (
     id UUID NOT NULL CONSTRAINT report_pkey PRIMARY KEY,
