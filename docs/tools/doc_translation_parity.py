@@ -65,6 +65,16 @@ def english_docs(docs_dir):
     return sorted(out)
 
 
+def all_docs(docs_dir):
+    """全部 markdown，中英都要。供只需单侧的断言（链接可达）使用。"""
+    out = []
+    for root, _, files in os.walk(docs_dir):
+        for fn in sorted(files):
+            if fn.endswith('.md'):
+                out.append(os.path.join(root, fn))
+    return sorted(out)
+
+
 def zh_path(en_path):
     return en_path[:-len('.md')] + ZH_SUFFIX
 
@@ -116,17 +126,21 @@ def main(docs_dir):
         if diffs:
             mismatched.append((rel, diffs))
 
-        # 两版的相对链接都必须能解析。第一版只查中文版，结果 60-supporting/README.md 里
-        # 指向 ../20-application/ 和 ../10-modules/（正确的是 50-application 和 10-common）
-        # 的两处断链是靠人眼发现的——英文版同样是交付物，不能不查。
-        for label, path, text in (('zh', zh, zh_text), ('en', en, en_text)):
-            for target in LINK_RE.findall(text):
-                resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
-                if not os.path.exists(resolved):
-                    link_broken.append(('{} [{}]'.format(rel, label), target))
-
         if AUTHORITY_MARKER not in zh_text[:1200]:
             no_marker.append(rel)
+
+    # 链接检查必须跑全集，不能跟着"已配对"走。
+    #
+    # 前两版都把这段放在上面的配对循环里，于是 native_zh / missing 两条 continue 之后的文件
+    # 根本没被查过——盲区正好压在待办区上。70-frontend 那 4 篇英文里 15 条失效相对链接
+    # （兄弟链接都多写了一层 ../）就一直报 OK，直到中文版落地才被抓出来。
+    # 判据：成对断言（标题数一致之类）只能跑已配对集合；单侧断言（链接可达）必须跑全集。
+    for path in all_docs(docs_dir):
+        rel = os.path.relpath(path, docs_dir)
+        for target in LINK_RE.findall(read(path)):
+            resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
+            if not os.path.exists(resolved):
+                link_broken.append((rel, target))
 
     print('文档共 {} 篇：本就是中文 {} 篇，需配中文版 {} 篇，已配 {} 篇'
           .format(len(en_files), len(native_zh), len(en_files) - len(native_zh), checked))
@@ -149,7 +163,7 @@ def main(docs_dir):
                 print('        ' + d)
         print('')
     if link_broken:
-        print('中文版失效链接 ({} 处):'.format(len(link_broken)))
+        print('失效相对链接 ({} 处，中英全集):'.format(len(link_broken)))
         for rel, target in link_broken:
             print('    {} -> {}'.format(rel, target))
         print('')

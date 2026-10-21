@@ -95,11 +95,23 @@ cannot quietly go stale.
 python docs/tools/doc_translation_parity.py [docs-dir]
 ```
 
-It does not understand content, only structure: whether every `.md` has a matching `.zh-CN.md`, and
-whether the two agree on heading counts, numbered-section sequence, table count, code-fence count,
-resolvable relative links in the Chinese copy, and the authority note at its top. Matching structure
-does not prove the translation is accurate; mismatched structure proves one side was edited and the
-other was not.
+It does not understand content, only structure: whether every `.md` has a matching `.zh-CN.md`,
+whether the two agree on heading counts, numbered-section sequence, table count and code-fence
+count, whether the Chinese copy carries the authority note at its top, and whether every relative
+link **across all docs, both languages** resolves. Matching structure does not prove the translation
+is accurate; mismatched structure proves one side was edited and the other was not.
+
+Assertions fall into two classes with different scopes -- do not conflate them when editing:
+
+| Class | Example | Scope |
+|-------|---------|-------|
+| Paired | heading/table counts agree | only files that already have a Chinese copy |
+| Single-sided | relative link resolves, authority marker | **the full set**, regardless of pairing |
+
+An early version put the link check inside the pairing loop, so both "not yet translated" and
+"natively Chinese" files were skipped by a `continue` -- the blind spot sat exactly on the backlog.
+Fifteen broken links across four English `70-frontend/` docs reported OK until their Chinese copies
+landed. Use `all_docs()` rather than the paired list when adding a single-sided assertion.
 
 ---
 
