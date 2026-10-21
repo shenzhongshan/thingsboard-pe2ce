@@ -1,8 +1,11 @@
 # Release & upgrade tooling
 
-Three scripts that enforce the rules in
+Scripts that enforce the rules in
 [Versioning & Upgrade Guide](../architecture/04-upgrade-and-release.md). Plain Python 3, no
-dependencies, no virtualenv. All three print UTF-8 regardless of the Windows console code page.
+dependencies, no virtualenv. All of them print UTF-8 regardless of the Windows console code page.
+
+> **[README.zh-CN.md](README.zh-CN.md) is authoritative.** This English copy is a mirror; land
+> changes in the Chinese version first.
 
 | Script | Run it when | Touches the working tree? |
 |---|---|---|
@@ -82,6 +85,21 @@ contiguous, and each of the checker's eight rule messages still exists.
 It has twice caught wrong numbers in the guide that would otherwise have sat there indefinitely —
 once a rule count, once a `pom.xml` count inflated by a build artifact under `target/`. When it
 fails, fix the document unless the code genuinely changed.
+
+## `doc_translation_parity.py`
+
+Checks that the Chinese and English copies under `docs/` stay structurally aligned, so a translation
+cannot quietly go stale.
+
+```bash
+python docs/tools/doc_translation_parity.py [docs-dir]
+```
+
+It does not understand content, only structure: whether every `.md` has a matching `.zh-CN.md`, and
+whether the two agree on heading counts, numbered-section sequence, table count, code-fence count,
+resolvable relative links in the Chinese copy, and the authority note at its top. Matching structure
+does not prove the translation is accurate; mismatched structure proves one side was edited and the
+other was not.
 
 ---
 
