@@ -233,6 +233,6 @@ The WebSocket service maintains an authenticated connection using the JWT token.
 
 ## Relationship to Other Modules
 
-- [Shared Module](../shared.md) -- Shared components and models used by core services
-- [Page Modules](../pages.md) -- Page modules inject core HTTP services and use core guards
-- [Theme & i18n](../theme-i18n.md) -- Core translate module loads locale data
+- [Shared Module](shared.md) -- Shared components and models used by core services
+- [Page Modules](pages.md) -- Page modules inject core HTTP services and use core guards
+- [Theme & i18n](theme-i18n.md) -- Core translate module loads locale data

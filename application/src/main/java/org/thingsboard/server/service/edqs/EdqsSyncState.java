@@ -29,4 +29,11 @@ import java.util.Set;
 public class EdqsSyncState {
     private EdqsSyncStatus status;
     private Set<ObjectType> objectTypes;
+    /**
+     * Resident entity types that a completed sync has actually covered. Compared against
+     * {@link ObjectType#edqsTenantTypes} on startup so that types added to that set after the last
+     * sync get topped up incrementally instead of silently answering queries from an empty state.
+     * Null means the state predates this accounting - the covered set is then unknown, not empty.
+     */
+    private Set<ObjectType> syncedTypes;
 }

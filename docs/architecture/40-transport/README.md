@@ -274,6 +274,6 @@ Each transport reads its configuration from the Spring environment (typically `t
 ## Relationships
 
 - [Rule Engine](../30-rule-engine/README.md) -- Transports send data to the rule engine via the queue
-- [Queue System](../30-rule-engine/queue.md) -- Kafka-based message bus between transports and core
+- [Queue System](../10-common/queue.md) -- Kafka-based message bus between transports and core
 - [Supporting Modules](../60-supporting/README.md) -- Netty MQTT codec, EDQS, monitoring tools
-- [Core Application](../20-application/README.md) -- Consumes transport messages, hosts rule engine actors
+- [Core Application](../50-application/README.md) -- Consumes transport messages, hosts rule engine actors

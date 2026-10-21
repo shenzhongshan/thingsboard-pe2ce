@@ -115,6 +115,10 @@ public class SystemPatchApplier {
             int createdImages = createMissingSystemImages();
             log.info("Created {} new system images", createdImages);
 
+            // Same reasoning as the widget types above: a patch release can ship new mail templates,
+            // and the offline upgrade path never runs for a bump inside the same LTS family.
+            installScripts.updateMailTemplates();
+
             schemaSettingsService.updateSchemaVersion();
             log.info("System data patch update completed successfully");
 

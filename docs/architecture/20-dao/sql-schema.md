@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS tb_schema_settings (
 );
 ```
 
-Stores exactly one row: the current schema version and product code (`"TB"` for ThingsBoard, `"PE"` for Professional Edition).
+Stores exactly one row: the current schema version and product code. In this project
+`ProjectInfo.getProductType()` returns **`"CE"`** (Community Edition); PE uses `"PE"`.
 
 ### Packed Version Format
 
@@ -58,7 +59,8 @@ Calculated as: `major * 1,000,000,000 + minor * 1,000,000 + maintenance * 1000 +
 
 ### Product Validation
 
-The `product` column ensures a ThingsBoard instance cannot upgrade a Professional Edition database (or vice versa). Mismatched products cause an immediate shutdown.
+The `product` column ensures a CE instance cannot upgrade a PE database (or vice versa). Mismatched
+products cause an immediate shutdown.
 
 ## Upgrade System
 
@@ -67,12 +69,19 @@ The `product` column ensures a ThingsBoard instance cannot upgrade a Professiona
 ```bash
 application/src/main/data/upgrade/
   basic/
-    schema_update.sql    # schema changes for basic upgrades
+    schema_update.sql    # runs on the offline upgrade only
   lts/
-    schema_update.sql    # schema changes for LTS upgrades
+    schema_update.sql    # runs on the offline upgrade AND the hot-patch path
 ```
 
-Both paths contain upgrade SQL scripts that are executed sequentially during upgrade.
+These are not two kinds of upgrade. Both files run, in this order, on every offline upgrade.
+The difference is that `lts/schema_update.sql` *also* runs on normal startup via
+`SystemPatchApplier` when the package version increases within the same `major.minor` family,
+whereas `basic/schema_update.sql` and this file (`schema-entities.sql`) do not.
+
+That makes `lts` the only place a schema change reaches a database that was upgraded by swapping
+the jar. See [Versioning & Upgrade Guide](../04-upgrade-and-release.md) for the convention on where
+to put a column, and for what the hot-patch path can and cannot do.
 
 ### SqlDatabaseUpgradeService
 
@@ -94,17 +103,22 @@ Loads and executes the `schema_update.sql` from both `basic/` and `lts/` directo
 
 Handles:
 
-1. **`validateSchemaSettings()`** -- checks:
+1. **`validateSchemaSettings()`** -- checks, in order:
    - `SKIP_SCHEMA_VERSION_CHECK` env var (bypasses all validation)
-   - Product type matches (TB vs PE)
+   - Product type matches (CE vs PE)
    - Database version is not already at the current package version
+   - Database version does not *exceed* the package version (downgrades are rejected)
    - Database version is in the supported upgrade list
 
-2. **Supported upgrade paths** (hardcoded):
+2. **Supported upgrade paths** (hardcoded prefixes, matched with `startsWith`):
    ```
    4.3.0  -> current
    4.3.1  -> current
+   4.4.0  -> current   (same-family, enables offline upgrade between two patch releases)
    ```
+   The same-family entry is what makes the downgrade check above load-bearing. See
+   [Versioning & Upgrade Guide](../04-upgrade-and-release.md) for the reasoning and for the
+   release checklist item when `minor` is next bumped.
 
 3. **`getDbSchemaVersion()`** -- reads the packed integer from `tb_schema_settings`, unpacks it to a dotted version string (e.g., "4.3.1.0")
 
@@ -239,21 +253,58 @@ Database views that join tables for convenience:
 
 ## Startup Flow Summary
 
+Three distinct flows touch the schema. Only the first two run under `@Profile("install")`.
+
+**Fresh install** (`install.sh` / `install.bat`, a separate JVM that exits when done):
+
 ```
-1. Application starts with @Profile("install")
-2. DefaultDatabaseSchemaSettingsService.validateSchemaSettings()
-   - Check product type, version compatibility
-3. SqlEntityDatabaseSchemaService.createDatabaseSchema()
-   - Execute schema-entities.sql, schema-entities-idx.sql, 
+1. SqlEntityDatabaseSchemaService.createDatabaseSchema()
+   - Execute schema-entities.sql, schema-entities-idx.sql,
      schema-entities-idx-psql-addon.sql, schema-views.sql, schema-functions.sql
-4. Timeseries schema service creates ts_kv/ts_kv_latest/key_dictionary
-5. SqlDatabaseUpgradeService.upgradeDatabase()
-   - Execute basic/schema_update.sql and lts/schema_update.sql
-6. DefaultDatabaseSchemaSettingsService.createSchemaSettings()
+2. DefaultDatabaseSchemaSettingsService.createSchemaSettings()
    - Insert tb_schema_settings row
+3. Timeseries schema service creates ts_kv/ts_kv_latest/key_dictionary
+4. System data loading (sysadmin, tenant profiles, widgets, queues, ...)
 ```
+
+**Offline upgrade** (`upgrade.sh` / `upgrade.bat`, also a separate JVM):
+
+```
+1. DefaultDatabaseSchemaSettingsService.validateSchemaSettings()
+   - product type, not-already-upgraded, not a downgrade, version whitelisted
+2. CacheCleanupService.clearCache()
+3. SqlDatabaseUpgradeService.upgradeDatabase()
+   - Execute basic/schema_update.sql then lts/schema_update.sql
+4. createDatabaseSchema(false) / views / device_info view / indexes
+5. DataUpdateService.updateData()        <- Java-level data migration
+6. DataUpdateService.upgradeRuleNodes()  <- rule node config migration
+7. System widgets, LwM2M resources, images, mail templates
+8. DefaultDatabaseSchemaSettingsService.updateSchemaVersion()   <- version written LAST
+```
+
+Step 8 running last is what makes steps 2-7 re-runnable after a failure.
+
+**Hot patch** (`SystemPatchApplier`, `@PostConstruct` on a *normal* server startup — not an install
+profile, so there is no separate JVM and no downtime):
+
+```
+1. Skip unless the package version increased within the same major.minor
+   (or SKIP_PATCH_VERSION_CHECK=true)
+2. pg_try_advisory_lock -- one cluster node wins, the rest return
+3. Execute lts/schema_update.sql          <- note: lts only, not basic, not schema-entities.sql
+4. Rebuild views from schema-views.sql
+5. System widget types / bundles / missing images / mail templates
+6. updateSchemaVersion()
+```
+
+This path **cannot** migrate rule node configs or run `updateData()` — neither bean exists outside
+the install profile — yet it still advances `schema_version` at step 6. That combination is the
+main hazard when choosing a version number; see
+[Versioning & Upgrade Guide](../04-upgrade-and-release.md).
 
 ## Related Documents
 
+- [Versioning & Upgrade Guide](../04-upgrade-and-release.md) -- which upgrade path a release takes,
+  where to put a schema change, release checklist
 - [DAO Layer Overview](README.md) -- architecture and interfaces
 - [Entity DAO Catalog](entity-dao.md) -- entity-by-entity DAO reference

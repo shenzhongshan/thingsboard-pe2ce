@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+校验 docs/ 下中英两版文档的结构对齐，防止翻译版静默过期。
+
+本项目约定中文版为权威版（见各中文文件开头的声明），英文版是对照上游 CE 的参照。
+两份并存就一定会漂移，而过期的文档比没有文档更危险——本仓库的
+20-dao/sql-schema.md 就曾把 basic/lts 描述成两种升级类型，误导了很久。
+
+这个脚本不理解内容，只比结构。结构能对上，不保证译文准确；结构对不上，一定是
+有一边改了另一边没跟。配合 upgrade_doc_conformance.py（那个校验具体事实断言）。
+
+用法:
+  python docs/tools/doc_translation_parity.py [docs 目录]
+
+退出码 0 = 对齐，1 = 有缺口。
+"""
+import io
+import os
+import re
+import sys
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DOCS = os.path.dirname(HERE)
+
+ZH_SUFFIX = '.zh-CN.md'
+# 中文版必须带的权威性声明关键词，缺了说明是从英文直接复制改名的
+AUTHORITY_MARKER = '权威'
+# 有些文档一开始就是用中文写的（docs/architecture 下的 MQTT 三篇）。它们本身就是权威中文版，
+# 不需要再配 .zh-CN.md。用 CJK 占比识别，不要靠文件名约定——第一版漏了这条，
+# 把 3 篇已是中文的文档也算进了"缺中文版"。
+CJK_RATIO_THRESHOLD = 0.15
+
+H2_RE = re.compile(r'^##\s+(.*)$', re.M)
+H3_RE = re.compile(r'^###\s+', re.M)
+NUMBERED_H2_RE = re.compile(r'^##\s+(\d+)\.', re.M)
+TABLE_SEP_RE = re.compile(r'^\|[\s:|-]+\|\s*$', re.M)
+FENCE_RE = re.compile(r'^```', re.M)
+LINK_RE = re.compile(r'\]\((?!https?:|mailto:)([^)#]+)')
+
+
+def read(path):
+    return io.open(path, encoding='utf-8', errors='replace').read()
+
+
+def cjk_ratio(text):
+    """CJK 字符在"所有字母类字符"中的占比。代码块和标识符两种语言下都是 ASCII，
+    所以这个比值能把"中文原稿"和"英文原稿里夹几个中文注释"区分开。"""
+    cjk = sum(1 for ch in text if '一' <= ch <= '鿿')
+    latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    total = cjk + latin
+    return (cjk / total) if total else 0.0
+
+
+def english_docs(docs_dir):
+    out = []
+    for root, _, files in os.walk(docs_dir):
+        if os.path.basename(root) == 'tools' and root != docs_dir:
+            pass  # tools/README.md 也要译，不跳过
+        for fn in sorted(files):
+            if fn.endswith('.md') and not fn.endswith(ZH_SUFFIX):
+                out.append(os.path.join(root, fn))
+    return sorted(out)
+
+
+def all_docs(docs_dir):
+    """全部 markdown，中英都要。供只需单侧的断言（链接可达）使用。"""
+    out = []
+    for root, _, files in os.walk(docs_dir):
+        for fn in sorted(files):
+            if fn.endswith('.md'):
+                out.append(os.path.join(root, fn))
+    return sorted(out)
+
+
+def zh_path(en_path):
+    return en_path[:-len('.md')] + ZH_SUFFIX
+
+
+def structure(text):
+    return {
+        'h2': len(H2_RE.findall(text)),
+        'h3': len(H3_RE.findall(text)),
+        'numbered': NUMBERED_H2_RE.findall(text),
+        'tables': len(TABLE_SEP_RE.findall(text)),
+        'fences': len(FENCE_RE.findall(text)),
+    }
+
+
+def main(docs_dir):
+    docs_dir = os.path.abspath(docs_dir)
+    if not os.path.isdir(docs_dir):
+        print('FAIL  目录不存在: {}'.format(docs_dir))
+        return 1
+
+    en_files = english_docs(docs_dir)
+    missing, mismatched, link_broken, no_marker, native_zh = [], [], [], [], []
+    checked = 0
+
+    for en in en_files:
+        rel = os.path.relpath(en, docs_dir)
+        en_text = read(en)
+        if cjk_ratio(en_text) >= CJK_RATIO_THRESHOLD:
+            # 本来就是中文写的，它自己就是权威版，不需要配对
+            native_zh.append(rel)
+            continue
+        zh = zh_path(en)
+        if not os.path.exists(zh):
+            missing.append(rel)
+            continue
+        checked += 1
+
+        en_s = structure(en_text)
+        zh_text = read(zh)
+        zh_s = structure(zh_text)
+
+        diffs = []
+        for key, label in (('h2', '二级标题数'), ('h3', '三级标题数'),
+                           ('tables', '表格数'), ('fences', '代码块围栏数')):
+            if en_s[key] != zh_s[key]:
+                diffs.append('{}: 英文 {} / 中文 {}'.format(label, en_s[key], zh_s[key]))
+        if en_s['numbered'] != zh_s['numbered']:
+            diffs.append('编号节序列: 英文 {} / 中文 {}'.format(en_s['numbered'], zh_s['numbered']))
+        if diffs:
+            mismatched.append((rel, diffs))
+
+        if AUTHORITY_MARKER not in zh_text[:1200]:
+            no_marker.append(rel)
+
+    # 链接检查必须跑全集，不能跟着"已配对"走。
+    #
+    # 前两版都把这段放在上面的配对循环里，于是 native_zh / missing 两条 continue 之后的文件
+    # 根本没被查过——盲区正好压在待办区上。70-frontend 那 4 篇英文里 15 条失效相对链接
+    # （兄弟链接都多写了一层 ../）就一直报 OK，直到中文版落地才被抓出来。
+    # 判据：成对断言（标题数一致之类）只能跑已配对集合；单侧断言（链接可达）必须跑全集。
+    for path in all_docs(docs_dir):
+        rel = os.path.relpath(path, docs_dir)
+        for target in LINK_RE.findall(read(path)):
+            resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
+            if not os.path.exists(resolved):
+                link_broken.append((rel, target))
+
+    print('文档共 {} 篇：本就是中文 {} 篇，需配中文版 {} 篇，已配 {} 篇'
+          .format(len(en_files), len(native_zh), len(en_files) - len(native_zh), checked))
+    if native_zh:
+        print('本就是中文（无需配对）:')
+        for rel in native_zh:
+            print('    ' + rel)
+    print('')
+
+    if missing:
+        print('缺中文版 ({} 篇):'.format(len(missing)))
+        for rel in missing:
+            print('    ' + rel)
+        print('')
+    if mismatched:
+        print('结构不一致 ({} 篇):'.format(len(mismatched)))
+        for rel, diffs in mismatched:
+            print('    ' + rel)
+            for d in diffs:
+                print('        ' + d)
+        print('')
+    if link_broken:
+        print('失效相对链接 ({} 处，中英全集):'.format(len(link_broken)))
+        for rel, target in link_broken:
+            print('    {} -> {}'.format(rel, target))
+        print('')
+    if no_marker:
+        print('中文版开头缺少权威性声明 ({} 篇):'.format(len(no_marker)))
+        for rel in no_marker:
+            print('    ' + rel)
+        print('')
+
+    total = len(missing) + len(mismatched) + len(link_broken) + len(no_marker)
+    if total:
+        print('FAIL  {} 项待处理'.format(total))
+        return 1
+    print('OK    {} 篇全部对齐'.format(checked))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DOCS))

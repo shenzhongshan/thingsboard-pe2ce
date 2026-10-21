@@ -185,6 +185,6 @@ A standalone Spring Boot application that monitors ThingsBoard service health. I
 ## Relationships
 
 - [Transport Layer](../40-transport/README.md) -- Transport modules depend on netty-mqtt for MQTT client functionality; EDQS extends transport capabilities to the edge
-- [Core Application](../20-application/README.md) -- Core depends on netty-mqtt for rule engine MQTT nodes; monitoring checks core health
+- [Core Application](../50-application/README.md) -- Core depends on netty-mqtt for rule engine MQTT nodes; monitoring checks core health
 - [Frontend](../70-frontend/README.md) -- The web-ui Docker image packages the Angular frontend
-- [Module Architecture](../10-modules/README.md) -- Full Maven reactor dependency graph
+- [Common Modules](../10-common/README.md) -- Full Maven reactor dependency graph
