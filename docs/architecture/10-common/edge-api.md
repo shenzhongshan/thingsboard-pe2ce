@@ -27,21 +27,37 @@ Generated Java classes: `org.thingsboard.server.gen.edge.v1.EdgeProtos`
 
 The `EdgeVersion` enum tracks protocol compatibility across versions:
 
-| Version | ThingsBoard release |
-|---------|-------------------|
-| `V_3_3_0` | 3.3.0 |
-| `V_3_4_0` | 3.4.0 |
-| `V_3_6_0` | 3.6.0 |
-| `V_3_7_0` | 3.7.0 |
-| `V_3_8_0` | 3.8.0 |
-| `V_3_9_0` | 3.9.0 |
-| `V_4_0_0` | 4.0.0 |
-| `V_4_1_0` | 4.1.0 |
-| `V_4_2_0` | 4.2.0 |
-| `V_4_3_0` | 4.3.0 |
-| `V_4_4_0` | 4.4.0 |
+**This fork replaced the wire protocol wholesale with PE 4.3.1.1's**, so the values differ from
+upstream CE and the numbering is mixed:
 
-`V_LATEST` (= 99999) always points to the newest version.
+| Enum value | proto number |
+|---------|-------------------|
+| `V_3_3_0` | 0 |
+| `V_3_3_3` | 1 |
+| `V_3_4_0` | 2 |
+| `V_3_6_0` | 3 |
+| `V_3_6_1` | 4 |
+| `V_3_6_2` | 5 |
+| `V_3_6_4` | 6 |
+| `V_3_7_0` | 7 |
+| `V_3_8_0` | 8 |
+| `V_3_9_0` | 9 |
+| `V_4_0_0` | 10 |
+| `V_4_1_0` | 11 |
+| `V_4_2_0` | 12 |
+| `V_4_3_0` | 13 |
+| `V_4_2_1_2` | 14 |
+| `V_4_2_2` | 4220 |
+| `V_4_2_2_1` | 4221 |
+| `V_4_3_0_1` | 15 |
+| `V_4_3_1` | 4310 |
+| `V_4_3_1_1` | 4311 |
+| `V_LATEST` | 99999 |
+
+**The proto numbers can no longer be compared as versions** — `V_4_2_1_2(14)` sorts after
+`V_4_3_0(13)`. `EdgeVersionComparator` therefore **parses the version out of the enum name** and
+compares segment by segment; do not compare the proto numbers directly. `V_LATEST` (= 99999) is
+special-cased by that comparator to mean "the newest version".
 
 ### Message Types
 
