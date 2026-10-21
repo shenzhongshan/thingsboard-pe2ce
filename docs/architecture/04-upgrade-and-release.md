@@ -300,6 +300,31 @@ Each release branch carries its **own copy** of these, and they are not intercha
 When cutting `release/4.5` from `master`: add `"4.4.0"` to the whitelist, and decide what `basic`
 should contain for the new line. Checker rule 8 fails if the predecessor entry is missing.
 
+### Customer customization branches
+
+"Customer" here means the **delivery target** -- not the same sense as the "customer" running the
+system in the next subsection, which is about upgrade paths between released versions. This
+subsection is about how to branch for a specific customer's deliverable. The customer version suffix
+format is in section 10.
+
+Customer customization runs on a line parallel to the release branches, not a part of `release/*`:
+
+- Named `customer/<customer-id>`, cut from the **release tag** it customizes (e.g. `v4.4.0.101`),
+  **never from the HEAD of `release/*` or `master`** -- otherwise the customization branch quietly
+  picks up changes on that line that have not shipped and the customer never accepted.
+- When building a deliverable, change the pom version to the customer-suffixed form from section 10
+  (e.g. `4.4.0.101-ACME.loginA`) and tag it `v4.4.0.101-ACME.loginA`.
+- Changes on a customer branch fall into two kinds that merge in opposite directions: **general bug
+  fixes** follow the "fix propagation" rule above and merge forward into the mainline; **customer-only
+  customization** is **never merged into any release line** -- it stays on the customer branch, because
+  it exists only for that one customer, and landing it on the mainline would saddle every other
+  customer with a feature flag they never asked for.
+- A customer branch does not maintain its own `SUPPORTED_VERSIONS_FOR_UPGRADE` whitelist or
+  `upgrade/lts/schema_update.sql`: it inherits the entire upgrade machinery of the release line it was
+  cut from. Because the customer suffix never enters `schema_version` (section 10), the database
+  upgrade gates decide purely from the base version number -- they cannot tell, and do not need to
+  tell, whether a build came off a customer branch.
+
 ### What a customer can and cannot do
 
 | Move | Possible? |
@@ -343,6 +368,53 @@ mvn -q versions:set -DnewVersion=4.4.0.101 -DgenerateBackupPoms=false
 **Dropping `-SNAPSHOT` is therefore not a release.** Shipping `4.4.0-SNAPSHOT` and then `4.4.0`
 is numerically the same version: no upgrade path triggers, and the offline path would refuse it as
 *"already upgraded"*. The bump must be in the digits. Pinned by `ProjectInfoVersionTest`.
+
+### Customer version suffix (never enters `schema_version`)
+
+When a customer's deliverable needs a customization layered on top of an already-released base
+version (a feature flag, a bespoke integration, UI copy) without folding that customization into the
+mainline version sequence, append a **customer suffix** after the base version number:
+
+```
+{major}.{minor}.{maintenance}.{patch}-{customer-id}.{customization-iteration}
+```
+
+Example: `4.4.0.101-ACME.loginA` -- built on `4.4.0.101`, for customer `ACME`, one iteration of a
+"login" customization. Branch and tag naming for customer deliverables is in section 9, "Customer
+customization branches".
+
+**Both the customer id and the customization-iteration must be letters only -- no digits anywhere.**
+This is not a style preference, it is a correctness requirement, and it follows directly from the
+stripping rule above:
+
+> `ProjectInfo.getProjectVersion()` strips with `replaceAll("[^\d.]", "")` -- only digits and dots
+> survive; letters and hyphens are removed regardless of context, and dots are kept regardless of
+> context too.
+
+Run the suffix format through that rule and the customer id and customization-iteration vanish
+entirely, leaving just the one dot the suffix inserted: `4.4.0.101-ACME.loginA` strips down to
+`4.4.0.101.`, and `split("\\.")` drops the trailing empty string, giving `["4","4","0","101"]` --
+identical to parsing the version without any customer suffix at all.
+
+**The no-digits rule must cover the whole suffix, not just the customer id while letting the
+customization-iteration slide (or vice versa).** A digit on either side survives the strip intact:
+best case `toDbSchemaVersion()` reads only the first four segments and silently drops a fifth one;
+worst case a digit sitting right before the dot gets absorbed straight into the `patch` segment,
+turning `101` into garbage like `1012` -- with no exception and no error message anywhere, surfacing
+only the next time a version gets parsed into the wrong number.
+
+The customer suffix **never enters the packed `schema_version`**: whatever
+`tb_schema_settings.schema_version` stores is always the four-segment base version after stripping.
+With or without the customer suffix, the upgrade gates (section 5) see the exact same version --
+the suffix is a human-facing label, not an independent upgrade unit, and it never triggers an extra
+`minor`/`maintenance` bump on its own (the release decision rule in section 4 still only looks at how
+the base version number changes).
+
+| Scenario | Version string |
+|---|---|
+| First login-flow customization for customer ACME on `4.4.0.101` | `4.4.0.101-ACME.loginA` |
+| Second iteration, same customer, same base version | `4.4.0.101-ACME.loginB` |
+| Same customer, re-customized on a new base version | `4.4.0.105-ACME.loginA` |
 
 ### Release sequence
 
