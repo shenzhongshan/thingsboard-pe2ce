@@ -28,6 +28,10 @@ DEFAULT_DOCS = os.path.dirname(HERE)
 ZH_SUFFIX = '.zh-CN.md'
 # 中文版必须带的权威性声明关键词，缺了说明是从英文直接复制改名的
 AUTHORITY_MARKER = '权威'
+# 有些文档一开始就是用中文写的（docs/architecture 下的 MQTT 三篇）。它们本身就是权威中文版，
+# 不需要再配 .zh-CN.md。用 CJK 占比识别，不要靠文件名约定——第一版漏了这条，
+# 把 3 篇已是中文的文档也算进了"缺中文版"。
+CJK_RATIO_THRESHOLD = 0.15
 
 H2_RE = re.compile(r'^##\s+(.*)$', re.M)
 H3_RE = re.compile(r'^###\s+', re.M)
@@ -39,6 +43,15 @@ LINK_RE = re.compile(r'\]\((?!https?:|mailto:)([^)#]+)')
 
 def read(path):
     return io.open(path, encoding='utf-8', errors='replace').read()
+
+
+def cjk_ratio(text):
+    """CJK 字符在"所有字母类字符"中的占比。代码块和标识符两种语言下都是 ASCII，
+    所以这个比值能把"中文原稿"和"英文原稿里夹几个中文注释"区分开。"""
+    cjk = sum(1 for ch in text if '一' <= ch <= '鿿')
+    latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    total = cjk + latin
+    return (cjk / total) if total else 0.0
 
 
 def english_docs(docs_dir):
@@ -73,18 +86,23 @@ def main(docs_dir):
         return 1
 
     en_files = english_docs(docs_dir)
-    missing, mismatched, link_broken, no_marker = [], [], [], []
+    missing, mismatched, link_broken, no_marker, native_zh = [], [], [], [], []
     checked = 0
 
     for en in en_files:
         rel = os.path.relpath(en, docs_dir)
+        en_text = read(en)
+        if cjk_ratio(en_text) >= CJK_RATIO_THRESHOLD:
+            # 本来就是中文写的，它自己就是权威版，不需要配对
+            native_zh.append(rel)
+            continue
         zh = zh_path(en)
         if not os.path.exists(zh):
             missing.append(rel)
             continue
         checked += 1
 
-        en_s = structure(read(en))
+        en_s = structure(en_text)
         zh_text = read(zh)
         zh_s = structure(zh_text)
 
@@ -107,7 +125,12 @@ def main(docs_dir):
         if AUTHORITY_MARKER not in zh_text[:1200]:
             no_marker.append(rel)
 
-    print('英文文档 {} 篇，已有中文版 {} 篇'.format(len(en_files), checked))
+    print('文档共 {} 篇：本就是中文 {} 篇，需配中文版 {} 篇，已配 {} 篇'
+          .format(len(en_files), len(native_zh), len(en_files) - len(native_zh), checked))
+    if native_zh:
+        print('本就是中文（无需配对）:')
+        for rel in native_zh:
+            print('    ' + rel)
     print('')
 
     if missing:
