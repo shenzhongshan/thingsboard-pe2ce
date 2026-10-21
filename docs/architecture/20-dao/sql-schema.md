@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS tb_schema_settings (
 );
 ```
 
-Stores exactly one row: the current schema version and product code (`"TB"` for ThingsBoard, `"PE"` for Professional Edition).
+Stores exactly one row: the current schema version and product code. In this project
+`ProjectInfo.getProductType()` returns **`"CE"`** (Community Edition); PE uses `"PE"`.
 
 ### Packed Version Format
 
@@ -58,7 +59,8 @@ Calculated as: `major * 1,000,000,000 + minor * 1,000,000 + maintenance * 1000 +
 
 ### Product Validation
 
-The `product` column ensures a ThingsBoard instance cannot upgrade a Professional Edition database (or vice versa). Mismatched products cause an immediate shutdown.
+The `product` column ensures a CE instance cannot upgrade a PE database (or vice versa). Mismatched
+products cause an immediate shutdown.
 
 ## Upgrade System
 
@@ -103,7 +105,7 @@ Handles:
 
 1. **`validateSchemaSettings()`** -- checks, in order:
    - `SKIP_SCHEMA_VERSION_CHECK` env var (bypasses all validation)
-   - Product type matches (TB vs PE)
+   - Product type matches (CE vs PE)
    - Database version is not already at the current package version
    - Database version does not *exceed* the package version (downgrades are rejected)
    - Database version is in the supported upgrade list
