@@ -213,5 +213,5 @@ The `home-links/` module defines the sidebar navigation menu and lazy-loads page
 - [Shared Module](shared.md) -- Reusable components, models, pipes, directives
 - [Page Modules](pages.md) -- All 32 page modules and their structure
 - [Theme & i18n](theme-i18n.md) -- SCSS theming, Tailwind integration, 28 locales
-- [Core Application](../20-application/README.md) -- Backend REST API consumed by frontend
+- [Core Application](../50-application/README.md) -- Backend REST API consumed by frontend
 - [Supporting Modules](../60-supporting/README.md) -- web-ui Docker image packaging

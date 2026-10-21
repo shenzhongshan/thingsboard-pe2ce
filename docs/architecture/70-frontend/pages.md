@@ -1,6 +1,8 @@
 # Page Modules
 
-The page modules (`src/app/modules/home/pages/`) contain 32 feature directories, each implementing a specific section of the ThingsBoard UI. Pages are lazy-loaded based on routes defined in the home routing module.
+The page modules (`src/app/modules/home/pages/`) contain 40 feature directories, each implementing a specific section of the ThingsBoard UI. Pages are lazy-loaded based on routes defined in the home routing module.
+
+> Eight of these directories are additions this fork makes on top of upstream CE (mostly features ported from PE): `device-simulator`, `deviceAlarms`, `entity-group`, `help-center`, `integration`, `reporting`, `smart-lightning`, `solution-templates`. Each is listed below.
 
 ## Page Module Architecture
 
@@ -167,6 +169,24 @@ Device profile (type) management with transport configuration.
 **Entity component:** `DeviceProfileComponent`  
 **Tabs component:** `DeviceProfileTabsComponent`
 
+### device-simulator/ (fork addition)
+
+Device Simulator -- a standalone visual telemetry simulator for configuring and driving simulated devices, reusing the emulator JSON format from solution templates. Supports both live and historical modes.
+
+| File | Purpose |
+|------|---------|
+| `device-simulators.component.ts` | Simulator list and start/stop controls |
+| `device-simulator-dialog.component.ts` | Simulator configuration dialog |
+| `value-strategy-editor.component.ts` | Value strategy editor (random, sine, incrementing, etc.) |
+
+**Type:** custom
+
+### deviceAlarms/ (fork addition)
+
+Device alarm list (`deviceAlarms/list`) belonging to the Smart Lightning feature.
+
+**Type:** custom (`SmartLightningAlarmListComponent`)
+
 ### edge/
 
 Edge instance management for the ThingsBoard Edge system.
@@ -181,6 +201,21 @@ Includes nested tables for edge-assigned entities (assets, devices, entity views
 ### entities/
 
 Entities section routing module that groups device, asset, entity view, and gateway tabs under `/entities/`.
+
+### entity-group/ (fork addition)
+
+Entity groups and customer hierarchy -- the entity-group system ported from PE.
+
+| File | Purpose |
+|------|---------|
+| `customer-hierarchy.component.ts` | Customer hierarchy tree view |
+| `entity-group-dialog.component.ts` | Entity group create/edit dialog |
+| `entity-group-columns-tab.component.ts` | Group column configuration tab |
+| `entity-group-actions-tab.component.ts` | Group action configuration tab |
+| `add-group-entities-dialog.component.ts` | Dialog for adding entities to a group |
+| `entity-group-details-config.util.ts` | Tab wiring for the group details drawer |
+
+**Type:** entity-table / custom
 
 ### entity-view/
 
@@ -202,11 +237,35 @@ Gateway connectivity dashboard.
 **Type:** dashboard-view  
 **Dashboard:** Loads gateway status dashboard
 
+### help-center/ (fork addition)
+
+Help Center -- built-in browsing and reading of help articles.
+
+| File | Purpose |
+|------|---------|
+| `help-article.component.ts` | Renders a single help article |
+| `help-articles.data.ts` | Help article content data |
+
+**Type:** custom
+
 ### home-links/
 
 Home page with quick-link cards and dashboard resolver. Defines the sidebar navigation menu structure and lazy-loads all page modules.
 
 **Type:** custom (HomeLinksComponent)
+
+### integration/ (fork addition)
+
+Integration Center -- ported from PE, covering all 29 integration protocol types plus uplink/downlink data converters.
+
+| File | Purpose |
+|------|---------|
+| `integration/` | Integration list, details, and editing |
+| `converter/` | Uplink/downlink converters (with decoder/encoder editors and test dialogs) |
+| `integration-details-panel.component.ts` | Integration details side panel |
+| `integration-entity-details-page.component.ts` | Full-page integration details view |
+
+**Type:** entity-table / custom
 
 ### mobile/
 
@@ -250,6 +309,18 @@ User profile page (part of Account section). Editable profile information.
 
 Profiles section routing that groups device profiles and asset profiles under `/profiles/`.
 
+### reporting/ (fork addition)
+
+Report engine -- ported from PE, supporting PDF/CSV output, charts, dashboard embedding, and scheduled generation.
+
+| Sub-page | Purpose |
+|----------|---------|
+| `report/` | Report list and generate dialog |
+| `report-template/` | Report template list, create dialog, and visual editor |
+| `schedule/` | Report scheduling configuration |
+
+**Type:** entity-table / custom
+
 ### rulechain/
 
 Rule chain management with visual editor.
@@ -285,6 +356,32 @@ Account security page (part of Account section). Manages 2FA, password change, a
 
 **Type:** settings-form  
 **Component:** `SecurityComponent`
+
+### smart-lightning/ (fork addition)
+
+Smart Lightning -- a scenario-specific feature section with dedicated dashboards, device monitoring, and query views.
+
+| Sub-page | Purpose |
+|----------|---------|
+| `dashboard/` | Smart Lightning dashboard with map config and period switcher |
+| `monitoring/` | Per-luminaire device detail monitoring |
+| `query/` | Query view |
+| `smart-lightning-root-asset-filter.component.ts` | Root asset filter |
+
+**Type:** custom
+
+### solution-templates/ (fork addition)
+
+Solution templates -- ported from PE, supporting template browsing, one-click install/uninstall, and bundled telemetry emulators.
+
+| File | Purpose |
+|------|---------|
+| `solution-templates.component.ts` | Template browse list |
+| `solution-template-card.component.ts` | Individual template card |
+| `solution-template-details.component.ts` | Template details |
+| `solution-install-dialog.component.ts` | Install/uninstall dialog |
+
+**Type:** custom
 
 ### tenant/
 
@@ -371,7 +468,7 @@ The `home/components/` directory contains framework components used by multiple 
 
 ## Relationships
 
-- [Frontend Overview](../README.md) -- Overall frontend architecture and entity table pattern
-- [Core Module](../core.md) -- HTTP services and route guards consumed by pages
-- [Shared Module](../shared.md) -- Shared components (entity selectors, dialogs, time pickers) used by pages
-- [Theme & i18n](../theme-i18n.md) -- All pages use the theme and translation system
+- [Frontend Overview](README.md) -- Overall frontend architecture and entity table pattern
+- [Core Module](core.md) -- HTTP services and route guards consumed by pages
+- [Shared Module](shared.md) -- Shared components (entity selectors, dialogs, time pickers) used by pages
+- [Theme & i18n](theme-i18n.md) -- All pages use the theme and translation system

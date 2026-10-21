@@ -194,7 +194,7 @@ Environment-specific settings in `src/environments/`:
 
 ## Relationships
 
-- [Frontend Overview](../README.md) -- Overall frontend architecture
-- [Core Module](../core.md) -- Core translate services and NgRx settings state
-- [Shared Module](../shared.md) -- Shared components styled with the theme system
-- [Page Modules](../pages.md) -- Pages use translations and theme variables
+- [Frontend Overview](README.md) -- Overall frontend architecture
+- [Core Module](core.md) -- Core translate services and NgRx settings state
+- [Shared Module](shared.md) -- Shared components styled with the theme system
+- [Page Modules](pages.md) -- Pages use translations and theme variables

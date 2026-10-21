@@ -351,6 +351,6 @@ Reusable Angular animation definitions (fade in/out, slide, expand/collapse) use
 
 ## Relationships
 
-- [Core Module](../core.md) -- Core services use shared models for type definitions
-- [Page Modules](../pages.md) -- Page modules import shared components (entity selects, dialogs, time pickers)
-- [Theme & i18n](../theme-i18n.md) -- Shared components use the theme system
+- [Core Module](core.md) -- Core services use shared models for type definitions
+- [Page Modules](pages.md) -- Page modules import shared components (entity selects, dialogs, time pickers)
+- [Theme & i18n](theme-i18n.md) -- Shared components use the theme system
