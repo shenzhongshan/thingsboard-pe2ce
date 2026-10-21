@@ -116,11 +116,14 @@ def main(docs_dir):
         if diffs:
             mismatched.append((rel, diffs))
 
-        # 中文版里的相对链接必须都能解析；链到 .md 的建议链到中文版，但不强制
-        for target in LINK_RE.findall(zh_text):
-            resolved = os.path.normpath(os.path.join(os.path.dirname(zh), target))
-            if not os.path.exists(resolved):
-                link_broken.append((rel, target))
+        # 两版的相对链接都必须能解析。第一版只查中文版，结果 60-supporting/README.md 里
+        # 指向 ../20-application/ 和 ../10-modules/（正确的是 50-application 和 10-common）
+        # 的两处断链是靠人眼发现的——英文版同样是交付物，不能不查。
+        for label, path, text in (('zh', zh, zh_text), ('en', en, en_text)):
+            for target in LINK_RE.findall(text):
+                resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
+                if not os.path.exists(resolved):
+                    link_broken.append(('{} [{}]'.format(rel, label), target))
 
         if AUTHORITY_MARKER not in zh_text[:1200]:
             no_marker.append(rel)
