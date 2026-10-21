@@ -52,7 +52,7 @@ public final class SpdTelemetryKeyDefinitions {
                     "SPD_I1hA", "SPD_I1hB", "SPD_I1hC", "SPD_I24hA", "SPD_I24hB",
                     "SPD_I24hC", "SPD_DeltaT")),
             Map.entry("ESM0", Set.of(
-                    "RemoteSig", "McbStatus", "GndStatus", "StrikeCnt", "Temp1")),
+                    "RemoteSig", "McbStatus", "GndStatus", "StrikeCnt", "Temp")),
             Map.entry("ESM3", Set.of(
                     "RemoteSig", "McbStatus", "GndStatus", "StrikeCnt", "PhAVolt",
                     "PhBVolt", "PhCVolt", "LeakCurrA", "LeakCurrB", "LeakCurrC",

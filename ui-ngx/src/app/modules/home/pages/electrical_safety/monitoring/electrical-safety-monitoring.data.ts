@@ -87,6 +87,8 @@ export interface ElectricalSafetyMonitoringDevice {
   name: string;
   productName: string;
   model: string;
+  /** 型号代码对应的中文产品名称，用于卡片展示；model 保留原始代码供筛选和测点匹配。 */
+  modelDisplayName: string;
   protocol: string;
   productCategory: string;
   functionCategory: string;
@@ -209,6 +211,9 @@ export type ElectricalSafetyDeviceModel =
 /** 状态测点与防雷保持一致，默认按 0 正常、1 异常显示。 */
 const ELECTRICAL_SAFETY_STATUS_VALUES: Readonly<Record<string, string>> = {0: '正常', 1: '异常'};
 
+/** E1P1 的数字输入输出状态按设备协议显示 0 正常、1 报警。 */
+const ELECTRICAL_SAFETY_ALARM_STATUS_VALUES: Readonly<Record<string, string>> = {0: '正常', 1: '报警'};
+
 /** 以小构造函数维持防雷的测点声明方式，状态类和数值类在同一型号数组中明确区分。 */
 const statusMetric = (
   key: string,
@@ -302,7 +307,12 @@ export const electricalSafetyRealtimeMetricDefinitions: Record<
   E1B2: [
     telemetryMetric('NSeqVUnb', '负序电压不平衡度', '%', '__', 'quality-negative-sequence')
   ],
-  E1P1: [],
+  E1P1: [
+    statusMetric('DO1', 'DO1输出状态', '__', ELECTRICAL_SAFETY_ALARM_STATUS_VALUES),
+    statusMetric('DI1', 'DI1输入状态', '__', ELECTRICAL_SAFETY_ALARM_STATUS_VALUES),
+    statusMetric('DI2', 'DI2输入状态', '__', ELECTRICAL_SAFETY_ALARM_STATUS_VALUES),
+    telemetryMetric('UG', '零地电压', 'V')
+  ],
   E1E2: [
     telemetryMetric('VoltThdA', 'A相电压总谐波畸变率', '%', '__', 'quality-voltage-thd'),
     telemetryMetric('VoltThdB', 'B相电压总谐波畸变率', '%', '__', 'quality-voltage-thd'),
@@ -364,7 +374,7 @@ const ELECTRICAL_SAFETY_CARD_METRICS: Readonly<
 > = {
   LDH1: [cardMetric('DevStatus')], FAP1: [cardMetric('DevStatus')], ESF1: [], E1T2: [], E2C3: [], E1I2: [],
   CBP4: [], CBP3: [], CBP2: [], CBP1: [], LDA1: [], E1B2: [],
-  E1P1: [], E1E2: [], SFE: [],
+  E1P1: [cardMetric('DO1'), cardMetric('DI1'), cardMetric('DI2'), cardMetric('UG')], E1E2: [], SFE: [],
   SFA: [cardMetric('PhAVolt'), cardMetric('PhBVolt'), cardMetric('PhCVolt')]
 };
 
@@ -382,6 +392,16 @@ export function resolveElectricalSafetyDeviceModel(
     .find((model) => ELECTRICAL_SAFETY_MODEL_ALIASES[model]
       .some((alias) => normalizeElectricalSafetyModelName(alias) === normalizedName));
   return matchedModel;
+}
+
+/** 将型号代码映射为已核实的中文产品名称；未知型号保留原始名称以便识别。 */
+export function getElectricalSafetyDeviceModelDisplayName(deviceProfileName?: string | null): string {
+  const normalizedName = deviceProfileName?.trim() || '';
+  const model = resolveElectricalSafetyDeviceModel(normalizedName);
+  if (!model) {
+    return normalizedName || '--';
+  }
+  return ELECTRICAL_SAFETY_MODEL_ALIASES[model][1] || model;
 }
 
 /** 按型号返回防雷同形态的独立测点数组；未匹配型号不借用其他产品定义。 */
@@ -453,7 +473,7 @@ export function formatElectricalSafetyRealtimeMetricValue(
   return displayValue === '--' ? displayValue : displayValue + displayUnit;
 }
 
-/** 从当前型号数组和独立卡片布局生成最多三项设备卡片遥测。 */
+/** 从当前型号数组和独立卡片布局生成设备卡片遥测，状态和单位复用型号定义。 */
 function buildElectricalSafetyRealtimeMetrics(
   deviceProfileName: string,
   latestValues: ReadonlyMap<string, ElectricalSafetyMonitoringTelemetryValue>
@@ -478,10 +498,10 @@ function buildElectricalSafetyRealtimeMetrics(
       label: definition.label,
       value,
       title: `测点：${item.key}；原始值：${sample?.value ?? '--'}；时间：${formatElectricalSafetyActivityTime(sample?.ts)}`,
-      abnormal: definition.valueType === 'status' && value === '异常'
+      abnormal: definition.valueType === 'status' && (value === '异常' || value === '报警')
     });
   }
-  return metrics.slice(0, 3);
+  return metrics.slice(0, 4);
 }
 
 /** 将 active 遥测解析为明确的在线布尔值；未识别值由调用方保留原有状态。 */
@@ -531,6 +551,7 @@ export function buildElectricalSafetyMonitoringDevices(
       name: context.deviceName || '--',
       productName: context.productName?.trim() || '--',
       model: context.deviceProfileName?.trim() || '--',
+      modelDisplayName: getElectricalSafetyDeviceModelDisplayName(context.deviceProfileName),
       protocol: context.deviceProtocol?.trim() || '--',
       productCategory: context.productCategory,
       functionCategory: context.functionCategory?.trim() || '',
@@ -719,7 +740,7 @@ export function filterElectricalSafetyMonitoringDevices(
     const matchesProduct = device.productCategory === ELECTRICAL_SAFETY_PRODUCT_CATEGORY;
     const matchesAsset = selectedAssetIds.has(device.assetId);
     const matchesCategory = category === 'all' || device.categoryKey === category;
-    const searchableText = `${device.name} ${device.productName} ${device.model} ${device.assetPath}`;
+    const searchableText = `${device.name} ${device.productName} ${device.modelDisplayName} ${device.model} ${device.assetPath}`;
     const matchesSearch = !normalizedSearch || searchableText.toLocaleLowerCase().includes(normalizedSearch);
     return matchesProduct && matchesAsset && matchesCategory && matchesSearch;
   });

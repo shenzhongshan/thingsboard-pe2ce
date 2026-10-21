@@ -21,6 +21,8 @@ import {ECharts, EChartsOption} from 'echarts';
 import {Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningHistoryPoints,
+  buildSmartLightningWaveformHistoryPage,
+  SmartLightningWaveformHistoryRecord,
   filterSmartLightningTelemetryParameters,
   getSmartLightningHistoryYAxisRange,
   getSmartLightningTelemetryParameterLabel,
@@ -28,6 +30,10 @@ import {
   SmartLightningHistoryMetricDefinition,
   SmartLightningHistoryPoint
 } from './smart-lightning-history-review.data';
+import {buildSmartLightningWaveformChartOption, getSmartLightningChartDefinitions,
+  SmartLightningChartDefinition} from '../monitoring/smart-lightning-device-detail.charts';
+import {SMART_LIGHTNING_WAVEFORM_KEY} from '../shared/telemetry/smart-lightning-measurements';
+import {SmartLightningWaveformHistoryApiService} from './smart-lightning-waveform-history-api.service';
 
 export interface SmartLightningHistoryReviewDialogData {
   deviceId: string;
@@ -49,7 +55,7 @@ const HISTORY_RANGE_HOURS: Record<QuickHistoryRangePreset, number> = {
 /**
  * 历史遥测“回顾”弹窗组件。
  *
- * <p>单选一个数值型遥测参数，按起止时间查询历史数据并绘制 ECharts 折线；
+ * <p>单选遥测参数，按起止时间查询数值趋势或逐次触发波形并绘制 ECharts 折线；
  * 不影响看板各图表独立的日/周/月筛选。</p>
  */
 @Component({
@@ -76,6 +82,17 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
   rangeError = '';
   points: SmartLightningHistoryPoint[] = [];
 
+  /** 历史波形独立按事件翻页；切换记录仅重画本地采样点。 */
+  waveformRecords: SmartLightningWaveformHistoryRecord[] = [];
+  selectedWaveform?: SmartLightningWaveformHistoryRecord;
+  waveformHasMore = false;
+  waveformLoadingMore = false;
+  waveformPageError = false;
+  appliedRange?: {startTs: number; endTs: number};
+  private waveformNextEndTs?: number;
+  private readonly waveformPageSize = 100;
+  /** 新查询或参数切换时取消旧请求，避免旧结果覆盖当前选择。 */
+  private readonly historyRequest$ = new Subject<void>();
   private chart?: ECharts;
   private resizeObserver?: ResizeObserver;
   private readonly destroy$ = new Subject<void>();
@@ -85,6 +102,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     private readonly dialogRef: MatDialogRef<SmartLightningHistoryReviewDialogComponent>,
     private readonly entityService: EntityService,
     private readonly attributeService: AttributeService,
+    private readonly waveformApi: SmartLightningWaveformHistoryApiService,
     private readonly cd: ChangeDetectorRef
   ) {}
 
@@ -103,10 +121,37 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
   }
 
   ngOnDestroy(): void {
+    this.historyRequest$.next();
+    this.historyRequest$.complete();
     this.destroy$.next();
     this.destroy$.complete();
     this.resizeObserver?.disconnect();
     this.chart?.dispose();
+  }
+
+  /** 只给防雷 M1AI/L2AI 开放历史波形，外部模块显式测点表不受影响。 */
+  get waveformDefinition(): SmartLightningChartDefinition | undefined {
+    return this.data.metricDefinitions === undefined
+      ? getSmartLightningChartDefinitions(this.data.deviceProfileName).find((definition) => definition.kind === 'waveform')
+      : undefined;
+  }
+
+  get isWaveform(): boolean {
+    return this.selectedParameter === SMART_LIGHTNING_WAVEFORM_KEY && !!this.waveformDefinition;
+  }
+
+  /** 参数切换后立即应用当前时间范围，同时取消上一项查询。 */
+  onParameterChange(): void {
+    this.historyRequest$.next();
+    this.historyLoading = false;
+    this.waveformLoadingMore = false;
+    this.historyLoaded = false;
+    this.historyLoadError = false;
+    this.points = [];
+    this.waveformRecords = [];
+    this.selectedWaveform = undefined;
+    this.renderChart();
+    this.loadHistory();
   }
 
   get selectedParameterLabel(): string {
@@ -162,14 +207,27 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       this.cd.markForCheck();
       return;
     }
+    this.historyRequest$.next();
+    const parameter = this.selectedParameter;
+    this.appliedRange = {startTs, endTs};
+    this.waveformRecords = [];
+    this.selectedWaveform = undefined;
+    this.waveformHasMore = false;
+    this.waveformLoadingMore = false;
+    this.waveformPageError = false;
+    this.waveformNextEndTs = undefined;
     this.historyLoading = true;
     this.historyLoadError = false;
     this.historyLoaded = false;
     this.points = [];
     this.renderChart();
+    if (this.isWaveform) {
+      this.loadWaveformPage(false);
+      return;
+    }
     this.attributeService.getEntityTimeseries(
       new DeviceId(this.data.deviceId),
-      [this.selectedParameter],
+      [parameter],
       startTs,
       endTs,
       1000,
@@ -177,9 +235,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       undefined,
       DataSortOrder.ASC,
       true
-    ).pipe(takeUntil(this.destroy$)).subscribe({
+    ).pipe(takeUntil(this.historyRequest$), takeUntil(this.destroy$)).subscribe({
       next: (timeseries: TimeseriesData) => {
-        this.points = buildSmartLightningHistoryPoints(timeseries, this.selectedParameter);
+        this.points = buildSmartLightningHistoryPoints(timeseries, parameter);
         this.historyLoading = false;
         this.historyLoaded = true;
         this.renderChart();
@@ -191,6 +249,62 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
         this.historyLoadError = true;
         this.historyLoaded = true;
         this.renderChart();
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 点击一条上报记录，直接使用完整 WF 采样点绘图，首点固定为 0 μs。 */
+  selectWaveform(record: SmartLightningWaveformHistoryRecord): void {
+    this.selectedWaveform = record;
+    this.renderChart();
+    this.cd.markForCheck();
+  }
+
+  /** 沿已提交的时间范围加载更早事件，编辑中的筛选时间不会改变分页游标。 */
+  loadMoreWaveforms(): void {
+    if (this.isWaveform && this.waveformHasMore && !this.waveformLoadingMore && !this.historyLoading) {
+      this.loadWaveformPage(true);
+    }
+  }
+
+  /** 每次最多读取一页原始事件，多读一条判断后续页，失败时保留已加载记录供重试。 */
+  private loadWaveformPage(append: boolean): void {
+    const definition = this.waveformDefinition;
+    const range = this.appliedRange;
+    if (!definition || !range) {
+      return;
+    }
+    const endTs = append ? this.waveformNextEndTs : range.endTs;
+    if (endTs === undefined || endTs <= range.startTs) {
+      this.waveformHasMore = false;
+      return;
+    }
+    this.waveformLoadingMore = append;
+    this.waveformPageError = false;
+    this.waveformApi.getHistory(this.data.deviceId, range.startTs, endTs, this.waveformPageSize + 1).pipe(
+      takeUntil(this.historyRequest$), takeUntil(this.destroy$)
+    ).subscribe({
+      next: (timeseries) => {
+        const page = buildSmartLightningWaveformHistoryPage(timeseries, definition, this.waveformPageSize);
+        this.waveformRecords = append ? [...this.waveformRecords, ...page.records] : page.records;
+        this.waveformNextEndTs = page.nextEndTs;
+        this.waveformHasMore = page.hasMore;
+        if (!append) {
+          this.selectedWaveform = this.waveformRecords[0];
+        }
+        this.historyLoading = false;
+        this.waveformLoadingMore = false;
+        this.historyLoaded = true;
+        this.renderChart();
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.historyLoading = false;
+        this.waveformLoadingMore = false;
+        this.historyLoadError = !append;
+        this.waveformPageError = append;
+        this.historyLoaded = true;
         this.cd.markForCheck();
       }
     });
@@ -210,6 +324,11 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
           this.data.deviceProfileName, keys, this.data.metricDefinitions
         )
           .sort((left, right) => left.localeCompare(right));
+        // 尚未触发过的设备也保留历史波形入口，查询后显示真实空状态。
+        if (this.waveformDefinition) {
+          this.parameterKeys = [SMART_LIGHTNING_WAVEFORM_KEY,
+            ...this.parameterKeys.filter((key) => key !== SMART_LIGHTNING_WAVEFORM_KEY)];
+        }
         this.selectedParameter = this.parameterKeys[0] || '';
         this.keysLoading = false;
         this.cd.markForCheck();
@@ -229,6 +348,12 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
   /** 渲染/更新历史折线图，容器尺寸变化时同步重绘。 */
   private renderChart(): void {
     if (!this.chart) {
+      return;
+    }
+    if (this.isWaveform) {
+      this.chart.setOption(buildSmartLightningWaveformChartOption(
+        this.waveformDefinition!, this.selectedWaveform?.seriesData || []
+      ), true);
       return;
     }
     const unit = getSmartLightningTelemetryParameterUnit(
@@ -281,6 +406,6 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     const date = new Date(timestamp);
     const pad = (value: number): string => String(value).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T` +
-      `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 }

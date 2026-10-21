@@ -14,7 +14,7 @@
   <form class="history-filter" novalidate (ngSubmit)="loadHistory()">
     <label class="parameter-field">
       <span>设备参数</span>
-      <select [(ngModel)]="selectedParameter" name="selectedParameter" [disabled]="keysLoading || !parameterKeys.length">
+      <select [(ngModel)]="selectedParameter" (ngModelChange)="onParameterChange()" name="selectedParameter" [disabled]="keysLoading || !parameterKeys.length">
         @if (keysLoading) {
           <option value="">正在读取参数…</option>
         } @else if (keysLoadError) {
@@ -46,13 +46,13 @@
         <label class="time-field">
           <span>开始</span>
           <input [(ngModel)]="startTime" (change)="markCustomRange()" name="historyStartTime" type="datetime-local"
-                 [max]="endTime" step="60" aria-label="历史数据开始时间">
+                 [max]="endTime" step="1" aria-label="历史数据开始时间">
         </label>
         <span class="range-separator" aria-hidden="true">至</span>
         <label class="time-field">
           <span>结束</span>
           <input [(ngModel)]="endTime" (change)="markCustomRange()" name="historyEndTime" type="datetime-local"
-                 [min]="startTime" step="60" aria-label="历史数据结束时间">
+                 [min]="startTime" step="1" aria-label="历史数据结束时间">
         </label>
         <button type="button" class="now-button" (click)="setEndNow()" title="将结束时间设为当前时间">现在</button>
       </fieldset>
@@ -64,8 +64,42 @@
   </form>
   @if (rangeError) {<p class="range-error" role="alert">{{rangeError}}</p>}
 
+  <div class="history-review-body" [class.waveform-layout]="isWaveform">
+  <!-- 每一条记录代表一次触发的完整采样包，切换记录不再查询或混合其他事件。 -->
+  @if (isWaveform && historyLoaded && !historyLoadError && appliedRange) {
+    <section class="waveform-records" aria-label="历史波形记录" [attr.aria-busy]="waveformLoadingMore">
+      <header>
+        <strong>历史波形</strong>
+        <span>已加载 {{waveformRecords.length}} 条，按上报时间从新到旧排列</span>
+      </header>
+      <p class="waveform-range">查询范围：{{appliedRange.startTs | date:'yyyy-MM-dd HH:mm:ss'}} 至 {{appliedRange.endTs | date:'yyyy-MM-dd HH:mm:ss'}}</p>
+      <div class="waveform-record-list" role="group" aria-label="选择一次波形记录">
+        @for (record of waveformRecords; track record.timestamp) {
+          <button type="button" class="waveform-record" [class.selected]="selectedWaveform?.timestamp === record.timestamp"
+                  [attr.aria-pressed]="selectedWaveform?.timestamp === record.timestamp" (click)="selectWaveform(record)">
+            <span>{{record.timestamp | date:'yyyy-MM-dd HH:mm:ss.SSS'}}</span>
+            <span [class.invalid]="!record.sampleCount">{{record.sampleCount ? record.sampleCount + ' 个采样点' : '数据格式异常'}}</span>
+          </button>
+        }
+      </div>
+      <footer>
+        @if (waveformPageError) {<span class="waveform-page-error" role="alert">更早记录读取失败，请重试</span>}
+        @if (waveformHasMore) {
+          <button type="button" class="waveform-more" (click)="loadMoreWaveforms()" [disabled]="waveformLoadingMore">
+            {{waveformLoadingMore ? '正在加载…' : (waveformPageError ? '重试加载更早记录' : '加载更早记录')}}
+          </button>
+        } @else if (waveformRecords.length) {
+          <span>已加载所选范围内全部记录</span>
+        }
+      </footer>
+    </section>
+  }
+
+  @if (isWaveform && selectedWaveform) {
+    <p class="waveform-selection" aria-live="polite">当前波形上报时间：{{selectedWaveform.timestamp | date:'yyyy-MM-dd HH:mm:ss.SSS'}}</p>
+  }
   <div class="chart-panel">
-    <div #historyChart class="history-chart" role="img" [attr.aria-label]="selectedParameterLabel + '历史遥测折线图'"></div>
+    <div #historyChart class="history-chart" role="img" [attr.aria-label]="selectedParameterLabel + (isWaveform ? '历史波形图' : '历史遥测折线图')"></div>
     @if (keysLoading || historyLoading) {
       <div class="chart-state">正在读取历史遥测数据…</div>
     } @else if (keysLoadError) {
@@ -74,8 +108,13 @@
       <div class="chart-state">当前设备没有可查询的数值遥测参数</div>
     } @else if (historyLoadError) {
       <div class="chart-state error">历史遥测数据读取失败</div>
-    } @else if (historyLoaded && !points.length) {
+    } @else if (historyLoaded && isWaveform && !waveformRecords.length) {
+      <div class="chart-state" role="status">所选时间范围内没有历史波形，请调整时间范围后查询</div>
+    } @else if (historyLoaded && isWaveform && selectedWaveform && !selectedWaveform.sampleCount) {
+      <div class="chart-state error" role="alert">本条波形数据格式异常，请选择其他记录</div>
+    } @else if (historyLoaded && !isWaveform && !points.length) {
       <div class="chart-state">所选时间范围内没有可绘制的数值遥测数据</div>
     }
+  </div>
   </div>
 </section>

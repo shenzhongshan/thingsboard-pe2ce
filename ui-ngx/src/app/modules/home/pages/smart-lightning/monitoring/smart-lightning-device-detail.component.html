@@ -72,15 +72,31 @@
                             (click)="toggleChartFullscreen(chartCard)">
                       <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
                     </button>
-                    <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
-                      <button *ngFor="let period of chartPeriodOptions" type="button"
-                              [class.active]="selectedChartPeriods[chart.id] === period.value"
-                              [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
-                              (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
-                    </div>
+                    @if (chart.kind === 'waveform') {
+                      <span class="chart-latest-tag">最近一次</span>
+                    } @else {
+                      <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                        <button *ngFor="let period of chartPeriodOptions" type="button"
+                                [class.active]="selectedChartPeriods[chart.id] === period.value"
+                                [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                                (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                      </div>
+                    }
                   </div>
                 </header>
-                <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                <div class="chart-plot">
+                  <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                  @if (chart.kind === 'waveform' && waveformLoadStates[chart.id] !== 'ready') {
+                    <div class="waveform-state"
+                         [class.error]="waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid'"
+                         [attr.role]="waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid' ? 'alert' : 'status'">
+                      <span>{{waveformStatusText(chart.id)}}</span>
+                      @if (waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid') {
+                        <button type="button" aria-label="重新读取最近一次波形" (click)="retryLatestWaveform(chart.id)">重试</button>
+                      }
+                    </div>
+                  }
+                </div>
               </article>
             }
           }
@@ -105,15 +121,31 @@
                               (click)="toggleChartFullscreen(chartCard)">
                         <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
                       </button>
-                      <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
-                        <button *ngFor="let period of chartPeriodOptions" type="button"
-                                [class.active]="selectedChartPeriods[chart.id] === period.value"
-                                [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
-                                (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
-                      </div>
+                      @if (chart.kind === 'waveform') {
+                        <span class="chart-latest-tag">最近一次</span>
+                      } @else {
+                        <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                          <button *ngFor="let period of chartPeriodOptions" type="button"
+                                  [class.active]="selectedChartPeriods[chart.id] === period.value"
+                                  [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                                  (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                        </div>
+                      }
                     </div>
                   </header>
-                  <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                  <div class="chart-plot">
+                    <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                    @if (chart.kind === 'waveform' && waveformLoadStates[chart.id] !== 'ready') {
+                      <div class="waveform-state"
+                           [class.error]="waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid'"
+                           [attr.role]="waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid' ? 'alert' : 'status'">
+                        <span>{{waveformStatusText(chart.id)}}</span>
+                        @if (waveformLoadStates[chart.id] === 'error' || waveformLoadStates[chart.id] === 'invalid') {
+                          <button type="button" aria-label="重新读取最近一次波形" (click)="retryLatestWaveform(chart.id)">重试</button>
+                        }
+                      </div>
+                    }
+                  </div>
                 </article>
               }
             </div>

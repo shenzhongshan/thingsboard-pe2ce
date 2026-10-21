@@ -75,7 +75,7 @@ function sfaChart(
 
 /**
  * 各型号趋势图职责独立配置，与防雷按型号维护图表定义的方式一致。
- * 当前给定测点表只有 SFA 的电气安全测点；其他型号没有可靠键表，因此不猜测曲线。
+ * SFA 和 E1P1 使用已确认的型号测点表；其他型号没有可靠键表，因此不猜测曲线。
  */
 export const ELECTRICAL_SAFETY_CHART_DEFINITIONS: Readonly<
   Record<ElectricalSafetyDeviceModel, readonly ElectricalSafetyDetailChartDefinition[]>
@@ -92,7 +92,9 @@ export const ELECTRICAL_SAFETY_CHART_DEFINITIONS: Readonly<
   CBP1: [],
   LDA1: [],
   E1B2: [],
-  E1P1: [],
+  E1P1: [
+    chart('zero-ground-voltage', '零地电压', 1, modelSeries('E1P1', ['UG']))
+  ],
   E1E2: [],
   SFE: [],
   SFA: [

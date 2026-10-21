@@ -1,0 +1,77 @@
+ThingsBoard MQTT Integration 上行转换器（仅支持 M1AI、L2AI 波形报文）
+
+用途：订阅设备告警主题，将每次触发报文中的完整 WF 字符串作为一条 WF 遥测写入对应的已有设备。
+WF 保持协议原值，不拆成多条遥测；ThingsBoard 使用消息接收时间作为本条遥测时间。
+集成的 MQTT Topic Filter 需要在集成配置中填写实际告警主题，本脚本不限定 Topic。
+
+var json = decodeToJson(payload);
+
+if (json == null) {
+    // 非法 JSON 时无法读取协议内容。
+    return null;
+}
+
+if (json.header == null) {
+    // 缺少协议头时无法定位设备。
+    return null;
+}
+
+if (json.data == null) {
+    // 缺少数据区时没有可保存的波形。
+    return null;
+}
+
+var header = json.header;
+var data = json.data;
+
+/* 网关聚合报文使用 salveid 定位子设备；直连报文回退到 client。 */
+var deviceName = header.salveid;
+if (deviceName == null || deviceName == "") {
+    deviceName = header.client;
+}
+
+if (deviceName == null || deviceName == "") {
+    return null;
+}
+
+/* 设备编号下划线及其后缀是报文附加标记，不属于 ThingsBoard 中的设备名称。 */
+var suffixIndex = deviceName.indexOf("_");
+if (suffixIndex >= 0) {
+    deviceName = deviceName.substring(0, suffixIndex);
+}
+
+if (deviceName.length < 7 || deviceName.substring(0, 3) != "KSD") {
+    // 只接受能够按 KSD + 四位型号解析的设备编号。
+    return null;
+}
+
+/* 型号固定取设备编号中 KSD 后的四位。 */
+var deviceType = deviceName.substring(3, 7);
+if (deviceType != "M1AI" && deviceType != "L2AI") {
+    // 此集成只处理雷电流监测模块 M1AI 与瞬态电流监测模块 L2AI。
+    return null;
+}
+
+var waveform = data.WF;
+if (waveform == null || waveform == "") {
+    // 告警报文没有波形时不写入空 WF，避免覆盖设备最近一次有效波形。
+    return null;
+}
+
+var telemetry = {
+    "WF": waveform
+};
+
+/* 保留对应型号的触发计数，便于识别最新一次波形；没有计数键时仍保存 WF。 */
+if (deviceType == "M1AI" && data.StrikeCnt != null) {
+    telemetry["StrikeCnt"] = data.StrikeCnt;
+}
+if (deviceType == "L2AI" && data.SurgeCnt != null) {
+    telemetry["SurgeCnt"] = data.SurgeCnt;
+}
+
+return {
+    "deviceName": deviceName,
+    "deviceType": deviceType,
+    "telemetry": telemetry
+};

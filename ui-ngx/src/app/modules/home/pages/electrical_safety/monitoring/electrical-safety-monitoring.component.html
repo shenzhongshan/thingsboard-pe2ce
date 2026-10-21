@@ -46,7 +46,7 @@
           </dl>
         </article>
 
-        <div class="analysis-grid electrical-safety-analysis-grid">
+        <div class="analysis-grid">
           @for (card of summaryCards; track card.key) {
             <article class="analysis-card"
                      [class.fire]="card.key === 'fire'"
@@ -119,12 +119,12 @@
                 <div class="device-icon"><tb-icon>electric_meter</tb-icon></div>
                 <div class="device-details">
                   <p><span>设备地址：</span><strong [title]="device.assetPath">{{device.assetPath}}</strong></p>
-                  <p><span>产品型号：</span><strong [title]="device.model">{{device.model}}</strong></p>
+                  <p><span>产品型号：</span><strong [title]="device.modelDisplayName">{{device.modelDisplayName}}</strong></p>
                   <p><span>最近活跃时间：</span><strong>{{device.lastReportTime}}</strong></p>
                 </div>
               </div>
               @if (device.realtimeMetrics.length) {
-                <dl class="device-realtime-metrics" aria-label="实时遥测">
+                <dl class="device-realtime-metrics" [class.four-metrics]="device.realtimeMetrics.length === 4" aria-label="实时遥测">
                   @for (metric of device.realtimeMetrics; track metric.key) {
                     <div [title]="metric.title">
                       <dt>{{metric.label}}</dt>

@@ -15,10 +15,14 @@ import {Direction} from '@shared/models/page/sort-order';
 import {buildSmartLightningMonitoringAssetTreeFromRoots, getSmartLightningDefaultExpandedAssetIds, getSmartLightningMonitoringSelectedAssetIds, SmartLightningMonitoringAssetNode, SmartLightningMonitoringAssetTree} from './smart-lightning-monitoring.data';
 import {SmartLightningMonitoringApiService} from './smart-lightning-monitoring-api.service';
 import {createSmartLightningDeviceDetailState, buildSmartLightningRealtimeMetrics, getSmartLightningRealtimeMetricDefinitions, SmartLightningChartPeriod, SmartLightningDeviceDetailState} from './smart-lightning-device-detail.data';
-import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, buildSmartLightningYAxisBounds, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
+import {buildSmartLightningChartReadKeys, buildSmartLightningChartSeriesData, buildSmartLightningWaveformSeriesData, buildSmartLightningWaveformChartOption, buildSmartLightningYAxisBounds, filterSmartLightningChartDefinitions, getSmartLightningChartDefinitions, getSmartLightningChartWindow, SmartLightningChartDefinition, SmartLightningChartSeriesData} from './smart-lightning-device-detail.charts';
 import {SmartLightningDeviceDetailApiService} from './smart-lightning-device-detail-api.service';
 import {getSmartLightningProductSpecification, SmartLightningProductSpecification} from './smart-lightning-product-specifications';
 import {SmartLightningDeviceTelemetryChange, SmartLightningRealtimeService} from '../shared/realtime/smart-lightning-realtime.service';
+import {SMART_LIGHTNING_WAVEFORM_KEY} from '../shared/telemetry/smart-lightning-measurements';
+
+/** 最新波形卡片的读取状态，区分无数据、格式错误和接口失败。 */
+type SmartLightningWaveformLoadState = 'loading' | 'empty' | 'error' | 'invalid' | 'ready';
 
 /** 资产树和遥测均使用真实接口；图表只展示型号定义且设备实际存在的数值测点。 */
 @Component({selector: 'tb-smart-lightning-device-detail', templateUrl: './smart-lightning-device-detail.component.html', styleUrls: ['./smart-lightning-device-detail.component.scss'], changeDetection: ChangeDetectionStrategy.OnPush, standalone: false})
@@ -59,6 +63,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   /** 当前型号完整职责图卡；主页面只展示有数据的前四张，更多参数弹窗展示全部定义。 */
   allChartDefinitions: SmartLightningChartDefinition[] = [];
   chartSeriesData: Record<string, SmartLightningChartSeriesData[]> = {};
+  /** 波形图仅展示最新一包；状态文案与趋势图数据分开维护。 */
+  waveformLoadStates: Record<string, SmartLightningWaveformLoadState> = {};
   chartsLoading = false;
   showAllChartsDialog = false;
   selectedChartPeriods: Record<string, SmartLightningChartPeriod> = {};
@@ -405,6 +411,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     this.chartDefinitions = [];
     this.allChartDefinitions = [];
     this.chartSeriesData = {};
+    this.waveformLoadStates = {};
     this.selectedChartPeriods = {};
     this.chartsLoading = false;
     this.showAllChartsDialog = false;
@@ -435,7 +442,11 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       this.allChartDefinitions = definitions.map((definition) => ({...definition, series: [...definition.series]}));
       this.chartDefinitions = availableDefinitions.slice(0, 4);
       this.allChartDefinitions.forEach((definition) => {
-        this.selectedChartPeriods[definition.id] = 'day';
+        if (definition.kind === 'waveform') {
+          this.waveformLoadStates = {...this.waveformLoadStates, [definition.id]: 'loading'};
+        } else {
+          this.selectedChartPeriods[definition.id] = 'day';
+        }
       });
       this.chartsLoading = false;
       this.cd.markForCheck();
@@ -466,6 +477,10 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
 
   /** 按单个图卡的周期读取历史数据；日/周/月互不影响。 */
   private loadChartData(deviceId: string, definition: SmartLightningChartDefinition, period: SmartLightningChartPeriod): void {
+    if (definition.kind === 'waveform') {
+      this.loadLatestWaveform(deviceId, definition);
+      return;
+    }
     const keys = buildSmartLightningChartReadKeys([definition]);
     if (!keys.length) {
       return;
@@ -481,11 +496,98 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     });
   }
 
+  /** 读取平台保存的最新 WF 样本；不查询或绘制此前触发的波形历史。 */
+  private loadLatestWaveform(deviceId: string, definition: SmartLightningChartDefinition): void {
+    this.waveformLoadStates = {...this.waveformLoadStates, [definition.id]: 'loading'};
+    this.detailApi.getLatestWaveform(deviceId).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (timeseries) => {
+        if (deviceId !== this.requestedDeviceId) {
+          return;
+        }
+        const latest = timeseries[SMART_LIGHTNING_WAVEFORM_KEY]?.[0];
+        const current = this.chartSeriesData[definition.id]?.[0];
+        if (!latest || latest.value === null || latest.value === undefined || String(latest.value).trim() === '') {
+          // WebSocket 若已先到达，空的 HTTP 快照不能清掉较新的实时波形。
+          if (current?.eventTimestamp !== undefined) {
+            return;
+          }
+          this.chartSeriesData = {...this.chartSeriesData, [definition.id]: []};
+          this.waveformLoadStates = {...this.waveformLoadStates, [definition.id]: 'empty'};
+          this.cd.markForCheck();
+          setTimeout(() => this.renderCharts());
+          return;
+        }
+
+        const timestamp = Number(latest.ts);
+        if (current?.eventTimestamp !== undefined && Number.isFinite(timestamp) && timestamp < current.eventTimestamp) {
+          return;
+        }
+        const seriesData = buildSmartLightningWaveformSeriesData(
+          definition, latest.value, Number.isFinite(timestamp) ? timestamp : undefined
+        );
+        this.chartSeriesData = {...this.chartSeriesData, [definition.id]: seriesData};
+        this.waveformLoadStates = {
+          ...this.waveformLoadStates,
+          [definition.id]: seriesData.length ? 'ready' : 'invalid'
+        };
+        this.cd.markForCheck();
+        setTimeout(() => this.renderCharts());
+      },
+      error: () => {
+        if (deviceId === this.requestedDeviceId && !this.chartSeriesData[definition.id]?.length) {
+          this.waveformLoadStates = {...this.waveformLoadStates, [definition.id]: 'error'};
+          this.cd.markForCheck();
+        }
+      }
+    });
+  }
+
+  /** 波形读取失败或格式异常时，允许用户重新读取当前设备的最新数据。 */
+  retryLatestWaveform(chartId: string): void {
+    const definition = this.allChartDefinitions.find((item) => item.id === chartId);
+    if (this.requestedDeviceId && definition?.kind === 'waveform') {
+      this.loadLatestWaveform(this.requestedDeviceId, definition);
+    }
+  }
+
+  /** 为波形空态提供准确提示，不把接口失败伪装成“没有告警波形”。 */
+  waveformStatusText(chartId: string): string {
+    const state = this.waveformLoadStates[chartId] || 'loading';
+    const messages: Record<SmartLightningWaveformLoadState, string> = {
+      loading: '正在读取最近一次波形…',
+      empty: '暂无波形数据，设备触发后会显示最近一次波形',
+      error: '波形读取失败',
+      invalid: '波形数据格式异常，请检查 WF 上报内容',
+      ready: ''
+    };
+    return messages[state];
+  }
+
   /** 把 WebSocket 最新数值直接追加到每张图当前周期内，避免等待切换周期后重新查询。 */
   private appendRealtimeChartPoints(change: SmartLightningDeviceTelemetryChange): void {
     let changed = false;
     const nextChartData = {...this.chartSeriesData};
     this.allChartDefinitions.forEach((definition) => {
+      if (definition.kind === 'waveform') {
+        const latestWaveform = change.values.get(SMART_LIGHTNING_WAVEFORM_KEY);
+        if (!latestWaveform) {
+          return;
+        }
+        const current = nextChartData[definition.id]?.[0];
+        if (current?.eventTimestamp !== undefined && latestWaveform.ts < current.eventTimestamp) {
+          return;
+        }
+        const waveformData = buildSmartLightningWaveformSeriesData(
+          definition, latestWaveform.value, latestWaveform.ts
+        );
+        nextChartData[definition.id] = waveformData;
+        this.waveformLoadStates = {
+          ...this.waveformLoadStates,
+          [definition.id]: waveformData.length ? 'ready' : 'invalid'
+        };
+        changed = true;
+        return;
+      }
       const period = this.selectedChartPeriods[definition.id] || 'day';
       const window = getSmartLightningChartWindow(period);
       const currentSeries = (nextChartData[definition.id] || []).map((item) => ({
@@ -561,6 +663,9 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     // 更多参数中的图表也必须从完整定义读取单位。
     const definition = this.allChartDefinitions.find((item) => item.id === id);
     const chartData = this.chartSeriesData[id] || [];
+    if (definition?.kind === 'waveform') {
+      return buildSmartLightningWaveformChartOption(definition, chartData);
+    }
     const period = this.selectedChartPeriods[id] || 'day';
     const chartWindow = getSmartLightningChartWindow(period);
     const isDayChart = period === 'day';
@@ -626,4 +731,5 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
       ...(series.length ? {} : {graphic: {type: 'text', left: 'center', top: 'middle', style: {text: '暂无遥测数据', fill: '#8a9aaa', fontSize: 12}}})
     };
   }
+
 }

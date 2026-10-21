@@ -6,6 +6,7 @@ import {EntityService} from '@core/http/entity.service';
 import {DeviceId} from '@shared/models/id/device-id';
 import {DataKeyType, DataSortOrder, TimeseriesData} from '@shared/models/telemetry/telemetry.models';
 import {AggregationType} from '@shared/models/time/time.models';
+import {SMART_LIGHTNING_WAVEFORM_KEY} from '../shared/telemetry/smart-lightning-measurements';
 
 @Injectable({providedIn: 'root'})
 export class SmartLightningDeviceDetailApiService {
@@ -23,6 +24,13 @@ export class SmartLightningDeviceDetailApiService {
   getHistory(deviceId: string, keys: string[], startTs: number, endTs: number): Observable<TimeseriesData> {
     return this.attributeService.getEntityTimeseries(
       new DeviceId(deviceId), keys, startTs, endTs, 1000, AggregationType.NONE, undefined, DataSortOrder.ASC, true
+    );
+  }
+
+  /** 读取最近一次波形遥测；WF 整串作为一个采样事件保存，不查询历史波形。 */
+  getLatestWaveform(deviceId: string): Observable<TimeseriesData> {
+    return this.attributeService.getEntityTimeseriesLatest(
+      new DeviceId(deviceId), [SMART_LIGHTNING_WAVEFORM_KEY], true
     );
   }
 }

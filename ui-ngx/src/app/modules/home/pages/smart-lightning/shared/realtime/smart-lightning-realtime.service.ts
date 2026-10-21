@@ -21,6 +21,7 @@ import {
   TelemetrySubscriber
 } from '@shared/models/telemetry/telemetry.models';
 import {TelemetryWebsocketService} from '@core/ws/telemetry-websocket.service';
+import {SMART_LIGHTNING_WAVEFORM_KEY} from '../telemetry/smart-lightning-measurements';
 
 /** 防雷、能源和电气安全页面共用的型号测点订阅键；未配置型号不会展示其他设备的值。 */
 export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.from(new Set([
@@ -36,10 +37,12 @@ export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.
   'GndGridRes', 'GndVolt', 'ResDecimal', 'SampleCnt', 'SamplePrd', 'Temp',
   'SurgeCnt', 'Polarity', 'DevStatus',
   // M1AI／L2AI共用的新测点键；两种计数键已包含在共享集合中。
-  'PeakCur', 'KeepTime', 'CharImpe', 'EleCharge', 'Energy', 'PeakVolt',
+  SMART_LIGHTNING_WAVEFORM_KEY, 'PeakCur', 'KeepTime', 'CharImpe', 'EleCharge', 'Energy', 'PeakVolt',
   // 电气安全看板已确认的电流与电能质量指标，仍通过现有共享 WebSocket 订阅获取。
   'ResCurr1', 'ResCurr2', 'ResCurr3', 'LeakValue', 'CurrTot',
   'VoltThdA', 'VoltThdB', 'VoltThdC', 'NSeqVUnb',
+  // E1P1 的数字输入输出状态和零地电压用于电气安全设备卡片及详情趋势图。
+  'DO1', 'DI1', 'DI2', 'UG',
   // SFA 的以下键来自已确认的型号测点表；每个页面仍只把所属型号配置的键映射到界面。
   'Longitude', 'Latitude', 'LineVoltAB', 'LineVoltBC', 'LineVoltCA', 'Freq',
   'PhACurr', 'PhBCurr', 'PhCCurr', 'CurrVecSum', 'ResCurr',

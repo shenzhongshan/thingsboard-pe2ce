@@ -379,6 +379,16 @@
   display: none;
 }
 
+/* 设备卡片在网格中等高时，把详情入口对齐到卡片底部。 */
+.device-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.device-card footer {
+  margin-top: auto;
+}
+
 
 /* 设备卡片固定展示少量实时测点；使用原生 title 查看测点键、原始值和上报时间。 */
 .device-realtime-metrics {

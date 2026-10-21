@@ -9,6 +9,7 @@ export const SMART_LIGHTNING_UNITS = {
   resistance: 'Ω',
   leakageCurrent: 'μA',
   lightningCurrent: 'kA',
+  transientCurrent: 'A',
   voltage: 'V',
   highVoltage: 'kV',
   temperature: '℃',
@@ -21,3 +22,7 @@ export const SMART_LIGHTNING_UNITS = {
   specificEnergy: 'kJ/Ω',
   empty: ''
 } as const;
+
+/** 波形遥测键和采样间隔，供接入、解析与图表横轴共用。 */
+export const SMART_LIGHTNING_WAVEFORM_KEY = 'WF';
+export const SMART_LIGHTNING_WAVEFORM_SAMPLE_INTERVAL_US = 2.5;

@@ -1,0 +1,115 @@
+/*
+ * 电气安全MQTT集成上行转换器（TBEL）。
+ * 仅处理header/data整包协议，与防雷转换器独立维护。
+ * 协议键同名原值写入；不做倍率、取整、精度处理或0/1文本转换。
+ */
+var json = decodeToJson(payload);
+if (json == null || json.header == null || json.data == null) {
+    // 缺少设备标识或测点容器时，不创建设备、不提交空遥测。
+    return null;
+}
+var header = json.header;
+var data = json.data;
+var deviceName = header.salveid;
+if (deviceName == null || deviceName == "") {
+    // 沿用现有整包协议：无从设备编号时，client必须本身就是KSD设备编号。
+    deviceName = header.client;
+}
+if (deviceName == null || deviceName == "") {
+    return null;
+}
+if (deviceName.length < 7 || deviceName.substring(0, 3) != "KSD") {
+    return null;
+}
+
+/* 17种电气安全产品名称，严格采用已确认的型号映射。 */
+var productNameMap = {
+    "LDH1": "FA故障电弧监测模块",
+    "FAP1": "FAP故障电弧探测器（一体式）",
+    "ESF1": "ESF电气火灾监测模组",
+    "E1T2": "EST温度监测模组（有线测温）",
+    "E2C3": "ESC漏电监测模组",
+    "E1I2": "ESI输入监测模组",
+    "CBP4": "FECB智能断路器（4P）",
+    "CBP3": "FECB智能断路器（3P）",
+    "CBP2": "FECB智能断路器（2P）",
+    "CBP1": "FECB智能断路器（1P）",
+    "LDA1": "FD市电监测模块",
+    "E1B2": "ESB三相不平衡监测器",
+    "SFB": "SFB三相不平衡测控模组",
+    "E1P1": "ESP零地电压监测器",
+    "E1E2": "ESE电能质量监测器",
+    "SFE": "SFE电能质量监测器",
+    "SFA": "SFA三相智能测控模组"
+};
+
+/* 四类功能分类；所有产品一级分类均为electrical_safety。 */
+var functionCategoryMap = {
+    "LDH1": "arc_fault",
+    "FAP1": "arc_fault",
+    "ESF1": "electrical_fire",
+    "E1T2": "electrical_fire",
+    "E2C3": "electrical_fire",
+    "E1I2": "safe_electricity",
+    "CBP4": "safe_electricity",
+    "CBP3": "safe_electricity",
+    "CBP2": "safe_electricity",
+    "CBP1": "safe_electricity",
+    "LDA1": "safe_electricity",
+    "E1B2": "power_quality",
+    "SFB": "power_quality",
+    "E1P1": "safe_electricity",
+    "E1E2": "power_quality",
+    "SFE": "power_quality",
+    "SFA": "electrical_fire"
+};
+
+// 优先匹配四位型号；SFA、SFB、SFE是已明确配置的三位型号，不把序列号数字算入型号。
+var deviceType = deviceName.substring(3, 7);
+if (productNameMap[deviceType] == null) {
+    deviceType = deviceName.substring(3, 6);
+}
+var productName = productNameMap[deviceType];
+var functionCategory = functionCategoryMap[deviceType];
+if (productName == null || functionCategory == null) {
+    // 防雷、能源以及未配置的型号均不由本脚本处理。
+    return null;
+}
+
+/* 当前只确认E1P1测点；其他型号待提供协议后补充，不借用其他设备的字段。 */
+var protocolKeysByModel = {
+    "E1P1": {
+        "DO1": true,
+        "DI1": true,
+        "DI2": true,
+        "UG": true
+    }
+};
+var protocolKeys = protocolKeysByModel[deviceType];
+if (protocolKeys == null) {
+    return null;
+}
+var telemetry = {};
+foreach (entry : data.entrySet()) {
+    var sourceKey = entry.getKey();
+    var sourceValue = entry.getValue();
+    // 只接收本型号白名单字段；null跳过，0和小数原样保存，未配置字段忽略。
+    if (protocolKeys[sourceKey] == true && sourceValue != null) {
+        telemetry[sourceKey] = sourceValue;
+    }
+}
+if (telemetry.size() == 0) {
+    return null;
+}
+
+// 状态0正常、1报警由页面或告警规则解释；此处不修改设备上传的状态码。
+return {
+    "deviceName": deviceName,
+    "deviceType": deviceType,
+    "telemetry": telemetry,
+    "attributes": {
+        "productCategory": "electrical_safety",
+        "functionCategory": functionCategory,
+        "productName": productName
+    }
+};

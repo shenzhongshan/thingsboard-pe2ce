@@ -1,6 +1,44 @@
 /** 文件职责：数据查询模块的 smart-lightning-history-review.data，定义数据模型、接口结果映射与纯函数。 */
 import {TimeseriesData} from '@shared/models/telemetry/telemetry.models';
 import {getSmartLightningRealtimeMetricDefinitions} from '../monitoring/smart-lightning-device-detail.data';
+import {buildSmartLightningWaveformSeriesData, getSmartLightningChartDefinitions,
+  SmartLightningChartDefinition, SmartLightningChartSeriesData} from '../monitoring/smart-lightning-device-detail.charts';
+import {SMART_LIGHTNING_WAVEFORM_KEY} from '../shared/telemetry/smart-lightning-measurements';
+
+/** 一条 WF 遥测即一次完整波形事件；时间戳表示平台保存的上报时间。 */
+export interface SmartLightningWaveformHistoryRecord {
+  timestamp: number;
+  seriesData: SmartLightningChartSeriesData[];
+  sampleCount: number;
+}
+
+/** 分页结果保留排他结束时间游标，异常波形仍在列表中显示而不静默丢弃。 */
+export interface SmartLightningWaveformHistoryPage {
+  records: SmartLightningWaveformHistoryRecord[];
+  hasMore: boolean;
+  nextEndTs?: number;
+}
+
+/** 按上报时间从新到旧整理一页事件；多读取一条判断是否还存在更早记录。 */
+export const buildSmartLightningWaveformHistoryPage = (
+  timeseries: TimeseriesData,
+  definition: SmartLightningChartDefinition,
+  pageSize: number
+): SmartLightningWaveformHistoryPage => {
+  const samples = [...(timeseries[SMART_LIGHTNING_WAVEFORM_KEY] || [])]
+    .filter((sample) => Number.isFinite(Number(sample.ts)))
+    .sort((left, right) => Number(right.ts) - Number(left.ts));
+  const records = samples.slice(0, pageSize).map((sample) => {
+    const timestamp = Number(sample.ts);
+    const seriesData = buildSmartLightningWaveformSeriesData(definition, sample.value, timestamp);
+    return {timestamp, seriesData, sampleCount: seriesData[0]?.points.length || 0};
+  });
+  return {
+    records,
+    hasMore: samples.length > pageSize,
+    nextEndTs: records.length ? records[records.length - 1].timestamp : undefined
+  };
+};
 
 export type SmartLightningHistoryPoint = [number, number];
 
@@ -23,12 +61,19 @@ const resolveHistoryMetricDefinitions = (
   deviceProfileName: string,
   metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[]
 ): readonly SmartLightningHistoryMetricDefinition[] => metricDefinitions ??
-  getSmartLightningRealtimeMetricDefinitions(deviceProfileName).map((definition) => ({
+  [...getSmartLightningRealtimeMetricDefinitions(deviceProfileName).map((definition) => ({
     key: definition.key,
     label: definition.label,
     unit: definition.unit,
     valueType: definition.valueType
-  }));
+  })), ...getSmartLightningChartDefinitions(deviceProfileName)
+    .filter((definition) => definition.kind === 'waveform')
+    .map((definition) => ({
+      key: SMART_LIGHTNING_WAVEFORM_KEY,
+      label: definition.title,
+      unit: definition.series[0]?.unit,
+      valueType: 'telemetry' as const
+    }))];
 
 /** 折线图只接收可解析为有限数值的数据，并按时间从旧到新排序。 */
 export const buildSmartLightningHistoryPoints = (
@@ -101,6 +146,10 @@ export const filterSmartLightningTelemetryParameters = (
       return false;
     }
     const definition = definitions.find((item) => item.key === key);
+    // WF 是整包波形字符串，只允许已配置波形的防雷型号进入专用查询，不能当普通数值绘制。
+    if (key === SMART_LIGHTNING_WAVEFORM_KEY) {
+      return metricDefinitions === undefined && !!definition;
+    }
     // 防雷型号测点清单已完整：旧键、未知键不能以纯英文形式混入历史回顾。
     // 电气安全等调用方显式传入定义时，保留其原有筛选契约。
     if (metricDefinitions === undefined && !definition) {

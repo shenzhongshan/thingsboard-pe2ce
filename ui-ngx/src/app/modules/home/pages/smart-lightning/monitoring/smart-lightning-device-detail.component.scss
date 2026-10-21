@@ -268,9 +268,13 @@
   flex: 0 0 auto;
 }
 
-.chart-card.chart-card-fullscreen .chart-host {
+.chart-card.chart-card-fullscreen .chart-plot {
   flex: 1 1 auto;
-  height: auto;
+  min-height: 0;
+}
+
+.chart-card.chart-card-fullscreen .chart-host {
+  height: 100%;
   min-height: 0;
 }
 
@@ -324,6 +328,60 @@
 
 .chart-host {
   height: 240px;
+}
+
+.chart-plot {
+  position: relative;
+  min-width: 0;
+}
+
+.chart-latest-tag {
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid #cbdcf2;
+  border-radius: 4px;
+  color: #195ce8;
+  background: #f3f8ff;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.waveform-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: #71859a;
+  background: rgba(255, 255, 255, .96);
+  font-size: 12px;
+  text-align: center;
+}
+
+.waveform-state.error {
+  color: #bd3d48;
+}
+
+.waveform-state button {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid #b9cde2;
+  border-radius: 4px;
+  color: #195ce8;
+  background: #f7fbff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.waveform-state button:hover {
+  background: #eaf2ff;
+}
+
+.waveform-state button:focus-visible {
+  outline: 2px solid #195ce8;
+  outline-offset: 2px;
 }
 
 /* 设备型号没有可绘制数值测点时，空状态仍占满图表区域，避免页面布局跳动。 */

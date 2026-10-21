@@ -307,12 +307,12 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('SPD_I24hC', 'C相24小时平均漏流', SMART_LIGHTNING_UNITS.leakageCurrent),
     telemetryMetric('SPD_DeltaT', '温升指标', SMART_LIGHTNING_UNITS.temperature)
   ],
-  // ESM基础版仅有5项，温度名称与协议键Temp1对应，不保留旧显示别名。
+  // ESM基础版仅有5项，温度协议键为Temp，同名原值读取。
   ESM0: [
     statusMetric('RemoteSig', 'SPD状态'), statusMetric('McbStatus', '空开状态'),
     statusMetric('GndStatus', '接地状态'),
     telemetryMetric('StrikeCnt', '雷击计数', SMART_LIGHTNING_UNITS.count),
-    telemetryMetric('Temp1', '温度1', SMART_LIGHTNING_UNITS.temperature)
+    telemetryMetric('Temp', '温度', SMART_LIGHTNING_UNITS.temperature)
   ],
   // ESM旗舰版使用28个实际协议键，温度直接显示为温度1／温度2，平均漏流键不带L。
   ESM3: [
@@ -349,11 +349,11 @@ export const smartLightningRealtimeMetricDefinitions: Record<string, SmartLightn
     telemetryMetric('Energy', '单位能量', SMART_LIGHTNING_UNITS.specificEnergy),
     telemetryMetric('PeakVolt', '峰值电压', SMART_LIGHTNING_UNITS.highVoltage)
   ],
-  // L2AI实际报文8项：只读新键，计数为SurgeCnt；未重新确认的极性方向保持原配置。
+  // L2AI实际报文8项：PeakCur按瞬态电流产品定义使用A，计数键为SurgeCnt。
   L2AI: [
     statusMetric('Polarity', '雷电极性', '__', POLARITY_VALUES),
     telemetryMetric('SurgeCnt', '电涌次数', SMART_LIGHTNING_UNITS.count),
-    telemetryMetric('PeakCur', '雷电峰值', SMART_LIGHTNING_UNITS.lightningCurrent),
+    telemetryMetric('PeakCur', '峰值电流', SMART_LIGHTNING_UNITS.transientCurrent),
     telemetryMetric('KeepTime', '持续时间', SMART_LIGHTNING_UNITS.duration),
     telemetryMetric('CharImpe', '波阻抗值', SMART_LIGHTNING_UNITS.resistance),
     telemetryMetric('EleCharge', '电荷量', SMART_LIGHTNING_UNITS.electricCharge),
