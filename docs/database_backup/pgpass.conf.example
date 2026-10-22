@@ -1,0 +1,2 @@
+# 复制为 pgpass.conf，修改最后一项；密码中的冒号和反斜杠分别写成 \: 和 \\。
+localhost:5432:thingsboardpe:postgres:REPLACE_WITH_DATABASE_PASSWORD
