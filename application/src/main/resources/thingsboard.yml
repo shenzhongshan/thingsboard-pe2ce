@@ -1164,6 +1164,8 @@ state:
   # If you decide to change this parameter, you should re-create the device info view as one of the following:
   # If 'persistToTelemetry' is changed from 'false' to 'true': 'CREATE OR REPLACE VIEW device_info_view AS SELECT * FROM device_info_active_ts_view;'
   # If 'persistToTelemetry' is changed from 'true' to 'false': 'CREATE OR REPLACE VIEW device_info_view AS SELECT * FROM device_info_active_attribute_view;'
+  # 与schema-views.sql默认的device_info_active_ts_view保持一致；仅替换程序包不会切换已有数据库视图。
+  # 已有库若仍读取属性，可执行docs/sql/fix-device-info-active-telemetry.sql进行一次性修正。
   persistToTelemetry: true
   # Millisecond value defining time-to-live for device state telemetry data (e.g. 'active', 'lastActivityTime').
   # Used only when state.persistToTelemetry is set to 'true' and Cassandra is used for timeseries data.

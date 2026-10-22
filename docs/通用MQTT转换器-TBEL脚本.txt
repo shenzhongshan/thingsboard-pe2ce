@@ -42,13 +42,19 @@ if (deviceName == null || deviceName == "") {
     return null;
 }
 
+/* 与波形告警脚本一致：第一个下划线及其后内容为附加标记，不属于平台设备名称。 */
+var suffixIndex = deviceName.indexOf("_");
+if (suffixIndex >= 0) {
+    deviceName = deviceName.substring(0, suffixIndex);
+}
+
 if (deviceName.length < 7 || deviceName.substring(0, 3) != "KSD") {
     // 当前现场协议约定所有设备编号都以 KSD 开头，且 KSD 后至少要有四位型号。
     // 非 KSD 名称无法按统一协议推断型号，直接拒绝，避免误把网关或其它名称当成设备。
     return null;
 }
 
-/* KSD之后四位直接作为防雷型号；当前协议不使用terminal_type，也不处理编号后缀。 */
+/* 使用截断后的设备名称，KSD之后四位直接作为防雷型号；不使用terminal_type。 */
 var deviceType = deviceName.substring(3, 7);
 
 /* 仅保留已确认的13个防雷产品名称。 */
