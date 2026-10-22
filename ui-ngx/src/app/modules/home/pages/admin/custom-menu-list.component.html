@@ -22,6 +22,12 @@
         <span class="mat-headline-5" translate>custom-menu.custom-menu</span>
       </mat-card-title>
       <span class="flex-1"></span>
+      <!-- 导入沿用系统文件弹窗；新菜单先保持未分配，避免导入即改变当前导航。 -->
+      <button mat-icon-button type="button" (click)="importMenu()" [disabled]="transferBusy"
+              [attr.aria-label]="'custom-menu.transfer-import' | translate"
+              matTooltip="{{ 'custom-menu.transfer-import' | translate }}" matTooltipPosition="above">
+        <mat-icon>file_upload</mat-icon>
+      </button>
       <button mat-icon-button type="button" (click)="addMenu()"
               matTooltip="{{ 'custom-menu.add-menu' | translate }}" matTooltipPosition="above">
         <mat-icon>add</mat-icon>
@@ -56,9 +62,14 @@
           <td mat-cell *matCellDef="let menu">{{ cmAssigneeTypeTranslations.get(menu.assigneeType) | translate }}</td>
         </ng-container>
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef style="width: 140px;"></th>
+          <th mat-header-cell *matHeaderCellDef style="width: 184px;"></th>
           <td mat-cell *matCellDef="let menu">
             <div class="flex flex-row items-center justify-end">
+              <button mat-icon-button type="button" (click)="exportMenu($event, menu)" [disabled]="transferBusy"
+                      [attr.aria-label]="'custom-menu.transfer-export' | translate"
+                      matTooltip="{{ 'custom-menu.transfer-export' | translate }}" matTooltipPosition="above">
+                <mat-icon>file_download</mat-icon>
+              </button>
               <button mat-icon-button type="button" (click)="openMenuEditor($event, menu)"
                       matTooltip="{{ 'custom-menu.edit-menu-items' | translate }}" matTooltipPosition="above">
                 <mat-icon>edit</mat-icon>

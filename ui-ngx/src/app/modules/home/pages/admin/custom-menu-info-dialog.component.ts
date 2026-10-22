@@ -28,6 +28,8 @@ import { TranslateService } from '@ngx-translate/core';
 import { DialogService } from '@core/services/dialog.service';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { CustomMenuService } from '@core/http/custom-menu.service';
+import {CustomMenuTransferService} from '@core/http/custom-menu-transfer.service';
+import {CustomMenuTransferError, CustomMenuTransferPayload} from '@shared/models/custom-menu-transfer.data';
 import {
   CMAssigneeType,
   CMScope,
@@ -37,6 +39,8 @@ import {
 export interface CustomMenuInfoDialogData {
   // Present = edit mode (name + assignment); absent = create mode.
   menu?: CustomMenuInfo;
+  /** 导入模式仅允许修改名称，范围来自文件，创建后始终为未分配。 */
+  importedMenu?: CustomMenuTransferPayload;
 }
 
 @Component({
@@ -54,6 +58,9 @@ export class CustomMenuInfoDialogComponent implements OnInit {
 
   isSysAdmin = getCurrentAuthState(this.store).authUser.authority === Authority.SYS_ADMIN;
   isEdit = false;
+  isImport = false;
+  importing = false;
+  importNeedsReview = false;
 
   private originalAssigneeType: CMAssigneeType;
   private originalAssigneeIds: string[] = [];
@@ -62,16 +69,18 @@ export class CustomMenuInfoDialogComponent implements OnInit {
               private dialogRef: MatDialogRef<CustomMenuInfoDialogComponent, boolean>,
               protected store: Store<AppState>,
               private customMenuService: CustomMenuService,
+              private transferService: CustomMenuTransferService,
               private dialogService: DialogService,
               private translate: TranslateService,
               public fb: UntypedFormBuilder) {
     this.isEdit = !!data.menu;
+    this.isImport = !!data.importedMenu;
     const menu = data.menu;
     this.infoForm = this.fb.group({
-      name: [menu?.name || '', [Validators.required]],
+      name: [menu?.name || data.importedMenu?.name || '', [Validators.required]],
       scope: [{
-        value: menu?.scope || (this.isSysAdmin ? CMScope.SYSTEM : CMScope.TENANT),
-        disabled: this.isEdit
+        value: menu?.scope || data.importedMenu?.scope || (this.isSysAdmin ? CMScope.SYSTEM : CMScope.TENANT),
+        disabled: this.isEdit || this.isImport
       }],
       assigneeType: [menu?.assigneeType || CMAssigneeType.NO_ASSIGN],
       assigneeIds: [[]]
@@ -99,15 +108,25 @@ export class CustomMenuInfoDialogComponent implements OnInit {
   }
 
   cancel(): void {
+    if (this.importing) {
+      return;
+    }
     this.dialogRef.close(false);
   }
 
   save(): void {
+    if (this.importing || this.importNeedsReview) {
+      return;
+    }
     if (!this.infoForm.valid) {
       this.infoForm.markAllAsTouched();
       return;
     }
     const v = this.infoForm.getRawValue();
+    if (this.isImport) {
+      this.importMenu(v.name);
+      return;
+    }
     if (this.needsEntityList(v.assigneeType) && !v.assigneeIds?.length) {
       this.infoForm.get('assigneeIds').setErrors({ required: true });
       this.infoForm.get('assigneeIds').markAsTouched();
@@ -118,6 +137,33 @@ export class CustomMenuInfoDialogComponent implements OnInit {
     } else {
       this.create(v, false);
     }
+  }
+
+  /** 导入复用原接口保存并回读校验；有残留对象时要求先核对，阻止再次点击创建。 */
+  private importMenu(name: string): void {
+    this.importing = true;
+    this.infoForm.disable({emitEvent: false});
+    this.transferService.importMenu(this.data.importedMenu, name).subscribe({
+      next: () => {
+        this.importing = false;
+        this.store.dispatch(new ActionNotificationShow({
+          message: this.translate.instant('custom-menu.transfer-import-success'), type: 'success'
+        }));
+        this.dialogRef.close(true);
+      },
+      error: error => {
+        this.importing = false;
+        this.importNeedsReview = error instanceof CustomMenuTransferError &&
+          (!!error.menuId || error.messageKey === 'custom-menu.transfer-create-unknown');
+        this.infoForm.get('name').enable({emitEvent: false});
+        this.store.dispatch(new ActionNotificationShow({
+          message: error instanceof CustomMenuTransferError
+            ? this.translate.instant(error.messageKey, {menuId: error.menuId})
+            : error?.error?.message || this.translate.instant('custom-menu.transfer-import-failed'),
+          type: 'error', duration: this.importNeedsReview ? 0 : 6000
+        }));
+      }
+    });
   }
 
   private needsEntityList(assigneeType: CMAssigneeType): boolean {

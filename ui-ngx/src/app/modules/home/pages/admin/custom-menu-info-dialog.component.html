@@ -17,12 +17,16 @@
 -->
 <div class="tb-custom-menu-info-dialog" style="min-width: 460px;">
   <mat-toolbar color="primary">
-    <h2>{{ (isEdit ? 'custom-menu.edit-menu-info' : 'custom-menu.add-menu') | translate }}</h2>
+    <h2>{{ (isImport ? 'custom-menu.transfer-import' : isEdit ? 'custom-menu.edit-menu-info' : 'custom-menu.add-menu') | translate }}</h2>
     <span class="flex-1"></span>
-    <button mat-icon-button (click)="cancel()" type="button">
+    <button mat-icon-button (click)="cancel()" type="button" [disabled]="importing"
+            [attr.aria-label]="'action.close' | translate">
       <mat-icon class="material-icons">close</mat-icon>
     </button>
   </mat-toolbar>
+  @if (importing) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
   <div mat-dialog-content>
     <form [formGroup]="infoForm" class="flex flex-col gap-2" style="padding-top: 8px;">
       <mat-form-field class="w-full">
@@ -32,7 +36,7 @@
           <mat-error>{{ 'custom-menu.name-required' | translate }}</mat-error>
         }
       </mat-form-field>
-      @if (isSysAdmin) {
+      @if (isSysAdmin && !isImport) {
         <div class="flex flex-row items-center justify-between">
           <span translate>custom-menu.scope</span>
           <tb-toggle-select formControlName="scope" appearance="fill">
@@ -44,44 +48,52 @@
           <div class="tb-hint" translate>custom-menu.scope-tenant-sysadmin-hint</div>
         }
       }
-      <div class="flex flex-row items-center justify-between">
-        <span translate>custom-menu.assignee-type</span>
-        <tb-toggle-select formControlName="assigneeType" appearance="fill">
-          <tb-toggle-option [value]="CMAssigneeType.NO_ASSIGN">{{ 'custom-menu.assignee-type-no-assign' | translate }}</tb-toggle-option>
-          <tb-toggle-option [value]="CMAssigneeType.ALL">{{ 'custom-menu.assignee-type-all' | translate }}</tb-toggle-option>
-          @if (allowEntityAssignees) {
-            <tb-toggle-option [value]="CMAssigneeType.CUSTOMERS">{{ 'custom-menu.assignee-type-customers' | translate }}</tb-toggle-option>
-            <tb-toggle-option [value]="CMAssigneeType.USERS">{{ 'custom-menu.assignee-type-users' | translate }}</tb-toggle-option>
-          }
-        </tb-toggle-select>
-      </div>
-      @if (assigneeType === CMAssigneeType.ALL) {
-        <div class="tb-hint" translate>custom-menu.assignee-type-all-hint</div>
-      }
-      @if (assigneeType === CMAssigneeType.CUSTOMERS) {
-        <tb-entity-list
-          formControlName="assigneeIds"
-          [entityType]="EntityType.CUSTOMER"
-          required
-          labelText="{{ 'custom-menu.assigned-customers' | translate }}">
-        </tb-entity-list>
-      }
-      @if (assigneeType === CMAssigneeType.USERS) {
-        <tb-entity-list
-          formControlName="assigneeIds"
-          [entityType]="EntityType.USER"
-          required
-          labelText="{{ 'custom-menu.assigned-users' | translate }}">
-        </tb-entity-list>
+      @if (isImport) {
+        <div class="tb-hint" translate>custom-menu.transfer-unassigned-hint</div>
+        @if (importNeedsReview) {
+          <div role="alert" translate>custom-menu.transfer-review-hint</div>
+        }
+      } @else {
+        <div class="flex flex-row items-center justify-between">
+          <span translate>custom-menu.assignee-type</span>
+          <tb-toggle-select formControlName="assigneeType" appearance="fill">
+            <tb-toggle-option [value]="CMAssigneeType.NO_ASSIGN">{{ 'custom-menu.assignee-type-no-assign' | translate }}</tb-toggle-option>
+            <tb-toggle-option [value]="CMAssigneeType.ALL">{{ 'custom-menu.assignee-type-all' | translate }}</tb-toggle-option>
+            @if (allowEntityAssignees) {
+              <tb-toggle-option [value]="CMAssigneeType.CUSTOMERS">{{ 'custom-menu.assignee-type-customers' | translate }}</tb-toggle-option>
+              <tb-toggle-option [value]="CMAssigneeType.USERS">{{ 'custom-menu.assignee-type-users' | translate }}</tb-toggle-option>
+            }
+          </tb-toggle-select>
+        </div>
+        @if (assigneeType === CMAssigneeType.ALL) {
+          <div class="tb-hint" translate>custom-menu.assignee-type-all-hint</div>
+        }
+        @if (assigneeType === CMAssigneeType.CUSTOMERS) {
+          <tb-entity-list
+            formControlName="assigneeIds"
+            [entityType]="EntityType.CUSTOMER"
+            required
+            labelText="{{ 'custom-menu.assigned-customers' | translate }}">
+          </tb-entity-list>
+        }
+        @if (assigneeType === CMAssigneeType.USERS) {
+          <tb-entity-list
+            formControlName="assigneeIds"
+            [entityType]="EntityType.USER"
+            required
+            labelText="{{ 'custom-menu.assigned-users' | translate }}">
+          </tb-entity-list>
+        }
       }
     </form>
   </div>
   <div mat-dialog-actions class="flex items-center justify-end">
-    <button mat-button type="button" (click)="cancel()">
+    <button mat-button type="button" (click)="cancel()" [disabled]="importing">
       {{ 'action.cancel' | translate }}
     </button>
-    <button mat-raised-button color="primary" type="button" (click)="save()">
-      {{ (isEdit ? 'action.save' : 'action.add') | translate }}
+    <button mat-raised-button color="primary" type="button" (click)="save()"
+            [disabled]="importing || importNeedsReview">
+      {{ (isImport ? 'action.import' : isEdit ? 'action.save' : 'action.add') | translate }}
     </button>
   </div>
 </div>

@@ -24,6 +24,13 @@ import { TranslateService } from '@ngx-translate/core';
 import { CustomMenuService } from '@core/http/custom-menu.service';
 import { MenuService } from '@core/services/menu.service';
 import { DialogService } from '@core/services/dialog.service';
+import {CustomMenuTransferService} from '@core/http/custom-menu-transfer.service';
+import {ImportExportService} from '@shared/import-export/import-export.service';
+import {ImportDialogComponent, ImportDialogData} from '@shared/import-export/import-dialog.component';
+import {CustomMenuTransferError, parseCustomMenuTransfer} from '@shared/models/custom-menu-transfer.data';
+import {ActionNotificationShow} from '@core/notification/notification.actions';
+import {getCurrentAuthState} from '@core/auth/auth.selectors';
+import {Authority} from '@shared/models/authority.enum';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction, SortOrder } from '@shared/models/page/sort-order';
 import {
@@ -48,11 +55,15 @@ export class CustomMenuListComponent extends PageComponent implements OnInit {
 
   cmScopeTranslations = cmScopeTranslations;
   cmAssigneeTypeTranslations = cmAssigneeTypeTranslations;
+  /** 导入弹窗和单次导出互斥，避免重复点击产生多个传输流程。 */
+  transferBusy = false;
 
   constructor(protected store: Store<AppState>,
               private customMenuService: CustomMenuService,
               private menuService: MenuService,
               private dialogService: DialogService,
+              private transferService: CustomMenuTransferService,
+              private importExport: ImportExportService,
               private translate: TranslateService,
               private dialog: MatDialog,
               private router: Router) {
@@ -61,6 +72,78 @@ export class CustomMenuListComponent extends PageComponent implements OnInit {
 
   ngOnInit() {
     this.reload();
+  }
+
+  /** 复用系统JSON导入弹窗，再复用菜单信息弹窗编辑名称；取消文件选择不会写入后端。 */
+  importMenu(): void {
+    if (this.transferBusy) {
+      return;
+    }
+    this.transferBusy = true;
+    this.dialog.open<ImportDialogComponent, ImportDialogData, unknown>(ImportDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+      data: {importTitle: 'custom-menu.transfer-import', importFileLabel: 'custom-menu.transfer-file'}
+    }).afterClosed().subscribe(value => {
+      if (value == null) {
+        this.transferBusy = false;
+        return;
+      }
+      try {
+        const importedMenu = parseCustomMenuTransfer(value);
+        if (importedMenu.scope === 'SYSTEM' &&
+            getCurrentAuthState(this.store).authUser.authority !== Authority.SYS_ADMIN) {
+          throw new CustomMenuTransferError('custom-menu.transfer-scope-denied');
+        }
+        this.dialog.open<CustomMenuInfoDialogComponent, CustomMenuInfoDialogData, boolean>(
+          CustomMenuInfoDialogComponent, {
+            disableClose: true,
+            panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+            data: {importedMenu}
+          }).afterClosed().subscribe(() => {
+            this.transferBusy = false;
+            // 部分失败也刷新列表，使残留的新菜单可被定位和处理。
+            this.reload();
+          });
+      } catch (error) {
+        this.transferBusy = false;
+        this.showTransferError(error);
+      }
+    });
+  }
+
+  /** 从服务端读取完整配置并沿用系统下载工具，不导出实体身份或分配关系。 */
+  exportMenu(event: Event, menu: CustomMenuInfo): void {
+    event.stopPropagation();
+    if (this.transferBusy) {
+      return;
+    }
+    this.transferBusy = true;
+    this.transferService.exportMenu(menu.id.id).subscribe({
+      next: payload => {
+        try {
+          this.importExport.exportJson(payload, `thingsboard-custom-menu-${payload.name}`);
+        } catch (error) {
+          this.showTransferError(error);
+        } finally {
+          this.transferBusy = false;
+        }
+      },
+      error: error => {
+        this.transferBusy = false;
+        this.showTransferError(error);
+      }
+    });
+  }
+
+  /** 校验错误使用本地化文案；接口失败沿用系统错误消息，不伪装为成功导出。 */
+  private showTransferError(error: unknown): void {
+    this.store.dispatch(new ActionNotificationShow({
+      message: error instanceof CustomMenuTransferError
+        ? this.translate.instant(error.messageKey)
+        : this.translate.instant('custom-menu.transfer-export-failed'),
+      type: 'error'
+    }));
   }
 
   reload() {
