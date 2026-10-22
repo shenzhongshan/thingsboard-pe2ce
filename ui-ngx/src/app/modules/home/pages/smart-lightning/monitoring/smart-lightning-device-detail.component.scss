@@ -246,7 +246,7 @@
   min-width: 0;
 }
 
-/* 每张图独立放大到应用工作区：保留左侧导航和顶部工具栏。 */
+/* 每张图独立覆盖浏览器内容区域，退出时恢复原网格布局。 */
 .chart-card.chart-card-fullscreen {
   position: fixed;
   z-index: 1100;

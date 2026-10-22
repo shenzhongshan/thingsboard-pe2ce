@@ -73,7 +73,7 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   /** 当前设备已收到的最新遥测快照；按时间戳合并，防止旧 HTTP 响应覆盖新 WebSocket 数据。 */
   private readonly latestRealtimeValues = new Map<string, {ts: number; value: string}>();
   private currentDeviceProfileName?: string;
-  /** 浏览器窗口变化时重新测量工作区，保证放大图卡仍避开顶部和左侧导航。 */
+  /** 浏览器窗口变化时更新视口尺寸，保证放大图卡持续覆盖整个页面。 */
   private readonly onWindowResize = (): void => {
     if (this.fullscreenChartCard) {
       this.updateFullscreenBounds(this.fullscreenChartCard);
@@ -149,8 +149,8 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
   }
 
   /**
-   * 将单张图表放大到应用内容工作区。
-   * 工作区边界取自 .tb-main-content，因此左侧导航和顶部工具栏始终保留可见。
+   * 将单张图表放大到整个浏览器内容区域。
+   * 覆盖系统导航和顶部工具栏，退出后恢复原布局，不使用浏览器原生全屏。
    */
   toggleChartFullscreen(card: HTMLElement): void {
     if (this.fullscreenChartCard === card) {
@@ -177,17 +177,12 @@ export class SmartLightningDeviceDetailComponent implements AfterViewInit, OnDes
     this.cd.markForCheck();
   }
 
-  /** 根据主内容容器的视口矩形设置放大图卡边界，自动适配导航栏宽度和工具栏高度。 */
+  /** 按浏览器内容视口设置边界，窗口变化时同步更新尺寸。 */
   private updateFullscreenBounds(card: HTMLElement): void {
-    const content = card.closest('.tb-main-content') as HTMLElement | null;
-    const bounds = content?.getBoundingClientRect();
-    if (!bounds) {
-      return;
-    }
-    card.style.setProperty('--chart-fullscreen-top', `${Math.max(0, bounds.top)}px`);
-    card.style.setProperty('--chart-fullscreen-left', `${Math.max(0, bounds.left)}px`);
-    card.style.setProperty('--chart-fullscreen-width', `${Math.max(0, bounds.width)}px`);
-    card.style.setProperty('--chart-fullscreen-height', `${Math.max(0, bounds.height)}px`);
+    card.style.setProperty('--chart-fullscreen-top', '0px');
+    card.style.setProperty('--chart-fullscreen-left', '0px');
+    card.style.setProperty('--chart-fullscreen-width', `${window.innerWidth}px`);
+    card.style.setProperty('--chart-fullscreen-height', `${window.innerHeight}px`);
   }
   /** 根据来源页返回；未携带来源参数时默认回到数据监测。 */
   goBack(event: MouseEvent): void {

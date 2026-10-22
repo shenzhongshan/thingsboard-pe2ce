@@ -6,6 +6,7 @@ import {
   Component,
   ElementRef,
   Inject,
+  HostListener,
   OnDestroy,
   OnInit,
   ViewChild
@@ -60,6 +61,7 @@ const HISTORY_RANGE_HOURS: Record<QuickHistoryRangePreset, number> = {
  */
 @Component({
   selector: 'tb-smart-lightning-history-review-dialog',
+  host: {'[style.height]': "chartExpanded ? '100%' : null"},
   templateUrl: './smart-lightning-history-review-dialog.component.html',
   styleUrls: ['./smart-lightning-history-review-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,6 +70,10 @@ const HISTORY_RANGE_HOURS: Record<QuickHistoryRangePreset, number> = {
 export class SmartLightningHistoryReviewDialogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   @ViewChild('historyChart') historyChart?: ElementRef<HTMLDivElement>;
+
+  /** 放大覆盖整个浏览器内容区域，收起恢复原对话框。 */
+  chartExpanded = false;
+  private originalPaneSize?: {width: string; height: string; maxWidth: string; maxHeight: string};
 
   parameterKeys: string[] = [];
   selectedParameter = '';
@@ -103,6 +109,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     private readonly entityService: EntityService,
     private readonly attributeService: AttributeService,
     private readonly waveformApi: SmartLightningWaveformHistoryApiService,
+    private readonly host: ElementRef<HTMLElement>,
     private readonly cd: ChangeDetectorRef
   ) {}
 
@@ -121,6 +128,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
   }
 
   ngOnDestroy(): void {
+    this.restoreChartSize();
     this.historyRequest$.next();
     this.historyRequest$.complete();
     this.destroy$.next();
@@ -170,6 +178,56 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
   /** 关闭弹窗，断开图表尺寸监听。 */
   close(): void {
     this.dialogRef.close();
+  }
+
+  /** 使用对话框定位接口放大，避免浮层内固定定位被祖先变换裁剪。 */
+  toggleChartExpanded(): void {
+    if (this.chartExpanded) {
+      this.restoreChartSize();
+      return;
+    }
+    const pane = this.host.nativeElement.closest<HTMLElement>('.cdk-overlay-pane');
+    if (!pane) {
+      return;
+    }
+    this.originalPaneSize = {
+      width: pane.style.width, height: pane.style.height,
+      maxWidth: pane.style.maxWidth, maxHeight: pane.style.maxHeight
+    };
+    pane.style.maxWidth = '100vw';
+    pane.style.maxHeight = '100vh';
+    this.chartExpanded = true;
+    this.updateExpandedBounds();
+  }
+
+  /** 窗口变化时重新读取浏览器内容视口，保持完整页面覆盖。 */
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (this.chartExpanded) {
+      this.updateExpandedBounds();
+    }
+  }
+
+  /** 使用浮层定位接口覆盖页面，避免受到内容容器尺寸限制。 */
+  private updateExpandedBounds(): void {
+    this.dialogRef.updatePosition({top: '0px', left: '0px'})
+      .updateSize(`${window.innerWidth}px`, `${window.innerHeight}px`);
+  }
+
+  /** 收起或销毁时恢复原来的对话框尺寸及居中定位。 */
+  private restoreChartSize(): void {
+    const original = this.originalPaneSize;
+    if (!original) {
+      return;
+    }
+    this.chartExpanded = false;
+    const pane = this.host.nativeElement.closest<HTMLElement>('.cdk-overlay-pane');
+    if (pane) {
+      pane.style.maxWidth = original.maxWidth;
+      pane.style.maxHeight = original.maxHeight;
+    }
+    this.dialogRef.updateSize(original.width, original.height).updatePosition();
+    this.originalPaneSize = undefined;
   }
 
   /** 快捷范围只更新本弹窗的草稿时间，不会联动其他组件。 */

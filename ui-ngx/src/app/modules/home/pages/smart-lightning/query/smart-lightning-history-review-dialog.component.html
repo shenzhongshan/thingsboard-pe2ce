@@ -1,14 +1,21 @@
 <!-- 文件职责：数据查询模块的 smart-lightning-history-review-dialog.component，负责页面结构、状态与交互控件的模板渲染。 -->
 <!-- 历史遥测回顾弹窗：参数单选 + 起止时间选择 + ECharts 历史折线，含加载/空数据/失败状态。 -->
-<section class="history-dialog" role="dialog" aria-labelledby="history-review-title">
+<section class="history-dialog" [class.chart-expanded]="chartExpanded" role="dialog" aria-labelledby="history-review-title">
   <header class="dialog-header">
     <div>
       <h2 id="history-review-title">回顾</h2>
       <p [title]="data.deviceName">{{data.deviceName}}</p>
     </div>
+    <div class="dialog-actions">
+      <button type="button" class="close-button" (click)="toggleChartExpanded()"
+              [attr.aria-label]="chartExpanded ? '收起图表' : '放大图表'"
+              [attr.title]="chartExpanded ? '收起图表' : '放大图表'" [attr.aria-pressed]="chartExpanded">
+        <tb-icon>{{chartExpanded ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
+      </button>
     <button type="button" class="close-button" (click)="close()" aria-label="关闭回顾窗口" title="关闭">
       <tb-icon>close</tb-icon>
     </button>
+    </div>
   </header>
 
   <form class="history-filter" novalidate (ngSubmit)="loadHistory()">

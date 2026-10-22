@@ -626,7 +626,7 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
     setTimeout(() => this.renderCharts());
   }
 
-  /** 每张图独立放大到应用主内容区域，并保留顶部工具栏和左侧导航。 */
+  /** 每张图独立放大到整个浏览器内容区域，覆盖系统顶部和侧栏。 */
   toggleChartFullscreen(card: HTMLElement): void {
     if (this.fullscreenChartCard === card) {
       this.exitChartFullscreen();
@@ -650,16 +650,12 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
     this.fullscreenChartCard = undefined;
   }
 
-  /** 使用主内容容器实际视口矩形确定放大位置，不写死导航尺寸。 */
+  /** 使用浏览器内容视口确定放大尺寸，覆盖完整页面。 */
   private updateFullscreenBounds(card: HTMLElement): void {
-    const bounds = card.closest('.tb-main-content')?.getBoundingClientRect();
-    if (!bounds) {
-      return;
-    }
-    card.style.setProperty('--chart-fullscreen-top', `${Math.max(0, bounds.top)}px`);
-    card.style.setProperty('--chart-fullscreen-left', `${Math.max(0, bounds.left)}px`);
-    card.style.setProperty('--chart-fullscreen-width', `${Math.max(0, bounds.width)}px`);
-    card.style.setProperty('--chart-fullscreen-height', `${Math.max(0, bounds.height)}px`);
+    card.style.setProperty('--chart-fullscreen-top', '0px');
+    card.style.setProperty('--chart-fullscreen-left', '0px');
+    card.style.setProperty('--chart-fullscreen-width', `${window.innerWidth}px`);
+    card.style.setProperty('--chart-fullscreen-height', `${window.innerHeight}px`);
   }
 
   /** 图表节点重建或数据变化后更新 ECharts，未显示的实例及时销毁。 */
