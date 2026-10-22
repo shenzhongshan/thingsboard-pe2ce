@@ -41,9 +41,6 @@ rebuild-docker.sh
 .planning
 /tools
 /.vscode
-/.md
-.md
-*.md
 *.codebuddy
 application/src/test
 .codex
