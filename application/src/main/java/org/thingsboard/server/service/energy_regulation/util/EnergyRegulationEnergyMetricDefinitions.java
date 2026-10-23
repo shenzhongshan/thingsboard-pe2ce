@@ -17,6 +17,8 @@ public final class EnergyRegulationEnergyMetricDefinitions {
             TOTAL_FORWARD_ACTIVE_ENERGY_KEY,
             TOTAL_FORWARD_ACTIVE_ENERGY_ABBREVIATION,
             ESA_TOTAL_FORWARD_ACTIVE_ENERGY_KEY);
+    /** 电表总有功功率规范键，单位kW；不得用累计电量替代。 */
+    public static final String TOTAL_ACTIVE_POWER_KEY = "ActPwrTot";
     /** 总正向有功电能和用电量差值的统一单位。 */
     public static final String ENERGY_UNIT = "kWh";
 

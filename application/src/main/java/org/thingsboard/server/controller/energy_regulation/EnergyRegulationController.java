@@ -1,6 +1,8 @@
 /** 文件职责：能源监管查询的 HTTP 入口，只处理路由和权限。 */
 package org.thingsboard.server.controller.energy_regulation;
 
+import org.thingsboard.server.controller.energy_regulation.vo.EnergyRegulationPowerTrendVO;
+import org.thingsboard.server.controller.energy_regulation.converter.EnergyRegulationPowerTrendVOConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -93,11 +95,12 @@ public class EnergyRegulationController extends BaseController {
      */
     @GetMapping("/energy-consumption")
     @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
-    public EnergyRegulationEnergyConsumptionVO getEnergyConsumption() throws ThingsboardException {
+    public EnergyRegulationEnergyConsumptionVO getEnergyConsumption(
+            @RequestParam(required = false) UUID assetId) throws ThingsboardException {
         // 将当前用户交给服务层读取可见能源设备的累计电能并完成聚合。
         // 将内部统计 DTO 映射为稳定的 HTTP 响应契约。
         return EnergyRegulationEnergyConsumptionVOConverter.toVO(
-                energyRegulationService.getEnergyConsumption(getCurrentUser()));
+                energyRegulationService.getEnergyConsumption(getCurrentUser(), assetId));
     }
 
     /**
@@ -207,4 +210,12 @@ public class EnergyRegulationController extends BaseController {
         return new TimePageLink(pageLink, startTime, endTime);
     }
 
+    /** 当前用户权限范围内指定资产的小时平均总有功功率，单位kW。 */
+    @GetMapping("/power-trend")
+    @PreAuthorize("hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
+    public EnergyRegulationPowerTrendVO getPowerTrend(
+            @RequestParam(required = false) UUID assetId) throws ThingsboardException {
+        return EnergyRegulationPowerTrendVOConverter.toVO(
+                energyRegulationService.getPowerTrend(getCurrentUser(), assetId));
+    }
 }

@@ -9,6 +9,8 @@ import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationServ
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.util.List;
+import java.util.UUID;
+import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationPowerTrendDTO;
 
 /** 能源监管专用查询能力，分类口径为 SERVER_SCOPE.productCategory。 */
 public interface EnergyRegulationService {
@@ -40,4 +42,9 @@ public interface EnergyRegulationService {
      * @throws ThingsboardException 平台设备或遥测查询失败时抛出
      */
     EnergyRegulationEnergyConsumptionDTO getEnergyConsumption(SecurityUser user) throws ThingsboardException;
+    /** 在权限范围内按资产子树统计用电，assetId为空表示全部可见能源电表。 */
+    EnergyRegulationEnergyConsumptionDTO getEnergyConsumption(SecurityUser user, UUID assetId) throws ThingsboardException;
+
+    /** 查询今日/昨日小时平均总功率，资产及设备权限口径与用电统计相同。 */
+    EnergyRegulationPowerTrendDTO getPowerTrend(SecurityUser user, UUID assetId) throws ThingsboardException;
 }

@@ -30,6 +30,8 @@ import org.thingsboard.server.service.query.bo.VisibleDeviceContextBO;
 import org.thingsboard.server.service.security.model.SecurityUser;
 
 import java.time.ZonedDateTime;
+import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationPowerTrendDTO;
+import org.thingsboard.server.service.energy_regulation.util.EnergyRegulationPowerTrendCalculator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -179,8 +181,15 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
     @Override
     public EnergyRegulationEnergyConsumptionDTO getEnergyConsumption(SecurityUser user)
             throws ThingsboardException {
+        return getEnergyConsumption(user, null);
+    }
+
+    /** 资产筛选只缩小当前用户可见电表范围，不允许扩大权限。 */
+    @Override
+    public EnergyRegulationEnergyConsumptionDTO getEnergyConsumption(SecurityUser user, UUID assetId)
+            throws ThingsboardException {
         // 复用设备上下文查询结果，确保遥测统计仅覆盖当前用户可见的能源设备。
-        List<VisibleDeviceContextBO> devices = findVisibleEnergyDevices(user);
+        List<VisibleDeviceContextBO> devices = findScopedEnergyDevices(user, assetId);
         // 统一固定本次统计的上海时区时间，避免多个周期边界各自取当前时间造成不一致。
         ZonedDateTime now = ZonedDateTime.now(EnergyRegulationEnergyConsumptionCalculator.TIME_ZONE);
         if (devices.isEmpty()) {
@@ -198,6 +207,59 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
         // 将查询结果交给纯计算器统一生成汇总和趋势，不在此处持久化派生结果。
         return EnergyRegulationEnergyConsumptionCalculator.calculate(
                 batchResult.entriesByDevice(), batchResult.failedDeviceCount(), now);
+    }
+
+    /** 逐批读取上海时间昨日零点至今的小时平均有功功率，不跨模块调用聚合业务。 */
+    @Override
+    public EnergyRegulationPowerTrendDTO getPowerTrend(SecurityUser user, UUID assetId) throws ThingsboardException {
+        List<VisibleDeviceContextBO> devices = findScopedEnergyDevices(user, assetId);
+        ZonedDateTime now = ZonedDateTime.now(EnergyRegulationEnergyConsumptionCalculator.TIME_ZONE);
+        long yesterday = now.toLocalDate().minusDays(1).atStartOfDay(now.getZone()).toInstant().toEpochMilli();
+        long month = now.toLocalDate().withDayOfMonth(1).atStartOfDay(now.getZone()).toInstant().toEpochMilli();
+        long week = now.toLocalDate().minusDays(now.getDayOfWeek().getValue() - 1L)
+                .atStartOfDay(now.getZone()).toInstant().toEpochMilli();
+        long start = Math.min(yesterday, Math.min(month, week));
+        List<ReadTsKvQuery> queries = List.of(new BaseReadTsKvQuery(
+                EnergyRegulationEnergyMetricDefinitions.TOTAL_ACTIVE_POWER_KEY, start, now.toInstant().toEpochMilli(), TELEMETRY_BUCKET_MILLIS, MAX_HOURLY_TELEMETRY_POINTS, Aggregation.AVG, "ASC"));
+        TelemetryBatchResult batch = readEnergyTelemetryInBatches(user, devices, queries);
+        return EnergyRegulationPowerTrendCalculator.calculate(batch.entriesByDevice(), now);
+    }
+
+    /** 根据公共权限树定位所选资产/设备后代，并与分类设备集合取交集。 */
+    private List<VisibleDeviceContextBO> findScopedEnergyDevices(SecurityUser user, UUID assetId)
+            throws ThingsboardException {
+        List<VisibleDeviceContextBO> devices = findVisibleEnergyDevices(user);
+        if (assetId == null) {
+            return devices;
+        }
+        Set<UUID> ids = new HashSet<>();
+        VisibleAssetTree tree = visibleAssetTreeService.getVisibleAssetTree(user);
+        if (tree != null && tree.roots() != null) {
+            for (VisibleAssetTree.Node root : tree.roots()) {
+                collectScopedDeviceIds(root, assetId, false, ids);
+            }
+        }
+        List<VisibleDeviceContextBO> result = new ArrayList<>();
+        for (VisibleDeviceContextBO device : devices) {
+            if (ids.contains(device.getDeviceId())) {
+                result.add(device);
+            }
+        }
+        return result;
+    }
+
+    /** 只收集命中节点子树中的设备，未授权或不存在的节点得到空集合。 */
+    private void collectScopedDeviceIds(VisibleAssetTree.Node node, UUID assetId, boolean inScope, Set<UUID> ids) {
+        if (node == null) {
+            return;
+        }
+        boolean selected = inScope || assetId.equals(node.id());
+        if (selected && node.entityType() == EntityType.DEVICE) {
+            ids.add(node.id());
+        }
+        for (VisibleAssetTree.Node child : node.children() == null ? Collections.<VisibleAssetTree.Node>emptyList() : node.children()) {
+            collectScopedDeviceIds(child, assetId, selected, ids);
+        }
     }
 
     /** 获取统一的能源监管可见设备范围，分类依据固定为 productCategory。
@@ -261,7 +323,7 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
             }
             try {
                 // 单台失败以 null 结果呈现，不丢弃同批次其他设备成功返回的数据。
-                List<List<TsKvEntry>> batchEntries = Futures.successfulAsList(futures).get();
+                List<List<TsKvEntry>> batchEntries = Futures.successfulAsList(futures).get(30, java.util.concurrent.TimeUnit.SECONDS);
                 for (List<TsKvEntry> entries : batchEntries) {
                     if (entries == null) {
                         // null 表示查询失败，和成功但无遥测的空集合分别统计。
@@ -276,6 +338,11 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
                 // 恢复线程中断标记，供上层调用链正确感知取消信号。
                 Thread.currentThread().interrupt();
                 throw new ThingsboardException("读取能源监管用电遥测被中断", e, ThingsboardErrorCode.DATABASE);
+            } catch (java.util.concurrent.TimeoutException e) {
+                for (ListenableFuture<List<TsKvEntry>> future : futures) {
+                    future.cancel(true);
+                }
+                throw new ThingsboardException("读取能源监管遥测超时", e, ThingsboardErrorCode.DATABASE);
             } catch (ExecutionException e) {
                 // 批次等待本身失败时按平台数据库异常统一向上抛出。
                 throw new ThingsboardException("读取能源监管用电遥测失败", e, ThingsboardErrorCode.DATABASE);
