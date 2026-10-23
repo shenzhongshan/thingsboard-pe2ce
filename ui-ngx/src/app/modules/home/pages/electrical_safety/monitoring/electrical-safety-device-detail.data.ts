@@ -27,7 +27,7 @@ const CONTEXT_KEYS = new Set([
   'inactivityAlarmTime', 'latitude', 'longitude', 'lat', 'lon'
 ]);
 
-/** 按设备型号定义构建实时测点；已知但缺值的 SFA 键显示 --，其他型号只列出实际键。 */
+/** 按设备型号定义构建实时测点；已知但缺值的型号测点显示 __，其他未配置字段保留平台实际值。 */
 export function buildElectricalSafetyDetailMetrics(
   keys: readonly string[],
   latest: ReadonlyMap<string, ElectricalSafetyDetailSample>,

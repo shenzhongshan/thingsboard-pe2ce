@@ -2,6 +2,7 @@
 import type {AlarmInfo} from '@shared/models/alarm.models';
 import type {PageData} from '@shared/models/page/page-data';
 import type {SmartLightningMapDevice} from '../../smart-lightning/shared/map/smart-lightning-device-map.models';
+import {resolveSmartLightningMapCoordinates} from '../../smart-lightning/shared/map/smart-lightning-device-map.data';
 import type {DeviceAlarmDisplayColumn, DeviceAlarmDisplayRow} from '@home/pages/deviceAlarms/shared/alarm-list/device-alarm-records.model';
 import type {DeviceAlarmInformationChartItem} from '@home/pages/deviceAlarms/shared/alarm-information/device-alarm-information-chart.model';
 import {getSmartLightningPhaseLabel} from '../../smart-lightning/dashboard/smart-lightning-summary.data';
@@ -838,4 +839,39 @@ function mapAlarmStatus(value: string): string {
     case 'CLEARED_ACK': return '已清除';
     default: return '--';
   }
+}
+
+/**
+ * GPS遥测保留协议原文入库；仅在绘制地图时解释SFA的E/W/N/S前缀，不回写遥测或服务器属性。
+ * 仍复用公共的成对坐标有效性校验与服务器属性回退规则。
+ */
+export function resolveElectricalSafetyMapCoordinates(
+  serverLatitude: unknown,
+  serverLongitude: unknown,
+  telemetryLatitude?: unknown,
+  telemetryLongitude?: unknown
+) {
+  return resolveSmartLightningMapCoordinates(
+    serverLatitude, serverLongitude,
+    parseElectricalSafetyGpsCoordinate(telemetryLatitude, 'latitude'),
+    parseElectricalSafetyGpsCoordinate(telemetryLongitude, 'longitude')
+  );
+}
+
+/** 仅解释本坐标轴合法的方向前缀，缺失及N/A继续交给公共校验处理。 */
+function parseElectricalSafetyGpsCoordinate(value: unknown, axis: 'latitude' | 'longitude'): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const match = value.trim().match(/^([EWNS])([+-]?(?:\d+(?:\.\d*)?|\.\d+))$/i);
+  if (!match) {
+    return value;
+  }
+  const direction = match[1].toUpperCase();
+  if ((axis === 'latitude' && !['N', 'S'].includes(direction))
+    || (axis === 'longitude' && !['E', 'W'].includes(direction))) {
+    return null;
+  }
+  const magnitude = Math.abs(Number(match[2]));
+  return direction === 'W' || direction === 'S' ? -magnitude : magnitude;
 }

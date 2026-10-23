@@ -55,13 +55,10 @@ var attributes = {
     "productName": "SFA三相智能测控模组"
 };
 
-/*
- * SFA 字段表中的后端规范键映射。
- * 同名字段保持原键；总量别名和三相电流矢量和按表转换。
- * 表中记录的功率及剩余电流单位差异尚未确认，因此这里只转换键名和数值类型，
- * 不对测量值进行比例或单位换算。
- */
+/* 根据测点表重命名；包括经纬度在内均作为遥测原值写入，不转换数值类型或写入坐标属性。 */
 var pointMap = {
+    "lon": "Longitude",
+    "lat": "Latitude",
     "PhAVolt": "PhAVolt",
     "PhBVolt": "PhBVolt",
     "PhCVolt": "PhCVolt",
@@ -103,54 +100,16 @@ var pointMap = {
     "FwdRctEC": "FwdRctEC",
     "FwdRctETot": "FwdRctET"
 };
-
 foreach (entry : data.entrySet()) {
-    var sourceKey = entry.getKey();
+    var targetKey = pointMap[entry.getKey()];
     var sourceValue = entry.getValue();
-
-    // 坐标单独写入服务器属性，不作为普通遥测；N/A、空值和 null 不写入。
-    if (sourceKey != "lon" && sourceKey != "lat" && sourceValue != null) {
-        var targetKey = pointMap[sourceKey];
-
-        if (targetKey == null) {
-            // 未在 SFA 字段表中列出的业务字段保留原键和值，不猜测映射。
-            telemetry[sourceKey] = sourceValue;
-        } else if (sourceValue == "" || sourceValue == "N/A") {
-            // 异常占位值保留原文，避免转换失败或静默丢失。
-            telemetry[targetKey] = sourceValue;
-        } else {
-            // 遥测样本以数字字符串上报，转换为数值以便 ThingsBoard 数值查询和图表使用。
-            telemetry[targetKey] = parseDouble(sourceValue);
-        }
-    }
-}
-
-var rawLongitude = data.lon;
-if (rawLongitude != null && rawLongitude != "" && rawLongitude != "N/A" && rawLongitude.length > 1) {
-    var longitudeDirection = rawLongitude.substring(0, 1);
-    if (longitudeDirection == "E" || longitudeDirection == "W") {
-        var longitudeValue = parseDouble(rawLongitude.substring(1));
-        if (longitudeDirection == "W") {
-            longitudeValue = 0.0 - longitudeValue;
-        }
-        attributes["longitude"] = longitudeValue;
-    }
-}
-
-var rawLatitude = data.lat;
-if (rawLatitude != null && rawLatitude != "" && rawLatitude != "N/A" && rawLatitude.length > 1) {
-    var latitudeDirection = rawLatitude.substring(0, 1);
-    if (latitudeDirection == "N" || latitudeDirection == "S") {
-        var latitudeValue = parseDouble(rawLatitude.substring(1));
-        if (latitudeDirection == "S") {
-            latitudeValue = 0.0 - latitudeValue;
-        }
-        attributes["latitude"] = latitudeValue;
+    if (targetKey != null && sourceValue != null) {
+        telemetry[targetKey] = sourceValue;
     }
 }
 
 if (telemetry.size() == 0) {
-    // 只有坐标属性、没有遥测测点时不提交空遥测对象。
+    // 没有表内遥测测点时不提交空遥测对象。
     return null;
 }
 

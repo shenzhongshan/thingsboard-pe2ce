@@ -22,8 +22,7 @@ import {
 } from '../monitoring/electrical-safety-monitoring.data';
 import {ElectricalSafetyApiService} from '../electrical-safety-api.service';
 import {
-  filterSmartLightningMapDevicesWithoutPoints,
-  resolveSmartLightningMapCoordinates
+  filterSmartLightningMapDevicesWithoutPoints
 } from '../../smart-lightning/shared/map/smart-lightning-device-map.data';
 import type {
   ElectricalSafetyAssetTree,
@@ -36,6 +35,7 @@ import {
   buildElectricalSafetyFireRiskMeasurements,
   formatElectricalSafetyFireRiskMetricTooltip,
   buildElectricalSafetyMapDevices,
+  resolveElectricalSafetyMapCoordinates,
   ELECTRICAL_SAFETY_ALARM_COLUMNS,
   EMPTY_ELECTRICAL_SAFETY_DEVICE_OVERVIEW,
   hasElectricalSafetyFireRiskMetricUpdate,
@@ -559,7 +559,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
       return;
     }
     const contextsWithResolvedCoordinates = this.deviceContexts.map((context) => {
-      const coordinates = resolveSmartLightningMapCoordinates(
+      const coordinates = resolveElectricalSafetyMapCoordinates(
         context.latitude,
         context.longitude,
         this.realtimeService.getLatestTelemetryValue(context.deviceId, 'Latitude')?.value,
@@ -609,7 +609,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
 
   /** GPS 遥测完整有效时优先使用，否则回退到 SERVER_SCOPE 经纬度属性。 */
   private resolveDeviceMapCoordinates(device: ElectricalSafetyDeviceContext) {
-    return resolveSmartLightningMapCoordinates(
+    return resolveElectricalSafetyMapCoordinates(
       device.latitude,
       device.longitude,
       this.realtimeService.getLatestTelemetryValue(device.deviceId, 'Latitude')?.value,
