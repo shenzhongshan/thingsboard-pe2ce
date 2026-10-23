@@ -1,11 +1,11 @@
-/** 文件职责：集中定义用能数据查询页面的模拟设备模型与筛选/导出纯函数。 */
-import {EntityType} from '@shared/models/entity-type.models';
+/** 文件职责：集中定义用能数据查询页面的真实设备模型与筛选/导出纯函数。 */
+import type {EnergyRegulationDeviceContext} from '../energy-regulation-api.service';
 import type {EnergyMonitoringAssetTree} from '../monitoring/energy-regulation-monitoring.data';
 
 /** 查询页设备状态三态：在线（active）/ 离线（有活跃时间但未在线）/ 未连接（从未上报）。 */
 export type EnergyQueryStatus = '在线' | '离线' | '未连接';
 
-/** 查询页演示设备（模拟数据，真实接口接入后由后端上下文替换）。 */
+/** 查询页设备，由能源监管设备上下文和共享最新遥测映射。 */
 export interface EnergyQueryDevice {
   id: string;
   name: string;
@@ -42,60 +42,25 @@ export interface EnergyQueryFilters {
   assetIds: ReadonlySet<string>;
 }
 
-/** 演示设备模板：按 thingsboard.yml 能源监管产品（SFE/ESE/ESA）组织。 */
-export const ENERGY_QUERY_DEVICE_TEMPLATES: ReadonlyArray<Omit<EnergyQueryDevice, 'id' | 'assetId'>> = [
-  {
-    name: 'SFA电能质量监测器1', serialNo: 'KSDSFA7260901001', deviceType: 'SFE', protocol: 'MQTT',
-    status: '在线', productName: 'SFE电能质量监测器', functionCategory: '电能质量', lastActivityTime: Date.now() - 3 * 60_000,
-    updatedAt: '2026-10-10 17:12:20'
-  },
-  {
-    name: 'SFA电能质量监测器2', serialNo: 'KSDSFA7251101001', deviceType: 'SFE', protocol: 'MQTT',
-    status: '在线', productName: 'SFE电能质量监测器', functionCategory: '电能质量', lastActivityTime: Date.now() - 8 * 60_000,
-    updatedAt: '2026-10-10 17:05:41'
-  },
-  {
-    name: 'SFA电能质量监测器3', serialNo: 'KSDSFA2260928009', deviceType: 'SFE', protocol: 'MQTT',
-    status: '未连接', productName: 'SFE电能质量监测器', functionCategory: '电能质量', lastActivityTime: null,
-    updatedAt: '2026-10-08 09:31:15'
-  },
-  {
-    name: '1号低压进线表', serialNo: 'KSDESA7260901002', deviceType: 'E1A2', protocol: 'MQTT',
-    status: '在线', productName: 'ESA智能电表', functionCategory: '电能计量', lastActivityTime: Date.now() - 60_000,
-    updatedAt: '2026-10-10 17:15:08'
-  },
-  {
-    name: '2号低压进线表', serialNo: 'KSDESA7260901003', deviceType: 'E1A2', protocol: 'MQTT',
-    status: '离线', productName: 'ESA智能电表', functionCategory: '电能计量', lastActivityTime: Date.now() - 26 * 3600_000,
-    updatedAt: '2026-10-09 15:40:33'
-  },
-  {
-    name: '空调主机回路监测器', serialNo: 'KSDESE7260901004', deviceType: 'E1E2', protocol: 'MQTT',
-    status: '在线', productName: 'ESE电能质量监测器', functionCategory: '电能质量', lastActivityTime: Date.now() - 5 * 60_000,
-    updatedAt: '2026-10-10 17:10:52'
-  },
-  {
-    name: '动力设备回路监测器', serialNo: 'KSDESE7260901005', deviceType: 'E1E2', protocol: 'MQTT',
-    status: '离线', productName: 'ESE电能质量监测器', functionCategory: '电能质量', lastActivityTime: Date.now() - 51 * 3600_000,
-    updatedAt: '2026-10-08 20:16:47'
-  }
-];
+/** 保留原导出契约但不再提供演示设备，真实数据通过上下文传入。 */
+export const ENERGY_QUERY_DEVICE_TEMPLATES: ReadonlyArray<Omit<EnergyQueryDevice, 'id' | 'assetId'>> = [];
 
-/** 把演示设备按叶子资产均匀挂到真实资产树上（与用能监测页同一套生成约定）。 */
-export function buildEnergyQueryDevices(tree: EnergyMonitoringAssetTree): EnergyQueryDevice[] {
-  const leafAssets = tree.flatNodes.filter((node) => node.entityType === EntityType.ASSET &&
-    !tree.nodes.get(node.id)?.childIds.some((childId) => tree.nodes.get(childId)?.entityType === EntityType.ASSET));
-  if (leafAssets.length === 0) {
-    return [];
-  }
-  return ENERGY_QUERY_DEVICE_TEMPLATES.map((template, index) => ({
-    ...template,
-    id: `energy-query-device-${index + 1}`,
-    assetId: leafAssets[index % leafAssets.length].id
-  }));
+/** 当前用户可见能源设备和平台实体ID一一对应，不生成虚拟设备或挂载关系。 */
+export function buildEnergyQueryDevices(tree: EnergyMonitoringAssetTree, contexts: readonly EnergyRegulationDeviceContext[] = [],
+  latest: (id: string) => ReadonlyMap<string, {ts: number; value: string}> = () => new Map()): EnergyQueryDevice[] {
+  return contexts.map((context) => {
+    const values = latest(context.deviceId); const active = values.get('active')?.value;
+    const online = active === undefined ? context.active === true : ['true','1'].includes(String(active).toLowerCase());
+    const lastActivityTime = Math.max(context.lastActivityTime || 0, ...Array.from(values.values(), (sample) => sample.ts)) || null;
+    return {id: context.deviceId, name: context.deviceName, serialNo: context.deviceName,
+      deviceType: context.deviceProfileName || '__', protocol: context.deviceProtocol || '__',
+      status: online ? '在线' as const : lastActivityTime ? '离线' as const : '未连接' as const,
+      productName: context.productName || '__', functionCategory: context.functionCategory || '__',
+      assetId: context.deviceId, lastActivityTime, updatedAt: lastActivityTime ? new Date(lastActivityTime).toLocaleString() : '__'};
+  });
 }
 
-/** 设备模式行：由演示设备直接映射。 */
+/** 设备模式行：由真实设备直接映射。 */
 export function buildEnergyQueryDeviceRows(devices: EnergyQueryDevice[]): EnergyQueryDeviceRow[] {
   return devices.map((device) => ({
     id: device.id,
@@ -137,10 +102,10 @@ function matchesTimeRange(device: EnergyQueryDevice, startTime: string, endTime:
   return device.lastActivityTime >= start && device.lastActivityTime < endExclusive;
 }
 
-/** 应用全部筛选条件；返回顺序保持模板顺序（编号递增）。 */
+/** 应用全部筛选条件；保留模块设备上下文的返回顺序。 */
 export function filterEnergyQueryDevices(devices: EnergyQueryDevice[], filters: EnergyQueryFilters): EnergyQueryDevice[] {
   return devices.filter((device) => {
-    if (filters.assetIds.size > 0 && !filters.assetIds.has(device.assetId)) {
+    if (!filters.assetIds.has(device.assetId)) {
       return false;
     }
     if (filters.status !== '全部' && device.status !== filters.status) {

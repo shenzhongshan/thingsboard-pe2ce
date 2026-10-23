@@ -1,4 +1,4 @@
-/** 文件职责：能源监管总览看板，组织设备接口、用能数据、演示内容和本地图表生命周期。 */
+/** 文件职责：能源监管总览看板，组织设备接口、真实用能与告警数据和本地图表生命周期。 */
 import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren} from '@angular/core';
 import * as echarts from 'echarts';
 import {ECharts, EChartsOption} from 'echarts';
@@ -21,7 +21,6 @@ import {
 } from '../smart-lightning/shared/realtime/smart-lightning-realtime.service';
 import {
   buildEnergyRegulationDeviceOverview,
-  DEMO_ENERGY_REGULATION_DASHBOARD_DATA,
   EnergyRegulationDeviceProfileCount,
   EnergyRegulationDeviceSummary,
   EnergyRegulationChartId,
@@ -42,8 +41,8 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
   /** 图表宿主在模板建立后由 ECharts 生命周期统一管理。 */
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
 
-  /** 模板绑定集中使用本地演示数据，明确不代表实时监测结果。 */
-  readonly demoData = DEMO_ENERGY_REGULATION_DASHBOARD_DATA;
+  /** 能源监管接口返回的实际告警，用于列表和独立周期统计。 */
+  alarms: import('@shared/models/alarm.models').AlarmInfo[] = [];
   /** 能源监管地图仅显示现有设备上下文中具有有效遥测或服务器属性坐标的设备。 */
   mapDevices: SmartLightningMapDevice[] = [];
   /** 地图坐标和设备信息沿用能源监管模块已有接口，不依赖防雷或电气安全数据。 */
@@ -69,6 +68,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
   private resizeObserver?: ResizeObserver;
   /** 只接受最近一次看板快照请求，避免设备新增后旧响应覆盖新点位。 */
   private deviceOverviewRequestId = 0;
+  private energyRequestId = 0;
 
   constructor(
     private readonly energyRegulationApiService: EnergyRegulationApiService,
@@ -137,6 +137,44 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     return values.some((value) => value !== null) ? '' : '--';
   }
 
+  /** 当日告警条数与活动重点告警分开统计，已清除不等同于已确认。 */
+  get alarmSummary() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const alarms = this.alarms.filter((alarm) => alarm.createdTime >= today.getTime());
+    const cleared = alarms.filter((alarm) => alarm.cleared).length;
+    return {todayTotal: alarms.length, todayProcessed: cleared,
+      urgentActive: this.alarms.filter((alarm) => !alarm.cleared && ['CRITICAL','MAJOR'].includes(alarm.severity)).length,
+      resolutionRate: alarms.length ? Math.round(cleared / alarms.length * 100) : null};
+  }
+
+  /** 实际告警记录使用本模块设备与资产路径补充显示，不生成演示事件。 */
+  get alarmSamples() {
+    const devices = new Map(this.energyDeviceContexts.map((device) => [device.deviceId, device]));
+    const severity: Record<string, string> = {CRITICAL: '严重', MAJOR: '重要', MINOR: '次要', WARNING: '警告', INDETERMINATE: '不确定'};
+    return this.alarms.slice().sort((a, b) => b.createdTime - a.createdTime).slice(0, 10).map((alarm) => ({
+      deviceName: devices.get(alarm.originator.id)?.deviceName || alarm.originatorName || '__',
+      productName: devices.get(alarm.originator.id)?.productName || '__', location: this.mapAssetPaths.get(alarm.originator.id) || '__',
+      severity: severity[alarm.severity] || alarm.severity, message: alarm.type,
+      occurredAt: new Date(alarm.createdTime).toLocaleString()}));
+  }
+
+  /** 每张趋势图独立按上海自然日、周、月分桶，三组互斥状态相加等于事件条数。 */
+  private realAlarmSeries(period: EnergyRegulationPeriod) {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    if (period === 'week') { start.setDate(start.getDate() - (start.getDay() + 6) % 7); }
+    if (period === 'month') { start.setDate(1); }
+    const count = period === 'day' ? 24 : period === 'week' ? 7 : new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+    const result = {labels: Array.from({length: count}, (_, i) => period === 'day' ? `${i}:00` : `${i + 1}日`),
+      pending: Array(count).fill(0) as number[], assigned: Array(count).fill(0) as number[], processing: Array(count).fill(0) as number[]};
+    for (const alarm of this.alarms) {
+      const index = Math.floor((alarm.createdTime - start.getTime()) / (period === 'day' ? 3_600_000 : 86_400_000));
+      if (index < 0 || index >= count) { continue; }
+      const target = alarm.cleared ? result.processing : alarm.acknowledged ? result.assigned : result.pending;
+      target[index]++;
+    }
+    return result;
+  }
+
   /** 为仅展示在线、离线状态的环形图及辅助技术提供摘要。 */
   deviceDonutLabel(): string {
     if (this.deviceOverviewLoading) {
@@ -189,7 +227,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     });
     forkJoin({
       devices: this.energyRegulationApiService.getDeviceContexts(),
-      alarms: this.energyRegulationApiService.getAlarms(alarmsQuery),
+      alarms: this.energyRegulationApiService.getAllAlarms(),
       // 资产树只为地图弹窗提供归属路径；树请求失败不影响设备统计和坐标点位。
       assetTree: this.energyRegulationApiService.getAssetTree().pipe(catchError(() => of(null)))
     }).pipe(takeUntil(this.destroy$)).subscribe({
@@ -199,8 +237,10 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
         }
         const energyDeviceIds = new Set(devices.map((device) => device.deviceId));
         const alarmedDeviceIds = new Set<string>();
-        for (const alarm of alarms.data || []) {
-          if (alarm.originator?.entityType === EntityType.DEVICE
+        this.deviceOverviewError = false;
+        this.alarms = alarms;
+        for (const alarm of alarms) {
+          if (!alarm.cleared && alarm.originator?.entityType === EntityType.DEVICE
               && alarm.originator.id && energyDeviceIds.has(alarm.originator.id)) {
             alarmedDeviceIds.add(alarm.originator.id);
           }
@@ -218,12 +258,15 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
         this.deviceProfiles = overview.profiles;
         this.deviceOverviewLoading = false;
         this.renderChart('devices');
+        this.renderChart('alarms');
       },
       error: () => {
         if (requestId !== this.deviceOverviewRequestId) {
           return;
         }
+        this.alarms = [];
         this.energyDeviceContexts = [];
+        this.renderChart('alarms');
         this.mapDevices = [];
         this.mapLoadError = true;
         this.deviceOverviewLoading = false;
@@ -245,14 +288,24 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
       ));
       if (mapStateChanged) {
         this.refreshMapDevices();
+        const contexts = this.energyDeviceContexts.map((device) => ({...device,
+          active: parseEnergyRegulationActiveValue(this.realtimeService.getLatestTelemetryValue(device.deviceId, 'active')?.value) ?? device.active}));
+        const overview = buildEnergyRegulationDeviceOverview(contexts, this.alarmedDeviceIds);
+        this.deviceSummary = overview.summary; this.renderChart('devices');
       }
     });
 
+    // 能源业务统计在模块内刷新；共享服务只负责传递变更，不承担能源计算。
+    this.realtimeService.deviceTelemetryChanged$.pipe(
+      filter((change) => this.energyDeviceContexts.some((device) => device.deviceId === change.deviceId)),
+      auditTime(5000), takeUntil(this.destroy$))
+      .subscribe(() => this.loadEnergyConsumption());
     // 新设备、资产归属或服务器坐标变化后，重新读取模块现有快照接口以发现新增能源设备。
     merge(
       this.realtimeService.deviceMembershipChanged$,
       this.realtimeService.deviceContextIncrementalChanged$,
-      this.realtimeService.assetMembershipChanged$
+      this.realtimeService.assetMembershipChanged$,
+      this.realtimeService.alarmChanged$
     ).pipe(
       auditTime(400),
       takeUntil(this.destroy$)
@@ -290,13 +343,18 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
 
   /** 读取标准累计电能接口；失败时保留错误状态，不回退到演示用电量。 */
   private loadEnergyConsumption(): void {
+    const request = ++this.energyRequestId;
     this.energyRegulationApiService.getEnergyConsumption().pipe(takeUntil(this.destroy$)).subscribe({
       next: (response) => {
+        if (request !== this.energyRequestId) { return; }
+        this.energyConsumptionError = false;
         this.energyConsumption = response;
         this.energyConsumptionLoading = false;
         this.renderChart('energy');
       },
       error: () => {
+        if (request !== this.energyRequestId) { return; }
+        this.energyConsumption = null;
         this.energyConsumptionLoading = false;
         this.energyConsumptionError = true;
         this.renderChart('energy');
@@ -304,7 +362,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     });
   }
 
-  /** 按图表类型生成配置；用电趋势来自标准电能接口，告警与碳排仍使用样例。 */
+  /** 按图表类型生成真实数据配置；未配置排放系数时碳排图保持空。 */
   private renderChart(chartId: string): void {
     const chart = this.charts.get(chartId);
     if (!chart || chart.isDisposed()) {
@@ -345,10 +403,11 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     };
   }
 
-  /** 碳排放趋势保留当前样例口径，避免误用用电表底数据。 */
+  /** 缺少排放系数时返回空序列，不把用电量伪装为碳排放。 */
   private carbonChartOption(period: EnergyRegulationPeriod): EChartsOption {
-    const series = this.demoData.carbonSeries[period];
+    const series = {labels: [] as string[], values: [] as number[]};
     return {
+      graphic: [{type: 'text', left: 'center', top: 'middle', style: {text: '__', fill: '#71869a'}}],
       animationDuration: 320,
       grid: {top: 18, right: 16, bottom: 30, left: 44},
       tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => `${value ?? '--'} kgCO₂`},
@@ -389,9 +448,9 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     };
   }
 
-  /** 绘制按未处理、已派发及处理中状态堆叠的告警趋势。 */
+  /** 按未确认、已确认和已清除三类互斥状态绘制实际告警趋势。 */
   private alarmChartOption(period: EnergyRegulationPeriod): EChartsOption {
-    const series = this.demoData.alarmSeries[period];
+    const series = this.realAlarmSeries(period);
     return {
       animationDuration: 320,
       grid: {top: 28, right: 12, bottom: 28, left: 34},
@@ -400,9 +459,9 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
       xAxis: {type: 'category', data: series.labels, axisLabel: {color: '#7890a4', fontSize: 10}, axisLine: {lineStyle: {color: '#dce5ee'}}, axisTick: {show: false}},
       yAxis: {type: 'value', minInterval: 1, splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}},
       series: [
-        {name: '未处理', type: 'bar', stack: 'total', data: series.pending, itemStyle: {color: '#f3ad2e'}, barMaxWidth: 22},
-        {name: '已派发', type: 'bar', stack: 'total', data: series.assigned, itemStyle: {color: '#408bea'}, barMaxWidth: 22},
-        {name: '处理中', type: 'bar', stack: 'total', data: series.processing, itemStyle: {color: '#35bb82'}, barMaxWidth: 22}
+        {name: '未确认', type: 'bar', stack: 'total', data: series.pending, itemStyle: {color: '#f3ad2e'}, barMaxWidth: 22},
+        {name: '已确认', type: 'bar', stack: 'total', data: series.assigned, itemStyle: {color: '#408bea'}, barMaxWidth: 22},
+        {name: '已清除', type: 'bar', stack: 'total', data: series.processing, itemStyle: {color: '#35bb82'}, barMaxWidth: 22}
       ]
     };
   }

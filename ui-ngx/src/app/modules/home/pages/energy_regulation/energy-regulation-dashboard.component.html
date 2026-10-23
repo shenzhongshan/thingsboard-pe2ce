@@ -49,9 +49,9 @@
 
     <article class="panel alarm-summary-panel">
       <header class="panel-heading"><div><h2>当日告警信息</h2><small>处理情况概览</small></div><span class="panel-mark">03</span></header>
-      <div class="alarm-summary-row"><span class="summary-icon severe">!</span><div><small>当日告警总数</small><b>{{ demoData.alarmSummary.todayTotal }}</b></div><div class="summary-side"><small>未清除重点</small><b>{{ demoData.alarmSummary.urgentActive }}</b></div></div>
-      <div class="alarm-summary-row"><span class="summary-icon resolved">✓</span><div><small>当日已处理</small><b>{{ demoData.alarmSummary.todayProcessed }}</b></div><div class="summary-side"><small>处理率</small><b>{{ demoData.alarmSummary.resolutionRate }}%</b></div></div>
-      <div class="severity-block"><span>告警级别分布</span><div><i class="severity-general"></i>一般 <b>5</b><i class="severity-urgent"></i>紧急 <b>4</b><i class="severity-critical"></i>严重 <b>3</b></div></div>
+      <div class="alarm-summary-row"><span class="summary-icon severe">!</span><div><small>当日告警总数</small><b>{{ alarmSummary.todayTotal }}</b></div><div class="summary-side"><small>未清除重点</small><b>{{ alarmSummary.urgentActive }}</b></div></div>
+      <div class="alarm-summary-row"><span class="summary-icon resolved">✓</span><div><small>当日已清除</small><b>{{ alarmSummary.todayProcessed }}</b></div><div class="summary-side"><small>清除率</small><b>{{ alarmSummary.resolutionRate ?? '__' }}%</b></div></div>
+
     </article>
 
     <article class="panel chart-panel energy-chart-panel">
@@ -62,10 +62,10 @@
     </article>
 
     <article class="panel chart-panel carbon-chart-panel">
-      <header class="panel-heading"><div><h2>碳排放趋势</h2><small>估算值 · kgCO₂</small></div><div class="period-toggle" role="group" aria-label="碳排趋势周期">
+      <header class="panel-heading"><div><h2>碳排放趋势</h2><small>kgCO₂</small></div><div class="period-toggle" role="group" aria-label="碳排趋势周期">
         <button type="button" *ngFor="let period of periodOptions" [class.active]="periods.carbon === period" (click)="selectPeriod('carbon', period)">{{ periodLabel(period) }}</button>
       </div></header>
-      <div class="carbon-kpi"><span>本月估算排放</span><b>5,623 <em>kgCO₂</em></b></div>
+      <div class="carbon-kpi"><span>本月排放</span><b>__</b></div>
       <div class="chart-host compact-chart" #chartHost data-chart="carbon"></div>
     </article>
 
@@ -77,9 +77,9 @@
     </article>
 
     <article class="panel alarm-list-panel">
-      <header class="panel-heading"><div><h2>告警记录</h2><small>近期样例事件</small></div><span class="record-count">{{ demoData.alarmSamples.length }} 条</span></header>
+      <header class="panel-heading"><div><h2>告警记录</h2><small>近期真实告警</small></div><span class="record-count">{{ alarmSamples.length }} 条</span></header>
       <div class="table-scroll"><table><thead><tr><th>设备名称</th><th>设备类型</th><th>设备位置</th><th>告警级别</th><th>告警内容</th><th>发生时间</th></tr></thead>
-        <tbody><tr *ngFor="let alarm of demoData.alarmSamples"><td>{{ alarm.deviceName }}</td><td>{{ alarm.productName }}</td><td>{{ alarm.location }}</td><td><span class="severity-tag" [ngClass]="severityClass(alarm.severity)">{{ alarm.severity }}</span></td><td>{{ alarm.message }}</td><td>{{ alarm.occurredAt }}</td></tr></tbody>
+        <tbody><tr *ngFor="let alarm of alarmSamples"><td>{{ alarm.deviceName }}</td><td>{{ alarm.productName }}</td><td>{{ alarm.location }}</td><td><span class="severity-tag" [ngClass]="severityClass(alarm.severity)">{{ alarm.severity }}</span></td><td>{{ alarm.message }}</td><td>{{ alarm.occurredAt }}</td></tr></tbody>
       </table></div>
     </article>
   </section>

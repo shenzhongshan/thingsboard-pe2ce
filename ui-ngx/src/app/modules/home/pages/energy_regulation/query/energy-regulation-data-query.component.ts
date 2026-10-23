@@ -16,6 +16,9 @@ import {EntityType} from '@shared/models/entity-type.models';
 import {SmartLightningRootAssetFilterComponent} from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
 import {SmartLightningAssetTreeModule} from '@home/pages/smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
 import {Subject, takeUntil} from 'rxjs';
+import {EnergyRegulationLiveService, EnergyLiveSnapshot} from '../shared/energy-regulation-live.service';
+import {ENERGY_METER_MEASUREMENTS} from '../shared/energy-regulation-measurements';
+import {EnergyRegulationHistoryApiService} from './energy-regulation-history-api.service';
 import {EnergyRegulationApiService} from '../energy-regulation-api.service';
 import {
   buildEnergyMonitoringAssetTree,
@@ -34,7 +37,7 @@ import {
   getEnergyQueryDeviceTypes,
   getEnergyQueryFunctionCategories
 } from './energy-regulation-data-query.data';
-import {SmartLightningMonitoringAssetNode} from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
+import {EnergyAssetNode} from '../monitoring/energy-regulation-monitoring.data';
 
 interface QueryDraft {
   deviceType: string;
@@ -46,7 +49,7 @@ interface QueryDraft {
 
 /**
  * 用能数据查询独立页面：左侧能源资产树联动筛选，右侧提供设备查询和结果操作。
- * 当前按 UI 原型展示本地设备样例；资产树继续使用已有能源监管接口，不新增后端依赖。
+ * 设备与资产使用能源监管接口；历史与最新遥测通过模块内服务封装平台公共接口。
  */
 @Component({
   selector: 'tb-energy-regulation-data-query',
@@ -64,6 +67,7 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
   assetsLoading = true;
   assetsLoadError = false;
   selectedRootAssetId = '';
+  selectedAssetId = '';
   selectedAssetName = '全部资产';
   selectedAssetIds = new Set<string>();
   expandedAssetIds = new Set<string>();
@@ -86,24 +90,45 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
   reviewMode: '回顾' | '详情' = '回顾';
   private reviewTrigger: HTMLElement | null = null;
 
+  readonly measurements = ENERGY_METER_MEASUREMENTS;
+  reviewKey = 'FwdActET';
+  reviewLoading = false;
+  reviewError = false;
+  historyPoints: Array<{time: string; value: string}> = [];
+  detailPoints: Array<{label: string; value: string}> = [];
+  private liveSnapshot?: EnergyLiveSnapshot;
+  private readonly reviewRequest$ = new Subject<void>();
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly energyApi: EnergyRegulationApiService,
+    private readonly live: EnergyRegulationLiveService,
+    private readonly historyApi: EnergyRegulationHistoryApiService,
     private readonly cd: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.energyApi.getAssetTree().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (tree) => this.initialize(tree?.roots || []),
-      error: () => {
-        this.assetsLoadError = true;
-        this.initialize([]);
+    this.live.acquire();
+    this.live.snapshot$.pipe(takeUntil(this.destroy$)).subscribe((snapshot) => {
+      this.liveSnapshot = snapshot; this.assetsLoadError = snapshot.error;
+      if (!snapshot.loading) { this.initialize(snapshot.roots); }
+    });
+    this.live.telemetryChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.devices = buildEnergyQueryDevices(this.assetTree, this.liveSnapshot?.contexts || [], (id) => this.live.latest(id));
+      if (this.reviewDevice && this.reviewMode === '详情') {
+        const latest = this.live.latest(this.reviewDevice.id);
+        if (latest.size) {
+          this.detailPoints = this.measurements.map((item) => ({label: item.label,
+            value: latest.get(item.key)?.value !== undefined ? `${latest.get(item.key)!.value} ${item.unit}` : '__'}));
+        }
       }
+      this.cd.markForCheck();
     });
   }
 
   ngOnDestroy(): void {
+    this.live.release();
+    this.reviewRequest$.next(); this.reviewRequest$.complete();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -151,21 +176,19 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
 
   selectRootAsset(rootAssetId: string): void {
     this.selectedRootAssetId = rootAssetId;
+    this.selectedAssetId = rootAssetId;
     this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, rootAssetId);
+    if (!rootAssetId) {
+      for (const device of this.liveSnapshot?.contexts || []) { this.selectedAssetIds.add(device.deviceId); }
+    }
     const root = this.assetTree.roots.find((node) => node.id === rootAssetId);
     this.selectedAssetName = root?.name || '全部资产';
     this.resetPage();
   }
 
-  selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
-    this.selectedAssetIds = new Set(
-      [...this.assetTree.nodes.keys()].filter((id) => {
-        if (id === node.id) {
-          return true;
-        }
-        return getEnergyMonitoringSelectedAssetIds(this.assetTree, node.id).has(id);
-      })
-    );
+  selectAssetNode(node: EnergyAssetNode): void {
+    this.selectedAssetId = node.id;
+    this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, node.id);
     this.selectedAssetName = node.name;
     this.resetPage();
   }
@@ -174,7 +197,7 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
     this.selectRootAsset(this.selectedRootAssetId);
   }
 
-  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
+  toggleAssetNode(node: EnergyAssetNode): void {
     this.expandedAssetIds.has(node.id) ? this.expandedAssetIds.delete(node.id) : this.expandedAssetIds.add(node.id);
     this.expandedAssetIds = new Set(this.expandedAssetIds);
   }
@@ -233,6 +256,7 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
     this.reviewTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     this.reviewDevice = this.devices.find((device) => device.id === row.id) || null;
     this.reviewMode = mode;
+    this.loadReview();
     this.cd.detectChanges();
     this.reviewCloseButton?.nativeElement.focus();
   }
@@ -241,6 +265,7 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
   closeReview(): void {
     const trigger = this.reviewTrigger;
     this.reviewTrigger = null;
+    this.reviewRequest$.next();
     this.reviewDevice = null;
     this.cd.markForCheck();
     if (trigger) {
@@ -282,23 +307,42 @@ export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
     URL.revokeObjectURL(url);
   }
 
-  /** 模拟回顾数据：演示用 24 小时逐小时用电量序列。 */
-  reviewSeries(): Array<{time: string; value: string}> {
-    if (!this.reviewDevice) {
-      return [];
-    }
-    return Array.from({length: 12}, (_, index) => ({
-      time: `${String(index * 2).padStart(2, '0')}:00`,
-      value: `${(4.2 + index * 0.6 + index * index * 0.03).toFixed(1)} kWh`
-    }));
+  /** 回顾只展示实际样本，切换设备或参数时取消旧请求。 */
+  loadReview(): void {
+    this.reviewRequest$.next();
+    this.historyPoints = []; this.detailPoints = []; this.reviewError = false;
+    if (!this.reviewDevice) { return; }
+    this.reviewLoading = true;
+    const id = this.reviewDevice.id;
+    const request = this.reviewMode === '回顾' ? this.historyApi.history(id, this.reviewKey)
+      : this.historyApi.latest(id, this.measurements.map((item) => item.key));
+    request.pipe(takeUntil(this.reviewRequest$), takeUntil(this.destroy$)).subscribe({next: (values) => {
+      const definition = this.measurements.find((item) => item.key === this.reviewKey);
+      this.historyPoints = (values[this.reviewKey] || []).slice().sort((a, b) => a.ts - b.ts)
+        .map((sample) => ({time: new Date(sample.ts).toLocaleString(), value: `${sample.value} ${definition?.unit || ''}`}));
+      this.detailPoints = this.measurements.map((item) => ({label: item.label,
+        value: values[item.key]?.[0] ? `${values[item.key][0].value} ${item.unit}` : '__'}));
+      this.reviewLoading = false; this.cd.markForCheck();
+    }, error: () => { this.reviewLoading = false; this.reviewError = true; this.cd.markForCheck(); }});
   }
+
+  reviewSeries(): Array<{time: string; value: string}> { return this.historyPoints; }
 
   private initialize(roots: unknown[]): void {
     this.assetTree = buildEnergyMonitoringAssetTree(roots as never);
-    this.devices = buildEnergyQueryDevices(this.assetTree);
-    this.expandedAssetIds = new Set(this.assetTree.roots.map((root) => root.id));
+    this.devices = buildEnergyQueryDevices(this.assetTree, this.liveSnapshot?.contexts || [], (id) => this.live.latest(id));
+    this.expandedAssetIds = this.assetsLoading ? new Set(this.assetTree.roots.map((root) => root.id))
+      : new Set([...this.expandedAssetIds].filter((id) => this.assetTree.nodes.has(id)));
     this.assetsLoading = false;
-    this.selectRootAsset('');
+    if (this.selectedAssetId && this.assetTree.nodes.has(this.selectedAssetId)) {
+      this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedAssetId);
+      this.selectedAssetName = this.assetTree.nodes.get(this.selectedAssetId)?.name || '全部资产';
+    } else {
+      this.selectedAssetIds = new Set(this.devices.map((device) => device.assetId));
+      this.selectedAssetId = ''; this.selectedRootAssetId = ''; this.selectedAssetName = '全部资产';
+    }
+    this.page = Math.min(this.page, this.totalPages);
+    this.cd.markForCheck();
   }
 
   private resetPage(): void {

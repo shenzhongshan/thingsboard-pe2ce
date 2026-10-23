@@ -1,7 +1,10 @@
 /** 文件职责：能源监管页面设备上下文与用电统计接口访问。 */
 import {Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {Observable} from 'rxjs';
+import {Observable, EMPTY, expand, reduce} from 'rxjs';
+import {Direction} from '@shared/models/page/sort-order';
+import {TimePageLink} from '@shared/models/page/page-link';
+import {AlarmSearchStatus} from '@shared/models/alarm.models';
 import {AlarmInfo, AlarmQueryV2} from '@shared/models/alarm.models';
 import {PageData} from '@shared/models/page/page-data';
 
@@ -13,6 +16,9 @@ export interface EnergyRegulationDeviceContext {
   productCategory?: string;
   productName?: string;
   active?: boolean;
+  functionCategory?: string;
+  deviceProtocol?: string;
+  lastActivityTime?: number | null;
   latitude?: number | null;
   longitude?: number | null;
 }
@@ -61,6 +67,13 @@ export interface EnergyRegulationEnergyConsumption {
   energySeries: Record<'day' | 'week' | 'month', EnergyRegulationConsumptionSeries>;
 }
 
+/** 小时平均功率响应，与用电量kWh结构分开。 */
+export interface EnergyPowerTrend {
+  labels: string[]; today: Array<number | null>; yesterday: Array<number | null>;
+  todayPeakKw: number | null; yesterdayPeakKw: number | null;
+  periodPeaks: Record<'day' | 'week' | 'month', number | null>;
+}
+
 @Injectable({providedIn: 'root'})
 export class EnergyRegulationApiService {
   constructor(private readonly http: HttpClient) {}
@@ -81,8 +94,8 @@ export class EnergyRegulationApiService {
   }
 
   /** 读取能源监管设备的标准累计电能统计和日、周、月趋势。 */
-  getEnergyConsumption(): Observable<EnergyRegulationEnergyConsumption> {
-    return this.http.get<EnergyRegulationEnergyConsumption>('/api/energy-regulation/energy-consumption');
+  getEnergyConsumption(assetId = ''): Observable<EnergyRegulationEnergyConsumption> {
+    return this.http.get<EnergyRegulationEnergyConsumption>('/api/energy-regulation/energy-consumption', {params: assetId ? {assetId} : {}});
   }
 
   /**
@@ -93,5 +106,18 @@ export class EnergyRegulationApiService {
     return this.http.get<PageData<AlarmInfo>>(
       `/api/energy-regulation/alarms${query.toQuery()}&productCategory=energy_regulation`
     );
+  }
+  /** 模块内统计接口，资产参数仅缩小服务端授权范围。 */
+  getPowerTrend(assetId = ''): Observable<EnergyPowerTrend> {
+    return this.http.get<EnergyPowerTrend>('/api/energy-regulation/power-trend', {params: assetId ? {assetId} : {}});
+  }
+
+  /** 完整遍历原生分页结构，禁止用超大pageSize假设拿到了所有告警。 */
+  getAllAlarms(startTime?: number): Observable<AlarmInfo[]> {
+    const page = (index: number) => this.getAlarms(new AlarmQueryV2(null,
+      new TimePageLink(100, index, null, {property: 'createdTime', direction: Direction.DESC}, startTime),
+      {statusList: [AlarmSearchStatus.ANY]}));
+    return page(0).pipe(expand((result, index) => result.hasNext ? page(index + 1) : EMPTY),
+      reduce((all, result) => all.concat(result.data || []), [] as AlarmInfo[]));
   }
 }

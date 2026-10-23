@@ -25,6 +25,7 @@
   </aside>
 
   <section class="monitoring-content">
+    <span *ngIf="statisticsLoadError" role="alert" class="visually-hidden">能源统计读取失败</span>
     <section class="monitoring-top-grid" aria-label="能源监测与电能质量">
       <article class="monitoring-panel indicator-panel">
         <header class="panel-heading">
@@ -35,9 +36,9 @@
           </div>
         </header>
         <div class="indicator-list">
-          <div class="indicator-row"><span><i class="indicator-dot energy-dot"></i>总用电量</span><strong>{{ ENERGY_MONITORING_KPIS[metricsPeriod].totalEnergyKwh | number:'1.0-0' }} <small>kWh</small></strong></div>
-          <div class="indicator-row"><span><i class="indicator-dot power-dot"></i>峰值功率</span><strong>{{ ENERGY_MONITORING_KPIS[metricsPeriod].peakPowerKw | number:'1.0-0' }} <small>kW</small></strong></div>
-          <div class="indicator-row"><span><i class="indicator-dot load-dot"></i>平均负载</span><strong>{{ ENERGY_MONITORING_KPIS[metricsPeriod].averageLoadPercent | number:'1.0-0' }}<small>%</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot energy-dot"></i>总用电量</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].totalEnergyKwh | number:'1.0-0') ?? '__' }} <small>kWh</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot power-dot"></i>小时平均功率峰值</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].peakPowerKw | number:'1.0-0') ?? '__' }} <small>kW</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot load-dot"></i>平均负载</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].averageLoadPercent | number:'1.0-0') ?? '__' }}<small>%</small></strong></div>
         </div>
       </article>
 
@@ -61,10 +62,10 @@
           </div>
         </header>
         <div class="quality-grid">
-          <div><span>监测点数</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].pointCount }}</strong></div>
-          <div><span>异常次数</span><strong [class.value-warning]="ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount > 0">{{ ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount }}</strong></div>
-          <div><span>电压合格率</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].voltagePassPercent }}<small>%</small></strong></div>
-          <div><span>频率偏差</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].frequencyDeviationHz | number:'1.2-2' }}<small>Hz</small></strong></div>
+          <div><span>监测点数</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].pointCount ?? '__' }}</strong></div>
+          <div><span>异常次数</span><strong [class.value-warning]="(ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount ?? 0) > 0">{{ ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount ?? '__' }}</strong></div>
+          <div><span>电压合格率</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].voltagePassPercent ?? '__' }}<small>%</small></strong></div>
+          <div><span>频率偏差</span><strong>{{ (ENERGY_MONITORING_QUALITY[qualityPeriod].frequencyDeviationHz | number:'1.2-2') ?? '__' }}<small>Hz</small></strong></div>
         </div>
       </article>
     </section>
@@ -105,10 +106,10 @@
           <h3 [title]="device.name">{{ device.name }}</h3>
           <p class="device-product" [title]="device.productName">{{ device.productName }}</p>
           <dl class="device-values">
-            <div><dt>累计电量</dt><dd>{{ device.totalEnergyKwh | number:'1.0-1' }} <small>kWh</small></dd></div>
-            <div><dt>有功功率</dt><dd>{{ device.activePowerKw | number:'1.0-1' }} <small>kW</small></dd></div>
-            <div><dt>电压</dt><dd>{{ device.voltage | number:'1.0-1' }} <small>V</small></dd></div>
-            <div><dt>电流</dt><dd>{{ device.current | number:'1.0-1' }} <small>A</small></dd></div>
+            <div><dt>累计电量</dt><dd>{{ (device.totalEnergyKwh | number:'1.0-1') ?? '__' }} <small>kWh</small></dd></div>
+            <div><dt>有功功率</dt><dd>{{ (device.activePowerKw | number:'1.0-1') ?? '__' }} <small>kW</small></dd></div>
+            <div><dt>电压</dt><dd>{{ (device.voltage | number:'1.0-1') ?? '__' }} <small>V</small></dd></div>
+            <div><dt>电流</dt><dd>{{ (device.current | number:'1.0-1') ?? '__' }} <small>A</small></dd></div>
           </dl>
           <footer><span>{{ assetPath(device.assetId) }}</span><time>{{ device.updatedAt }}</time></footer>
         </article>
@@ -121,9 +122,9 @@
             <tr *ngFor="let device of pagedDevices">
               <td>{{ device.name }}</td><td>{{ device.categoryLabel }}</td><td>{{ device.productName }}</td>
               <td><span class="device-status" [class]="'device-status status-' + device.status">{{ device.status }}</span></td>
-              <td>{{ device.totalEnergyKwh | number:'1.0-1' }} kWh</td><td>{{ device.activePowerKw | number:'1.0-1' }} kW</td>
-              <td>{{ device.voltage | number:'1.0-1' }} V / {{ device.current | number:'1.0-1' }} A</td>
-              <td>{{ device.powerFactor | number:'1.2-2' }}</td><td>{{ device.updatedAt }}</td>
+              <td>{{ (device.totalEnergyKwh | number:'1.0-1') ?? '__' }} kWh</td><td>{{ (device.activePowerKw | number:'1.0-1') ?? '__' }} kW</td>
+              <td>{{ (device.voltage | number:'1.0-1') ?? '__' }} V / {{ (device.current | number:'1.0-1') ?? '__' }} A</td>
+              <td>{{ (device.powerFactor | number:'1.2-2') ?? '__' }}</td><td>{{ device.updatedAt }}</td>
             </tr>
           </tbody>
         </table>

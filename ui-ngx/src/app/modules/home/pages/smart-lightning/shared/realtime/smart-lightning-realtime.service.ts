@@ -24,6 +24,8 @@ import {TelemetryWebsocketService} from '@core/ws/telemetry-websocket.service';
 import {SMART_LIGHTNING_WAVEFORM_KEY} from '../telemetry/smart-lightning-measurements';
 import {ELECTRICAL_SAFETY_REALTIME_TELEMETRY_KEYS} from '../../../electrical_safety/monitoring/electrical-safety-monitoring.data';
 
+import {ENERGY_REALTIME_KEYS} from '../../../energy_regulation/shared/energy-regulation-measurements';
+
 /** 防雷、能源和电气安全页面共用的型号测点订阅键；未配置型号不会展示其他设备的值。 */
 export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.from(new Set([
   'RemoteSig', 'McbStatus', 'GndStatus', 'StrikeCnt',
@@ -40,6 +42,7 @@ export const SMART_LIGHTNING_REALTIME_TELEMETRY_KEYS: readonly string[] = Array.
   // M1AI／L2AI共用的新测点键；两种计数键已包含在共享集合中。
   SMART_LIGHTNING_WAVEFORM_KEY, 'PeakCur', 'KeepTime', 'CharImpe', 'EleCharge', 'Energy', 'PeakVolt',
   // 电气安全全部已确认型号测点使用同一配置集合，避免逐页重复维护订阅键。
+  ...ENERGY_REALTIME_KEYS,
   ...ELECTRICAL_SAFETY_REALTIME_TELEMETRY_KEYS
 ]));
 

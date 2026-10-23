@@ -2,7 +2,10 @@
 import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {ECharts, EChartsOption} from 'echarts';
 import * as echarts from 'echarts';
-import {Subject} from 'rxjs';
+import {Subject, forkJoin, auditTime} from 'rxjs';
+import {EnergyRegulationLiveService, EnergyLiveSnapshot} from '../shared/energy-regulation-live.service';
+import {EnergyRegulationEnergyConsumption} from '../energy-regulation-api.service';
+import {AlarmInfo} from '@shared/models/alarm.models';
 import {takeUntil} from 'rxjs/operators';
 import {EnergyRegulationApiService} from '../energy-regulation-api.service';
 import type {EnergyRegulationAssetTreeNode} from '../energy-regulation-api.service';
@@ -19,11 +22,7 @@ import {
   filterEnergyMonitoringDevices,
   getEnergyMonitoringSelectedAssetIds
 } from './energy-regulation-monitoring.data';
-import {
-  getSmartLightningDefaultExpandedAssetIds,
-  getSmartLightningMonitoringSelectedAssetIds,
-  SmartLightningMonitoringAssetNode
-} from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
+import {getEnergyDefaultExpandedAssetIds, getEnergyDescendantIds, EnergyAssetNode} from './energy-regulation-monitoring.data';
 import {SmartLightningRootAssetFilterComponent} from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
@@ -45,6 +44,7 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   assetTree = buildEnergyMonitoringAssetTree([]);
   assetsLoading = true;
   assetsLoadError = false;
+  statisticsLoadError = false;
   selectedRootAssetId = '';
   selectedAssetId = '';
   selectedAssetName = '全部资产';
@@ -55,8 +55,8 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   /** 三个周期切换器互不联动。 */
   readonly periods = ENERGY_MONITORING_PERIODS;
   readonly categories = ENERGY_MONITORING_CATEGORIES;
-  readonly ENERGY_MONITORING_KPIS = ENERGY_MONITORING_KPIS;
-  readonly ENERGY_MONITORING_QUALITY = ENERGY_MONITORING_QUALITY;
+  readonly ENERGY_MONITORING_KPIS = structuredClone(ENERGY_MONITORING_KPIS);
+  readonly ENERGY_MONITORING_QUALITY = structuredClone(ENERGY_MONITORING_QUALITY);
   readonly math = Math;
   metricsPeriod: EnergyMonitoringPeriod = 'day';
   trendPeriod: EnergyMonitoringPeriod = 'day';
@@ -69,21 +69,25 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   readonly pageSizeOptions = [20, 50, 100];
   devices: EnergyMonitoringDevice[] = [];
 
+  private liveSnapshot?: EnergyLiveSnapshot;
+  private consumption: EnergyRegulationEnergyConsumption | null = null;
+  private statsRequest$ = new Subject<void>();
   private trendChart?: ECharts;
   private resizeObserver?: ResizeObserver;
   private readonly destroy$ = new Subject<void>();
 
-  constructor(private readonly energyRegulationApiService: EnergyRegulationApiService) {}
+  constructor(private readonly energyRegulationApiService: EnergyRegulationApiService, private readonly live: EnergyRegulationLiveService) {}
 
-  /** 载入后端当前用户可见资产树，并基于真实资产节点生成本地设备展示数据。 */
+  /** 载入后端当前用户可见资产树，并映射真实设备上下文与规范遥测。 */
   ngOnInit(): void {
-    this.energyRegulationApiService.getAssetTree().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (tree) => this.initializeAssetScope(tree?.roots || []),
-      error: () => {
-        this.assetsLoadError = true;
-        this.initializeAssetScope([]);
-      }
+    this.live.acquire();
+    this.live.snapshot$.pipe(takeUntil(this.destroy$)).subscribe((snapshot) => {
+      this.liveSnapshot = snapshot;
+      this.assetsLoadError = snapshot.error;
+      if (!snapshot.loading) { this.initializeAssetScope(snapshot.roots); this.refreshDevices(); }
     });
+    this.live.telemetryChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshDevices());
+    this.live.telemetryChanged$.pipe(auditTime(5000), takeUntil(this.destroy$)).subscribe(() => this.loadStatistics());
   }
 
   /** 视图创建后创建能耗趋势图，并观察页面宽度变化。 */
@@ -104,20 +108,27 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
     this.selectedAssetId = rootAssetId;
     this.selectedAssetName = root?.name || '全部资产';
     this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, rootAssetId);
-    this.expandedAssetIds = new Set(getSmartLightningDefaultExpandedAssetIds(this.assetTree));
+    if (!rootAssetId) {
+      for (const device of this.liveSnapshot?.contexts || []) { this.selectedAssetIds.add(device.deviceId); }
+    }
+    this.expandedAssetIds = new Set(getEnergyDefaultExpandedAssetIds(this.assetTree));
     this.resetDevicePage();
+    this.refreshDevices();
+    this.loadStatistics();
   }
 
   /** 选择任一资产节点后，汇总该资产及其全部下属楼层设备。 */
-  selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
+  selectAssetNode(node: EnergyAssetNode): void {
     this.selectedAssetId = node.id;
     this.selectedAssetName = node.name;
-    this.selectedAssetIds = new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
+    this.selectedAssetIds = new Set(getEnergyDescendantIds(this.assetTree.nodes, node.id));
     this.resetDevicePage();
+    this.refreshDevices();
+    this.loadStatistics();
   }
 
   /** 切换资产节点展开状态时创建新集合，触发共享树组件变更检测。 */
-  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
+  toggleAssetNode(node: EnergyAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) {
       this.expandedAssetIds.delete(node.id);
     } else {
@@ -163,9 +174,13 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
     }
   }
 
-  /** 根据已选资产子树汇总样例设备在线和告警状态。 */
+  /** 根据已选资产子树汇总真实设备在线和告警状态。 */
   get assetSummary() {
-    return buildEnergyMonitoringAssetSummary(this.scopedDevices);
+    const summary = buildEnergyMonitoringAssetSummary(this.scopedDevices);
+    const ids = new Set(this.scopedDevices.map((device) => device.id));
+    const alarms = (this.liveSnapshot?.alarms || []).filter((alarm) => ids.has(alarm.originator.id));
+    return {...summary, alarmTotal: alarms.length, unprocessedAlarms: alarms.filter((alarm) => !alarm.cleared).length,
+      processedAlarms: alarms.filter((alarm) => alarm.cleared).length};
   }
 
   /** 获取当前资产树范围内的设备，不受分类和搜索影响。 */
@@ -227,17 +242,65 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.live.release();
+    this.statsRequest$.complete();
     this.resizeObserver?.disconnect();
     this.trendChart?.dispose();
   }
 
-  /** 用真实权限树建立资产选择范围，并让本地设备样例落在实际末级资产下。 */
+  /** 用真实权限树建立选择范围，设备使用后端真实实体ID。 */
   private initializeAssetScope(roots: EnergyRegulationAssetTreeNode[]): void {
+    const initial = this.assetsLoading;
+    const expanded = this.expandedAssetIds;
+    const page = this.page;
     this.assetTree = buildEnergyMonitoringAssetTree(roots);
-    this.devices = buildEnergyMonitoringDevices(this.assetTree);
-    this.expandedAssetIds = new Set(getSmartLightningDefaultExpandedAssetIds(this.assetTree));
+    this.refreshDevices();
+    this.expandedAssetIds = new Set(getEnergyDefaultExpandedAssetIds(this.assetTree));
     this.assetsLoading = false;
-    this.selectRootAsset('');
+    if (this.selectedAssetId && this.assetTree.nodes.has(this.selectedAssetId)) {
+      this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedAssetId);
+      this.loadStatistics();
+    } else { this.selectRootAsset(this.selectedRootAssetId); }
+    if (!initial) {
+      this.expandedAssetIds = new Set([...expanded].filter((id) => this.assetTree.nodes.has(id)));
+      this.page = Math.min(page, this.pageCount);
+    }
+  }
+
+  /** 在线状态和告警状态独立计算；累计读数只消费规范键。 */
+  private refreshDevices(): void {
+    const contexts = this.liveSnapshot?.contexts || [];
+    const alarms = new Set((this.liveSnapshot?.alarms || []).filter((alarm) => !alarm.cleared).map((alarm) => alarm.originator.id));
+    this.devices = buildEnergyMonitoringDevices(this.assetTree, contexts, (id) => this.live.latest(id), alarms);
+    const scope = this.scopedDevices;
+    for (const period of this.periods) {
+      const quality = this.ENERGY_MONITORING_QUALITY[period.key];
+      quality.pointCount = scope.filter((device) => device.voltage !== null).length;
+      const ids = new Set(scope.map((device) => device.id));
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      if (period.key === 'week') { start.setDate(start.getDate() - (start.getDay() + 6) % 7); }
+      if (period.key === 'month') { start.setDate(1); }
+      quality.abnormalCount = (this.liveSnapshot?.alarms || []).filter((alarm) => ids.has(alarm.originator.id) && alarm.createdTime >= start.getTime()).length;
+    }
+  }
+
+  /** 周期用电和趋势复用能源后端；无额定负载/质量规则的指标保持未知。 */
+  private loadStatistics(): void {
+    this.statsRequest$.next();
+    this.statisticsLoadError = false;
+    forkJoin({energy: this.energyRegulationApiService.getEnergyConsumption(this.selectedAssetId),
+      power: this.energyRegulationApiService.getPowerTrend(this.selectedAssetId)})
+      .pipe(takeUntil(this.statsRequest$), takeUntil(this.destroy$)).subscribe({next: ({energy, power}) => {
+        this.consumption = energy;
+        for (const period of this.periods) {
+          this.ENERGY_MONITORING_KPIS[period.key].totalEnergyKwh = energy.energyConsumptionByPeriod[period.key].valueKwh;
+          this.ENERGY_MONITORING_KPIS[period.key].peakPowerKw = power.periodPeaks[period.key];
+        }
+        this.renderTrend();
+      }, error: () => { this.statisticsLoadError = true; this.consumption = null;
+        for (const period of this.periods) {this.ENERGY_MONITORING_KPIS[period.key].totalEnergyKwh = null; this.ENERGY_MONITORING_KPIS[period.key].peakPowerKw = null;}
+        this.renderTrend();
+      }});
   }
 
   /** 设备列表筛选变更后回到第一页，供模板搜索输入事件调用。 */
@@ -250,9 +313,10 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
     if (!this.trendChart || this.trendChart.isDisposed()) {
       return;
     }
-    const trend = ENERGY_MONITORING_TRENDS[this.trendPeriod];
+    const trend = this.consumption?.energySeries[this.trendPeriod] || {labels: [], values: []};
     const option: EChartsOption = {
       animationDuration: 220,
+      graphic: trend.values.some((value) => value !== null) ? [] : [{type: 'text', left: 'center', top: 'middle', style: {text: '__', fill: '#71869a'}}],
       grid: {left: 42, right: 16, top: 20, bottom: 34},
       tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => `${value} kWh`},
       xAxis: {type: 'category', data: trend.labels, boundaryGap: false, axisTick: {show: false},

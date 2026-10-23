@@ -1,17 +1,16 @@
-/** 文件职责：集中定义用能监测页面的树、指标、设备样例及筛选计算。 */
-import type {EnergyRegulationAssetTreeNode} from '../energy-regulation-api.service';
-import {
-  getSmartLightningMonitoringSelectedAssetIds,
-  SmartLightningMonitoringAssetNode,
-  SmartLightningMonitoringAssetTree
-} from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
+/** 文件职责：集中定义用能监测页面的树、真实指标与设备筛选计算。 */
+import type {EnergyRegulationDeviceContext, EnergyRegulationAssetTreeNode} from '../energy-regulation-api.service';
 import {EntityType} from '@shared/models/entity-type.models';
+
+/** 共享树控件的通用结构在能源模块独立声明，业务遍历不依赖防雷数据函数。 */
+export interface EnergyAssetNode {id: string; name: string; entityType: EntityType.ASSET | EntityType.DEVICE; childIds: string[];}
+export interface EnergyAssetTree {roots: EnergyAssetNode[]; nodes: Map<string, EnergyAssetNode>;}
 
 /** 监测页面独立维护周期状态，切换一个区域不影响其他区域。 */
 export type EnergyMonitoringPeriod = 'day' | 'week' | 'month';
 export type EnergyMonitoringCategory = 'all' | 'meter' | 'power' | 'analysis' | 'carbon';
 
-/** 设备总览使用的演示设备字段，仅用于前端展示和筛选。 */
+/** 设备总览的真实遥测字段，缺少有效采样时为空。 */
 export interface EnergyMonitoringDevice {
   id: string;
   name: string;
@@ -20,11 +19,12 @@ export interface EnergyMonitoringDevice {
   productName: string;
   assetId: string;
   status: '正常' | '告警' | '离线';
-  totalEnergyKwh: number;
-  activePowerKw: number;
-  voltage: number;
-  current: number;
-  powerFactor: number;
+  online?: boolean;
+  totalEnergyKwh: number | null;
+  activePowerKw: number | null;
+  voltage: number | null;
+  current: number | null;
+  powerFactor: number | null;
   updatedAt: string;
 }
 
@@ -43,15 +43,15 @@ export interface EnergyMonitoringTrend {
   values: number[];
 }
 
-/** 每周期的总用电、峰值负荷和平均负载样例。 */
+/** 每周期的用电与功率指标结构。 */
 export interface EnergyMonitoringKpis {
-  totalEnergyKwh: number;
+  totalEnergyKwh: number | null;
   peakPowerKw: number;
   averageLoadPercent: number;
 }
 
 /** 左侧资产选择、汇总卡和设备列表共同使用的能源资产树。 */
-export interface EnergyMonitoringAssetTree extends SmartLightningMonitoringAssetTree {
+export interface EnergyMonitoringAssetTree extends EnergyAssetTree {
   flatNodes: EnergyMonitoringTreeNode[];
 }
 
@@ -71,54 +71,32 @@ export const ENERGY_MONITORING_CATEGORIES: ReadonlyArray<{key: EnergyMonitoringC
   {key: 'carbon', label: '碳排放计算'}
 ];
 
-/** 监测指标样例；每个周期独立读取，不与趋势周期联动。 */
-export const ENERGY_MONITORING_KPIS: Record<EnergyMonitoringPeriod, EnergyMonitoringKpis> = {
-  day: {totalEnergyKwh: 16619, peakPowerKw: 861, averageLoadPercent: 89},
-  week: {totalEnergyKwh: 112384, peakPowerKw: 912, averageLoadPercent: 83},
-  month: {totalEnergyKwh: 486271, peakPowerKw: 948, averageLoadPercent: 81}
-};
-
-/** 电能质量样例按周期展示监测点数、异常次数、合格率和频率偏差。 */
-export const ENERGY_MONITORING_QUALITY: Record<EnergyMonitoringPeriod, {
-  pointCount: number; abnormalCount: number; voltagePassPercent: number; frequencyDeviationHz: number;
-}> = {
-  day: {pointCount: 25, abnormalCount: 2, voltagePassPercent: 98, frequencyDeviationHz: 0.19},
-  week: {pointCount: 25, abnormalCount: 7, voltagePassPercent: 97, frequencyDeviationHz: 0.23},
-  month: {pointCount: 25, abnormalCount: 18, voltagePassPercent: 96, frequencyDeviationHz: 0.27}
-};
-
-/** 能耗趋势图使用的日、周、月样例序列。 */
-export const ENERGY_MONITORING_TRENDS: Record<EnergyMonitoringPeriod, EnergyMonitoringTrend> = {
-  day: {
-    labels: Array.from({length: 24}, (_, hour) => `${String(hour).padStart(2, '0')}:00`),
-    values: [142, 139, 118, 91, 82, 96, 126, 137, 135, 132, 54, 121, 48, 128, 137, 133, 97, 58, 116, 134, 140, 127, 103, 84]
-  },
-  week: {
-    labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-    values: [15820, 16619, 16247, 17180, 16934, 14320, 13264]
-  },
-  month: {
-    labels: ['第1周', '第2周', '第3周', '第4周'],
-    values: [108340, 116284, 123920, 137727]
-  }
-};
+/** 缺少额定负载和电压判定标准时保持未知，不填充演示指标。 */
+export const ENERGY_MONITORING_KPIS = Object.fromEntries(['day', 'week', 'month'].map((key) => [key,
+  {totalEnergyKwh: null as number | null, peakPowerKw: null as number | null, averageLoadPercent: null as number | null}])) as
+  Record<EnergyMonitoringPeriod, {totalEnergyKwh: number | null; peakPowerKw: number | null; averageLoadPercent: number | null}>;
+export const ENERGY_MONITORING_QUALITY = Object.fromEntries(['day', 'week', 'month'].map((key) => [key,
+  {pointCount: null as number | null, abnormalCount: null as number | null, voltagePassPercent: null as number | null, frequencyDeviationHz: null as number | null}])) as
+  Record<EnergyMonitoringPeriod, {pointCount: number | null; abnormalCount: number | null; voltagePassPercent: number | null; frequencyDeviationHz: number | null}>;
+export const ENERGY_MONITORING_TRENDS = Object.fromEntries(['day', 'week', 'month'].map((key) => [key,
+  {labels: [] as string[], values: [] as Array<number | null>}])) as Record<EnergyMonitoringPeriod, {labels: string[]; values: Array<number | null>}>;
 
 /** 将后端按用户权限返回的嵌套真实关系树转换为共享树组件使用的索引结构。 */
 export function buildEnergyMonitoringAssetTree(roots: EnergyRegulationAssetTreeNode[]): EnergyMonitoringAssetTree {
-  const nodes = new Map<string, SmartLightningMonitoringAssetNode>();
+  const nodes = new Map<string, EnergyAssetNode>();
   const flatNodes: EnergyMonitoringTreeNode[] = [];
-  const treeRoots: SmartLightningMonitoringAssetNode[] = [];
+  const treeRoots: EnergyAssetNode[] = [];
 
   const visit = (
     source: EnergyRegulationAssetTreeNode,
     parentId: string | null,
     depth: number,
     ancestorIds: ReadonlySet<string>
-  ): SmartLightningMonitoringAssetNode | undefined => {
+  ): EnergyAssetNode | undefined => {
     if (ancestorIds.has(source.id) || nodes.has(source.id)) {
       return undefined;
     }
-    const node: SmartLightningMonitoringAssetNode = {
+    const node: EnergyAssetNode = {
       id: source.id,
       name: source.name,
       entityType: source.entityType === EntityType.DEVICE ? EntityType.DEVICE : EntityType.ASSET,
@@ -147,35 +125,41 @@ export function buildEnergyMonitoringAssetTree(roots: EnergyRegulationAssetTreeN
   return {roots: treeRoots, nodes, flatNodes};
 }
 
-/** 生成供筛选器、设备卡和资产统计共用的能源设备列表。 */
-export function buildEnergyMonitoringDevices(tree: EnergyMonitoringAssetTree): EnergyMonitoringDevice[] {
-  const leafAssets = tree.flatNodes.filter((node) => node.entityType === EntityType.ASSET &&
-    !tree.nodes.get(node.id)?.childIds.some((childId) => tree.nodes.get(childId)?.entityType === EntityType.ASSET));
-  if (leafAssets.length === 0) {
-    return [];
-  }
-  const templates = [
-    {name: '1号低压进线表', category: 'meter', categoryLabel: '电能计量', productName: 'ESA智能电表', status: '正常', totalEnergyKwh: 16619, activePowerKw: 861, voltage: 231.4, current: 82.6, powerFactor: 0.96},
-    {name: '2号低压进线表', category: 'meter', categoryLabel: '电能计量', productName: 'ESA智能电表', status: '正常', totalEnergyKwh: 14328, activePowerKw: 724, voltage: 229.8, current: 76.3, powerFactor: 0.94},
-    {name: '空调主机回路', category: 'power', categoryLabel: '功率监测', productName: 'ESE电能质量监测器', status: '告警', totalEnergyKwh: 8264, activePowerKw: 418, voltage: 225.2, current: 58.1, powerFactor: 0.89},
-    {name: '动力设备回路', category: 'power', categoryLabel: '功率监测', productName: 'ESB三相不平衡监测器', status: '正常', totalEnergyKwh: 7126, activePowerKw: 356, voltage: 231.1, current: 49.4, powerFactor: 0.93},
-    {name: '照明用能分析', category: 'analysis', categoryLabel: '能耗分析', productName: 'E1E2电能质量检测器', status: '正常', totalEnergyKwh: 4632, activePowerKw: 215, voltage: 233.6, current: 31.2, powerFactor: 0.98},
-    {name: '生产线用能分析', category: 'analysis', categoryLabel: '能耗分析', productName: 'E1E2电能质量检测器', status: '离线', totalEnergyKwh: 9531, activePowerKw: 0, voltage: 0, current: 0, powerFactor: 0},
-    {name: '园区碳排核算点', category: 'carbon', categoryLabel: '碳排放计算', productName: '能源分析终端', status: '正常', totalEnergyKwh: 5842, activePowerKw: 282, voltage: 230.2, current: 41.8, powerFactor: 0.95},
-    {name: '配电房环境监测', category: 'carbon', categoryLabel: '碳排放计算', productName: '能源分析终端', status: '正常', totalEnergyKwh: 3891, activePowerKw: 174, voltage: 228.7, current: 27.4, powerFactor: 0.92}
-  ] as const;
-
-  return templates.map((template, index) => {
-    const asset = leafAssets[index % leafAssets.length];
-    return {
-      ...template,
-      id: `energy-device-${index + 1}`,
-      name: template.name,
-      category: template.category,
-      assetId: asset.id,
-      updatedAt: `2026-10-10 ${String(14 + index % 8).padStart(2, '0')}:${String(8 + index * 7 % 52).padStart(2, '0')}:20`
+/** 将模块真实设备上下文与最新遥测映射为卡片；所有业务量使用规范键，不进行换算。 */
+export function buildEnergyMonitoringDevices(tree: EnergyMonitoringAssetTree,
+  contexts: readonly EnergyRegulationDeviceContext[] = [],
+  latest: (id: string) => ReadonlyMap<string, {ts: number; value: string}> = () => new Map(),
+  alarmed: ReadonlySet<string> = new Set()): EnergyMonitoringDevice[] {
+  return contexts.map((context) => {
+    const values = latest(context.deviceId);
+    const number = (key: string) => {
+      const raw = values.get(key)?.value;
+      return raw !== undefined && String(raw).trim() !== '' && Number.isFinite(Number(raw)) ? Number(raw) : null;
     };
+    const active = values.get('active')?.value;
+    const online = active === undefined ? context.active === true : ['true', '1'].includes(String(active).toLowerCase());
+    const timestamp = Math.max(context.lastActivityTime || 0, ...Array.from(values.values(), (sample) => sample.ts));
+    return {id: context.deviceId, name: context.deviceName, category: 'meter' as const,
+      categoryLabel: '电能计量', productName: context.productName || '__', assetId: context.deviceId,
+      online, status: alarmed.has(context.deviceId) ? '告警' as const : online ? '正常' as const : '离线' as const,
+      totalEnergyKwh: number('FwdActET'), activePowerKw: number('ActPwrTot'), voltage: number('PhAVolt'),
+      current: number('PhACurr'), powerFactor: number('PwrFactT'), updatedAt: timestamp ? new Date(timestamp).toLocaleString() : '__'};
   });
+}
+
+/** 默认只展开根节点及其第一层资产，保持共享树的交互习惯。 */
+export function getEnergyDefaultExpandedAssetIds(tree: EnergyMonitoringAssetTree): Set<string> {
+  return new Set(tree.roots.flatMap((root) => [root.id, ...root.childIds]));
+}
+
+/** 有环或悬空节点时终止遍历，不借用其他业务模块实现。 */
+export function getEnergyDescendantIds(nodes: ReadonlyMap<string, EnergyAssetNode>, id: string): string[] {
+  const result = new Set<string>(); const pending = [id];
+  while (pending.length) {
+    const next = pending.pop()!;
+    if (!result.has(next)) { result.add(next); pending.push(...(nodes.get(next)?.childIds || [])); }
+  }
+  return [...result];
 }
 
 /** 按当前资产节点获取其自身和全部后代节点 ID。 */
@@ -183,17 +167,17 @@ export function getEnergyMonitoringSelectedAssetIds(tree: EnergyMonitoringAssetT
   if (!assetId) {
     const allIds = new Set<string>();
     for (const root of tree.roots) {
-      getSmartLightningMonitoringSelectedAssetIds(tree.nodes, root.id).forEach((id) => allIds.add(id));
+      getEnergyDescendantIds(tree.nodes, root.id).forEach((id) => allIds.add(id));
     }
     return allIds;
   }
-  return new Set(getSmartLightningMonitoringSelectedAssetIds(tree.nodes, assetId));
+  return new Set(getEnergyDescendantIds(tree.nodes, assetId));
 }
 
 /** 汇总所选资产范围内的设备状态和告警处理数量。 */
 export function buildEnergyMonitoringAssetSummary(devices: EnergyMonitoringDevice[]) {
   const total = devices.length;
-  const online = devices.filter((device) => device.status !== '离线').length;
+  const online = devices.filter((device) => device.online ?? device.status !== '离线').length;
   const alarming = devices.filter((device) => device.status === '告警').length;
   const offline = total - online;
   return {
@@ -202,10 +186,10 @@ export function buildEnergyMonitoringAssetSummary(devices: EnergyMonitoringDevic
     online,
     alarming,
     offline,
-    alarmTotal: alarming + 1,
-    unprocessedAlarms: alarming,
-    dispatchedAlarms: Math.max(0, alarming - 1),
-    processedAlarms: 1
+    alarmTotal: null as number | null,
+    unprocessedAlarms: null as number | null,
+    dispatchedAlarms: null as number | null,
+    processedAlarms: null as number | null
   };
 }
 
@@ -218,7 +202,7 @@ export function filterEnergyMonitoringDevices(
 ): EnergyMonitoringDevice[] {
   const normalizedKeyword = keyword.trim().toLocaleLowerCase();
   return devices.filter((device) => {
-    const inScope = selectedAssetIds.size === 0 || selectedAssetIds.has(device.assetId);
+    const inScope = selectedAssetIds.has(device.assetId);
     const inCategory = category === 'all' || device.category === category;
     const matchesKeyword = !normalizedKeyword ||
       device.name.toLocaleLowerCase().includes(normalizedKeyword) ||
