@@ -25,7 +25,6 @@ import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.common.data.menu.CMScope;
 import org.thingsboard.server.common.data.menu.CustomMenu;
 import org.thingsboard.server.common.data.menu.CustomMenuInfo;
 import org.thingsboard.server.common.data.page.PageData;
@@ -38,9 +37,9 @@ import java.util.List;
 /**
  * 租户自己的自定义菜单。
  *
- * <p>PE 用 CustomMenuFilter(tenantId, customerId, scope, assigneeType) 过滤；CE 的菜单端口
- * 没有 CUSTOMER scope（只有 SYSTEM/TENANT，见 BaseCustomMenuService 的说明），所以这里退化成
- * 按 scope 取。列表接口只返回 Info，实际配置要再按 id 查一次。
+ * <p>跟 PE 一样按 edge 的所有者 (tenantId, edge.customerId) 取该所有者的全部菜单，不限 scope：
+ * 客户自有的 edge 要拿客户自己的 CUSTOMER 范围菜单，租户的 edge 要拿租户的 TENANT/CUSTOMER 菜单。
+ * 列表接口只返回 Info，实际配置要再按 id 查一次。
  */
 @AllArgsConstructor
 @Slf4j
@@ -55,7 +54,7 @@ public class CustomMenuEdgeEventFetcher implements EdgeEventFetcher {
 
     @Override
     public PageData<EdgeEvent> fetchEdgeEvents(TenantId tenantId, Edge edge, PageLink pageLink) {
-        PageData<CustomMenuInfo> infos = customMenuService.findCustomMenuInfos(tenantId, CMScope.TENANT, pageLink);
+        PageData<CustomMenuInfo> infos = customMenuService.findCustomMenuInfos(tenantId, edge.getCustomerId(), null, pageLink);
         List<EdgeEvent> events = new ArrayList<>();
         for (CustomMenuInfo cm : infos.getData()) {
             CustomMenu customMenu = customMenuService.findCustomMenuById(cm.getTenantId(), new CustomMenuId(cm.getUuidId()));

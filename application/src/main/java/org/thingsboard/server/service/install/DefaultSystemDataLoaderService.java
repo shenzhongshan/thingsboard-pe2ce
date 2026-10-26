@@ -99,6 +99,7 @@ import org.thingsboard.server.common.data.tenant.profile.TenantProfileQueueConfi
 import org.thingsboard.server.dao.attributes.AttributesService;
 import org.thingsboard.server.dao.cf.CalculatedFieldService;
 import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.menu.CustomMenuService;
 import org.thingsboard.server.dao.device.DeviceConnectivityConfiguration;
 import org.thingsboard.server.dao.device.DeviceCredentialsService;
 import org.thingsboard.server.dao.device.DeviceProfileService;
@@ -160,6 +161,7 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
     private final NotificationSettingsService notificationSettingsService;
     private final NotificationTargetService notificationTargetService;
     private final CalculatedFieldService calculatedFieldService;
+    private final CustomMenuService customMenuService;
 
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
@@ -734,6 +736,12 @@ public class DefaultSystemDataLoaderService implements SystemDataLoaderService {
             sequentialByOriginatorQueue.setProcessingStrategy(sequentialByOriginatorQueueProcessingStrategy);
             queueService.saveQueue(sequentialByOriginatorQueue);
         }
+    }
+
+    @Override
+    public void createDefaultCustomMenus() {
+        log.info("Creating default custom menus");
+        customMenuService.createDefaultCustomMenus();
     }
 
     @Override

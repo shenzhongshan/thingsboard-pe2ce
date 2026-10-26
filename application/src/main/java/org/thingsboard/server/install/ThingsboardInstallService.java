@@ -122,6 +122,9 @@ public class ThingsboardInstallService {
                     log.info("Updating system data...");
                     dataUpdateService.upgradeRuleNodes();
                     systemDataLoaderService.loadSystemWidgets();
+                    // 新增的 CUSTOMER 范围默认菜单：老库升级时必须补上，否则客户用户的
+                    // 解析链最后一级是空的。幂等。
+                    systemDataLoaderService.createDefaultCustomMenus();
                     installScripts.loadSystemLwm2mResources();
                     installScripts.loadSystemImagesAndResources();
                     installScripts.updateMailTemplates();
@@ -165,6 +168,7 @@ public class ThingsboardInstallService {
                 systemDataLoaderService.createOAuth2Templates();
                 systemDataLoaderService.createQueues();
                 systemDataLoaderService.createDefaultNotificationConfigs();
+                systemDataLoaderService.createDefaultCustomMenus();
 
 //                systemDataLoaderService.loadSystemPlugins();
 //                systemDataLoaderService.loadSystemRules();

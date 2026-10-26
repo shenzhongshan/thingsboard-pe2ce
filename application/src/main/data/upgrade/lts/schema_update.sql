@@ -140,3 +140,12 @@ $$
         END IF;
     END;
 $$;
+
+-- 自定义菜单的所有者由 (tenant_id, customer_id) 构成：CUSTOMER 范围的菜单归某个客户所有，
+-- 系统/租户范围的菜单用 NULL_UUID 哨兵（相等匹配，不能用 SQL NULL）。
+-- 与 dao/schema-entities.sql、upgrade/basic 刻意重复 —— 三条路径都要落地。
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS customer_id UUID NOT NULL DEFAULT '13814000-1dd2-11b2-8080-808080808080';
+
+-- USER_GROUPS 分配类型：按用户组名称匹配（而非 id），因为同名组在每个客户下都会重建。
+-- 与 dao/schema-entities.sql、upgrade/basic 刻意重复 —— 三条路径都要落地。
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS user_group_names TEXT[];

@@ -16,11 +16,13 @@
 package org.thingsboard.server.common.data.menu;
 
 /**
- * Which authority a custom menu applies to. CE port drops PE's CUSTOMER scope
- * (customer-level white labeling/menu configuration is out of scope for this port);
- * customer users resolve their effective menu through the TENANT scope chain instead.
+ * Which class of user a custom menu applies to. Each scope corresponds 1:1 to an
+ * {@link org.thingsboard.server.common.data.security.Authority}: SYSTEM -> SYS_ADMIN,
+ * TENANT -> TENANT_ADMIN, CUSTOMER -> CUSTOMER_USER. The scope decides which built-in menu
+ * the configuration is an override of, so it is immutable once the menu is created.
  */
 public enum CMScope {
     SYSTEM,
-    TENANT
+    TENANT,
+    CUSTOMER
 }

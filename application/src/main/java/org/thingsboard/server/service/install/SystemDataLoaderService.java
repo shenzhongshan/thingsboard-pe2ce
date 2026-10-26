@@ -37,6 +37,9 @@ public interface SystemDataLoaderService {
 
     void createDefaultNotificationConfigs();
 
+    /** Seeds the per-scope (SYSTEM/TENANT/CUSTOMER) system default custom menus. Idempotent. */
+    void createDefaultCustomMenus();
+
     void updateDefaultNotificationConfigs(boolean updateTenants);
 
 }

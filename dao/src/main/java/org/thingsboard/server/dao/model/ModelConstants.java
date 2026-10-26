@@ -639,9 +639,11 @@ public class ModelConstants {
     public static final String CUSTOM_MENU_ID_PROPERTY = "custom_menu_id";
     public static final String CUSTOM_MENU_TABLE_NAME = "custom_menu";
     public static final String CUSTOM_MENU_TENANT_ID_PROPERTY = TENANT_ID_PROPERTY;
+    public static final String CUSTOM_MENU_CUSTOMER_ID_PROPERTY = CUSTOMER_ID_PROPERTY;
     public static final String CUSTOM_MENU_NAME_PROPERTY = "name";
     public static final String CUSTOM_MENU_SCOPE_PROPERTY = "scope";
     public static final String CUSTOM_MENU_ASSIGNEE_TYPE_PROPERTY = "assignee_type";
+    public static final String CUSTOM_MENU_USER_GROUP_NAMES_PROPERTY = "user_group_names";
     public static final String CUSTOM_MENU_CONFIG_PROPERTY = "config";
 
     /**

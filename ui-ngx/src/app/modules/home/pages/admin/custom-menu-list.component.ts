@@ -27,10 +27,12 @@ import { DialogService } from '@core/services/dialog.service';
 import { PageLink } from '@shared/models/page/page-link';
 import { Direction, SortOrder } from '@shared/models/page/sort-order';
 import {
-  cmAssigneeTypeTranslations,
+  cmAssigneeTypeTranslation,
   cmScopeTranslations,
   CustomMenuInfo
 } from '@shared/models/custom-menu.models';
+import { getCurrentAuthState } from '@core/auth/auth.selectors';
+import { Authority } from '@shared/models/authority.enum';
 import {
   CustomMenuInfoDialogComponent,
   CustomMenuInfoDialogData
@@ -47,7 +49,23 @@ export class CustomMenuListComponent extends PageComponent implements OnInit {
   menus: CustomMenuInfo[] = [];
 
   cmScopeTranslations = cmScopeTranslations;
-  cmAssigneeTypeTranslations = cmAssigneeTypeTranslations;
+  cmAssigneeTypeTranslation = cmAssigneeTypeTranslation;
+
+  private readonly authority = getCurrentAuthState(this.store).authUser.authority;
+
+  /**
+   * The system administrator manages exactly the three seeded per-scope defaults: adding,
+   * renaming, assigning and deleting are all meaningless there (and the backend refuses to delete
+   * them), so only the "edit items" action is offered. Follows PE's table config.
+   */
+  manageEnabled = this.authority !== Authority.SYS_ADMIN;
+
+  // A customer only ever owns CUSTOMER scope menus, so the scope column carries no information;
+  // the system administrator's menus are never assigned to anyone, so that column is dropped too.
+  columns: string[] = ['createdTime', 'name',
+    ...(this.authority === Authority.CUSTOMER_USER ? [] : ['scope']),
+    ...(this.authority === Authority.SYS_ADMIN ? [] : ['assigneeType']),
+    'actions'];
 
   constructor(protected store: Store<AppState>,
               private customMenuService: CustomMenuService,

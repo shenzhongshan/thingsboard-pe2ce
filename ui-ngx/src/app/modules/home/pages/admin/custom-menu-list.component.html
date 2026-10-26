@@ -22,10 +22,12 @@
         <span class="mat-headline-5" translate>custom-menu.custom-menu</span>
       </mat-card-title>
       <span class="flex-1"></span>
-      <button mat-icon-button type="button" (click)="addMenu()"
-              matTooltip="{{ 'custom-menu.add-menu' | translate }}" matTooltipPosition="above">
-        <mat-icon>add</mat-icon>
-      </button>
+      @if (manageEnabled) {
+        <button mat-icon-button type="button" (click)="addMenu()"
+                matTooltip="{{ 'custom-menu.add-menu' | translate }}" matTooltipPosition="above">
+          <mat-icon>add</mat-icon>
+        </button>
+      }
       <button mat-icon-button type="button" (click)="reload()"
               matTooltip="{{ 'action.refresh' | translate }}" matTooltipPosition="above">
         <mat-icon>refresh</mat-icon>
@@ -53,7 +55,7 @@
         </ng-container>
         <ng-container matColumnDef="assigneeType">
           <th mat-header-cell *matHeaderCellDef style="width: 140px;">{{ 'custom-menu.assignee-type' | translate }}</th>
-          <td mat-cell *matCellDef="let menu">{{ cmAssigneeTypeTranslations.get(menu.assigneeType) | translate }}</td>
+          <td mat-cell *matCellDef="let menu">{{ cmAssigneeTypeTranslation(menu.assigneeType, menu.scope) | translate }}</td>
         </ng-container>
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef style="width: 140px;"></th>
@@ -63,20 +65,22 @@
                       matTooltip="{{ 'custom-menu.edit-menu-items' | translate }}" matTooltipPosition="above">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button type="button" (click)="editMenuInfo($event, menu)"
-                      matTooltip="{{ 'custom-menu.edit-menu-info' | translate }}" matTooltipPosition="above">
-                <mat-icon>settings</mat-icon>
-              </button>
-              <button mat-icon-button type="button" (click)="deleteMenu($event, menu)"
-                      matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
-                <mat-icon>delete</mat-icon>
-              </button>
+              @if (manageEnabled) {
+                <button mat-icon-button type="button" (click)="editMenuInfo($event, menu)"
+                        matTooltip="{{ 'custom-menu.edit-menu-info' | translate }}" matTooltipPosition="above">
+                  <mat-icon>settings</mat-icon>
+                </button>
+                <button mat-icon-button type="button" (click)="deleteMenu($event, menu)"
+                        matTooltip="{{ 'action.delete' | translate }}" matTooltipPosition="above">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              }
             </div>
           </td>
         </ng-container>
-        <tr mat-header-row *matHeaderRowDef="['createdTime', 'name', 'scope', 'assigneeType', 'actions']"></tr>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
         <tr mat-row class="tb-cm-table-row"
-            *matRowDef="let menu; columns: ['createdTime', 'name', 'scope', 'assigneeType', 'actions'];"
+            *matRowDef="let menu; columns: columns;"
             (click)="openMenuEditor($event, menu)"></tr>
       </table>
       @if (!menus.length) {

@@ -32,7 +32,6 @@ import {
   MenuItem,
   MenuItemType
 } from '@shared/models/custom-menu.models';
-import { Authority } from '@shared/models/authority.enum';
 
 @Injectable({
   providedIn: 'root'
@@ -75,10 +74,7 @@ export class MenuService {
           this.customMenuService.getCustomMenu({ ignoreErrors: true, ignoreLoading: true }).subscribe({
             next: (customMenu) => {
               if (customMenu?.items?.length) {
-                // 客户菜单是面向客户的完整导航清单；未保存的系统入口不能在登录后自动出现。
-                const appendUnconfiguredBuiltIns = authState.authUser.authority !== Authority.CUSTOMER_USER;
-                this.currentMenuSections = this.overlaySections(
-                  buildUserMenu(authState), customMenu.items, appendUnconfiguredBuiltIns);
+                this.currentMenuSections = this.overlaySections(buildUserMenu(authState), customMenu.items);
                 this.publishMenu(authState);
               }
             },
@@ -102,7 +98,17 @@ export class MenuService {
     this.homeSections$.next(homeSections);
   }
 
-  private overlaySections(base: Array<MenuSection>, items: MenuItem[], appendUnconfiguredBuiltIns = true): Array<MenuSection> {
+  /**
+   * Render exactly what the saved configuration lists, in its order.
+   *
+   * A configured menu is an exhaustive list, not a patch: the server has already stripped the
+   * entries the administrator hid, so "hidden" and "not mentioned" arrive here as the same thing
+   * and there is no way to back-fill the second without resurrecting the first. Built-in entries
+   * added to the platform after a configuration was saved therefore stay out of the navigation
+   * until an administrator enables them — the custom menu editor lists them as hidden rows for
+   * exactly that purpose.
+   */
+  private overlaySections(base: Array<MenuSection>, items: MenuItem[]): Array<MenuSection> {
     const remaining = [...base];
     const result: Array<MenuSection> = [];
     let customIdx = 0;
@@ -126,31 +132,11 @@ export class MenuService {
             section.customTranslate = true;
           }
           if (def.pages?.length && section.pages?.length) {
-            section.pages = this.overlaySections(section.pages, def.pages, appendUnconfiguredBuiltIns);
+            section.pages = this.overlaySections(section.pages, def.pages);
           }
           result.push(section);
         }
       }
-    }
-    // 管理员菜单保留对新版系统功能的兼容回填；客户菜单则严格以保存的配置为准。
-    if (!appendUnconfiguredBuiltIns) {
-      return result;
-    }
-
-    // Built-in entries not mentioned in the config (e.g. platform features added AFTER the
-    // config was saved) are inserted at their natural default-menu position — right after the
-    // nearest preceding base sibling already in the result — instead of being dumped at the end.
-    for (const missing of remaining) {
-      const baseIdx = base.indexOf(missing);
-      let insertAt = result.length;
-      for (let i = baseIdx - 1; i >= 0; i--) {
-        const pos = result.findIndex((s) => s.id === base[i].id);
-        if (pos >= 0) {
-          insertAt = pos + 1;
-          break;
-        }
-      }
-      result.splice(insertAt, 0, missing);
     }
     return result;
   }

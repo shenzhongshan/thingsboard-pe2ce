@@ -135,3 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_api_key_tenant_id_user_id ON api_key(tenant_id, u
 
 CREATE INDEX IF NOT EXISTS idx_blob_entity_id ON blob_entity(id);
 CREATE INDEX IF NOT EXISTS idx_blob_entity_created_time ON blob_entity(tenant_id, created_time DESC);
+
+-- 自定义菜单的每次查询都按所有者 (tenant_id, customer_id) 过滤：列表、按 scope 过滤、
+-- 以及按 (scope, assignee_type) 找默认菜单。跟 PE 的 idx_custom_menu 保持一致。
+CREATE INDEX IF NOT EXISTS idx_custom_menu_owner ON custom_menu(tenant_id, customer_id);

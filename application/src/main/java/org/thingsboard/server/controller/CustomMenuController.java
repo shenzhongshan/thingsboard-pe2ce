@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.thingsboard.server.common.data.CustomMenuDeleteResult;
 import org.thingsboard.server.common.data.EntityInfo;
+import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -59,12 +60,15 @@ import static org.thingsboard.server.controller.ControllerConstants.SORT_ORDER_D
 import static org.thingsboard.server.controller.ControllerConstants.SORT_PROPERTY_DESCRIPTION;
 
 /**
- * CE port of the PE Custom Menu feature: multiple named menus per scope (SYSTEM/TENANT), each
- * optionally assigned to everyone (ALL = the scope's default menu), to specific customers, or to
- * specific users. CE simplifications: no CUSTOMER scope, no USER_GROUPS assignee type, no edge
- * sync, no ETag caching. Management endpoints are gated by the WHITE_LABELING permission (same
- * as PE); the effective-menu endpoint {@code GET /api/customMenu} keeps its original contract
- * and is consumed by the UI to build the navigation menu.
+ * Custom Menu feature: multiple named menus per scope (SYSTEM/TENANT/CUSTOMER), each optionally
+ * assigned to everyone (ALL = the scope's default menu), to specific customers, or to specific
+ * users. A menu is owned by the (tenant, customer) pair of the user that created it, so each
+ * actor only ever sees and edits its own: the system administrator manages the three seeded
+ * per-scope defaults, a tenant administrator manages TENANT and CUSTOMER scope menus for its
+ * tenant, and a customer user manages CUSTOMER scope menus for its own customer.
+ *
+ * <p>Management endpoints are gated by the WHITE_LABELING permission; the effective-menu endpoint
+ * {@code GET /api/customMenu} is consumed by the UI to build the navigation menu.
  */
 @RestController
 @TbCoreComponent
@@ -75,32 +79,37 @@ public class CustomMenuController extends BaseController {
     private CustomMenuService customMenuService;
 
     @ApiOperation(value = "Get Custom Menus (getCustomMenuInfos)",
-            notes = "Returns a page of custom menus owned by the current scope: system menus for SYS_ADMIN, tenant menus for TENANT_ADMIN. Requires WHITE_LABELING READ permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+            notes = "Returns a page of the custom menus owned by the current user's scope: system menus for SYS_ADMIN, " +
+                    "the tenant's own menus for TENANT_ADMIN, the customer's own menus for CUSTOMER_USER. " +
+                    "Requires WHITE_LABELING READ permission.")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/customMenu/infos"})
     public PageData<CustomMenuInfo> getCustomMenuInfos(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true)
             @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION, required = true)
             @RequestParam int page,
-            @Parameter(description = "Optional scope filter", schema = @Schema(allowableValues = {"SYSTEM", "TENANT"}))
+            @Parameter(description = "Optional scope filter", schema = @Schema(allowableValues = {"SYSTEM", "TENANT", "CUSTOMER"}))
             @RequestParam(required = false) String scope,
             @Parameter(description = SORT_PROPERTY_DESCRIPTION, schema = @Schema(allowableValues = {"createdTime", "name", "scope", "assigneeType"}))
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.READ);
         CMScope scopeFilter = scope != null ? CMScope.valueOf(scope) : null;
         PageLink pageLink = createPageLink(pageSize, page, null, sortProperty, sortOrder);
-        return customMenuService.findCustomMenuInfos(getCurrentUser().getTenantId(), scopeFilter, pageLink);
+        return customMenuService.findCustomMenuInfos(user.getTenantId(), ownerCustomerId(user), scopeFilter, pageLink);
     }
 
     @ApiOperation(value = "Create Custom Menu (createCustomMenu)",
             notes = "Creates a new custom menu with the given name, scope and assignee type, and an empty item tree. " +
-                    "Only SYS_ADMIN may create SYSTEM scope menus. If assigneeType is ALL and a default menu already " +
-                    "exists for the scope, the request fails unless force=true (which demotes the existing default to NO_ASSIGN). " +
-                    "Optional assignToIds sets the initial assignees for CUSTOMERS/USERS assignee types. Requires WHITE_LABELING WRITE permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+                    "Only SYS_ADMIN may create SYSTEM scope menus and only a tenant administrator may create TENANT " +
+                    "scope ones; a customer user may only create CUSTOMER scope menus for its own customer. " +
+                    "If assigneeType is ALL and a default menu already exists for the scope, the request fails unless " +
+                    "force=true (which demotes the existing default to NO_ASSIGN). Optional assignToIds sets the " +
+                    "initial assignees for CUSTOMERS/USERS assignee types. Requires WHITE_LABELING WRITE permission.")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/customMenu"})
     public CustomMenu createCustomMenu(
             @Parameter(description = "A JSON value representing the custom menu metadata (name, scope, assigneeType)", required = true)
@@ -109,43 +118,51 @@ public class CustomMenuController extends BaseController {
             @RequestParam(required = false) String[] assignToIds,
             @Parameter(description = "Replace the existing default menu of the same scope, if any")
             @RequestParam(required = false, defaultValue = "false") boolean force) throws ThingsboardException {
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
         SecurityUser user = getCurrentUser();
-        if (Authority.TENANT_ADMIN.equals(user.getAuthority())) {
-            customMenuInfo.setScope(CMScope.TENANT);
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.WRITE);
+        if (customMenuInfo.getId() != null) {
+            throw new ThingsboardException("Update is unsupported.", ThingsboardErrorCode.BAD_REQUEST_PARAMS);
+        }
+        if (Authority.CUSTOMER_USER.equals(user.getAuthority())) {
+            // A customer only ever configures the menu its own users see.
+            customMenuInfo.setScope(CMScope.CUSTOMER);
         }
         List<EntityId> assignToList = toAssigneeIds(customMenuInfo.getAssigneeType(), assignToIds);
-        return customMenuService.createCustomMenu(user.getTenantId(), customMenuInfo, assignToList, force);
+        return customMenuService.createCustomMenu(user.getTenantId(), ownerCustomerId(user), customMenuInfo, assignToList, force);
     }
 
     @ApiOperation(value = "Get Custom Menu info (getCustomMenuInfoById)",
             notes = "Returns the metadata (name, scope, assignee type) of the custom menu. Requires WHITE_LABELING READ permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/customMenu/{customMenuId}/info"})
     public CustomMenuInfo getCustomMenuInfoById(
             @Parameter(description = "A string value representing the custom menu id", required = true)
             @PathVariable("customMenuId") String strCustomMenuId) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
-        return customMenuService.findCustomMenuInfoById(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)));
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.READ);
+        return checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), new CustomMenuId(toUUID(strCustomMenuId))));
     }
 
     @ApiOperation(value = "Get Custom Menu configuration (getCustomMenuConfigById)",
             notes = "Returns the item tree of the custom menu, for the drag-and-drop editor. Requires WHITE_LABELING READ permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/customMenu/{customMenuId}/config"})
     public CustomMenuConfig getCustomMenuConfigById(
             @Parameter(description = "A string value representing the custom menu id", required = true)
             @PathVariable("customMenuId") String strCustomMenuId) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
-        CustomMenu menu = customMenuService.findCustomMenuById(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)));
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.READ);
+        CustomMenu menu = checkOwner(user, customMenuService.findCustomMenuById(user.getTenantId(), new CustomMenuId(toUUID(strCustomMenuId))));
         return menu.getConfig() != null ? menu.getConfig() : new CustomMenuConfig();
     }
 
     @ApiOperation(value = "Update Custom Menu configuration (updateCustomMenuConfig)",
-            notes = "Replaces the item tree of the custom menu. Requires WHITE_LABELING WRITE permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+            notes = "Replaces the item tree of the custom menu. An empty item list means \"use the built-in menu of " +
+                    "this scope\", which is also what the editor saves when the configuration is reset to default. " +
+                    "Requires WHITE_LABELING WRITE permission.")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(value = {"/customMenu/{customMenuId}/config"})
     public CustomMenu updateCustomMenuConfig(
             @Parameter(description = "A string value representing the custom menu id", required = true)
@@ -153,13 +170,16 @@ public class CustomMenuController extends BaseController {
             @Parameter(description = "A JSON value representing the custom menu configuration", required = true)
             @RequestBody CustomMenuConfig config) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
-        return customMenuService.updateCustomMenuConfig(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)), config);
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.WRITE);
+        CustomMenuId customMenuId = new CustomMenuId(toUUID(strCustomMenuId));
+        checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), customMenuId));
+        return customMenuService.updateCustomMenuConfig(user.getTenantId(), customMenuId, config);
     }
 
     @ApiOperation(value = "Update Custom Menu name (updateCustomMenuName)",
             notes = "Renames the custom menu. Requires WHITE_LABELING WRITE permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(value = {"/customMenu/{customMenuId}/name"})
     public CustomMenu updateCustomMenuName(
             @Parameter(description = "A string value representing the custom menu id", required = true)
@@ -167,50 +187,64 @@ public class CustomMenuController extends BaseController {
             @Parameter(description = "The new name of the custom menu", required = true)
             @RequestParam String name) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
-        return customMenuService.updateCustomMenuName(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)), name);
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.WRITE);
+        CustomMenuId customMenuId = new CustomMenuId(toUUID(strCustomMenuId));
+        checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), customMenuId));
+        return customMenuService.updateCustomMenuName(user.getTenantId(), customMenuId, name);
     }
 
     @ApiOperation(value = "Assign Custom Menu (updateCustomMenuAssigneeList)",
-            notes = "Changes who the custom menu applies to. Body: array of customer or user ids (required for CUSTOMERS/USERS, " +
-                    "ignored otherwise). Previous assignees are always cleared first. Switching to ALL fails if another default " +
-                    "menu exists for the scope, unless force=true. Requires WHITE_LABELING WRITE permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+            notes = "Changes who the custom menu applies to. Body: for CUSTOMERS/USERS an array of entity ids; for " +
+                    "USER_GROUPS an array of entity-group names (e.g. \"Customer Administrators\", or a tenant/customer " +
+                    "custom group name) — a user is matched if they directly belong to any group on the list, resolved " +
+                    "by name rather than id since the same name is reused across owners. Ignored for NO_ASSIGN/ALL. " +
+                    "Previous assignees are always cleared first. Switching to ALL fails if another default menu exists " +
+                    "for the scope, unless force=true. Requires WHITE_LABELING WRITE permission.")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @PutMapping(value = {"/customMenu/{customMenuId}/assign/{assigneeType}"})
     public void updateCustomMenuAssigneeList(
             @Parameter(description = "A string value representing the custom menu id", required = true)
             @PathVariable("customMenuId") String strCustomMenuId,
-            @Parameter(description = "The new assignee type", required = true, schema = @Schema(allowableValues = {"NO_ASSIGN", "ALL", "CUSTOMERS", "USERS"}))
+            @Parameter(description = "The new assignee type", required = true, schema = @Schema(allowableValues = {"NO_ASSIGN", "ALL", "CUSTOMERS", "USERS", "USER_GROUPS"}))
             @PathVariable("assigneeType") String strAssigneeType,
-            @Parameter(description = "A JSON array of customer or user ids to assign the menu to")
+            @Parameter(description = "Customer/user ids (CUSTOMERS/USERS) or entity-group names (USER_GROUPS) to assign the menu to")
             @RequestBody(required = false) String[] assignToIds,
             @Parameter(description = "Replace the existing default menu of the same scope, if any")
             @RequestParam(required = false, defaultValue = "false") boolean force) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
         checkParameter("assigneeType", strAssigneeType);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.WRITE);
+        CustomMenuId customMenuId = new CustomMenuId(toUUID(strCustomMenuId));
+        checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), customMenuId));
         CMAssigneeType assigneeType = CMAssigneeType.valueOf(strAssigneeType);
         List<EntityId> assignToList = toAssigneeIds(assigneeType, assignToIds);
-        customMenuService.updateAssigneeList(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)), assigneeType, assignToList, force);
+        String[] userGroupNames = assigneeType == CMAssigneeType.USER_GROUPS ? assignToIds : null;
+        customMenuService.updateAssigneeList(user.getTenantId(), customMenuId, assigneeType, assignToList, userGroupNames, force);
     }
 
     @ApiOperation(value = "Get Custom Menu assignees (getCustomMenuAssigneeList)",
             notes = "Returns the customers or users the custom menu is currently assigned to (empty for NO_ASSIGN/ALL). Requires WHITE_LABELING READ permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/customMenu/{customMenuId}/assigneeList"})
     public List<EntityInfo> getCustomMenuAssigneeList(
             @Parameter(description = "A string value representing the custom menu id", required = true)
             @PathVariable("customMenuId") String strCustomMenuId) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.READ);
-        return customMenuService.findCustomMenuAssigneeList(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)));
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.READ);
+        CustomMenuId customMenuId = new CustomMenuId(toUUID(strCustomMenuId));
+        checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), customMenuId));
+        return customMenuService.findCustomMenuAssigneeList(user.getTenantId(), customMenuId);
     }
 
     @ApiOperation(value = "Delete Custom Menu (deleteCustomMenu)",
-            notes = "Deletes the custom menu. If the menu is still assigned to customers or users, the deletion is blocked " +
-                    "(success=false, the assignees are returned) unless force=true, in which case the assignments are cleared " +
-                    "and the menu deleted. Requires WHITE_LABELING WRITE permission.")
-    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN')")
+            notes = "Deletes the custom menu. The three seeded system default menus cannot be deleted. If the menu is " +
+                    "still assigned to customers or users, the deletion is blocked (success=false, the assignees are " +
+                    "returned) unless force=true, in which case the assignments are cleared and the menu deleted. " +
+                    "Requires WHITE_LABELING WRITE permission.")
+    @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @DeleteMapping(value = {"/customMenu/{customMenuId}"})
     public CustomMenuDeleteResult deleteCustomMenu(
             @Parameter(description = "A string value representing the custom menu id", required = true)
@@ -218,23 +252,58 @@ public class CustomMenuController extends BaseController {
             @Parameter(description = "Delete even if the menu is still assigned, clearing the assignments")
             @RequestParam(required = false, defaultValue = "false") boolean force) throws ThingsboardException {
         checkParameter("customMenuId", strCustomMenuId);
-        accessControlService.checkPermission(getCurrentUser(), Resource.WHITE_LABELING, Operation.WRITE);
-        return customMenuService.deleteCustomMenu(getCurrentUser().getTenantId(), new CustomMenuId(toUUID(strCustomMenuId)), force);
+        SecurityUser user = getCurrentUser();
+        accessControlService.checkPermission(user, Resource.WHITE_LABELING, Operation.WRITE);
+        CustomMenuId customMenuId = new CustomMenuId(toUUID(strCustomMenuId));
+        checkOwner(user, customMenuService.findCustomMenuInfoById(user.getTenantId(), customMenuId));
+        return customMenuService.deleteCustomMenu(user.getTenantId(), customMenuId, force);
     }
 
     @ApiOperation(value = "Get effective Custom Menu (getCustomMenu)",
-            notes = "Returns the Custom Menu configuration that applies to the current user, resolved as: the user's own " +
-                    "assigned menu, then (for customer users) their customer's assigned menu, then the tenant default menu, " +
-                    "then the system-provided tenant default, then empty. Consumed by the UI to build the navigation menu.")
+            notes = "Returns the Custom Menu configuration that applies to the current user. Hidden items are stripped. " +
+                    "An empty item list means the built-in menu of the user's authority should be used. Resolution order: " +
+                    "the user's own assigned menu, then (for customer users) the customer hierarchy, then the own " +
+                    "tenant's default menu of the matching scope, then the system-provided default of that scope.")
     @PreAuthorize(value = "hasAnyAuthority('SYS_ADMIN', 'TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/customMenu"})
     public CustomMenuConfig getCustomMenu() throws ThingsboardException {
         SecurityUser user = getCurrentUser();
+        UserId userId = user.getId();
         if (Authority.SYS_ADMIN.equals(user.getAuthority())) {
             return customMenuService.resolveSystemAdminMenu();
         }
-        CustomerId customerId = Authority.CUSTOMER_USER.equals(user.getAuthority()) ? user.getCustomerId() : null;
-        return customMenuService.resolveUserMenu(user.getTenantId(), customerId, user.getId());
+        if (Authority.CUSTOMER_USER.equals(user.getAuthority())) {
+            return customMenuService.resolveCustomerUserMenu(user.getTenantId(), user.getCustomerId(), userId);
+        }
+        return customMenuService.resolveTenantUserMenu(user.getTenantId(), userId);
+    }
+
+    /**
+     * The (tenant, customer) owner of everything the current user creates and may manage. Tenant
+     * administrators and the system administrator own at the tenant level (null-uid customer);
+     * customer users own at their own customer.
+     */
+    private static CustomerId ownerCustomerId(SecurityUser user) {
+        if (Authority.CUSTOMER_USER.equals(user.getAuthority()) && user.getCustomerId() != null
+                && !user.getCustomerId().isNullUid()) {
+            return user.getCustomerId();
+        }
+        return new CustomerId(CustomerId.NULL_UUID);
+    }
+
+    /**
+     * Tenant-level checks alone are not enough once customers own menus: without this a customer
+     * user could address its tenant's (or a sibling customer's) menu by id, since those rows share
+     * the same tenant_id.
+     */
+    private <T extends CustomMenuInfo> T checkOwner(SecurityUser user, T menu) throws ThingsboardException {
+        CustomerId owner = ownerCustomerId(user);
+        CustomerId menuOwner = menu.getCustomerId() == null ? new CustomerId(CustomerId.NULL_UUID) : menu.getCustomerId();
+        if (!owner.equals(menuOwner)) {
+            throw new ThingsboardException("You don't have permission to perform this operation!",
+                    ThingsboardErrorCode.PERMISSION_DENIED);
+        }
+        return menu;
     }
 
     private List<EntityId> toAssigneeIds(CMAssigneeType assigneeType, String[] assignToIds) throws ThingsboardException {

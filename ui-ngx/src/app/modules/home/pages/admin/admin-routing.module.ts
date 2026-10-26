@@ -575,7 +575,7 @@ const routes: Routes = [
       {
         path: 'custom-menu',
         data: {
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             menuId: MenuId.custom_menu
           }
@@ -585,7 +585,7 @@ const routes: Routes = [
             path: '',
             component: CustomMenuListComponent,
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'custom-menu.custom-menu'
             }
           },
@@ -594,7 +594,7 @@ const routes: Routes = [
             component: CustomMenuComponent,
             canDeactivate: [ConfirmOnExitGuard],
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'custom-menu.custom-menu',
               breadcrumb: {
                 label: 'custom-menu.edit-menu-items',

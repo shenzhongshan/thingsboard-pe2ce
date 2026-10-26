@@ -18,8 +18,15 @@
 <div>
   <mat-card appearance="outlined" class="settings-card">
     <mat-card-header class="tb-cm-header">
-      <mat-card-title>
+      <mat-card-title class="tb-cm-title">
+        <button mat-icon-button type="button" (click)="goBack()"
+                matTooltip="{{ 'action.back' | translate }}" matTooltipPosition="above">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
         <span class="mat-headline-5">{{ menuName || ('custom-menu.custom-menu' | translate) }}</span>
+        @if (scope) {
+          <span class="tb-cm-scope">{{ cmScopeTranslations.get(scope) | translate }}</span>
+        }
       </mat-card-title>
       <span class="flex-1"></span>
       <mat-slide-toggle [(ngModel)]="showHidden" class="tb-cm-toolbar-item">

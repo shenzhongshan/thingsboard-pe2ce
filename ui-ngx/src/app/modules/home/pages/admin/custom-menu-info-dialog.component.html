@@ -32,31 +32,29 @@
           <mat-error>{{ 'custom-menu.name-required' | translate }}</mat-error>
         }
       </mat-form-field>
-      @if (isSysAdmin) {
+      @if (allowedScopes.length > 1) {
         <div class="flex flex-row items-center justify-between">
           <span translate>custom-menu.scope</span>
           <tb-toggle-select formControlName="scope" appearance="fill">
-            <tb-toggle-option [value]="CMScope.SYSTEM">{{ 'custom-menu.scope-system' | translate }}</tb-toggle-option>
-            <tb-toggle-option [value]="CMScope.TENANT">{{ 'custom-menu.scope-tenant' | translate }}</tb-toggle-option>
+            @for (s of allowedScopes; track s) {
+              <tb-toggle-option [value]="s">{{ cmScopeTranslations.get(s) | translate }}</tb-toggle-option>
+            }
           </tb-toggle-select>
         </div>
-        @if (!isEdit && infoForm.get('scope').value === CMScope.TENANT) {
-          <div class="tb-hint" translate>custom-menu.scope-tenant-sysadmin-hint</div>
+        @if (!isEdit && isSysAdmin && infoForm.get('scope').value !== CMScope.SYSTEM) {
+          <div class="tb-hint" translate>custom-menu.scope-sysadmin-hint</div>
         }
       }
       <div class="flex flex-row items-center justify-between">
         <span translate>custom-menu.assignee-type</span>
         <tb-toggle-select formControlName="assigneeType" appearance="fill">
-          <tb-toggle-option [value]="CMAssigneeType.NO_ASSIGN">{{ 'custom-menu.assignee-type-no-assign' | translate }}</tb-toggle-option>
-          <tb-toggle-option [value]="CMAssigneeType.ALL">{{ 'custom-menu.assignee-type-all' | translate }}</tb-toggle-option>
-          @if (allowEntityAssignees) {
-            <tb-toggle-option [value]="CMAssigneeType.CUSTOMERS">{{ 'custom-menu.assignee-type-customers' | translate }}</tb-toggle-option>
-            <tb-toggle-option [value]="CMAssigneeType.USERS">{{ 'custom-menu.assignee-type-users' | translate }}</tb-toggle-option>
+          @for (t of allowedAssigneeTypes; track t) {
+            <tb-toggle-option [value]="t">{{ cmAssigneeTypeTranslation(t, scope) | translate }}</tb-toggle-option>
           }
         </tb-toggle-select>
       </div>
       @if (assigneeType === CMAssigneeType.ALL) {
-        <div class="tb-hint" translate>custom-menu.assignee-type-all-hint</div>
+        <div class="tb-hint">{{ 'custom-menu.assignee-type-all-hint' | translate:{scope: (cmScopeTranslations.get(scope) | translate)} }}</div>
       }
       @if (assigneeType === CMAssigneeType.CUSTOMERS) {
         <tb-entity-list
@@ -73,6 +71,18 @@
           required
           labelText="{{ 'custom-menu.assigned-users' | translate }}">
         </tb-entity-list>
+      }
+      @if (assigneeType === CMAssigneeType.USER_GROUPS) {
+        <tb-string-items-list
+          appearance="outline"
+          label="{{ 'custom-menu.assigned-user-groups' | translate }}"
+          placeholder="{{ 'custom-menu.assigned-user-groups' | translate }}"
+          hint="{{ 'custom-menu.assigned-user-groups-hint' | translate }}"
+          [fetchOptionsFn]="fetchGroupNamesFn"
+          allowUserValue
+          required
+          formControlName="userGroupNames">
+        </tb-string-items-list>
       }
     </form>
   </div>

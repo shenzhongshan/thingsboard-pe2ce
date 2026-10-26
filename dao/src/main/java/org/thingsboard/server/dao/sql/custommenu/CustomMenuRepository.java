@@ -22,16 +22,29 @@ import org.thingsboard.server.common.data.menu.CMAssigneeType;
 import org.thingsboard.server.common.data.menu.CMScope;
 import org.thingsboard.server.dao.model.sql.CustomMenuEntity;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * A custom menu is owned by a (tenant_id, customer_id) pair, so every lookup is keyed by both —
+ * a tenant admin must not see the menus its customers created, and vice versa. System menus use
+ * the sys-tenant id with the NULL_UUID customer sentinel.
+ */
 public interface CustomMenuRepository extends JpaRepository<CustomMenuEntity, UUID> {
 
-    Page<CustomMenuEntity> findByTenantId(UUID tenantId, Pageable pageable);
+    Page<CustomMenuEntity> findByTenantIdAndCustomerId(UUID tenantId, UUID customerId, Pageable pageable);
 
-    Page<CustomMenuEntity> findByTenantIdAndScope(UUID tenantId, CMScope scope, Pageable pageable);
+    Page<CustomMenuEntity> findByTenantIdAndCustomerIdAndScope(UUID tenantId, UUID customerId, CMScope scope, Pageable pageable);
 
-    Optional<CustomMenuEntity> findByTenantIdAndScopeAndAssigneeType(UUID tenantId, CMScope scope, CMAssigneeType assigneeType);
+    Optional<CustomMenuEntity> findByTenantIdAndCustomerIdAndScopeAndAssigneeType(UUID tenantId, UUID customerId,
+                                                                                 CMScope scope, CMAssigneeType assigneeType);
+
+    // Unlike ALL (one default per owner+scope), several USER_GROUPS menus can coexist at the same
+    // owner+scope, targeting different group names — so this returns every candidate and the
+    // service layer picks the first one that overlaps with the resolving user's group names.
+    List<CustomMenuEntity> findByTenantIdAndCustomerIdAndScopeAndAssigneeTypeOrderByCreatedTimeAsc(
+            UUID tenantId, UUID customerId, CMScope scope, CMAssigneeType assigneeType);
 
     void deleteByTenantId(UUID tenantId);
 
