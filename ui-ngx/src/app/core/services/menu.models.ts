@@ -1277,7 +1277,10 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.entity_views}
         ]
       },
+      {id: MenuId.customers},
+      {id: MenuId.users},
       {id: MenuId.edge_instances},
+      {id: MenuId.scheduler},
       {
         id: MenuId.resources,
         pages: [
@@ -1297,6 +1300,12 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.white_labeling_general},
           {id: MenuId.white_labeling_login},
           {id: MenuId.custom_menu}
+        ]
+      },
+      {
+        id: MenuId.security_settings,
+        pages: [
+          {id: MenuId.roles}
         ]
       }
     ]

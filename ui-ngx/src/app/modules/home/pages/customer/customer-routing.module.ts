@@ -50,7 +50,10 @@ const routes: Routes = [
     path: 'customers',
     component: RouterTabsComponent,
     data: {
-      auth: [Authority.TENANT_ADMIN],
+      // 'groups'/'hierarchy'/the per-customer management sub-routes below stay TENANT_ADMIN-only
+      // (tenant-wide views); 'all' is PE parity for a customer user's own sub-customers —
+      // CustomersTableConfigResolver branches to CustomerController#getCustomerChildren for them.
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       showMainLoadingBar: false,
       useChildrenRoutesForTabs: true,
       breadcrumb: {
@@ -62,14 +65,14 @@ const routes: Routes = [
         path: '',
         children: [],
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           redirectTo: '/customers/all'
         }
       },
       {
         path: 'all',
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             label: 'entity-group.all-entities',
             icon: 'supervisor_account'
@@ -80,7 +83,7 @@ const routes: Routes = [
             path: '',
             component: EntitiesTableComponent,
             data: {
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'customer.customers'
             },
             resolve: {
@@ -96,7 +99,7 @@ const routes: Routes = [
                 labelFunction: entityDetailsPageBreadcrumbLabelFunction,
                 icon: 'supervisor_account'
               } as BreadCrumbConfig<EntityDetailsPageComponent>,
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'customer.customers'
             },
             resolve: {

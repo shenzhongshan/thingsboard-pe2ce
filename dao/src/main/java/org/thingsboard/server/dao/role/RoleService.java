@@ -62,6 +62,15 @@ public interface RoleService {
     /** The default GENERIC role granted to every customer user by the bootstrap. */
     Role findOrCreateCustomerUserRole(TenantId tenantId);
 
+    /**
+     * The default GENERIC role granted to every customer user by the bootstrap, in addition to
+     * {@link #findOrCreateCustomerUserRole} — full access within their own customer's owner scope
+     * (PE parity: self-service management of sub-customers, sub-users, and everything else they
+     * own). Reuses the "Customer Administrator" role PE already ships with (seeded lazily by
+     * {@code ensureDefaultRoles}), not a new narrower one.
+     */
+    Role findOrCreateCustomerAdminRole(TenantId tenantId);
+
     Role findOrCreateReadOnlyEntityGroupRole(TenantId tenantId);
 
     /**

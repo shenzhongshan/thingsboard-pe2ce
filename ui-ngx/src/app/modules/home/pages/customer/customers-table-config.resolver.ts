@@ -27,6 +27,7 @@ import { TranslateService } from '@ngx-translate/core';
 import { DatePipe } from '@angular/common';
 import { EntityType, entityTypeResources, entityTypeTranslations } from '@shared/models/entity-type.models';
 import { EntityAction } from '@home/models/entity/entity-component.models';
+import { Authority } from '@shared/models/authority.enum';
 import { Customer, CustomerInfo } from '@app/shared/models/customer.model';
 import { CustomerService } from '@app/core/http/customer.service';
 import { CustomerComponent } from '@modules/home/pages/customer/customer.component';
@@ -63,6 +64,11 @@ export class CustomersTableConfigResolver  {
     this.config.entityTranslations = entityTypeTranslations.get(EntityType.CUSTOMER);
     this.config.entityResources = entityTypeResources.get(EntityType.CUSTOMER);
     const authState = getCurrentAuthState(this.store);
+    // A customer user reaches this same resolver via /customers for its own sub-customers (PE
+    // parity): the cell actions below all navigate into TENANT_ADMIN-only routes
+    // (customers/:id/users|devices|assets|...) or call a TENANT_ADMIN-only entity-group lookup
+    // (manage-owner-and-groups), so none of them apply — only list/open/create/delete do.
+    const isCustomerUser = authState.authUser.authority === Authority.CUSTOMER_USER;
 
     this.config.columns.push(
       new DateEntityTableColumn<CustomerInfo>('createdTime', 'common.created-time', this.datePipe, '150px'),
@@ -76,81 +82,83 @@ export class CustomersTableConfigResolver  {
       new EntityTableColumn<CustomerInfo>('groups', 'customer.groups', '25%',
         entity => entity.groups ?? '', () => ({}), false)
     );
-    this.config.cellActionDescriptors.push(
-      {
-        name: this.translate.instant('customer.manage-customer-users'),
-        icon: 'account_circle',
-        isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
-        onAction: ($event, entity) => this.manageCustomerUsers($event, entity)
-      },
-      {
-        name: this.translate.instant('customer.manage-customer-customers'),
-        icon: 'people',
-        isEnabled: (customer) => true,
-        onAction: ($event, entity) => this.manageCustomerCustomers($event, entity)
-      },
-      {
-        name: this.translate.instant('customer.manage-customer-assets'),
-        nameFunction: (customer) => {
-          return customer.additionalInfo && customer.additionalInfo.isPublic
-          ? this.translate.instant('customer.manage-public-assets')
-          : this.translate.instant('customer.manage-customer-assets');
-        },
-        icon: 'domain',
-        isEnabled: (customer) => true,
-        onAction: ($event, entity) => this.manageCustomerAssets($event, entity)
-      },
-      {
-        name: this.translate.instant('customer.manage-customer-devices'),
-        nameFunction: (customer) => {
-          return customer.additionalInfo && customer.additionalInfo.isPublic
-            ? this.translate.instant('customer.manage-public-devices')
-            : this.translate.instant('customer.manage-customer-devices');
-        },
-        icon: 'devices_other',
-        isEnabled: (customer) => true,
-        onAction: ($event, entity) => this.manageCustomerDevices($event, entity)
-      },
-      {
-        name: this.translate.instant('customer.manage-customer-entity-views'),
-        icon: 'view_quilt',
-        isEnabled: (customer) => true,
-        onAction: ($event, entity) => this.manageCustomerEntityViews($event, entity)
-      },
-      {
-        name: this.translate.instant('customer.manage-customer-dashboards'),
-        nameFunction: (customer) => {
-          return customer.additionalInfo && customer.additionalInfo.isPublic
-            ? this.translate.instant('customer.manage-public-dashboards')
-            : this.translate.instant('customer.manage-customer-dashboards');
-        },
-        icon: 'dashboard',
-        isEnabled: (customer) => true,
-        onAction: ($event, entity) => this.manageCustomerDashboards($event, entity)
-      });
-    if (authState.edgesSupportEnabled) {
+    if (!isCustomerUser) {
       this.config.cellActionDescriptors.push(
         {
-          name: this.translate.instant('customer.manage-customer-edges'),
+          name: this.translate.instant('customer.manage-customer-users'),
+          icon: 'account_circle',
+          isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
+          onAction: ($event, entity) => this.manageCustomerUsers($event, entity)
+        },
+        {
+          name: this.translate.instant('customer.manage-customer-customers'),
+          icon: 'people',
+          isEnabled: (customer) => true,
+          onAction: ($event, entity) => this.manageCustomerCustomers($event, entity)
+        },
+        {
+          name: this.translate.instant('customer.manage-customer-assets'),
           nameFunction: (customer) => {
             return customer.additionalInfo && customer.additionalInfo.isPublic
-              ? this.translate.instant('customer.manage-public-edges')
-              : this.translate.instant('customer.manage-customer-edges');
+            ? this.translate.instant('customer.manage-public-assets')
+            : this.translate.instant('customer.manage-customer-assets');
           },
-          icon: 'router',
+          icon: 'domain',
           isEnabled: (customer) => true,
-          onAction: ($event, entity) => this.manageCustomerEdges($event, entity)
+          onAction: ($event, entity) => this.manageCustomerAssets($event, entity)
+        },
+        {
+          name: this.translate.instant('customer.manage-customer-devices'),
+          nameFunction: (customer) => {
+            return customer.additionalInfo && customer.additionalInfo.isPublic
+              ? this.translate.instant('customer.manage-public-devices')
+              : this.translate.instant('customer.manage-customer-devices');
+          },
+          icon: 'devices_other',
+          isEnabled: (customer) => true,
+          onAction: ($event, entity) => this.manageCustomerDevices($event, entity)
+        },
+        {
+          name: this.translate.instant('customer.manage-customer-entity-views'),
+          icon: 'view_quilt',
+          isEnabled: (customer) => true,
+          onAction: ($event, entity) => this.manageCustomerEntityViews($event, entity)
+        },
+        {
+          name: this.translate.instant('customer.manage-customer-dashboards'),
+          nameFunction: (customer) => {
+            return customer.additionalInfo && customer.additionalInfo.isPublic
+              ? this.translate.instant('customer.manage-public-dashboards')
+              : this.translate.instant('customer.manage-customer-dashboards');
+          },
+          icon: 'dashboard',
+          isEnabled: (customer) => true,
+          onAction: ($event, entity) => this.manageCustomerDashboards($event, entity)
+        });
+      if (authState.edgesSupportEnabled) {
+        this.config.cellActionDescriptors.push(
+          {
+            name: this.translate.instant('customer.manage-customer-edges'),
+            nameFunction: (customer) => {
+              return customer.additionalInfo && customer.additionalInfo.isPublic
+                ? this.translate.instant('customer.manage-public-edges')
+                : this.translate.instant('customer.manage-customer-edges');
+            },
+            icon: 'router',
+            isEnabled: (customer) => true,
+            onAction: ($event, entity) => this.manageCustomerEdges($event, entity)
+          }
+        );
+      }
+      this.config.cellActionDescriptors.push(
+        {
+          name: this.translate.instant('customer.manage-owner-and-groups'),
+          icon: 'groups',
+          isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
+          onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
         }
       );
     }
-    this.config.cellActionDescriptors.push(
-      {
-        name: this.translate.instant('customer.manage-owner-and-groups'),
-        icon: 'groups',
-        isEnabled: (customer) => !customer.additionalInfo || !customer.additionalInfo.isPublic,
-        onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
-      }
-    );
 
     this.config.deleteEntityTitle = customer => this.translate.instant('customer.delete-customer-title', { customerTitle: customer.title });
     this.config.deleteEntityContent = () => this.translate.instant('customer.delete-customer-text');
@@ -158,14 +166,23 @@ export class CustomersTableConfigResolver  {
     this.config.deleteEntitiesContent = () => this.translate.instant('customer.delete-customers-text');
 
     this.config.componentsData = {includeCustomerEntities: true};
-    this.config.headerComponent = CustomerTableHeaderComponent;
-    this.config.entitiesFetchFunction = pageLink => this.config.componentsData.includeCustomerEntities === false ?
-      this.customerService.getTopLevelCustomers(pageLink) : this.customerService.getCustomers(pageLink);
+    if (isCustomerUser) {
+      // getCustomers/getTopLevelCustomers (the toggle's two branches) are both TENANT_ADMIN-only
+      // and tenant-wide; a customer user instead always sees its own direct sub-customers, via the
+      // one endpoint that's actually scoped for them. No toggle to show.
+      this.config.entitiesFetchFunction = pageLink =>
+        this.customerService.getCustomerChildren(authState.authUser.customerId, pageLink);
+      this.config.addEntity = undefined;
+    } else {
+      this.config.headerComponent = CustomerTableHeaderComponent;
+      this.config.entitiesFetchFunction = pageLink => this.config.componentsData.includeCustomerEntities === false ?
+        this.customerService.getTopLevelCustomers(pageLink) : this.customerService.getCustomers(pageLink);
+      this.config.addEntity = () => { this.customerWizard(); return of(null); };
+    }
     this.config.loadEntity = id => this.customerService.getCustomer(id.id);
     this.config.saveEntity = customer => this.customerService.saveCustomer(customer);
     this.config.deleteEntity = id => this.customerService.deleteCustomer(id.id);
     this.config.onEntityAction = action => this.onCustomerAction(action, this.config);
-    this.config.addEntity = () => { this.customerWizard(); return of(null); };
     this.config.deleteEnabled = (customer) => customer && (!customer.additionalInfo || !customer.additionalInfo.isPublic);
     this.config.entitySelectionEnabled = (customer) => customer && (!customer.additionalInfo || !customer.additionalInfo.isPublic);
     this.config.detailsReadonly = (customer) => customer && customer.additionalInfo && customer.additionalInfo.isPublic;

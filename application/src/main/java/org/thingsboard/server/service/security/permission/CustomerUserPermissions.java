@@ -17,6 +17,7 @@ package org.thingsboard.server.service.security.permission;
 
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.DashboardInfo;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.EntityView;
@@ -219,6 +220,12 @@ public class CustomerUserPermissions extends AbstractPermissions {
             CustomerId customerId = hasCustomerId.getCustomerId();
             return customerId != null && !customerId.isNullUid() ? customerId : user.getTenantId();
         }
+        // A Customer's "owner" is its parent, not a customerId field (Customer isn't HasCustomerId) —
+        // needed to scope CREATE of a sub-customer, see customerPermissionChecker.
+        if (entity instanceof Customer customer) {
+            CustomerId parentId = customer.getParentCustomerId();
+            return parentId != null && !parentId.isNullUid() ? parentId : user.getTenantId();
+        }
         return null;
     }
 
@@ -274,8 +281,11 @@ public class CustomerUserPermissions extends AbstractPermissions {
                     if (super.hasPermission(user, operation, entityId, entity) && user.getCustomerId().equals(entityId)) {
                         return true;
                     }
-                    // A customer IS its own owner, so scoping resolves to "self or an ancestor of it".
-                    return hasGroupOrGenericPermission(user, Resource.CUSTOMER, operation, entityId, entityId);
+                    // A customer IS its own owner, so scoping resolves to "self or an ancestor of it"
+                    // (isOwnedBy walks entityId's own hierarchy). CREATE has no entityId yet though —
+                    // a brand-new sub-customer's owner has to come from its submitted parent instead.
+                    EntityId ownerId = entityId != null ? entityId : ownerOf(user, entity);
+                    return hasGroupOrGenericPermission(user, Resource.CUSTOMER, operation, entityId, ownerId);
                 }
 
             };

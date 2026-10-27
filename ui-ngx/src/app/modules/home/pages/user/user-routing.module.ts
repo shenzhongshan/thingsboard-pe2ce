@@ -41,7 +41,10 @@ const routes: Routes = [
     path: 'users',
     component: RouterTabsComponent,
     data: {
-      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+      // 'groups' stays TENANT_ADMIN-only below (unverified for customer-scoped use); 'all' is
+      // PE parity for a customer user's own sub-users — UserController already scopes getUsers/
+      // saveUser correctly per caller authority.
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       showMainLoadingBar: false,
       useChildrenRoutesForTabs: true,
       breadcrumb: {
@@ -53,14 +56,14 @@ const routes: Routes = [
         path: '',
         children: [],
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           redirectTo: '/users/all'
         }
       },
       {
         path: 'all',
         data: {
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             label: 'entity-group.all-entities',
             icon: 'account_circle'
@@ -71,7 +74,7 @@ const routes: Routes = [
             path: '',
             component: EntitiesTableComponent,
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'user.users'
             },
             resolve: {
@@ -87,7 +90,7 @@ const routes: Routes = [
                 labelFunction: entityDetailsPageBreadcrumbLabelFunction,
                 icon: 'account_circle'
               } as BreadCrumbConfig<EntityDetailsPageComponent>,
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'user.user'
             },
             resolve: {

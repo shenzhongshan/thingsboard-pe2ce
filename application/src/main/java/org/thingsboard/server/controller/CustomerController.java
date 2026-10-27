@@ -159,8 +159,9 @@ public class CustomerController extends BaseController {
                     "Specify existing Customer Id to update the Customer. " +
                     "Referencing non-existing Customer Id will cause 'Not Found' error." +
                     "Remove 'id', 'tenantId' from the request body example (below) to create new Customer entity. " +
+                    "A customer user always creates sub-customers owned by its own customer. " +
                     TENANT_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @RequestMapping(value = "/customer", method = RequestMethod.POST)
     @ResponseBody
     public Customer saveCustomer(@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "A JSON value representing the customer.") @RequestBody Customer customer,
@@ -171,6 +172,11 @@ public class CustomerController extends BaseController {
                                  @Parameter(description = UNIQUIFY_STRATEGY_DESC)
                                  @RequestParam(name = "uniquifyStrategy", defaultValue = "RANDOM") UniquifyStrategy uniquifyStrategy) throws Exception {
         customer.setTenantId(getTenantId());
+        if (getCurrentUser().isCustomerUser() && customer.getId() == null) {
+            // Never take the parent off the wire for a customer user: it is the one field that
+            // would let them create a sub-customer owned by a sibling customer.
+            customer.setParentCustomerId(getCurrentUser().getCustomerId());
+        }
         checkEntity(customer.getId(), customer, Resource.CUSTOMER);
         return tbCustomerService.save(customer, new NameConflictStrategy(nameConflictPolicy, uniquifySeparator, uniquifyStrategy), getCurrentUser());
     }
@@ -179,7 +185,7 @@ public class CustomerController extends BaseController {
             notes = "Deletes the Customer and all customer Users. " +
                     "All assigned Dashboards, Assets, Devices, etc. will be unassigned but not deleted. " +
                     "Referencing non-existing Customer Id will cause an error." + TENANT_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @RequestMapping(value = "/customer/{customerId}", method = RequestMethod.DELETE)
     @ResponseStatus(value = HttpStatus.OK)
     public void deleteCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION)
@@ -264,9 +270,10 @@ public class CustomerController extends BaseController {
     }
 
     @ApiOperation(value = "Get sub-customers of a Customer (getCustomerChildren)",
-            notes = "Returns a page of the direct sub-customers of the given customer. "
-                    + PAGE_DATA_PARAMETERS + TENANT_AUTHORITY_PARAGRAPH)
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+            notes = "Returns a page of the direct sub-customers of the given customer. A customer user may only " +
+                    "address its own customer or one of its descendants (enforced below, not by this annotation). "
+                    + PAGE_DATA_PARAMETERS + TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = "/customer/{customerId}/customers")
     public PageData<Customer> getCustomerChildren(
             @Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable(CUSTOMER_ID) String strCustomerId,
