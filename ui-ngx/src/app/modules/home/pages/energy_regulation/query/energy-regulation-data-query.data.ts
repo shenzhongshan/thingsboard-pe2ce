@@ -21,6 +21,12 @@ export interface EnergyQueryFilters {
   productName: string; functionCategory: string; keyword: string; assetIds: ReadonlySet<string>;
 }
 
+/** 协议显示与防雷查询保持一致，默认协议使用中文说明，其他协议保留实际名称。 */
+export function formatEnergyQueryProtocol(value: unknown): string {
+  const protocol = typeof value === 'string' ? value.trim() : '';
+  return protocol === 'DEFAULT' ? '默认（支持基本 MQTT、HTTP 和 CoAP 传输）' : protocol || '--';
+}
+
 /** 一次建立父节点索引，避免逐设备重新扫描整棵树。 */
 export function buildEnergyQueryDevices(tree: EnergyMonitoringAssetTree, contexts: readonly EnergyRegulationDeviceContext[] = [],
   latest: (id: string) => ReadonlyMap<string, {ts: number; value: string}> = () => new Map(),
@@ -42,7 +48,7 @@ export function buildEnergyQueryDevices(tree: EnergyMonitoringAssetTree, context
       id = parents.get(id);
     }
     return {id: context.deviceId, name: context.deviceName, serialNo: context.deviceName,
-      deviceType: context.deviceProfileName || '__', protocol: context.deviceProtocol || '__',
+      deviceType: context.deviceProfileName || '__', protocol: formatEnergyQueryProtocol(context.deviceProtocol),
       status: alarmSeverity.has(context.deviceId) ? '报警' : online ? '正常' : '离线',
       productName: context.productName || '__',
       // 功能分类仍取服务器属性，只把已确认的能源分类编码翻译为中文显示。

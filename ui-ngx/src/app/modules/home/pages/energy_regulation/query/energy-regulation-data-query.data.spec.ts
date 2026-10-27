@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildEnergyQueryDeviceCsv, buildEnergyQueryDeviceRows, buildEnergyQueryDevices, filterEnergyQueryDevices} from './energy-regulation-data-query.data';
+import {buildEnergyQueryDeviceCsv, buildEnergyQueryDeviceRows, buildEnergyQueryDevices, filterEnergyQueryDevices, formatEnergyQueryProtocol} from './energy-regulation-data-query.data';
 
 // 使用真实接口结构作为输入，回归资产范围、活动告警优先级和即时筛选，不生成页面演示设备。
 const tree = {roots: [], flatNodes: [], nodes: new Map([
@@ -32,3 +32,10 @@ assert.equal(rows[0].assetPath, '公司/电表A');
 assert.equal(buildEnergyQueryDeviceCsv(devices).length, 4);
 assert.equal(buildEnergyQueryDevices(tree, [contexts[1]], () => new Map([['active', {ts: 10, value: 'true'}]]))[0].status, '正常');
 console.log('16项能源查询数据回归断言通过');
+
+// 默认协议不能直接显示 DEFAULT；查询行和导出共用同一份中文结果。
+assert.equal(formatEnergyQueryProtocol('DEFAULT'), '默认（支持基本 MQTT、HTTP 和 CoAP 传输）');
+assert.equal(formatEnergyQueryProtocol(' MQTT '), 'MQTT');
+assert.equal(formatEnergyQueryProtocol(null), '--');
+assert.equal(buildEnergyQueryDevices(tree, [{...contexts[0], deviceProtocol: 'DEFAULT'}])[0].protocol,
+  '默认（支持基本 MQTT、HTTP 和 CoAP 传输）');

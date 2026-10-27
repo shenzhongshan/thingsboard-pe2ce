@@ -30,6 +30,12 @@ export interface ElectricalSafetyQueryFilters {
   keyword: string;
 }
 
+/** 默认协议沿用防雷查询的中文说明，表格和导出统一使用映射后的值。 */
+function formatElectricalSafetyQueryProtocol(value: unknown): string {
+  const protocol = typeof value === 'string' ? value.trim() : '';
+  return protocol === 'DEFAULT' ? '默认（支持基本 MQTT、HTTP 和 CoAP 传输）' : protocol || '--';
+}
+
 /** 将共享监测设备模型映射为查询表格行，不重复读取或推断设备字段。 */
 export function buildElectricalSafetyQueryRows(
   devices: readonly ElectricalSafetyMonitoringDevice[],
@@ -46,7 +52,7 @@ export function buildElectricalSafetyQueryRows(
       assetId: device.assetId,
       deviceName: device.name,
       deviceType: device.model,
-      protocol: device.protocol,
+      protocol: formatElectricalSafetyQueryProtocol(device.protocol),
       status: activeAlarmDeviceIds.has(device.id)
         ? '报警'
         : device.connection === 'online' ? '正常' : '离线',
