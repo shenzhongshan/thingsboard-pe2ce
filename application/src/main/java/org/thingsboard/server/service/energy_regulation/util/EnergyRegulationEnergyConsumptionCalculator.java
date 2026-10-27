@@ -7,7 +7,7 @@ import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationPeri
 import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationValueSeriesDTO;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.math.MathContext;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -19,7 +19,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /** 按亚洲上海自然日统计，电表值按总正向有功电能的累计表底处理。 */
 public final class EnergyRegulationEnergyConsumptionCalculator {
@@ -30,23 +32,61 @@ public final class EnergyRegulationEnergyConsumptionCalculator {
     private static final long HOUR_MILLIS = 60L * 60 * 1000;
     /** 百分比变化率的乘数。 */
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
-    /** 变化率保留的小数位数。 */
-    private static final int CHANGE_PERCENT_SCALE = 4;
+    /** 百分比除法使用34位有效数字；循环小数需要有限精度，不按固定四位小数舍入。 */
+    private static final MathContext CHANGE_PERCENT_CONTEXT = MathContext.DECIMAL128;
 
     /** 纯计算工具类不创建实例。 */
     private EnergyRegulationEnergyConsumptionCalculator() {
     }
 
-    /** 为本次看板查询确定历史起点，覆盖上一个自然月及用于计算起点表底的历史区间。
-     * @param now 当前上海时区时间
-     * @return 上一个自然月月初的毫秒时间戳
+    /** 收集汇总和趋势实际使用的表底边界，避免读取两个月的完整小时序列。
+     * @param now 本次统计统一使用的上海时区时间
+     * @return 去重并升序排列的时间边界；每个边界读取严格早于它的最近原始表底
      */
-    public static long findReadStartTs(ZonedDateTime now) {
-        // 先定位当前月月初，再回退一个自然月作为最早读取日。
-        LocalDate currentMonthStart = now.toLocalDate().withDayOfMonth(1);
-        LocalDate previousMonthStart = currentMonthStart.minusMonths(1);
-        // 将上海自然日边界转换为 UTC 毫秒时间戳，供时序查询使用。
-        return previousMonthStart.atStartOfDay(TIME_ZONE).toInstant().toEpochMilli();
+    public static List<Long> findReadBoundaryTimestamps(ZonedDateTime now) {
+        long nowTs = now.toInstant().toEpochMilli();
+        LocalDate today = now.toLocalDate();
+        Set<Long> boundaries = new TreeSet<>();
+        for (PeriodWindow period : createPeriods(today, nowTs).values()) {
+            boundaries.add(period.previousStartTs);
+            boundaries.add(period.currentStartTs);
+            boundaries.add(period.endTs);
+        }
+        // 日趋势只需要今天已发生的小时边界，不为未来小时查询数据。
+        long dayStartTs = startOf(today);
+        for (int hour = 0; hour < 24; hour++) {
+            long startTs = dayStartTs + hour * HOUR_MILLIS;
+            if (startTs >= nowTs) {
+                break;
+            }
+            boundaries.add(startTs);
+            boundaries.add(Math.min(startTs + HOUR_MILLIS, nowTs));
+        }
+        // 周趋势只需要本周自然日边界；跨月周仍保留本周月外的日期。
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        for (int day = 0; day < 7; day++) {
+            long startTs = startOf(weekStart.plusDays(day));
+            if (startTs >= nowTs) {
+                break;
+            }
+            boundaries.add(startTs);
+            boundaries.add(Math.min(startOf(weekStart.plusDays(day + 1L)), nowTs));
+        }
+        // 月趋势沿用每七天一桶的展示口径，只查询已发生的桶边界。
+        LocalDate monthStart = today.withDayOfMonth(1);
+        for (LocalDate start = monthStart; !start.isAfter(today); start = start.plusDays(7)) {
+            long startTs = startOf(start);
+            if (startTs >= nowTs) {
+                break;
+            }
+            LocalDate end = start.plusDays(7);
+            if (end.isAfter(monthStart.plusMonths(1))) {
+                end = monthStart.plusMonths(1);
+            }
+            boundaries.add(startTs);
+            boundaries.add(Math.min(startOf(end), nowTs));
+        }
+        return List.copyOf(boundaries);
     }
 
     /** 按每台设备选取一个总正向有功电能键并生成周期统计，避免多个候选键重复计入。
@@ -73,9 +113,9 @@ public final class EnergyRegulationEnergyConsumptionCalculator {
                 // 无可用表底的设备不计入有数据电表数和累计值。
                 continue;
             }
-            // 保存本设备选定的完整序列，后续汇总和趋势都复用该序列。
+            // 保存本设备选定的边界读数序列，按真实时间戳去重后供汇总和趋势复用。
             meters.add(meter);
-            // 累计值使用当前窗口内最新表底，汇总各电表的当前表底。
+            // 累计值使用统计截止时间之前的最新真实表底，汇总各电表当前可读表底。
             totalKwh = totalKwh.add(meter.values.lastEntry().getValue());
         }
 
@@ -367,10 +407,10 @@ public final class EnergyRegulationEnergyConsumptionCalculator {
             // 缺少对比值或上一周期为零时百分比无定义，返回 null。
             return null;
         }
-        // 以百分比形式计算变化率，并按约定精度四舍五入。
+        // 以百分比形式计算变化率，不限制为展示用的小数位数。
         return current.subtract(previous)
                 .multiply(ONE_HUNDRED)
-                .divide(previous, CHANGE_PERCENT_SCALE, RoundingMode.HALF_UP);
+                .divide(previous, CHANGE_PERCENT_CONTEXT);
     }
 
     /** 当前周期和上一周期的左边界，以及本次统计的结束时间。

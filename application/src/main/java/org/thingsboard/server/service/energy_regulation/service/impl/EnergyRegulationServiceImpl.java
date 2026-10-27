@@ -9,8 +9,6 @@ import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.DeviceId;
-import org.thingsboard.server.common.data.kv.Aggregation;
-import org.thingsboard.server.common.data.kv.BaseReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.ReadTsKvQuery;
 import org.thingsboard.server.common.data.kv.TsKvEntry;
 import org.thingsboard.server.dao.timeseries.TimeseriesService;
@@ -22,7 +20,7 @@ import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationEner
 import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationRootAssetDTO;
 import org.thingsboard.server.service.energy_regulation.dto.EnergyRegulationServiceTreeDTO;
 import org.thingsboard.server.service.energy_regulation.util.EnergyRegulationEnergyConsumptionCalculator;
-import org.thingsboard.server.service.energy_regulation.util.EnergyRegulationEnergyMetricDefinitions;
+import org.thingsboard.server.service.energy_regulation.util.EnergyRegulationTelemetryQueryFactory;
 import org.thingsboard.server.service.query.VisibleDeviceContextService;
 import org.thingsboard.server.service.query.VisibleAssetTree;
 import org.thingsboard.server.service.query.VisibleAssetTreeService;
@@ -48,12 +46,8 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
 
     /** 能源监管设备的产品大类服务器属性值。 */
     private static final String ENERGY_REGULATION_PRODUCT_CATEGORY = "energy_regulation";
-    /** 将累计表底按小时聚合，控制查询量并生成小时趋势。 */
-    private static final long TELEMETRY_BUCKET_MILLIS = 60L * 60 * 1000;
     /** 单批并发遥测查询的设备上限。 */
     private static final int TELEMETRY_BATCH_SIZE = 50;
-    /** 覆盖上一个月和当前月所需的小时点数上限。 */
-    private static final int MAX_HOURLY_TELEMETRY_POINTS = 2000;
 
     /** 提供当前用户可见设备及服务器属性上下文的共享查询服务。 */
     private final VisibleDeviceContextService deviceContextService;
@@ -197,11 +191,8 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
             return EnergyRegulationEnergyConsumptionCalculator.calculate(Collections.emptyList(), 0, now);
         }
 
-        // 查询窗口从上一个自然月月初开始，以覆盖月统计及其起点表底。
-        long readStartTs = EnergyRegulationEnergyConsumptionCalculator.findReadStartTs(now);
-        long endTs = now.toInstant().toEpochMilli();
-        // 为每个兼容的累计电能键准备小时聚合和区间前基准点查询。
-        List<ReadTsKvQuery> queries = energyTelemetryQueries(readStartTs, endTs);
+        // 只读取汇总、小时/自然日/七天趋势所需的边界表底，不扫描上月以来的全部小时桶。
+        List<ReadTsKvQuery> queries = EnergyRegulationTelemetryQueryFactory.createConsumptionQueries(now);
         // 按设备分批读取遥测，并保留每台设备的失败状态供响应统计。
         TelemetryBatchResult batchResult = readEnergyTelemetryInBatches(user, devices, queries);
         // 将查询结果交给纯计算器统一生成汇总和趋势，不在此处持久化派生结果。
@@ -209,18 +200,12 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
                 batchResult.entriesByDevice(), batchResult.failedDeviceCount(), now);
     }
 
-    /** 逐批读取上海时间昨日零点至今的小时平均有功功率，不跨模块调用聚合业务。 */
+    /** 按自然日分段读取所需的小时平均功率，保留昨日曲线及本周、本月峰值。 */
     @Override
     public EnergyRegulationPowerTrendDTO getPowerTrend(SecurityUser user, UUID assetId) throws ThingsboardException {
         List<VisibleDeviceContextBO> devices = findScopedEnergyDevices(user, assetId);
         ZonedDateTime now = ZonedDateTime.now(EnergyRegulationEnergyConsumptionCalculator.TIME_ZONE);
-        long yesterday = now.toLocalDate().minusDays(1).atStartOfDay(now.getZone()).toInstant().toEpochMilli();
-        long month = now.toLocalDate().withDayOfMonth(1).atStartOfDay(now.getZone()).toInstant().toEpochMilli();
-        long week = now.toLocalDate().minusDays(now.getDayOfWeek().getValue() - 1L)
-                .atStartOfDay(now.getZone()).toInstant().toEpochMilli();
-        long start = Math.min(yesterday, Math.min(month, week));
-        List<ReadTsKvQuery> queries = List.of(new BaseReadTsKvQuery(
-                EnergyRegulationEnergyMetricDefinitions.TOTAL_ACTIVE_POWER_KEY, start, now.toInstant().toEpochMilli(), TELEMETRY_BUCKET_MILLIS, MAX_HOURLY_TELEMETRY_POINTS, Aggregation.AVG, "ASC"));
+        List<ReadTsKvQuery> queries = EnergyRegulationTelemetryQueryFactory.createPowerQueries(now);
         TelemetryBatchResult batch = readEnergyTelemetryInBatches(user, devices, queries);
         return EnergyRegulationPowerTrendCalculator.calculate(batch.entriesByDevice(), now);
     }
@@ -274,27 +259,6 @@ public class EnergyRegulationServiceImpl implements EnergyRegulationService {
                 user, ENERGY_REGULATION_PRODUCT_CATEGORY);
         // 将共享服务可能返回的 null 统一为可安全遍历的空集合。
         return devices == null ? Collections.emptyList() : devices;
-    }
-
-    /** 为每种总正向有功电能候选键读取小时表底及历史基准读数。
-     * @param startTs 小时聚合查询的起始时间戳
-     * @param endTs 本次查询的结束时间戳
-     * @return 标准键、简称和 ESA 键对应的遥测查询条件
-     */
-    private List<ReadTsKvQuery> energyTelemetryQueries(long startTs, long endTs) {
-        // 每个候选键都使用相同时间范围和小时桶，供后续按设备选择最完整的序列。
-        List<ReadTsKvQuery> queries = new ArrayList<>();
-        for (String key : EnergyRegulationEnergyMetricDefinitions.TOTAL_FORWARD_ACTIVE_ENERGY_KEYS) {
-            // 小时桶取最大表底，避免同一小时多次遥测被误当成多段用电量。
-            queries.add(new BaseReadTsKvQuery(
-                    key, startTs, endTs, TELEMETRY_BUCKET_MILLIS,
-                    MAX_HOURLY_TELEMETRY_POINTS, Aggregation.MAX, "ASC"));
-            if (startTs > 0) {
-                // 再取查询起点之前最近的一条原始值，作为跨越统计窗口起点的表底基准。
-                queries.add(new BaseReadTsKvQuery(key, 0, startTs - 1, 1, "DESC"));
-            }
-        }
-        return queries;
     }
 
     /** 按固定并发上限读取设备时序；单台设备失败会在响应中显式计数。
