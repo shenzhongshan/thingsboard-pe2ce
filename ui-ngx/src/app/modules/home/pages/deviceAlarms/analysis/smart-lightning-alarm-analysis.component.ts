@@ -27,7 +27,7 @@ import {
   mapAlarmAnalysisSiteRows,
   mapAlarmAnalysisTypeRows
 } from './smart-lightning-alarm-analysis.data';
-import {SmartLightningRealtimeService} from '../../smart-lightning/shared/realtime/smart-lightning-realtime.service';
+import {ProductRealtimeService} from '@shared/realtime/product-realtime.service';
 
 /**
  * 告警分析页面组件。
@@ -116,7 +116,7 @@ export class SmartLightningAlarmAnalysisComponent implements OnInit, AfterViewIn
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly realtimeService: SmartLightningRealtimeService,
+    private readonly realtimeService: ProductRealtimeService,
     private readonly cd: ChangeDetectorRef
   ) {}
 

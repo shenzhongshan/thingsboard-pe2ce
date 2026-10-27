@@ -16,9 +16,9 @@ import {
   SmartLightningMonitoringAssetTree
 } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
 import {
-  SmartLightningDeviceTelemetryChange,
-  SmartLightningRealtimeService
-} from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+  DeviceTelemetryChange,
+  ElectricalSafetyRealtimeService
+} from '../shared/electrical-safety-realtime.service';
 import {ElectricalSafetyApiService, ElectricalSafetyDeviceContext} from '../electrical-safety-api.service';
 import {
   ELECTRICAL_SAFETY_PRODUCT_CATEGORY,
@@ -130,7 +130,7 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
   constructor(
     private readonly api: ElectricalSafetyApiService,
     private readonly detailApi: ElectricalSafetyDeviceDetailApiService,
-    private readonly realtimeService: SmartLightningRealtimeService,
+    private readonly realtimeService: ElectricalSafetyRealtimeService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly changeDetector: ChangeDetectorRef
@@ -445,7 +445,7 @@ export class ElectricalSafetyDeviceDetailComponent implements AfterViewInit, OnD
   }
 
   /** 当前设备的 WebSocket 更新直接作用于实时卡片及当前图表周期。 */
-  private applyRealtimeChange(change: SmartLightningDeviceTelemetryChange): void {
+  private applyRealtimeChange(change: DeviceTelemetryChange): void {
     change.values.forEach((sample, key) => this.mergeLatestValue(key, sample.ts, sample.value));
     const activeValue = change.values.get('active')?.value;
     if (activeValue !== undefined) {

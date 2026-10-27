@@ -20,7 +20,7 @@ import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
   getSmartLightningMonitoringAssetPaths
 } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
-import { SmartLightningRealtimeService } from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+import { ProductRealtimeService } from '@shared/realtime/product-realtime.service';
 import {resolveSmartLightningMapCoordinates} from '@home/pages/smart-lightning/shared/map/smart-lightning-device-map.data';
 import { HomeOverviewApiService, HomeOverviewDeviceContext } from './home-overview-api.service';
 import {
@@ -98,7 +98,7 @@ export class HomeOverviewComponent implements OnInit, OnDestroy {
     private readonly homeOverviewApiService: HomeOverviewApiService,
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly cd: ChangeDetectorRef,
-    private readonly realtimeService: SmartLightningRealtimeService
+    private readonly realtimeService: ProductRealtimeService
   ) {}
 
   ngOnInit(): void {

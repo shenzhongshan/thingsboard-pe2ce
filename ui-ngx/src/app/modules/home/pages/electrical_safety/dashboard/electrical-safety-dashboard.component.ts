@@ -53,9 +53,9 @@ import type {
 import type {AlarmInfo} from '@shared/models/alarm.models';
 import type {PageData} from '@shared/models/page/page-data';
 import {
-  SmartLightningDeviceTelemetryChange,
-  SmartLightningRealtimeService
-} from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+  DeviceTelemetryChange,
+  ElectricalSafetyRealtimeService
+} from '../shared/electrical-safety-realtime.service';
 
 /** 电气安全看板的设备地图、设备统计和告警列表均使用真实模块接口数据。 */
 @Component({
@@ -199,7 +199,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
     private readonly cd: ChangeDetectorRef,
     private readonly attributeService: AttributeService,
     private readonly electricalSafetyApiService: ElectricalSafetyApiService,
-    private readonly realtimeService: SmartLightningRealtimeService
+    private readonly realtimeService: ElectricalSafetyRealtimeService
   ) {}
 
   /** 并行加载设备、资产树、周期统计、当前活动告警名称及最近告警记录。 */
@@ -724,7 +724,7 @@ export class ElectricalSafetyDashboardComponent implements OnInit, OnDestroy {
   }
 
   /** 使用共享缓存中的 active 与最近活跃时间增量刷新设备卡片和地图标记。 */
-  private applyDashboardTelemetryChanges(changes: readonly SmartLightningDeviceTelemetryChange[]): void {
+  private applyDashboardTelemetryChanges(changes: readonly DeviceTelemetryChange[]): void {
     if (!this.deviceContexts?.length || !changes.length) {
       return;
     }

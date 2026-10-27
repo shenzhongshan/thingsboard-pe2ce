@@ -28,9 +28,9 @@ import {
 import {ElectricalSafetyApiService, ElectricalSafetyDeviceContext} from '../electrical-safety-api.service';
 import {SmartLightningHistoryReviewDialogComponent} from '@home/pages/smart-lightning/query/smart-lightning-history-review-dialog.component';
 import {
-  SmartLightningDeviceTelemetryChange,
-  SmartLightningRealtimeService
-} from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+  DeviceTelemetryChange,
+  ElectricalSafetyRealtimeService
+} from '../shared/electrical-safety-realtime.service';
 
 /** 请求完成前使用空树，避免首次渲染时把本地演示资产作为真实范围。 */
 const EMPTY_ELECTRICAL_SAFETY_ASSET_TREE = buildSmartLightningMonitoringAssetTreeFromRoots([]);
@@ -83,7 +83,7 @@ export class ElectricalSafetyDataQueryComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly electricalSafetyApiService: ElectricalSafetyApiService,
-    private readonly realtimeService: SmartLightningRealtimeService,
+    private readonly realtimeService: ElectricalSafetyRealtimeService,
     private readonly dialog: MatDialog,
     private readonly route: ActivatedRoute,
     private readonly changeDetector: ChangeDetectorRef
@@ -478,7 +478,7 @@ export class ElectricalSafetyDataQueryComponent implements OnInit, OnDestroy {
   }
 
   /** 合并当前设备 active 遥测增量；页面外设备和其他电气测点不会影响查询状态。 */
-  private applyRealtimeTelemetryChanges(changes: readonly SmartLightningDeviceTelemetryChange[]): void {
+  private applyRealtimeTelemetryChanges(changes: readonly DeviceTelemetryChange[]): void {
     if (!this.deviceContexts.length || !changes.length) {
       return;
     }

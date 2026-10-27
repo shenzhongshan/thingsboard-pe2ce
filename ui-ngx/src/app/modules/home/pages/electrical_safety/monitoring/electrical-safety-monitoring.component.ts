@@ -20,9 +20,9 @@ import {
   SmartLightningMonitoringAssetTree
 } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring.data';
 import {
-  SmartLightningDeviceTelemetryChange,
-  SmartLightningRealtimeService
-} from '@home/pages/smart-lightning/shared/realtime/smart-lightning-realtime.service';
+  DeviceTelemetryChange,
+  ElectricalSafetyRealtimeService
+} from '../shared/electrical-safety-realtime.service';
 import {
   buildElectricalSafetyMonitoringScopeSummary,
   buildElectricalSafetyMonitoringDevices,
@@ -96,7 +96,7 @@ export class ElectricalSafetyMonitoringComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly electricalSafetyApiService: ElectricalSafetyApiService,
-    private readonly realtimeService: SmartLightningRealtimeService,
+    private readonly realtimeService: ElectricalSafetyRealtimeService,
     private readonly route: ActivatedRoute,
     private readonly assetSelectionState: AssetTreeSelectionStateService,
     private readonly changeDetector: ChangeDetectorRef
@@ -490,9 +490,9 @@ export class ElectricalSafetyMonitoringComponent implements OnInit, OnDestroy {
   }
 
   /** 合并共享 WebSocket 的设备增量；只修改电气安全接口返回的设备。 */
-  private applyRealtimeTelemetryChanges(changes: SmartLightningDeviceTelemetryChange[]): void {
+  private applyRealtimeTelemetryChanges(changes: DeviceTelemetryChange[]): void {
     const knownDeviceIds = new Set(this.deviceContexts.map((context) => context.deviceId));
-    const changesByDeviceId = new Map<string, SmartLightningDeviceTelemetryChange>();
+    const changesByDeviceId = new Map<string, DeviceTelemetryChange>();
     for (const change of changes) {
       if (!knownDeviceIds.has(change.deviceId)) {
         continue;

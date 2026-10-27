@@ -41,7 +41,7 @@ import {
   SmartLightningAlarmDispatchDialogComponent,
   SmartLightningAlarmDispatchDialogData
 } from './smart-lightning-alarm-dispatch-dialog.component';
-import { SmartLightningRealtimeService } from '../../smart-lightning/shared/realtime/smart-lightning-realtime.service';
+import { ProductRealtimeService } from '@shared/realtime/product-realtime.service';
 
 @Component({
   selector: 'tb-smart-lightning-alarm-list',
@@ -95,7 +95,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     private readonly dialogService: DialogService,
     private readonly cd: ChangeDetectorRef,
     private readonly route: ActivatedRoute,
-    private readonly realtimeService: SmartLightningRealtimeService
+    private readonly realtimeService: ProductRealtimeService
   ) {
   }
 
