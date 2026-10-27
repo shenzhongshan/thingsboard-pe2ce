@@ -1,13 +1,15 @@
 @use './shared/energy-visual-fullscreen' as energyVisualFullscreen;
 /* 文件职责：能源监管看板视觉布局；复用系统外壳，不重复绘制平台导航。 */
-:host { display: block; min-width: 0; color: #29465d; }
-.energy-dashboard { display: grid; gap: 10px; min-width: 0; padding: 10px; background: #eef2f6; }
+/* 通过系统内容区的 flex 剩余空间撑满看板，避免固定总高度留下底部空白。 */
+:host { display: flex; flex: 1 0 auto; flex-direction: column; min-width: 0; color: #29465d; }
+.energy-dashboard { display: grid; flex: 1; grid-template-rows: auto 1fr; box-sizing: border-box; gap: 10px; min-width: 0; padding: 10px; background: #eef2f6; }
 .headline-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .headline-card { display: flex; align-items: center; gap: 13px; min-width: 0; min-height: 88px; padding: 13px 16px; border: 1px solid #d8e2ec; border-radius: 5px; background: #fff; box-shadow: 0 2px 6px rgba(26, 62, 96, .035); }
 .metric-icon { display: grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; border-radius: 9px; font-size: 23px; font-weight: 700; }
 .project-icon { color: #2878d5; background: #e7f1ff; }.online-icon { color: #1ba477; background: #e4f7f0; }.alarm-icon { color: #e35a5a; background: #fff0ef; }.energy-icon { color: #dd9b18; background: #fff6df; }
 .headline-card > div { display: grid; min-width: 0; gap: 2px; }.headline-card small, .headline-card span:not(.metric-icon) { color: #7a8da0; font-size: 11px; }.headline-card strong { color: #263e54; font-size: 24px; font-weight: 650; line-height: 1.15; }.headline-card strong em { margin-left: 4px; color: #71869a; font-size: 11px; font-style: normal; font-weight: 500; }
-.overview-grid { display: grid; grid-template-columns: minmax(210px, .88fr) minmax(420px, 1.65fr) minmax(250px, 1fr); grid-template-rows: 205px 195px 195px minmax(205px, auto); grid-template-areas: "device map energy" "alarm map trend" "alarmTrend map carbon" "alarmList alarmList alarmList"; gap: 10px; min-width: 0; }
+/* 桌面端沿用防雷看板的三列布局：告警仅占地图所在中列，两侧卡片延伸至底部。 */
+.overview-grid { display: grid; grid-template-columns: minmax(210px, .88fr) minmax(420px, 1.65fr) minmax(250px, 1fr); grid-template-rows: minmax(205px, 1fr) minmax(195px, 1fr) minmax(205px, 1.1fr); grid-template-areas: "device map energy" "alarm map trend" "alarmTrend alarmList carbon"; gap: 10px; min-width: 0; }
 .panel { min-width: 0; overflow: hidden; border: 1px solid #d7e1eb; border-radius: 5px; background: #fff; box-shadow: 0 2px 7px rgba(24, 58, 88, .04); }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 47px; padding: 8px 12px; border-bottom: 1px solid #e7edf3; }
 .panel-heading h2 { margin: 0; color: #27435d; font-size: 13px; font-weight: 650; line-height: 1.35; }.panel-heading small { color: #91a1b0; font-size: 10px; }.panel-mark { color: #dbe5ef; font-size: 17px; font-weight: 650; }
