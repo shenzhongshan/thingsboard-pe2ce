@@ -1,15 +1,16 @@
-<!-- 文件职责：展示能源监管设备地图、设备概况和用电数据，并保留尚未接入的碳排与告警样例。 -->
+<!-- 能源数值直接展示接口精度，不使用固定小数位格式化。 -->
+<!-- 文件职责：展示能源监管设备、用电及真实告警，共享告警列表与其他业务看板保持一致。 -->
 <main class="energy-dashboard" aria-label="能源监管看板">
   <section class="headline-metrics" aria-label="平台概况">
     <article class="headline-card"><span class="metric-icon project-icon">▦</span><div><small>设备总数</small><strong>{{ deviceOverviewLoading ? '…' : deviceOverviewError ? '--' : deviceSummary.total }}</strong><span>能源监管设备</span></div></article>
     <article class="headline-card"><span class="metric-icon online-icon">⌁</span><div><small>在线设备</small><strong>{{ deviceOverviewLoading ? '…' : deviceOverviewError ? '--' : deviceSummary.online }}</strong><span *ngIf="!deviceOverviewError">离线 {{ deviceSummary.offline }} 台</span></div></article>
     <article class="headline-card"><span class="metric-icon alarm-icon">!</span><div><small>告警设备</small><strong>{{ deviceOverviewLoading ? '…' : deviceOverviewError ? '--' : deviceSummary.alarming }}</strong><span>存在活动告警的设备</span></div></article>
-    <article class="headline-card"><span class="metric-icon energy-icon">ϟ</span><div><small>今日用电</small><strong>{{ todayConsumptionKwh === null ? '--' : (todayConsumptionKwh | number:'1.1-1') }}<em *ngIf="todayConsumptionKwh !== null">kWh</em></strong></div></article>
+    <article class="headline-card"><span class="metric-icon energy-icon">ϟ</span><div><small>今日用电</small><strong>{{ todayConsumptionKwh === null ? '--' : (todayConsumptionKwh) }}<em *ngIf="todayConsumptionKwh !== null">kWh</em></strong></div></article>
   </section>
 
   <section class="overview-grid">
-    <article class="panel device-panel">
-      <header class="panel-heading"><div><h2>设备信息</h2><small>设备在线与告警概况</small></div><span class="panel-mark">01</span></header>
+    <article #deviceVisual class="panel device-panel">
+      <header class="panel-heading"><div><h2>设备信息</h2><small>设备在线与告警概况</small></div><div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="deviceVisual"></tb-energy-visual-fullscreen-button><span class="panel-mark">01</span></div></header>
       <div class="device-donut-layout">
         <div class="device-donut-wrap">
           <div class="device-donut" #chartHost data-chart="devices" role="img" [attr.aria-label]="deviceDonutLabel()"></div>
@@ -30,8 +31,8 @@
       </div>
     </article>
 
-    <article class="panel map-panel">
-      <header class="panel-heading"><div><h2>设备分布</h2><small>{{ mapLoadError ? '设备位置加载失败' : '优先使用 GPS 遥测坐标，缺失时使用服务器属性' }}</small></div><span class="map-legend"><i></i>在线　<i class="offline-dot"></i>离线　<i class="alarm-dot"></i>告警</span></header>
+    <article #mapVisual class="panel map-panel">
+      <header class="panel-heading"><div><h2>设备分布</h2><small>{{ mapLoadError ? '设备位置加载失败' : '优先使用 GPS 遥测坐标，缺失时使用服务器属性' }}</small></div><div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="mapVisual"></tb-energy-visual-fullscreen-button><span class="map-legend"><i></i>在线　<i class="offline-dot"></i>离线　<i class="alarm-dot"></i>告警</span></div></header>
       <div class="map-host"><tb-smart-lightning-device-map [devices]="mapDevices"></tb-smart-lightning-device-map></div>
     </article>
 
@@ -43,8 +44,8 @@
                   [attr.aria-pressed]="periods.consumption === period" (click)="selectPeriod('consumption', period)">{{ periodLabel(period) }}</button>
         </div>
       </header>
-      <div class="energy-primary"><span class="energy-glyph">ϟ</span><div><small>{{ selectedConsumption?.label ?? '用电量' }}</small><strong>{{ selectedConsumptionValueKwh === null ? '--' : (selectedConsumptionValueKwh | number:'1.1-1') }} <em *ngIf="selectedConsumptionValueKwh !== null">kWh</em></strong><span *ngIf="selectedConsumptionChangePercent !== null" [class.trend-down]="selectedConsumptionChangePercent < 0" [class.trend-up]="selectedConsumptionChangePercent > 0">{{ selectedConsumptionChangePercent > 0 ? '↑' : selectedConsumptionChangePercent < 0 ? '↓' : '→' }} {{ math.abs(selectedConsumptionChangePercent) | number:'1.1-1' }}% {{ selectedConsumption?.comparisonLabel }}</span></div></div>
-      <div class="energy-secondary"><div><small>累计表底合计</small><b>{{ totalConsumptionKwh === null ? '--' : (totalConsumptionKwh | number:'1.0-2') }} <em *ngIf="totalConsumptionKwh !== null">kWh</em></b></div><div><small>上一周期</small><b>{{ selectedPreviousConsumptionKwh === null ? '--' : (selectedPreviousConsumptionKwh | number:'1.1-1') }} <em *ngIf="selectedPreviousConsumptionKwh !== null">kWh</em></b></div></div>
+      <div class="energy-primary"><span class="energy-glyph">ϟ</span><div><small>{{ selectedConsumption?.label ?? '用电量' }}</small><strong>{{ selectedConsumptionValueKwh === null ? '--' : (selectedConsumptionValueKwh) }} <em *ngIf="selectedConsumptionValueKwh !== null">kWh</em></strong><span *ngIf="selectedConsumptionChangePercent !== null" [class.trend-down]="selectedConsumptionChangePercent < 0" [class.trend-up]="selectedConsumptionChangePercent > 0">{{ selectedConsumptionChangePercent > 0 ? '↑' : selectedConsumptionChangePercent < 0 ? '↓' : '→' }} {{ math.abs(selectedConsumptionChangePercent) }}% {{ selectedConsumption?.comparisonLabel }}</span></div></div>
+      <div class="energy-secondary"><div><small>累计表底合计</small><b>{{ totalConsumptionKwh === null ? '--' : (totalConsumptionKwh) }} <em *ngIf="totalConsumptionKwh !== null">kWh</em></b></div><div><small>上一周期</small><b>{{ selectedPreviousConsumptionKwh === null ? '--' : (selectedPreviousConsumptionKwh) }} <em *ngIf="selectedPreviousConsumptionKwh !== null">kWh</em></b></div></div>
     </article>
 
     <article class="panel alarm-summary-panel">
@@ -54,33 +55,37 @@
 
     </article>
 
-    <article class="panel chart-panel energy-chart-panel">
-      <header class="panel-heading"><div><h2>能耗趋势</h2><small>单位：kWh</small></div><div class="period-toggle" role="group" aria-label="能耗趋势周期">
+    <article #energyVisual class="panel chart-panel energy-chart-panel">
+      <header class="panel-heading"><div><h2>能耗趋势</h2><small>单位：kWh</small></div><div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="energyVisual"></tb-energy-visual-fullscreen-button><div class="period-toggle" role="group" aria-label="能耗趋势周期">
         <button type="button" *ngFor="let period of periodOptions" [class.active]="periods.energy === period" (click)="selectPeriod('energy', period)">{{ periodLabel(period) }}</button>
-      </div></header>
+      </div></div></header>
       <div class="energy-chart-content"><div class="chart-host" #chartHost data-chart="energy" [class.is-empty]="!!energyChartMessage"></div><div *ngIf="energyChartMessage" class="chart-empty-state" [attr.aria-label]="energyConsumptionError ? '用电数据读取失败' : null">{{ energyChartMessage }}</div></div>
     </article>
 
-    <article class="panel chart-panel carbon-chart-panel">
-      <header class="panel-heading"><div><h2>碳排放趋势</h2><small>kgCO₂</small></div><div class="period-toggle" role="group" aria-label="碳排趋势周期">
+    <article #carbonVisual class="panel chart-panel carbon-chart-panel">
+      <header class="panel-heading"><div><h2>碳排放趋势</h2><small>kgCO₂</small></div><div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="carbonVisual"></tb-energy-visual-fullscreen-button><div class="period-toggle" role="group" aria-label="碳排趋势周期">
         <button type="button" *ngFor="let period of periodOptions" [class.active]="periods.carbon === period" (click)="selectPeriod('carbon', period)">{{ periodLabel(period) }}</button>
-      </div></header>
+      </div></div></header>
       <div class="carbon-kpi"><span>本月排放</span><b>__</b></div>
       <div class="chart-host compact-chart" #chartHost data-chart="carbon"></div>
     </article>
 
-    <article class="panel chart-panel alarm-chart-panel">
-      <header class="panel-heading"><div><h2>告警趋势分析</h2><small>按告警状态统计</small></div><div class="period-toggle" role="group" aria-label="告警趋势周期">
+    <article #alarmVisual class="panel chart-panel alarm-chart-panel">
+      <header class="panel-heading"><div><h2>告警趋势分析</h2><small>按告警状态统计</small></div><div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="alarmVisual"></tb-energy-visual-fullscreen-button><div class="period-toggle" role="group" aria-label="告警趋势周期">
         <button type="button" *ngFor="let period of periodOptions" [class.active]="periods.alarms === period" (click)="selectPeriod('alarms', period)">{{ periodLabel(period) }}</button>
-      </div></header>
+      </div></div></header>
       <div class="chart-host" #chartHost data-chart="alarms"></div>
     </article>
 
     <article class="panel alarm-list-panel">
-      <header class="panel-heading"><div><h2>告警记录</h2><small>近期真实告警</small></div><span class="record-count">{{ alarmSamples.length }} 条</span></header>
-      <div class="table-scroll"><table><thead><tr><th>设备名称</th><th>设备类型</th><th>设备位置</th><th>告警级别</th><th>告警内容</th><th>发生时间</th></tr></thead>
-        <tbody><tr *ngFor="let alarm of alarmSamples"><td>{{ alarm.deviceName }}</td><td>{{ alarm.productName }}</td><td>{{ alarm.location }}</td><td><span class="severity-tag" [ngClass]="severityClass(alarm.severity)">{{ alarm.severity }}</span></td><td>{{ alarm.message }}</td><td>{{ alarm.occurredAt }}</td></tr></tbody>
-      </table></div>
+      <header class="panel-heading"><div><h2>告警记录</h2><small>近期真实告警</small></div><span class="record-count">{{ alarmRecords.length }} 条</span></header>
+      <tb-device-alarm-records
+        [alarms]="alarmRecords"
+        [loading]="deviceOverviewLoading"
+        [loadError]="deviceOverviewError"
+        tableLabel="能源监管告警记录"
+        (retry)="loadDeviceOverview()">
+      </tb-device-alarm-records>
     </article>
   </section>
 </main>

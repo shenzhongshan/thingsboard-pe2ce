@@ -1,0 +1,18 @@
+/* 各能源页面共享同一放大布局；图例、标题、筛选和地图图层仍由原组件渲染。 */
+@mixin layout {
+  .energy-visual-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; }
+  .energy-visual-expanded > header { flex: 0 0 auto; }
+  .energy-visual-expanded .trend-chart,
+  .energy-visual-expanded .power-chart,
+  .energy-visual-expanded .chart-host,
+  .energy-visual-expanded .energy-chart-content,
+  .energy-visual-expanded .map-host { flex: 1 1 auto; min-height: 0; height: auto !important; width: 100%; }
+  .energy-visual-expanded .energy-chart-content { position: relative; }
+  .energy-visual-expanded .energy-chart-content > .chart-host { position: absolute; inset: 0; height: 100% !important; }
+  .energy-visual-expanded .map-host { display: flex; }
+  .energy-visual-expanded .map-host > tb-smart-lightning-device-map { flex: 1; min-height: 0; }
+  .energy-visual-expanded .device-donut-layout { display: flex; flex: 1; min-height: 0; gap: 24px; align-items: stretch; padding: 24px; }
+  .energy-visual-expanded .device-donut-wrap { position: relative; flex: 1; width: auto; height: auto; min-width: 0; min-height: 0; }
+  .energy-visual-expanded .device-donut { width: 100%; height: 100%; }
+  .energy-visual-expanded .device-breakdown { flex: 0 1 240px; overflow: auto; }
+}

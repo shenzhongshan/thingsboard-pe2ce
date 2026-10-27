@@ -3,6 +3,43 @@ import type {
   EnergyRegulationEnergyConsumption
 } from './energy-regulation-api.service';
 import type {SmartLightningMapDevice} from '@home/pages/smart-lightning/shared/map/smart-lightning-device-map.models';
+import type {AlarmInfo} from '@shared/models/alarm.models';
+import type {DeviceAlarmDisplayRow} from '../deviceAlarms/shared/alarm-list/device-alarm-records.model';
+import {
+  getSmartLightningAlarmSeverityLabel,
+  getSmartLightningAlarmSeverityTone,
+  getSmartLightningAlarmStatusLabel
+} from '../deviceAlarms/shared/smart-lightning-alarm-display';
+
+/** 将能源接口的近期告警转换为公共表格契约，权限及分类过滤仍由能源接口负责。 */
+export function buildEnergyRegulationAlarmRecords(
+  alarms: readonly AlarmInfo[],
+  contexts: readonly EnergyRegulationDeviceContext[],
+  assetPaths: ReadonlyMap<string, string>
+): DeviceAlarmDisplayRow[] {
+  const devices = new Map(contexts.map((device) => [device.deviceId, device]));
+  return alarms.slice().sort((a, b) => b.createdTime - a.createdTime).slice(0, 10).map((alarm) => {
+    const originatorId = alarm.originator?.id || '';
+    const device = devices.get(originatorId);
+    const deviceName = device?.deviceName || alarm.originatorName || '--';
+    const path = assetPaths.get(originatorId);
+    const parents = path?.split('/').slice(0, -1) || [];
+    const severityTone = getSmartLightningAlarmSeverityTone(alarm.severity);
+    return {
+      source: parents.join('/') || deviceName,
+      secondaryLocation: parents[parents.length - 1] || '--',
+      // 优先使用告警ID，避免同设备同时间发生不同告警时复用同一行跟踪键。
+      device: alarm.id?.id || `${originatorId}-${alarm.type}`,
+      deviceType: device?.deviceProfileName || device?.productName || '--',
+      deviceName,
+      type: alarm.type || '--',
+      severity: getSmartLightningAlarmSeverityLabel(severityTone),
+      severityTone,
+      status: getSmartLightningAlarmStatusLabel(alarm.status),
+      startTs: Number.isFinite(alarm.startTs) ? alarm.startTs : alarm.createdTime
+    };
+  });
+}
 
 export type EnergyRegulationPeriod = 'day' | 'week' | 'month';
 export type EnergyRegulationChartId = 'consumption' | 'energy' | 'alarms' | 'carbon';

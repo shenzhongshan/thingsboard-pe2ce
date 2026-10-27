@@ -1,3 +1,4 @@
+<!-- 能源数值直接展示接口精度，不使用固定小数位格式化。 -->
 <!-- 文件职责：呈现资产层级、能源指标、电能质量和设备筛选结果。 -->
 <main class="energy-monitoring" aria-label="用能监测">
   <aside class="asset-panel" aria-label="资产范围">
@@ -36,19 +37,19 @@
           </div>
         </header>
         <div class="indicator-list">
-          <div class="indicator-row"><span><i class="indicator-dot energy-dot"></i>总用电量</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].totalEnergyKwh | number:'1.0-0') ?? '__' }} <small>kWh</small></strong></div>
-          <div class="indicator-row"><span><i class="indicator-dot power-dot"></i>小时平均功率峰值</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].peakPowerKw | number:'1.0-0') ?? '__' }} <small>kW</small></strong></div>
-          <div class="indicator-row"><span><i class="indicator-dot load-dot"></i>平均负载</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].averageLoadPercent | number:'1.0-0') ?? '__' }}<small>%</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot energy-dot"></i>总用电量</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].totalEnergyKwh) ?? '__' }} <small>kWh</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot power-dot"></i>小时平均功率峰值</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].peakPowerKw) ?? '__' }} <small>kW</small></strong></div>
+          <div class="indicator-row"><span><i class="indicator-dot load-dot"></i>平均负载</span><strong>{{ (ENERGY_MONITORING_KPIS[metricsPeriod].averageLoadPercent) ?? '__' }}<small>%</small></strong></div>
         </div>
       </article>
 
-      <article class="monitoring-panel trend-panel">
+      <article #monitoringTrendVisual class="monitoring-panel trend-panel">
         <header class="panel-heading">
           <div><h2>能耗趋势分析</h2><small>分时用电量 · kWh</small></div>
-          <div class="period-toggle" role="group" aria-label="能耗趋势周期">
+          <div class="energy-visual-actions"><tb-energy-visual-fullscreen-button [target]="monitoringTrendVisual"></tb-energy-visual-fullscreen-button><div class="period-toggle" role="group" aria-label="能耗趋势周期">
             <button *ngFor="let period of periods" type="button" [class.active]="trendPeriod === period.key"
                     [attr.aria-pressed]="trendPeriod === period.key" (click)="selectPeriod('trend', period.key)">{{ period.label }}</button>
-          </div>
+          </div></div>
         </header>
         <div class="trend-chart" #trendHost role="img" aria-label="能耗趋势图"></div>
       </article>
@@ -65,7 +66,7 @@
           <div><span>监测点数</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].pointCount ?? '__' }}</strong></div>
           <div><span>异常次数</span><strong [class.value-warning]="(ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount ?? 0) > 0">{{ ENERGY_MONITORING_QUALITY[qualityPeriod].abnormalCount ?? '__' }}</strong></div>
           <div><span>电压合格率</span><strong>{{ ENERGY_MONITORING_QUALITY[qualityPeriod].voltagePassPercent ?? '__' }}<small>%</small></strong></div>
-          <div><span>频率偏差</span><strong>{{ (ENERGY_MONITORING_QUALITY[qualityPeriod].frequencyDeviationHz | number:'1.2-2') ?? '__' }}<small>Hz</small></strong></div>
+          <div><span>频率偏差</span><strong>{{ (ENERGY_MONITORING_QUALITY[qualityPeriod].frequencyDeviationHz) ?? '__' }}<small>Hz</small></strong></div>
         </div>
       </article>
     </section>
@@ -84,63 +85,58 @@
       </dl>
     </section>
 
-    <section class="monitoring-panel device-panel" aria-label="设备总览">
-      <header class="device-toolbar">
+    <section class="device-overview" aria-label="设备总览">
+      <header class="overview-toolbar">
         <h2>设备总览</h2>
-        <div class="category-tabs" role="group" aria-label="设备分类筛选">
+        <nav class="category-tabs" aria-label="设备功能分类">
           <button *ngFor="let category of categories" type="button" [class.active]="selectedCategory === category.key"
                   [attr.aria-pressed]="selectedCategory === category.key" (click)="selectCategory(category.key)">{{ category.label }}</button>
-        </div>
-        <div class="device-actions">
-          <label class="device-search"><tb-icon>search</tb-icon><input [(ngModel)]="deviceSearch" (ngModelChange)="resetDevicePage()" placeholder="输入设备名称" aria-label="搜索设备名称"></label>
-          <div class="view-toggle" role="group" aria-label="设备展示方式">
-            <button type="button" [class.active]="viewMode === 'grid'" [attr.aria-pressed]="viewMode === 'grid'" (click)="setViewMode('grid')" aria-label="卡片视图" title="卡片视图"><tb-icon>grid_view</tb-icon></button>
-            <button type="button" [class.active]="viewMode === 'list'" [attr.aria-pressed]="viewMode === 'list'" (click)="setViewMode('list')" aria-label="列表视图" title="列表视图"><tb-icon>view_list</tb-icon></button>
-          </div>
-        </div>
+        </nav>
+        <label class="device-search"><tb-icon aria-hidden="true">search</tb-icon><input [(ngModel)]="deviceSearch" (ngModelChange)="resetDevicePage()" placeholder="设备名称 / 产品型号" aria-label="搜索设备名称或产品型号"></label>
       </header>
 
-      <div *ngIf="viewMode === 'grid' && pagedDevices.length" class="device-grid">
+      <!-- 加载、失败和空结果分别显示，避免把请求失败误认为没有设备。 -->
+      <div *ngIf="devicesLoading || devicesLoadError" class="device-grid">
+        <div *ngIf="devicesLoading" class="device-grid-state" role="status">正在读取能源监管设备信息…</div>
+        <div *ngIf="!devicesLoading && devicesLoadError" class="device-grid-state error" role="alert">能源监管设备信息读取失败</div>
+      </div>
+      <div *ngIf="!devicesLoading && !devicesLoadError" class="device-grid">
+        <div *ngIf="!pagedDevices.length" class="device-grid-state" role="status">当前节点及下属节点没有符合条件的设备</div>
         <article *ngFor="let device of pagedDevices" class="device-card" [class.status-alarm]="device.status === '告警'" [class.status-offline]="device.status === '离线'">
-          <header><span class="device-kind"><tb-icon>electric_meter</tb-icon>{{ device.categoryLabel }}</span><span class="device-status" [class]="'device-status status-' + device.status">{{ device.status }}</span></header>
-          <h3 [title]="device.name">{{ device.name }}</h3>
-          <p class="device-product" [title]="device.productName">{{ device.productName }}</p>
+          <!-- 与防雷、电气安全一致：状态色只作用于设备名称标题栏。 -->
+          <header>
+            <h3 [title]="device.name + ' / ' + device.productName">{{ device.name }} / {{ device.productName }}</h3>
+            <span [class]="'device-status status-' + device.status">{{ device.status }}</span>
+          </header>
+          <div class="device-body">
+            <div class="device-icon"><tb-icon>electric_meter</tb-icon></div>
+            <div class="device-details">
+              <p><span>设备地址：</span><strong [title]="assetPath(device.assetId)">{{ assetPath(device.assetId) }}</strong></p>
+              <p><span>产品型号：</span><strong [title]="device.modelDisplayName">{{ device.modelDisplayName }}</strong></p>
+              <p><span>最近活跃时间：</span><strong [title]="device.updatedAt">{{ device.updatedAt }}</strong></p>
+            </div>
+          </div>
           <dl class="device-values">
-            <div><dt>累计电量</dt><dd>{{ (device.totalEnergyKwh | number:'1.0-1') ?? '__' }} <small>kWh</small></dd></div>
-            <div><dt>有功功率</dt><dd>{{ (device.activePowerKw | number:'1.0-1') ?? '__' }} <small>kW</small></dd></div>
-            <div><dt>电压</dt><dd>{{ (device.voltage | number:'1.0-1') ?? '__' }} <small>V</small></dd></div>
-            <div><dt>电流</dt><dd>{{ (device.current | number:'1.0-1') ?? '__' }} <small>A</small></dd></div>
+            <div><dt>累计电量</dt><dd>{{ (device.totalEnergyKwh) ?? '__' }} <small>kWh</small></dd></div>
+            <div><dt>有功功率</dt><dd>{{ (device.activePowerKw) ?? '__' }} <small>kW</small></dd></div>
+            <div><dt>A相电压</dt><dd>{{ (device.voltage) ?? '__' }} <small>V</small></dd></div>
+            <div><dt>A相电流</dt><dd>{{ (device.current) ?? '__' }} <small>A</small></dd></div>
           </dl>
-          <footer><span>{{ assetPath(device.assetId) }}</span><time>{{ device.updatedAt }}</time></footer>
+          <footer>
+            <!-- 详情使用能源模块自己的路由，返回时携带当前资产范围。 -->
+            <a class="detail" [routerLink]="['/energy-regulation/monitoring/device', device.id]"
+               [queryParams]="{returnAssetId: selectedAssetId || null, returnRootAssetId: selectedRootAssetId || null}"
+               [attr.aria-label]="'查看设备详情：' + device.name" title="设备详情">详情</a>
+          </footer>
         </article>
       </div>
 
-      <div *ngIf="viewMode === 'list' && pagedDevices.length" class="device-table-scroll">
-        <table class="device-table">
-          <thead><tr><th>设备名称</th><th>设备分类</th><th>产品名称</th><th>状态</th><th>累计电量</th><th>有功功率</th><th>电压 / 电流</th><th>功率因数</th><th>更新时间</th></tr></thead>
-          <tbody>
-            <tr *ngFor="let device of pagedDevices">
-              <td>{{ device.name }}</td><td>{{ device.categoryLabel }}</td><td>{{ device.productName }}</td>
-              <td><span class="device-status" [class]="'device-status status-' + device.status">{{ device.status }}</span></td>
-              <td>{{ (device.totalEnergyKwh | number:'1.0-1') ?? '__' }} kWh</td><td>{{ (device.activePowerKw | number:'1.0-1') ?? '__' }} kW</td>
-              <td>{{ (device.voltage | number:'1.0-1') ?? '__' }} V / {{ (device.current | number:'1.0-1') ?? '__' }} A</td>
-              <td>{{ (device.powerFactor | number:'1.2-2') ?? '__' }}</td><td>{{ device.updatedAt }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div *ngIf="!pagedDevices.length" class="device-empty">没有符合当前条件的设备</div>
-
-      <footer class="device-pagination">
-        <label><select [value]="pageSize" (change)="setPageSize($any($event.target).value)" aria-label="每页条数">
-          <option *ngFor="let size of pageSizeOptions" [value]="size">{{ size }}条/页</option>
-        </select></label>
-        <button type="button" (click)="movePage(-1)" [disabled]="page <= 1" aria-label="上一页"><tb-icon>chevron_left</tb-icon></button>
-        <span>{{ page }} / {{ pageCount }}</span>
-        <button type="button" (click)="movePage(1)" [disabled]="page >= pageCount" aria-label="下一页"><tb-icon>chevron_right</tb-icon></button>
-        <span class="result-count">共 {{ filteredDevices.length }} 台</span>
-      </footer>
+      <nav class="pagination" aria-label="设备分页">
+        <span>共 {{ filteredDevices.length }} 台 · {{ pageSize }} / 页</span>
+        <button type="button" (click)="movePage(-1)" [disabled]="page <= 1" aria-label="上一页">‹</button>
+        <button type="button" class="active" aria-current="page">{{ page }}</button><span>/ {{ pageCount }}</span>
+        <button type="button" (click)="movePage(1)" [disabled]="page >= pageCount" aria-label="下一页">›</button>
+      </nav>
     </section>
   </section>
 </main>

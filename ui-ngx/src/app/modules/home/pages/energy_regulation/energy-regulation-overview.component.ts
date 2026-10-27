@@ -1,3 +1,4 @@
+import {EnergyVisualFullscreenButtonComponent} from './shared/energy-visual-fullscreen-button.component';
 /** 文件职责：加载用能概况根资产筛选项，并维护概况图表及交互状态。 */
 import {Subject, forkJoin, takeUntil, auditTime} from 'rxjs';
 import {EnergyRegulationLiveService} from './shared/energy-regulation-live.service';
@@ -11,6 +12,7 @@ import {EnergyRegulationApiService, EnergyRegulationRootAsset} from './energy-re
 import {EnergyRegulationPeriod} from './energy-regulation-dashboard.data';
 import {
   buildEnergyOverviewSnapshot,
+  formatEnergyOverviewChartValue,
   EnergyOverviewSnapshot
 } from './energy-regulation-overview.data';
 
@@ -19,7 +21,7 @@ import {
   templateUrl: './energy-regulation-overview.component.html',
   styleUrls: ['./energy-regulation-overview.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule]
+  imports: [EnergyVisualFullscreenButtonComponent, CommonModule, FormsModule, SharedModule]
 })
 export class EnergyRegulationOverviewComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 图表 DOM 建立后再初始化实例，切换页面时统一释放。 */
@@ -131,9 +133,11 @@ export class EnergyRegulationOverviewComponent implements OnInit, AfterViewInit,
     const series = this.snapshot.energySeries[this.selectedPeriod];
     const option: EChartsOption = {
       animationDuration: 250,
-      graphic: series.values.some((value) => value !== null) ? [] : [{type: 'text', left: 'center', top: 'middle', style: {text: '__', fill: '#71869a'}}],
+      // null和undefined均为缺数；仅有限数值（包括0）允许取消空图占位。
+      graphic: series.values.some((value) => typeof value === 'number' && Number.isFinite(value))
+        ? [] : [{type: 'text', left: 'center', top: 'middle', style: {text: '__', fill: '#71869a'}}],
       grid: {left: 52, right: 20, top: 28, bottom: 48},
-      tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => `${value} kWh`},
+      tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => formatEnergyOverviewChartValue(value, 'kWh')},
       xAxis: {type: 'category', data: series.labels, boundaryGap: false, axisTick: {show: false},
         axisLine: {lineStyle: {color: '#d8e0e8'}}, axisLabel: {color: '#71869a', fontSize: 11, hideOverlap: true}},
       yAxis: {type: 'value', min: 0, name: 'kWh', nameTextStyle: {color: '#71869a', fontSize: 11},
@@ -152,11 +156,12 @@ export class EnergyRegulationOverviewComponent implements OnInit, AfterViewInit,
     }
     const option: EChartsOption = {
       animationDuration: 250,
-      graphic: [...this.snapshot.todayPower, ...this.snapshot.yesterdayPower].some((value) => value !== null)
+      graphic: [...this.snapshot.todayPower, ...this.snapshot.yesterdayPower]
+        .some((value) => typeof value === 'number' && Number.isFinite(value))
         ? [] : [{type: 'text', left: 'center', top: 'middle', style: {text: '__', fill: '#71869a'}}],
       grid: {left: 52, right: 20, top: 24, bottom: 58},
       legend: {bottom: 4, itemWidth: 12, itemHeight: 8, textStyle: {color: '#53687c', fontSize: 11}},
-      tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => `${value} kW`},
+      tooltip: {trigger: 'axis', valueFormatter: (value: unknown) => formatEnergyOverviewChartValue(value, 'kW')},
       xAxis: {type: 'category', data: this.snapshot.powerLabels, boundaryGap: false, axisTick: {show: false},
         axisLine: {lineStyle: {color: '#d8e0e8'}}, axisLabel: {color: '#71869a', fontSize: 11, hideOverlap: true}},
       yAxis: {type: 'value', min: 0, name: 'kW', nameTextStyle: {color: '#71869a', fontSize: 11},

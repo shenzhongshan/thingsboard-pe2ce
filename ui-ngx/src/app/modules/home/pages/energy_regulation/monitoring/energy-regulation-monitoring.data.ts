@@ -17,6 +17,8 @@ export interface EnergyMonitoringDevice {
   category: Exclude<EnergyMonitoringCategory, 'all'>;
   categoryLabel: string;
   productName: string;
+  /** 产品型号取后端设备配置名称，不根据设备序列号推断。 */
+  modelDisplayName: string;
   assetId: string;
   status: '正常' | '告警' | '离线';
   online?: boolean;
@@ -140,7 +142,8 @@ export function buildEnergyMonitoringDevices(tree: EnergyMonitoringAssetTree,
     const online = active === undefined ? context.active === true : ['true', '1'].includes(String(active).toLowerCase());
     const timestamp = Math.max(context.lastActivityTime || 0, ...Array.from(values.values(), (sample) => sample.ts));
     return {id: context.deviceId, name: context.deviceName, category: 'meter' as const,
-      categoryLabel: '电能计量', productName: context.productName || '__', assetId: context.deviceId,
+      categoryLabel: '电能计量', productName: context.productName || '__',
+      modelDisplayName: context.deviceProfileName || '__', assetId: context.deviceId,
       online, status: alarmed.has(context.deviceId) ? '告警' as const : online ? '正常' as const : '离线' as const,
       totalEnergyKwh: number('FwdActET'), activePowerKw: number('ActPwrTot'), voltage: number('PhAVolt'),
       current: number('PhACurr'), powerFactor: number('PwrFactT'), updatedAt: timestamp ? new Date(timestamp).toLocaleString() : '__'};
@@ -193,7 +196,7 @@ export function buildEnergyMonitoringAssetSummary(devices: EnergyMonitoringDevic
   };
 }
 
-/** 仅展示命中资产子树、分类和设备名称的设备。 */
+/** 仅展示命中资产子树、分类以及名称、产品名称或型号关键词的设备。 */
 export function filterEnergyMonitoringDevices(
   devices: EnergyMonitoringDevice[],
   selectedAssetIds: ReadonlySet<string>,
@@ -206,7 +209,8 @@ export function filterEnergyMonitoringDevices(
     const inCategory = category === 'all' || device.category === category;
     const matchesKeyword = !normalizedKeyword ||
       device.name.toLocaleLowerCase().includes(normalizedKeyword) ||
-      device.productName.toLocaleLowerCase().includes(normalizedKeyword);
+      device.productName.toLocaleLowerCase().includes(normalizedKeyword) ||
+      (device.modelDisplayName || '').toLocaleLowerCase().includes(normalizedKeyword);
     return inScope && inCategory && matchesKeyword;
   });
 }

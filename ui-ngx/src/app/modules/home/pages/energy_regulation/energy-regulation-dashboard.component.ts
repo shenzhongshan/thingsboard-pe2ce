@@ -2,9 +2,8 @@
 import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren} from '@angular/core';
 import * as echarts from 'echarts';
 import {ECharts, EChartsOption} from 'echarts';
-import {AlarmQueryV2, AlarmSearchStatus, AlarmSeverity} from '@shared/models/alarm.models';
+import type {DeviceAlarmDisplayRow} from '../deviceAlarms/shared/alarm-list/device-alarm-records.model';
 import {EntityType} from '@shared/models/entity-type.models';
-import {MAX_SAFE_PAGE_SIZE, TimePageLink} from '@shared/models/page/page-link';
 import {auditTime, bufferTime, catchError, filter, forkJoin, merge, of, Subject} from 'rxjs';
 import {takeUntil} from 'rxjs/operators';
 import {EnergyRegulationApiService} from './energy-regulation-api.service';
@@ -16,11 +15,12 @@ import type {
 import type {SmartLightningMapDevice} from '../smart-lightning/shared/map/smart-lightning-device-map.models';
 import {resolveSmartLightningMapCoordinates} from '../smart-lightning/shared/map/smart-lightning-device-map.data';
 import {
-  SmartLightningDeviceTelemetryChange,
-  SmartLightningRealtimeService
-} from '../smart-lightning/shared/realtime/smart-lightning-realtime.service';
+  DeviceTelemetryChange,
+  EnergyRegulationRealtimeService
+} from './shared/energy-regulation-realtime.service';
 import {
   buildEnergyRegulationDeviceOverview,
+  buildEnergyRegulationAlarmRecords,
   EnergyRegulationDeviceProfileCount,
   EnergyRegulationDeviceSummary,
   EnergyRegulationChartId,
@@ -43,6 +43,8 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
 
   /** 能源监管接口返回的实际告警，用于列表和独立周期统计。 */
   alarms: import('@shared/models/alarm.models').AlarmInfo[] = [];
+  /** 能源告警转换为公共告警列表行，复用防雷和电气安全的表格样式及状态展示。 */
+  alarmRecords: DeviceAlarmDisplayRow[] = [];
   /** 能源监管地图仅显示现有设备上下文中具有有效遥测或服务器属性坐标的设备。 */
   mapDevices: SmartLightningMapDevice[] = [];
   /** 地图坐标和设备信息沿用能源监管模块已有接口，不依赖防雷或电气安全数据。 */
@@ -72,7 +74,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
 
   constructor(
     private readonly energyRegulationApiService: EnergyRegulationApiService,
-    private readonly realtimeService: SmartLightningRealtimeService
+    private readonly realtimeService: EnergyRegulationRealtimeService
   ) {}
 
   ngOnInit(): void {
@@ -144,18 +146,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     const cleared = alarms.filter((alarm) => alarm.cleared).length;
     return {todayTotal: alarms.length, todayProcessed: cleared,
       urgentActive: this.alarms.filter((alarm) => !alarm.cleared && ['CRITICAL','MAJOR'].includes(alarm.severity)).length,
-      resolutionRate: alarms.length ? Math.round(cleared / alarms.length * 100) : null};
-  }
-
-  /** 实际告警记录使用本模块设备与资产路径补充显示，不生成演示事件。 */
-  get alarmSamples() {
-    const devices = new Map(this.energyDeviceContexts.map((device) => [device.deviceId, device]));
-    const severity: Record<string, string> = {CRITICAL: '严重', MAJOR: '重要', MINOR: '次要', WARNING: '警告', INDETERMINATE: '不确定'};
-    return this.alarms.slice().sort((a, b) => b.createdTime - a.createdTime).slice(0, 10).map((alarm) => ({
-      deviceName: devices.get(alarm.originator.id)?.deviceName || alarm.originatorName || '__',
-      productName: devices.get(alarm.originator.id)?.productName || '__', location: this.mapAssetPaths.get(alarm.originator.id) || '__',
-      severity: severity[alarm.severity] || alarm.severity, message: alarm.type,
-      occurredAt: new Date(alarm.createdTime).toLocaleString()}));
+      resolutionRate: alarms.length ? cleared / alarms.length * 100 : null};
   }
 
   /** 每张趋势图独立按上海自然日、周、月分桶，三组互斥状态相加等于事件条数。 */
@@ -192,11 +183,6 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
     return period === 'day' ? '日' : period === 'week' ? '周' : '月';
   }
 
-  /** 将告警级别映射为样式类，不修改告警数据。 */
-  severityClass(severity: string): string {
-    return severity === '严重' ? 'critical' : severity === '紧急' ? 'urgent' : 'general';
-  }
-
   ngAfterViewInit(): void {
     this.chartHosts.forEach((host) => {
       const chartId = host.nativeElement.dataset.chart;
@@ -219,12 +205,13 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
   }
 
   /** 复用能源监管模块现有设备、资产树和告警接口；无设备时地图保持空白。 */
-  private loadDeviceOverview(): void {
+  loadDeviceOverview(): void {
     const requestId = ++this.deviceOverviewRequestId;
-    const alarmsQuery = new AlarmQueryV2(null, new TimePageLink(MAX_SAFE_PAGE_SIZE, 0), {
-      statusList: [AlarmSearchStatus.ACTIVE],
-      severityList: Object.values(AlarmSeverity)
-    });
+    // 失败后的手动重试进入加载态；实时刷新保留现有内容，避免告警表闪烁。
+    if (this.deviceOverviewError) {
+      this.deviceOverviewLoading = true;
+      this.deviceOverviewError = false;
+    }
     forkJoin({
       devices: this.energyRegulationApiService.getDeviceContexts(),
       alarms: this.energyRegulationApiService.getAllAlarms(),
@@ -251,6 +238,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
         if (assetTree) {
           buildEnergyRegulationAssetPathIndex(assetTree.roots, this.mapAssetPaths);
         }
+        this.alarmRecords = buildEnergyRegulationAlarmRecords(alarms, devices, this.mapAssetPaths);
         this.mapLoadError = false;
         this.refreshMapDevices();
         const overview = buildEnergyRegulationDeviceOverview(devices, alarmedDeviceIds);
@@ -265,6 +253,7 @@ export class EnergyRegulationDashboardComponent implements OnInit, AfterViewInit
           return;
         }
         this.alarms = [];
+        this.alarmRecords = [];
         this.energyDeviceContexts = [];
         this.renderChart('alarms');
         this.mapDevices = [];

@@ -1,0 +1,149 @@
+<!-- 与防雷、电气安全保持相同的左树、上方两卡、下方曲线和底部告警结构。 -->
+<main class="device-detail-page" aria-label="能源设备详情">
+  <aside class="asset-panel">
+    <tb-smart-lightning-asset-tree [tree]="assetTree" [selectedIds]="selectedAssetIds" [expandedIds]="expandedAssetIds"
+      [search]="assetSearch" [loading]="loading" [loadError]="loadError" [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="true" [showUnselectedAlarmMarkers]="true" [selectableIds]="selectableAssetIds"
+      searchPlaceholder="搜索资产名称" treeAriaLabel="能源监管资产层级"
+      (searchChange)="assetSearch = $event" (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
+  </aside>
+  <section class="detail-content">
+    @if (loading) {
+      <section class="surface detail-page-state" role="status">正在读取设备详情…</section>
+    } @else if (loadError || !device) {
+      <section class="surface detail-page-state error" role="alert">未找到当前可访问的能源监管设备</section>
+    } @else {
+      <section class="detail-grid">
+        <article class="surface device-summary">
+          <div class="summary-top">
+            <div class="device-mark"><tb-icon>electric_meter</tb-icon></div>
+            <div class="summary-identity">
+              <strong [title]="device.deviceName">{{device.deviceName}}</strong>
+              <span [title]="device.productName || '__'">{{device.productName || '__'}}</span>
+              <span class="summary-connection" [class.offline]="!deviceActive">{{deviceActive ? '在线' : '离线'}}</span>
+            </div>
+          </div>
+          <div class="summary-scroll">
+            <dl class="device-fields">
+              <div><dt>设备名称</dt><dd [title]="device.deviceName">{{device.deviceName}}</dd></div>
+              <div><dt>仪表地址</dt><dd [title]="deviceLocation">{{deviceLocation}}</dd></div>
+            </dl>
+            @if (isEsa) {
+              <section class="product-specification" aria-label="产品参数">
+                <header><h2>产品参数</h2></header>
+                <dl>
+                  @for (item of specification; track item.label) {
+                    <div><dt>{{item.label}}</dt><dd [title]="item.value">{{item.value}}</dd></div>
+                  }
+                </dl>
+              </section>
+              <section class="product-specification" aria-label="使用说明">
+                <header><h2>使用说明</h2></header>
+                <dl>
+                  @for (item of usage; track item.label) {
+                    <div><dt>{{item.label}}</dt><dd [title]="item.value">{{item.value}}</dd></div>
+                  }
+                </dl>
+              </section>
+            }
+          </div>
+        </article>
+        <article class="surface realtime-panel">
+          <header><h2>实时数据</h2><time>{{reportTime ? (reportTime | date:'yyyy/MM/dd HH:mm:ss') : '__'}}</time></header>
+          @if (telemetryLoading && !reportTime) { <div class="detail-inline-state" role="status">正在读取设备遥测…</div> }
+          @if (telemetryError) { <div class="detail-inline-state error" role="alert">最近遥测读取失败</div> }
+          <div class="metric-grid">
+            @for (metric of measurements; track metric.key) {
+              <div class="metric" [class.abnormal]="isAbnormal(metric.key, metric.status)" [title]="measurementTitle(metric.key)">
+                <span [title]="metric.label">{{metric.label}}</span>
+                <!-- 直接复用前两个模块的字体测量指令，数值与单位完整同排显示。 -->
+                <strong class="metric-value" [class.abnormal]="isAbnormal(metric.key, metric.status)"
+                  [class.ok]="metric.status && measurementValue(metric.key, true, '') === '正常'"
+                  [tbTelemetryFitValue]="measurementValue(metric.key, metric.status, metric.unit)"
+                  [title]="measurementValue(metric.key, metric.status, metric.unit)">{{measurementValue(metric.key, metric.status, metric.unit)}}</strong>
+              </div>
+            }
+          </div>
+        </article>
+        @if (!showAllChartsDialog) {
+          <section class="chart-grid" aria-label="设备趋势图">
+            <div class="chart-grid-toolbar">
+              <span class="chart-sample-note">每测点最近1000条采样</span>
+              <button type="button" class="chart-more-button" (click)="openAllChartsDialog($event)">更多参数</button>
+            </div>
+            @for (chart of chartDefinitions; track chart.id) {
+  <article #chartCard class="surface chart-card">
+    <header>
+      <h2 [title]="chart.title">{{chart.title}}</h2>
+      <div class="chart-header-actions">
+        <tb-energy-visual-fullscreen-button [target]="chartCard"></tb-energy-visual-fullscreen-button>
+        <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+          @for (period of chartPeriodOptions; track period.value) {
+            <button type="button" [class.active]="selectedChartPeriods[chart.id] === period.value"
+                    [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                    (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+          }
+        </div>
+      </div>
+    </header>
+    <div #chartHost [attr.data-chart]="chart.id" class="chart-host" role="img" [attr.aria-label]="chart.title + '趋势图，每个测点最多展示最近1000条采样'"></div>
+  </article>
+}
+          </section>
+        }
+      </section>
+      @if (showAllChartsDialog) {
+        <div class="chart-dialog-backdrop" role="presentation" (click)="closeAllChartsDialog()">
+          <section class="chart-dialog" role="dialog" aria-modal="true" aria-labelledby="energy-all-charts-title"
+                   cdkTrapFocus [cdkTrapFocusAutoCapture]="true" (click)="$event.stopPropagation()">
+            <header class="chart-dialog-header">
+              <h2 id="energy-all-charts-title">全部参数趋势</h2>
+              <button type="button" class="chart-dialog-close" aria-label="关闭更多参数" (click)="closeAllChartsDialog()">×</button>
+            </header>
+            <div class="chart-dialog-grid">@for (chart of allChartDefinitions; track chart.id) {
+  <article #chartCard class="surface chart-card">
+    <header>
+      <h2 [title]="chart.title">{{chart.title}}</h2>
+      <div class="chart-header-actions">
+        <tb-energy-visual-fullscreen-button [target]="chartCard"></tb-energy-visual-fullscreen-button>
+        <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+          @for (period of chartPeriodOptions; track period.value) {
+            <button type="button" [class.active]="selectedChartPeriods[chart.id] === period.value"
+                    [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                    (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+          }
+        </div>
+      </div>
+    </header>
+    <div #chartHost [attr.data-chart]="chart.id" class="chart-host" role="img" [attr.aria-label]="chart.title + '趋势图，每个测点最多展示最近1000条采样'"></div>
+  </article>
+}</div>
+          </section>
+        </div>
+      }
+      <section class="surface alarms-panel">
+        <header><h2>最近告警</h2></header>
+        <div class="alarm-table-wrap">
+          <table>
+            <thead><tr><th>序号</th><th>告警名称</th><th>告警等级</th><th>告警状态</th><th>发生时间</th></tr></thead>
+            <tbody>
+              @if (alarmsLoading) { <tr><td colspan="5" class="alarm-state">正在读取当前设备告警…</td></tr> }
+              @else if (alarmsLoadError) { <tr><td colspan="5" class="alarm-state error">告警信息读取失败</td></tr> }
+              @else if (!alarms.length) { <tr><td colspan="5" class="alarm-state">当前设备暂无告警</td></tr> }
+              @else {
+                @for (alarm of alarms; track alarm.id.id; let index = $index) {
+                  <tr><td>{{index + 1}}</td><td>{{alarm.type}}</td>
+                    <td><span class="tag" [class.critical]="alarm.severity === 'CRITICAL'">{{severityLabel(alarm)}}</span></td>
+                    <td><span class="tag" [class.done]="alarm.cleared">{{statusLabel(alarm)}}</span></td>
+                    <td>{{(alarm.startTs || alarm.createdTime) | date:'yyyy/MM/dd HH:mm:ss'}}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </section>
+</main>

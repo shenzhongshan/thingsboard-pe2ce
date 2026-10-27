@@ -1,352 +1,180 @@
-/** 文件职责：用能数据查询页面组件，负责能源资产范围、设备筛选、表格操作和信息预览。 */
+/** 能源数据查询：与防雷、电气安全共用查询交互格式，业务范围只消费能源模块接口。 */
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit} from '@angular/core';
 import {CommonModule} from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
-  Component,
-  ElementRef,
-  HostListener,
-  OnDestroy,
-  OnInit,
-  ViewChild
-} from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {SharedModule} from '@app/shared/shared.module';
-import {EntityType} from '@shared/models/entity-type.models';
-import {SmartLightningRootAssetFilterComponent} from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
-import {SmartLightningAssetTreeModule} from '@home/pages/smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
+import {ActivatedRoute, RouterModule} from '@angular/router';
+import {MatDialog} from '@angular/material/dialog';
 import {Subject, takeUntil} from 'rxjs';
+import {SharedModule} from '@app/shared/shared.module';
 import {EnergyRegulationLiveService, EnergyLiveSnapshot} from '../shared/energy-regulation-live.service';
 import {ENERGY_METER_MEASUREMENTS} from '../shared/energy-regulation-measurements';
-import {EnergyRegulationHistoryApiService} from './energy-regulation-history-api.service';
-import {EnergyRegulationApiService} from '../energy-regulation-api.service';
-import {
-  buildEnergyMonitoringAssetTree,
-  EnergyMonitoringAssetTree,
-  getEnergyMonitoringSelectedAssetIds
-} from '../monitoring/energy-regulation-monitoring.data';
-import {
-  buildEnergyQueryCsv,
-  buildEnergyQueryDeviceCsv,
-  buildEnergyQueryDeviceRows,
-  buildEnergyQueryDevices,
-  EnergyQueryDevice,
-  EnergyQueryDeviceRow,
-  EnergyQueryStatus,
-  filterEnergyQueryDevices,
-  getEnergyQueryDeviceTypes,
-  getEnergyQueryFunctionCategories
-} from './energy-regulation-data-query.data';
-import {EnergyAssetNode} from '../monitoring/energy-regulation-monitoring.data';
+import {SmartLightningRootAssetFilterComponent} from '../../smart-lightning/smart-lightning-root-asset-filter.component';
+import {SmartLightningAssetTreeModule} from '../../smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
+import {SmartLightningHistoryReviewDialogComponent} from '../../smart-lightning/query/smart-lightning-history-review-dialog.component';
+import {SmartLightningHistoryReviewDialogModule} from '../../smart-lightning/query/smart-lightning-history-review-dialog.module';
+import {getSmartLightningAlarmSeverityLabel, getSmartLightningAlarmSeverityTone} from '../../deviceAlarms/shared/smart-lightning-alarm-display';
+import {buildEnergyMonitoringAssetTree, EnergyAssetNode, getEnergyDefaultExpandedAssetIds,
+  getEnergyMonitoringSelectedAssetIds} from '../monitoring/energy-regulation-monitoring.data';
+import {buildEnergyQueryCsv, buildEnergyQueryDeviceCsv, buildEnergyQueryDeviceRows, buildEnergyQueryDevices,
+  EnergyQueryDevice, EnergyQueryDeviceRow, EnergyQueryStatus, filterEnergyQueryDevices} from './energy-regulation-data-query.data';
 
-interface QueryDraft {
-  deviceType: string;
-  functionCategory: string;
-  keyword: string;
-  startTime: string;
-  endTime: string;
-}
-
-/**
- * 用能数据查询独立页面：左侧能源资产树联动筛选，右侧提供设备查询和结果操作。
- * 设备与资产使用能源监管接口；历史与最新遥测通过模块内服务封装平台公共接口。
- */
 @Component({
   selector: 'tb-energy-regulation-data-query',
   templateUrl: './energy-regulation-data-query.component.html',
   styleUrls: ['./energy-regulation-data-query.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
+  imports: [CommonModule, FormsModule, RouterModule, SharedModule, SmartLightningRootAssetFilterComponent,
+    SmartLightningAssetTreeModule, SmartLightningHistoryReviewDialogModule]
 })
 export class EnergyRegulationDataQueryComponent implements OnInit, OnDestroy {
-
-  @ViewChild('reviewCloseButton') private reviewCloseButton?: ElementRef<HTMLButtonElement>;
-
-  assetTree: EnergyMonitoringAssetTree = buildEnergyMonitoringAssetTree([]);
+  assetTree = buildEnergyMonitoringAssetTree([]);
   assetsLoading = true;
   assetsLoadError = false;
+  devicesLoading = true;
+  devicesLoadError = false;
   selectedRootAssetId = '';
-  selectedAssetId = '';
-  selectedAssetName = '全部资产';
+  selectedTreeNodeId = '';
+  selectedAssetName = '全部根资产';
   selectedAssetIds = new Set<string>();
   expandedAssetIds = new Set<string>();
+  activeAlarmDeviceIds = new Set<string>();
   assetSearch = '';
-
-  /** 筛选区草稿值；点击「查询」后才应用到表格（与原型图的查询/重置语义一致）。 */
-  draft: QueryDraft = {deviceType: '', functionCategory: '', keyword: '', startTime: '', endTime: ''};
-  applied: QueryDraft = {...this.draft};
-
+  productNameFilter = '';
+  functionType = '';
+  keyword = '';
   activeStatus: '全部' | EnergyQueryStatus = '全部';
-  readonly statuses: Array<'全部' | EnergyQueryStatus> = ['全部', '在线', '离线', '未连接'];
-
-  devices: EnergyQueryDevice[] = [];
-  selectedRowIds = new Set<string>();
-  page = 1;
+  readonly statuses: Array<'全部' | EnergyQueryStatus> = ['全部', '报警', '离线', '正常'];
   readonly pageSize = 20;
-
-  /** 当前预览的设备及预览类型。 */
-  reviewDevice: EnergyQueryDevice | null = null;
-  reviewMode: '回顾' | '详情' = '回顾';
-  private reviewTrigger: HTMLElement | null = null;
-
-  readonly measurements = ENERGY_METER_MEASUREMENTS;
-  reviewKey = 'FwdActET';
-  reviewLoading = false;
-  reviewError = false;
-  historyPoints: Array<{time: string; value: string}> = [];
-  detailPoints: Array<{label: string; value: string}> = [];
-  private liveSnapshot?: EnergyLiveSnapshot;
-  private readonly reviewRequest$ = new Subject<void>();
+  page = 1;
+  selectedRowIds = new Set<string>();
+  private devices: EnergyQueryDevice[] = [];
+  private snapshot?: EnergyLiveSnapshot;
   private readonly destroy$ = new Subject<void>();
 
-  constructor(
-    private readonly energyApi: EnergyRegulationApiService,
-    private readonly live: EnergyRegulationLiveService,
-    private readonly historyApi: EnergyRegulationHistoryApiService,
-    private readonly cd: ChangeDetectorRef
-  ) {}
+  constructor(private readonly live: EnergyRegulationLiveService, private readonly dialog: MatDialog,
+              private readonly route: ActivatedRoute, private readonly cd: ChangeDetectorRef) {}
 
+  /** 保留能源模块自己的实时服务，不重新订阅其他产品分类。 */
   ngOnInit(): void {
+    const params = this.route.snapshot.queryParamMap;
+    this.selectedRootAssetId = params.get('selectedRootAssetId') || params.get('returnRootAssetId') || '';
+    this.selectedTreeNodeId = params.get('selectedAssetId') || params.get('returnAssetId') || '';
     this.live.acquire();
     this.live.snapshot$.pipe(takeUntil(this.destroy$)).subscribe((snapshot) => {
-      this.liveSnapshot = snapshot; this.assetsLoadError = snapshot.error;
-      if (!snapshot.loading) { this.initialize(snapshot.roots); }
-    });
-    this.live.telemetryChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.devices = buildEnergyQueryDevices(this.assetTree, this.liveSnapshot?.contexts || [], (id) => this.live.latest(id));
-      if (this.reviewDevice && this.reviewMode === '详情') {
-        const latest = this.live.latest(this.reviewDevice.id);
-        if (latest.size) {
-          this.detailPoints = this.measurements.map((item) => ({label: item.label,
-            value: latest.get(item.key)?.value !== undefined ? `${latest.get(item.key)!.value} ${item.unit}` : '__'}));
-        }
+      const initial = this.assetsLoading;
+      this.snapshot = snapshot;
+      this.assetsLoading = this.devicesLoading = snapshot.loading;
+      this.assetsLoadError = this.devicesLoadError = snapshot.error;
+      if (!snapshot.loading) {
+        this.assetTree = buildEnergyMonitoringAssetTree(snapshot.roots);
+        this.expandedAssetIds = initial ? getEnergyDefaultExpandedAssetIds(this.assetTree)
+          : new Set([...this.expandedAssetIds].filter((id) => this.assetTree.nodes.has(id)));
+        this.restoreAssetScope();
+        this.rebuildDevices();
       }
       this.cd.markForCheck();
     });
-  }
-
-  ngOnDestroy(): void {
-    this.live.release();
-    this.reviewRequest$.next(); this.reviewRequest$.complete();
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  get filteredDevices(): EnergyQueryDevice[] {
-    return filterEnergyQueryDevices(this.devices, {
-      status: this.activeStatus,
-      deviceType: this.applied.deviceType,
-      functionCategory: this.applied.functionCategory,
-      keyword: this.applied.keyword,
-      startTime: this.applied.startTime,
-      endTime: this.applied.endTime,
-      assetIds: this.selectedAssetIds
+    this.live.telemetryChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.rebuildDevices(); this.cd.markForCheck();
     });
   }
 
-  get rows(): EnergyQueryDeviceRow[] {
-    return buildEnergyQueryDeviceRows(this.filteredDevices);
+  /** 产品与功能下拉只来自当前选中资产范围，不能借用范围外设备。 */
+  get productNames(): string[] { return [...new Set(this.scopedDevices.map((item) => item.productName))].sort((a, b) => a.localeCompare(b, 'zh-CN')); }
+  get functionCategories(): string[] { return [...new Set(this.scopedDevices.map((item) => item.functionCategory))].sort((a, b) => a.localeCompare(b, 'zh-CN')); }
+  private get scopedDevices(): EnergyQueryDevice[] { return this.devices.filter((item) => this.selectedAssetIds.has(item.id)); }
+  private get filteredDevices(): EnergyQueryDevice[] {
+    return filterEnergyQueryDevices(this.devices, {status: this.activeStatus, productName: this.productNameFilter,
+      functionCategory: this.functionType, keyword: this.keyword, assetIds: this.selectedAssetIds});
   }
+  /** 所有导出、分页和勾选都基于同一份筛选结果。 */
+  get filteredRows(): EnergyQueryDeviceRow[] { return buildEnergyQueryDeviceRows(this.filteredDevices); }
+  get pageRows(): EnergyQueryDeviceRow[] { return this.filteredRows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); }
+  get totalPages(): number { return Math.max(1, Math.ceil(this.filteredRows.length / this.pageSize)); }
+  get allPageRowsSelected(): boolean { return this.pageRows.length > 0 && this.pageRows.every((row) => this.selectedRowIds.has(row.id)); }
 
-  get pageRows(): EnergyQueryDeviceRow[] {
-    return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize);
+  /** 切换根资产后恢复到该根的完整子树，过滤条件保留，清空旧行选择。 */
+  selectRootAsset(id: string): void {
+    this.selectedRootAssetId = id; this.selectedTreeNodeId = id;
+    this.restoreAssetScope(); this.resetPage();
   }
-
-  get totalPages(): number {
-    return Math.max(1, Math.ceil(this.rows.length / this.pageSize));
-  }
-
-  get deviceTypes(): string[] {
-    return getEnergyQueryDeviceTypes(this.devices);
-  }
-
-  get functionCategories(): string[] {
-    return getEnergyQueryFunctionCategories(this.devices);
-  }
-
-  /** 日期筛选只接受起始日不晚于结束日的范围。 */
-  get isDateRangeInvalid(): boolean {
-    return Boolean(this.draft.startTime && this.draft.endTime && this.draft.startTime > this.draft.endTime);
-  }
-
-  get allPageRowsSelected(): boolean {
-    return this.pageRows.length > 0 && this.pageRows.every((row) => this.selectedRowIds.has(row.id));
-  }
-
-  selectRootAsset(rootAssetId: string): void {
-    this.selectedRootAssetId = rootAssetId;
-    this.selectedAssetId = rootAssetId;
-    this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, rootAssetId);
-    if (!rootAssetId) {
-      for (const device of this.liveSnapshot?.contexts || []) { this.selectedAssetIds.add(device.deviceId); }
-    }
-    const root = this.assetTree.roots.find((node) => node.id === rootAssetId);
-    this.selectedAssetName = root?.name || '全部资产';
-    this.resetPage();
-  }
-
   selectAssetNode(node: EnergyAssetNode): void {
-    this.selectedAssetId = node.id;
-    this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, node.id);
-    this.selectedAssetName = node.name;
-    this.resetPage();
+    this.selectedTreeNodeId = node.id; this.restoreAssetScope(); this.resetPage();
   }
-
-  selectAllAssets(): void {
-    this.selectRootAsset(this.selectedRootAssetId);
-  }
-
+  selectAllAssets(): void { this.selectRootAsset(this.selectedRootAssetId); }
   toggleAssetNode(node: EnergyAssetNode): void {
-    this.expandedAssetIds.has(node.id) ? this.expandedAssetIds.delete(node.id) : this.expandedAssetIds.add(node.id);
-    this.expandedAssetIds = new Set(this.expandedAssetIds);
+    const expanded = new Set(this.expandedAssetIds);
+    if (expanded.has(node.id)) { expanded.delete(node.id); } else { expanded.add(node.id); }
+    this.expandedAssetIds = expanded;
   }
-
-  /** 「查询」按钮：把筛选草稿应用到表格并回到第一页。 */
-  search(): void {
-    if (this.isDateRangeInvalid) {
-      return;
-    }
-    this.applied = {...this.draft};
-    this.resetPage();
-  }
-
-  /** 清除名称草稿并立即应用空关键字，保留其他已提交筛选条件。 */
-  clearKeyword(): void {
-    this.draft = {...this.draft, keyword: ''};
-    this.applied = {...this.applied, keyword: ''};
-    this.resetPage();
-  }
-
-  /** 「重置」按钮：清空草稿与已应用的筛选条件。 */
+  /** 重置表单不清除资产范围，与前两个查询模块保持一致。 */
   reset(): void {
-    this.draft = {deviceType: '', functionCategory: '', keyword: '', startTime: '', endTime: ''};
-    this.applied = {...this.draft};
-    this.activeStatus = '全部';
-    this.selectedRowIds = new Set();
-    this.resetPage();
+    this.productNameFilter = ''; this.functionType = ''; this.keyword = ''; this.activeStatus = '全部'; this.resetPage();
   }
-
-  setStatus(status: '全部' | EnergyQueryStatus): void {
-    this.activeStatus = status;
-    this.resetPage();
+  setStatus(status: '全部' | EnergyQueryStatus): void { this.activeStatus = status; this.resetPage(); }
+  resetPage(): void { this.page = 1; this.selectedRowIds = new Set(); this.cd.markForCheck(); }
+  setPage(page: number): void { this.page = Math.min(Math.max(1, page), this.totalPages); }
+  toggleRow(id: string): void {
+    const selected = new Set(this.selectedRowIds);
+    if (selected.has(id)) { selected.delete(id); } else { selected.add(id); }
+    this.selectedRowIds = selected;
   }
-
-  setPage(page: number): void {
-    this.page = Math.min(Math.max(1, page), this.totalPages);
-  }
-
-  toggleRow(rowId: string): void {
-    this.selectedRowIds.has(rowId) ? this.selectedRowIds.delete(rowId) : this.selectedRowIds.add(rowId);
-    this.selectedRowIds = new Set(this.selectedRowIds);
-  }
-
   togglePageRows(): void {
-    const next = new Set(this.selectedRowIds);
-    if (this.allPageRowsSelected) {
-      this.pageRows.forEach((row) => next.delete(row.id));
-    } else {
-      this.pageRows.forEach((row) => next.add(row.id));
-    }
-    this.selectedRowIds = next;
+    const selected = new Set(this.selectedRowIds);
+    const remove = this.allPageRowsSelected;
+    for (const row of this.pageRows) { if (remove) { selected.delete(row.id); } else { selected.add(row.id); } }
+    this.selectedRowIds = selected;
   }
 
-  /** 打开当前设备的本地信息预览，并将焦点移入对话框。 */
-  openReview(row: EnergyQueryDeviceRow, mode: '回顾' | '详情', event: Event): void {
-    this.reviewTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-    this.reviewDevice = this.devices.find((device) => device.id === row.id) || null;
-    this.reviewMode = mode;
-    this.loadReview();
-    this.cd.detectChanges();
-    this.reviewCloseButton?.nativeElement.focus();
+  /** 复用通用回顾弹窗，显式传入能源34个规范测点，避免回退到防雷型号映射。 */
+  openHistoryReview(row: EnergyQueryDeviceRow): void {
+    this.dialog.open(SmartLightningHistoryReviewDialogComponent, {
+      data: {deviceId: row.id, deviceName: row.deviceName, deviceProfileName: row.deviceType,
+        metricDefinitions: ENERGY_METER_MEASUREMENTS.map((item) => ({key: item.key, label: item.label, unit: item.unit,
+          valueType: item.status ? 'status' : 'telemetry', chartable: !item.status}))},
+      width: '980px', maxWidth: '96vw', maxHeight: '92vh', autoFocus: 'first-tabbable', restoreFocus: true
+    });
   }
 
-  /** 关闭预览后把键盘焦点返回到打开它的设备操作按钮。 */
-  closeReview(): void {
-    const trigger = this.reviewTrigger;
-    this.reviewTrigger = null;
-    this.reviewRequest$.next();
-    this.reviewDevice = null;
-    this.cd.markForCheck();
-    if (trigger) {
-      requestAnimationFrame(() => trigger.focus());
-    }
-  }
-
-  /** 对话框仅有关闭操作时，将 Tab 留在关闭按钮并支持 Escape 关闭。 */
-  @HostListener('document:keydown', ['$event'])
-  handleReviewKeyboard(event: KeyboardEvent): void {
-    if (!this.reviewDevice) {
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      this.closeReview();
-      return;
-    }
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      this.reviewCloseButton?.nativeElement.focus();
-    }
-  }
-
-  /** 勾选时导出勾选设备，未勾选时导出当前筛选结果（与防雷查询页同一约定）。 */
+  /** 勾选时导出当前筛选内的勾选设备，否则导出全部筛选结果。 */
   exportRows(): void {
-    const rows = this.selectedRowIds.size
-      ? this.filteredDevices.filter((device) => this.selectedRowIds.has(device.id))
-      : this.filteredDevices;
-    if (!rows.length) {
-      return;
-    }
-    const blob = buildEnergyQueryCsv(buildEnergyQueryDeviceCsv(rows));
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `用能数据查询-${new Date().getTime()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const rows = this.selectedRowIds.size ? this.filteredDevices.filter((item) => this.selectedRowIds.has(item.id)) : this.filteredDevices;
+    if (!rows.length) { return; }
+    const url = URL.createObjectURL(buildEnergyQueryCsv(buildEnergyQueryDeviceCsv(rows)));
+    const link = document.createElement('a'); link.href = url; link.download = `用能数据查询-${Date.now()}.csv`; link.click(); URL.revokeObjectURL(url);
   }
 
-  /** 回顾只展示实际样本，切换设备或参数时取消旧请求。 */
-  loadReview(): void {
-    this.reviewRequest$.next();
-    this.historyPoints = []; this.detailPoints = []; this.reviewError = false;
-    if (!this.reviewDevice) { return; }
-    this.reviewLoading = true;
-    const id = this.reviewDevice.id;
-    const request = this.reviewMode === '回顾' ? this.historyApi.history(id, this.reviewKey)
-      : this.historyApi.latest(id, this.measurements.map((item) => item.key));
-    request.pipe(takeUntil(this.reviewRequest$), takeUntil(this.destroy$)).subscribe({next: (values) => {
-      const definition = this.measurements.find((item) => item.key === this.reviewKey);
-      this.historyPoints = (values[this.reviewKey] || []).slice().sort((a, b) => a.ts - b.ts)
-        .map((sample) => ({time: new Date(sample.ts).toLocaleString(), value: `${sample.value} ${definition?.unit || ''}`}));
-      this.detailPoints = this.measurements.map((item) => ({label: item.label,
-        value: values[item.key]?.[0] ? `${values[item.key][0].value} ${item.unit}` : '__'}));
-      this.reviewLoading = false; this.cd.markForCheck();
-    }, error: () => { this.reviewLoading = false; this.reviewError = true; this.cd.markForCheck(); }});
+  /** 根资产变化或权限刷新后校验旧选择；全部根资产包含可见的未挂载设备。 */
+  private restoreAssetScope(): void {
+    if (!this.assetTree.roots.some((node) => node.id === this.selectedRootAssetId)) { this.selectedRootAssetId = ''; }
+    const scope = getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedRootAssetId);
+    if (!this.selectedRootAssetId) { for (const context of this.snapshot?.contexts || []) { scope.add(context.deviceId); } }
+    if (!scope.has(this.selectedTreeNodeId)) { this.selectedTreeNodeId = this.selectedRootAssetId; }
+    this.selectedAssetIds = this.selectedTreeNodeId ? getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedTreeNodeId) : scope;
+    this.selectedAssetName = this.assetTree.nodes.get(this.selectedTreeNodeId)?.name || '全部根资产';
   }
 
-  reviewSeries(): Array<{time: string; value: string}> { return this.historyPoints; }
-
-  private initialize(roots: unknown[]): void {
-    this.assetTree = buildEnergyMonitoringAssetTree(roots as never);
-    this.devices = buildEnergyQueryDevices(this.assetTree, this.liveSnapshot?.contexts || [], (id) => this.live.latest(id));
-    this.expandedAssetIds = this.assetsLoading ? new Set(this.assetTree.roots.map((root) => root.id))
-      : new Set([...this.expandedAssetIds].filter((id) => this.assetTree.nodes.has(id)));
-    this.assetsLoading = false;
-    if (this.selectedAssetId && this.assetTree.nodes.has(this.selectedAssetId)) {
-      this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedAssetId);
-      this.selectedAssetName = this.assetTree.nodes.get(this.selectedAssetId)?.name || '全部资产';
-    } else {
-      this.selectedAssetIds = new Set(this.devices.map((device) => device.assetId));
-      this.selectedAssetId = ''; this.selectedRootAssetId = ''; this.selectedAssetName = '全部资产';
+  /** 活动告警优先级与行状态共用同一映射；实时更新后夹紧分页并移除范围外勾选。 */
+  private rebuildDevices(): void {
+    const priorities = ['CRITICAL', 'MAJOR', 'MINOR', 'WARNING', 'INDETERMINATE'];
+    const severities = new Map<string, string>();
+    for (const alarm of this.snapshot?.alarms || []) {
+      if (alarm.cleared) { continue; }
+      const old = severities.get(alarm.originator.id);
+      if (!old || priorities.indexOf(alarm.severity) < priorities.indexOf(old)) { severities.set(alarm.originator.id, alarm.severity); }
     }
+    this.activeAlarmDeviceIds = new Set(severities.keys());
+    const labels = new Map<string, string>();
+    for (const [id, severity] of severities) {
+      labels.set(id, getSmartLightningAlarmSeverityLabel(getSmartLightningAlarmSeverityTone(severity)));
+    }
+    this.devices = buildEnergyQueryDevices(this.assetTree, this.snapshot?.contexts || [], (id) => this.live.latest(id), labels);
     this.page = Math.min(this.page, this.totalPages);
-    this.cd.markForCheck();
+    const visible = new Set(this.filteredRows.map((row) => row.id));
+    this.selectedRowIds = new Set([...this.selectedRowIds].filter((id) => visible.has(id)));
   }
 
-  private resetPage(): void {
-    this.page = 1;
-    this.cd.markForCheck();
-  }
+  /** 销毁只释放本页引用，其他能源页面继续共享原WebSocket连接。 */
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.live.release(); }
 }

@@ -1,3 +1,4 @@
+@use './shared/energy-visual-fullscreen' as energyVisualFullscreen;
 /* 文件职责：使用本系统的深蓝、信号蓝和紧凑数据面板，组织用能概况版式。 */
 :host { display: block; min-width: 0; }
 .energy-overview {
@@ -100,3 +101,9 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--overview-b
   .comparison-detail { padding-top: 0; border: 0; }
   .comparison-change { grid-column: 1 / -1; }
 }
+
+/* 展示原始小数精度，长数值不通过截断或省略号隐藏。 */
+.comparison-current strong, .comparison-detail b, .peak-item strong { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.comparison-change { flex-wrap: wrap; overflow-wrap: anywhere; }
+
+@include energyVisualFullscreen.layout;

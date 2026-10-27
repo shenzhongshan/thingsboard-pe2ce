@@ -1,5 +1,7 @@
+import {EnergyVisualFullscreenButtonComponent} from '../shared/energy-visual-fullscreen-button.component';
 /** 文件职责：组织用能监测资产范围、指标周期、设备筛选和图表展示。 */
 import {AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {ActivatedRoute, RouterModule} from '@angular/router';
 import {ECharts, EChartsOption} from 'echarts';
 import * as echarts from 'echarts';
 import {Subject, forkJoin, auditTime} from 'rxjs';
@@ -34,7 +36,7 @@ import {SmartLightningAssetTreeModule} from '@home/pages/smart-lightning/shared/
   templateUrl: './energy-regulation-monitoring.component.html',
   styleUrls: ['./energy-regulation-monitoring.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
+  imports: [EnergyVisualFullscreenButtonComponent, CommonModule, FormsModule, RouterModule, SharedModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule]
 })
 export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewInit, OnDestroy {
   /** ECharts 容器在视图创建后初始化，并随容器尺寸改变重新布局。 */
@@ -45,6 +47,9 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   assetsLoading = true;
   assetsLoadError = false;
   statisticsLoadError = false;
+  /** 设备总览独立区分加载和失败状态，展示口径与防雷、电气安全一致。 */
+  devicesLoading = true;
+  devicesLoadError = false;
   selectedRootAssetId = '';
   selectedAssetId = '';
   selectedAssetName = '全部资产';
@@ -63,10 +68,8 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   qualityPeriod: EnergyMonitoringPeriod = 'day';
   selectedCategory: EnergyMonitoringCategory = 'all';
   deviceSearch = '';
-  viewMode: 'grid' | 'list' = 'grid';
   page = 1;
-  pageSize = 20;
-  readonly pageSizeOptions = [20, 50, 100];
+  readonly pageSize = 20;
   devices: EnergyMonitoringDevice[] = [];
 
   private liveSnapshot?: EnergyLiveSnapshot;
@@ -76,14 +79,19 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
   private resizeObserver?: ResizeObserver;
   private readonly destroy$ = new Subject<void>();
 
-  constructor(private readonly energyRegulationApiService: EnergyRegulationApiService, private readonly live: EnergyRegulationLiveService) {}
+  constructor(private readonly energyRegulationApiService: EnergyRegulationApiService, private readonly live: EnergyRegulationLiveService, private readonly route: ActivatedRoute) {}
 
   /** 载入后端当前用户可见资产树，并映射真实设备上下文与规范遥测。 */
   ngOnInit(): void {
+    // 仅恢复本模块详情链接携带的范围；资产加载后再校验节点是否仍然可见。
+    this.selectedRootAssetId = this.route.snapshot.queryParamMap.get('returnRootAssetId') || '';
+    this.selectedAssetId = this.route.snapshot.queryParamMap.get('returnAssetId') || '';
     this.live.acquire();
     this.live.snapshot$.pipe(takeUntil(this.destroy$)).subscribe((snapshot) => {
       this.liveSnapshot = snapshot;
       this.assetsLoadError = snapshot.error;
+      this.devicesLoading = snapshot.loading;
+      this.devicesLoadError = snapshot.error;
       if (!snapshot.loading) { this.initializeAssetScope(snapshot.roots); this.refreshDevices(); }
     });
     this.live.telemetryChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshDevices());
@@ -219,20 +227,6 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
     return names.join(' / ') || '--';
   }
 
-  /** 切换设备卡片或紧凑列表展示，并保留当前筛选结果。 */
-  setViewMode(mode: 'grid' | 'list'): void {
-    this.viewMode = mode;
-  }
-
-  /** 修改每页数量并回到首屏，避免新页容量小于原页号。 */
-  setPageSize(value: string): void {
-    const nextSize = Number(value);
-    if (Number.isFinite(nextSize) && nextSize > 0) {
-      this.pageSize = nextSize;
-      this.page = 1;
-    }
-  }
-
   /** 切换上一页或下一页，并将页码限制在有效区间。 */
   movePage(offset: number): void {
     this.page = Math.min(this.pageCount, Math.max(1, this.page + offset));
@@ -258,6 +252,7 @@ export class EnergyRegulationMonitoringComponent implements OnInit, AfterViewIni
     this.expandedAssetIds = new Set(getEnergyDefaultExpandedAssetIds(this.assetTree));
     this.assetsLoading = false;
     if (this.selectedAssetId && this.assetTree.nodes.has(this.selectedAssetId)) {
+      this.selectedAssetName = this.assetTree.nodes.get(this.selectedAssetId)?.name || '全部资产';
       this.selectedAssetIds = getEnergyMonitoringSelectedAssetIds(this.assetTree, this.selectedAssetId);
       this.loadStatistics();
     } else { this.selectRootAsset(this.selectedRootAssetId); }

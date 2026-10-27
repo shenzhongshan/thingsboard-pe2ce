@@ -1,3 +1,4 @@
+@use '../shared/energy-visual-fullscreen' as energyVisualFullscreen;
 /* 文件职责：沿用智能防雷监测页的深蓝、信号蓝与亮绿视觉，并适配能源数据密集布局。 */
 :host {
   display: block;
@@ -62,7 +63,7 @@ tb-smart-lightning-asset-tree {
 
 .panel-heading,
 .scope-heading,
-.device-toolbar {
+.overview-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -75,7 +76,7 @@ tb-smart-lightning-asset-tree {
 
   h2,
   .scope-heading h2,
-  .device-toolbar h2 {
+  .overview-toolbar h2 {
     margin: 0;
     color: #0a356a;
     font-size: 14px;
@@ -276,67 +277,59 @@ tb-smart-lightning-asset-tree {
   }
 }
 
-.device-panel {
-  padding-bottom: 12px;
+/* 整个设备总览沿用前两个模块的独立白色容器，而不是普通统计卡片内边距。 */
+.device-overview {
+  min-width: 0;
+  border: 1px solid #d5dee6;
+  background: #fff;
+  box-shadow: 0 7px 18px rgb(29 60 87 / 7%);
 }
 
-.device-toolbar {
-  flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5ebf1;
-
-  h2 {
-    flex: 0 0 auto;
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-}
-
-.category-tabs {
-  display: inline-flex;
-  gap: 3px;
-  max-width: 100%;
-  padding: 3px;
-  border-radius: 3px;
-  background: #f0f3f7;
-
-  button {
-    min-height: 29px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 2px;
-    background: transparent;
-    color: #46627f;
-    cursor: pointer;
-    font: inherit;
-    font-size: 11px;
-    white-space: nowrap;
-
-    &:hover:not(.active) { color: #195ce8; }
-
-    &.active {
-      background: #16df65;
-      color: #0a356a;
-      font-weight: 600;
-    }
-
-    &:focus-visible { outline: 2px solid #195ce8; }
-  }
-}
-
-.device-actions {
+.overview-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
+  gap: 16px;
+  min-height: 70px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e7edf2;
+  background: #fff;
+  box-shadow: 0 2px 7px rgb(32 66 95 / 8%);
+  h2 { min-width: 80px; margin: 0; color: #0a356a; font-size: 18px; font-weight: 600; }
+}
+.category-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 20px;
+  background: #e3e7eb;
+  button {
+    padding: 8px 11px;
+    border: 0;
+    border-radius: 16px;
+    color: #124173;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    &:hover { background: #f6f8fa; }
+    &.active { color: #064727; background: #16df65; font-weight: 700; }
+    &:focus-visible { outline: 2px solid #195ce8; outline-offset: 2px; }
+  }
 }
 
 .device-search {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 210px;
+  width: 225px;
   height: 34px;
   padding: 0 9px;
   border: 1px solid #d6e0ea;
@@ -364,187 +357,133 @@ tb-smart-lightning-asset-tree {
   }
 }
 
-.view-toggle {
-  display: flex;
-  border: 1px solid #195ce8;
-  border-radius: 3px;
-  overflow: hidden;
-
-  button {
-    display: grid;
-    width: 34px;
-    height: 32px;
-    place-items: center;
-    border: 0;
-    background: #fff;
-    color: #195ce8;
-    cursor: pointer;
-
-    + button { border-left: 1px solid #d6e2f6; }
-    &.active { background: #195ce8; color: #fff; }
-    &:focus-visible { outline: 2px solid #16df65; outline-offset: -2px; }
-  }
-}
-
 .device-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  padding-top: 12px;
+  gap: 14px;
+  padding: 14px;
 }
 
+/* 卡片结构和间距对齐防雷、电气安全；只保留能源模块自己的测点。 */
 .device-card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid #e1e8ef;
-  border-left: 3px solid #16c96a;
+  border: 1px solid #b9c6d0;
   background: #fff;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: border-color .16s ease, box-shadow .16s ease;
 
-  &:hover {
-    border-color: #b9cde7;
-    box-shadow: 0 3px 10px rgb(10 53 106 / 8%);
+  &:hover, &:focus-within {
+    border-color: #75a9df;
+    box-shadow: 0 10px 22px rgb(29 60 87 / 18%);
   }
 
-  &.status-alarm { border-left-color: #ff4a57; }
-  &.status-offline { border-left-color: #9ba8b5; }
-
-  > header,
-  > footer {
+  header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    min-height: 46px;
+    padding: 0 14px;
+    border-bottom: 1px solid #e7edf2;
+    background: #edf7f0;
   }
 
-  > h3 {
-    margin: 11px 0 3px;
+  h3 {
+    min-width: 0;
     overflow: hidden;
+    margin: 0;
     color: #0a356a;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .device-product {
-    margin: 0;
-    overflow: hidden;
-    color: #8091a3;
-    font-size: 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  > footer {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid #edf1f4;
-    color: #8494a4;
-    font-size: 10px;
-
-    span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    time { flex: 0 0 auto; }
-  }
-}
-
-.device-kind {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #58718b;
-  font-size: 10px;
-
-  tb-icon { color: #195ce8; font-size: 15px; }
+  &.status-offline header { background: #bbc3cb; }
+  &.status-alarm header { background: #ed969d; }
+  &:hover header, &:focus-within header { background: #e3f2e7; }
+  &.status-offline:hover header, &.status-offline:focus-within header { background: #b1bac2; }
+  &.status-alarm:hover header, &.status-alarm:focus-within header { background: #e88a93; }
 }
 
 .device-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 21px;
-  padding: 0 7px;
-  border-radius: 2px;
-  background: #e7f8ef;
-  color: #0c9950;
-  font-size: 10px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #0b7d3a;
+  background: #dff9ea;
+  font-size: 11px;
   white-space: nowrap;
-
-  &.status-告警 { background: #fff0f0; color: #d83c49; }
-  &.status-离线 { background: #eef1f4; color: #72808d; }
+  &.status-告警 { color: #fff; background: #d10b0b; }
+  &.status-离线 { color: #667b8e; background: #e5e9ed; }
 }
 
+.device-body { display: flex; min-height: 110px; gap: 12px; padding: 14px; }
+.device-icon {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #d9e2e8;
+  border-radius: 6px;
+  color: #2466ba;
+  background: #f4f8fb;
+  tb-icon { font-size: 38px; }
+}
+.device-details {
+  min-width: 0;
+  flex: 1;
+  padding-top: 1px;
+  p { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px; margin: 0 0 7px; font-size: 12px; line-height: 1.35; }
+  p:last-child { margin-bottom: 0; }
+  span { color: #718599; white-space: nowrap; }
+  strong { overflow: hidden; color: #40586c; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+}
 .device-values {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 12px 0 0;
-
-  > div { min-width: 0; }
-
-  dt {
-    color: #8393a3;
-    font-size: 10px;
-  }
-
-  dd {
-    margin: 3px 0 0;
-    color: #0a356a;
-    font-size: 13px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  small { color: #7e90a3; font-size: 9px; font-weight: 400; }
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: auto 10px 10px;
+  > div { min-width: 0; padding: 6px 7px; border: 1px solid #e1eaf1; border-radius: 4px; background: #f6f9fc; }
+  dt { overflow: hidden; color: #718599; font-size: 10px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+  dd { margin: 3px 0 0; color: #245b96; font-size: 12px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+  small { font-size: inherit; font-weight: inherit; }
 }
 
-.device-table-scroll {
-  width: 100%;
-  overflow-x: auto;
+/* 笔记本密度与前两个模块一致，正文始终保持白底。 */
+@media (max-width: 1366px) and (min-width: 981px) {
+  .device-card header { min-height: 42px; padding: 0 10px; }
+  .device-card h3 { font-size: 12px; }
+  .device-body { gap: 8px; padding: 10px; }
+  .device-icon { width: 64px; height: 64px; tb-icon { font-size: 32px; } }
+  .device-details p { grid-template-columns: 76px minmax(0, 1fr); font-size: 10px; }
+  .device-details strong { font-size: 10px; }
+  .device-values > div { padding: 5px; }
+  .device-values dd { font-size: 11px; }
 }
 
-.device-table {
-  width: 100%;
-  margin-top: 10px;
-  border-collapse: collapse;
-  font-size: 11px;
-
-  th,
-  td {
-    padding: 10px 9px;
-    border-bottom: 1px solid #e8edf2;
-    text-align: left;
-    white-space: nowrap;
-  }
-
-  th { background: #f6f8fa; color: #637b94; font-weight: 500; }
-  td { color: #294d73; }
-  tbody tr:hover { background: #f7faff; }
-}
-
-.device-empty {
+.device-grid-state {
   display: grid;
-  min-height: 120px;
+  grid-column: 1 / -1;
+  min-height: 148px;
   place-items: center;
-  color: #8797a7;
+  color: #718599;
   font-size: 12px;
 }
 
-.device-pagination {
+.device-grid-state.error { color: #c72f3d; }
+
+.pagination {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
-  min-height: 38px;
-  padding-top: 10px;
-  color: #637b94;
-  font-size: 11px;
+  gap: 6px;
+  padding: 0 14px 14px;
+  color: #667c8e;
+  font-size: 12px;
 
-  select,
   button {
     height: 28px;
     border: 1px solid #d6e0ea;
@@ -553,21 +492,23 @@ tb-smart-lightning-asset-tree {
     color: #46627f;
   }
 
-  select { padding: 0 7px; font: inherit; }
 
   button {
     display: grid;
-    width: 29px;
+    width: 30px;
     place-items: center;
     cursor: pointer;
-    &:disabled { color: #b8c2cc; cursor: default; }
+    &:disabled { color: #b3bfca; border-color: #e0e6eb; cursor: not-allowed; }
+    &.active { color: #fff; border-color: #195ce8; background: #195ce8; }
   }
 
   > span { min-width: 35px; text-align: center; }
   .result-count { margin-left: 8px; color: #8494a4; }
 }
 
-@media (max-width: 1450px) {
+@media (max-width: 1500px) {
+  .overview-toolbar { flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
+  .category-tabs { order: 3; flex-basis: 100%; flex-wrap: wrap; }
   .monitoring-top-grid { grid-template-columns: minmax(230px, .9fr) minmax(280px, 1.1fr); }
   .quality-panel { grid-column: 1 / -1; }
   .quality-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -579,15 +520,14 @@ tb-smart-lightning-asset-tree {
   .monitoring-top-grid { grid-template-columns: minmax(0, 1fr); }
   .quality-panel { grid-column: auto; }
   .scope-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
-  .device-toolbar { align-items: flex-start; }
-  .category-tabs { order: 3; width: 100%; overflow-x: auto; }
+  .overview-toolbar { flex-wrap: wrap; align-items: center; padding: 12px; }
+  .category-tabs { order: 3; flex-basis: 100%; flex-wrap: wrap; }
 }
 
 @media (max-width: 720px) {
   .energy-monitoring { grid-template-columns: minmax(0, 1fr); }
   .asset-panel { min-height: 260px; }
-  .device-toolbar { flex-wrap: wrap; }
-  .device-actions { width: 100%; margin-left: 0; }
+  .overview-toolbar { flex-wrap: wrap; }
   .device-search { flex: 1; width: auto; }
   .device-grid { grid-template-columns: minmax(0, 1fr); }
   .quality-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -598,3 +538,14 @@ tb-smart-lightning-asset-tree {
 @media (prefers-reduced-motion: reduce) {
   .device-card { transition: none; }
 }
+
+/* 详情入口和前两个模块保持同一位置、尺寸与绿色按钮样式。 */
+.device-card footer { display: flex; margin-top: auto; padding: 10px 12px; border-top: 1px solid #e7edf2; }
+.device-card a.detail { display: inline-grid; min-height: 28px; padding: 0 8px; border-radius: 3px; color: #fff; background: #09aa52; font-size: 11px; line-height: 28px; text-align: center; text-decoration: none; }
+.device-card a.detail:hover { background: #078942; }
+.device-card a.detail:focus-visible { outline: 2px solid #195ce8; outline-offset: 2px; }
+
+/* 展示原始小数精度，长数值不通过截断或省略号隐藏。 */
+.indicator-row strong, .quality-grid strong { min-width: 0; overflow-wrap: anywhere; }
+
+@include energyVisualFullscreen.layout;

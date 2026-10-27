@@ -1,6 +1,6 @@
-<!-- 文件职责：呈现能源监管独立的设备数据查询页，复用能源资产树并提供设备筛选、结果表格和本地预览。 -->
-<main class="data-query-page" aria-label="用能数据查询">
-  <aside class="asset-panel" aria-label="能源资产范围" [attr.inert]="reviewDevice ? '' : null">
+<!-- 文件职责：以智能防雷数据查询页相同的布局展示能源监管筛选栏、设备表格和分页区域。 -->
+<main class="data-query-page" aria-label="能源监管数据查询">
+  <aside class="asset-panel" aria-label="能源监管资产范围">
     <tb-smart-lightning-root-asset-filter
       [roots]="assetTree.roots"
       [selectedRootAssetId]="selectedRootAssetId"
@@ -11,11 +11,12 @@
       [selectedIds]="selectedAssetIds"
       [expandedIds]="expandedAssetIds"
       [rootAssetId]="selectedRootAssetId"
-      [showDeviceNodes]="false"
       [search]="assetSearch"
       [loading]="assetsLoading"
       [loadError]="assetsLoadError"
-      searchPlaceholder="搜索资产名称"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
+      searchPlaceholder="输入资产名称"
       treeAriaLabel="能源监管资产层级"
       (searchChange)="assetSearch = $event"
       (selectNode)="selectAssetNode($event)"
@@ -24,225 +25,120 @@
     </tb-smart-lightning-asset-tree>
   </aside>
 
-  <section class="query-content" aria-label="设备数据查询结果" [attr.inert]="reviewDevice ? '' : null">
-    <form class="filter-panel" (ngSubmit)="search()" aria-label="设备筛选条件" novalidate>
-      <label class="filter-field filter-device" for="energy-query-device-type">
-        <span>设备类型</span>
-        <select id="energy-query-device-type" [(ngModel)]="draft.deviceType" name="deviceType">
-          <option value="">全部类型</option>
-          @for (type of deviceTypes; track type) {
-            <option [value]="type">{{type}}</option>
+  <section class="query-content">
+    <div class="filter-panel" role="search" aria-label="能源监管设备筛选">
+      <label>
+        <span>产品名称</span>
+        <select [(ngModel)]="productNameFilter" (ngModelChange)="resetPage()" name="productName">
+          <option value="">全部</option>
+          @for (productName of productNames; track productName) {
+            <option [value]="productName">{{productName}}</option>
           }
         </select>
-        <tb-icon>expand_more</tb-icon>
       </label>
-
-      <div class="filter-field time-range" role="group" aria-labelledby="energy-query-range-label"
-           [attr.aria-describedby]="isDateRangeInvalid ? 'energy-query-range-error' : null">
-        <span id="energy-query-range-label">时段设置</span>
-        <label class="visually-hidden" for="energy-query-start-time">开始日期</label>
-        <input id="energy-query-start-time" type="date" [(ngModel)]="draft.startTime" name="startTime"
-               [attr.aria-invalid]="isDateRangeInvalid" aria-label="开始日期">
-        <span class="range-separator" aria-hidden="true">至</span>
-        <label class="visually-hidden" for="energy-query-end-time">结束日期</label>
-        <input id="energy-query-end-time" type="date" [(ngModel)]="draft.endTime" name="endTime"
-               [attr.aria-invalid]="isDateRangeInvalid" aria-label="结束日期">
-      </div>
-
-      <label class="filter-field filter-function" for="energy-query-function">
+      <label>
         <span>功能</span>
-        <select id="energy-query-function" [(ngModel)]="draft.functionCategory" name="functionCategory">
-          <option value="">全部功能</option>
+        <select [(ngModel)]="functionType" (ngModelChange)="resetPage()" name="functionType">
+          <option value="">全部</option>
           @for (category of functionCategories; track category) {
             <option [value]="category">{{category}}</option>
           }
         </select>
-        <tb-icon>expand_more</tb-icon>
       </label>
-
-      <div class="filter-field keyword-field">
-        <label for="energy-query-keyword"><span>名称</span></label>
-        <input id="energy-query-keyword" [(ngModel)]="draft.keyword" name="keyword"
-               placeholder="输入设备名称、编号或类型" autocomplete="off">
-        @if (draft.keyword) {
-          <button type="button" class="clear-keyword" (click)="clearKeyword()" aria-label="清除设备名称搜索">
-            <tb-icon>close</tb-icon>
-          </button>
-        } @else {
-          <tb-icon class="keyword-search-icon">search</tb-icon>
-        }
-      </div>
-
+      <label class="keyword-input">
+        <span>关键词</span>
+        <input [(ngModel)]="keyword" (ngModelChange)="resetPage()" name="keyword"
+               placeholder="请输入设备名称、类型或产品名称" aria-label="设备名称搜索">
+        <tb-icon aria-hidden="true">search</tb-icon>
+      </label>
       <div class="filter-actions">
-        <button type="submit" class="search-button" [disabled]="isDateRangeInvalid">
-          <tb-icon>search</tb-icon>
-          查询
-        </button>
-        <button type="button" class="reset-button" (click)="reset()">
-          <tb-icon>refresh</tb-icon>
-          重置
-        </button>
+        <button type="button" class="reset-button" (click)="reset()">重置</button>
       </div>
-      @if (isDateRangeInvalid) {
-        <p id="energy-query-range-error" class="range-error" role="alert">开始日期不能晚于结束日期</p>
-      }
-    </form>
+    </div>
 
-    <section class="result-panel" aria-label="设备查询结果">
+    <section class="result-panel" aria-label="能源监管设备查询结果">
       <header class="result-toolbar">
-        <div class="toolbar-start">
-          <button type="button" class="export-button" (click)="exportRows()" [disabled]="!rows.length"
-                  [attr.title]="rows.length ? '导出当前筛选结果' : '当前条件下没有可导出的设备'">
-            <tb-icon>file_download</tb-icon>
-            导出
-          </button>
-          @if (selectedRowIds.size) {
-            <span class="selection-count">已选 {{selectedRowIds.size}} 台</span>
-          }
-        </div>
-
-        <div class="status-tabs" role="group" aria-label="按设备状态筛选">
+        <button type="button" class="export-button" (click)="exportRows()" [disabled]="!filteredRows.length">
+          <tb-icon aria-hidden="true">download</tb-icon>导出
+        </button>
+        <div class="status-tabs" role="tablist" aria-label="设备状态">
           @for (status of statuses; track status) {
-            <button type="button" [class.active]="activeStatus === status" [attr.aria-pressed]="activeStatus === status"
-                    (click)="setStatus(status)">
-              @if (status !== '全部') {
-                <i class="status-dot" [class.status-online]="status === '在线'"
-                   [class.status-offline]="status === '离线'"
-                   [class.status-unconnected]="status === '未连接'" aria-hidden="true"></i>
-              }
+            <button type="button" role="tab" [attr.aria-pressed]="activeStatus === status"
+                    [class.active]="activeStatus === status" (click)="setStatus(status)">
               {{status}}
             </button>
           }
         </div>
-
         <div class="toolbar-tail">
-          <span class="scope-label">当前范围</span>
           <span class="selected-asset" [title]="selectedAssetName">{{selectedAssetName}}</span>
         </div>
       </header>
 
       <div class="table-wrap">
-        <table aria-describedby="energy-query-result-summary">
+        <table>
           <thead>
-          <tr>
-            <th class="select-column">
-              <input type="checkbox" aria-label="选择本页全部设备" [checked]="allPageRowsSelected"
-                     (change)="togglePageRows()" [disabled]="!pageRows.length">
-            </th>
-            <th class="index-column">序号</th>
-            <th>设备名称</th>
-            <th>设备编号</th>
-            <th class="protocol-column">设备协议</th>
-            <th class="status-column">状态</th>
-            <th>产品名称</th>
-            <th class="operation-column">操作</th>
-          </tr>
+            <tr>
+              <th><input type="checkbox" aria-label="选择本页全部设备" [checked]="allPageRowsSelected"
+                         (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
+              <th>序号</th>
+              <th>设备名称</th>
+              <th>设备类型</th>
+              <th>设备协议</th>
+              <th>状态</th>
+              <th>产品名称</th>
+              <th>操作</th>
+            </tr>
           </thead>
           <tbody>
-          @if (assetsLoading) {
-            <tr><td colspan="8" class="table-state"><tb-icon>progress_activity</tb-icon>正在读取资产范围…</td></tr>
-          } @else if (assetsLoadError) {
-            <tr><td colspan="8" class="table-state error">资产范围读取失败，请重试或联系管理员</td></tr>
-          } @else if (!pageRows.length) {
-            <tr><td colspan="8" class="table-state">当前条件下暂无设备</td></tr>
-          } @else {
-            @for (row of pageRows; track row.id; let index = $index) {
-              <tr [class.row-selected]="selectedRowIds.has(row.id)">
-                <td>
-                  <input type="checkbox" [checked]="selectedRowIds.has(row.id)" (change)="toggleRow(row.id)"
-                         [attr.aria-label]="'选择设备 ' + row.deviceName">
-                </td>
-                <td>{{(page - 1) * pageSize + index + 1}}</td>
-                <td class="device-name-cell" [title]="row.deviceName">{{row.deviceName}}</td>
-                <td class="serial-cell" [title]="row.serialNo">{{row.serialNo}}</td>
-                <td>{{row.protocol}}</td>
-                <td>
-                  <span class="status-tag"
-                        [class.status-online]="row.status === '在线'"
-                        [class.status-offline]="row.status === '离线'"
-                        [class.status-unconnected]="row.status === '未连接'">
-                    <i class="status-dot" aria-hidden="true"></i>{{row.status}}
-                  </span>
-                </td>
-                <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
-                <td class="operation-cell">
-                  <button type="button" class="trace-button" (click)="openReview(row, '回顾', $event)"
-                          [attr.aria-label]="'查看 ' + row.deviceName + ' 的历史用电量'">回顾</button>
-                  <button type="button" class="detail-button" (click)="openReview(row, '详情', $event)"
-                          [attr.aria-label]="'查看 ' + row.deviceName + ' 的设备信息'">详情</button>
-                </td>
-              </tr>
+            @if (devicesLoading) {
+              <tr><td colspan="8" class="table-state">正在加载设备</td></tr>
+            } @else if (devicesLoadError) {
+              <tr><td colspan="8" class="table-state">设备信息加载失败</td></tr>
+            } @else if (!pageRows.length) {
+              <tr><td colspan="8" class="table-state">当前条件下暂无设备</td></tr>
+            } @else {
+              @for (row of pageRows; track row.id; let index = $index) {
+                <tr [class.row-selected]="selectedRowIds.has(row.id)">
+                  <td>
+                    <input type="checkbox" [checked]="selectedRowIds.has(row.id)" (change)="toggleRow(row.id)"
+                           [attr.aria-label]="'选择设备' + row.deviceName">
+                  </td>
+                  <td>{{(page - 1) * pageSize + index + 1}}</td>
+                  <td [title]="row.assetPath">{{row.deviceName}}</td>
+                  <td [title]="row.deviceType">{{row.deviceType}}</td>
+                  <td [title]="row.protocol">{{row.protocol}}</td>
+                  <td>
+                    <span [class]="'status-tag ' + row.status"
+                          [title]="row.alarmSeverity ? '未处理告警：' + row.alarmSeverity : row.status">
+                      {{row.status}}
+                    </span>
+                  </td>
+                  <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
+                  <td class="operation-cell">
+                    <button type="button" class="trace-button" (click)="openHistoryReview(row)"
+                            title="查看历史遥测数据">回顾</button>
+                    <!-- 查询页与监测页使用同一详情组件，并携带返回来源。 -->
+                    <a class="detail-button" [routerLink]="['/energy-regulation/query/device', row.id]"
+                       [queryParams]="{returnUrl: '/energy-regulation/query', returnAssetId: selectedTreeNodeId || null, returnRootAssetId: selectedRootAssetId || null}"
+                       [attr.aria-label]="'查看设备详情：' + row.deviceName" title="设备详情">详情</a>
+                  </td>
+                </tr>
+              }
             }
-          }
           </tbody>
         </table>
       </div>
 
-      <nav class="pagination" aria-label="查询结果分页">
-        <span id="energy-query-result-summary">共 {{rows.length}} 条</span>
-        <span class="page-size">{{pageSize}} 条/页</span>
-        <button type="button" (click)="setPage(page - 1)" [disabled]="page === 1" aria-label="上一页">
-          <tb-icon>chevron_left</tb-icon>
-        </button>
-        <span class="page-number" aria-current="page">{{page}}</span>
-        <span>/ {{totalPages}}</span>
-        <button type="button" (click)="setPage(page + 1)" [disabled]="page === totalPages" aria-label="下一页">
-          <tb-icon>chevron_right</tb-icon>
-        </button>
-      </nav>
+      @if (!devicesLoading && !devicesLoadError) {
+        <nav class="pagination" aria-label="查询结果分页">
+          <span>共 {{filteredRows.length}} 条</span>
+          <span>{{pageSize}} / 页</span>
+          <button type="button" aria-label="上一页" (click)="setPage(page - 1)" [disabled]="page === 1">‹</button>
+          <button type="button" class="active" aria-current="page">{{page}}</button>
+          <span>/ {{totalPages}}</span>
+          <button type="button" aria-label="下一页" (click)="setPage(page + 1)" [disabled]="page === totalPages">›</button>
+        </nav>
+      }
     </section>
   </section>
-
-  @if (reviewDevice) {
-    <div class="review-backdrop" (click)="closeReview()" role="presentation">
-      <section class="review-dialog" (click)="$event.stopPropagation()" role="dialog" aria-modal="true"
-               [attr.aria-labelledby]="'energy-query-preview-title'" tabindex="-1">
-        <header>
-          <div>
-            <span class="dialog-eyebrow">能源监管设备</span>
-            <h2 id="energy-query-preview-title">{{reviewMode}} · {{reviewDevice.name}}</h2>
-          </div>
-          <button #reviewCloseButton type="button" class="close-button" (click)="closeReview()" aria-label="关闭预览">
-            <tb-icon>close</tb-icon>
-          </button>
-        </header>
-        <div class="review-body" [attr.aria-busy]="reviewLoading">
-          <p *ngIf="reviewLoading">…</p><p *ngIf="reviewError" role="alert">遥测读取失败</p>
-          <dl class="device-meta">
-            <div><dt>设备编号</dt><dd>{{reviewDevice.serialNo}}</dd></div>
-            <div><dt>设备类型</dt><dd>{{reviewDevice.deviceType}}</dd></div>
-            <div><dt>产品名称</dt><dd>{{reviewDevice.productName}}</dd></div>
-            <div><dt>设备状态</dt><dd>{{reviewDevice.status}}</dd></div>
-          </dl>
-          @if (reviewMode === '回顾') {
-            <div class="history-heading">
-              <h3>历史遥测</h3>
-              <select [(ngModel)]="reviewKey" (ngModelChange)="loadReview()" aria-label="选择历史遥测参数">
-                @for (item of measurements; track item.key) {<option [value]="item.key">{{item.label}}</option>}
-              </select>
-              <span>最近 24 小时，最多最近 1000 条</span>
-            </div>
-            <table class="history-table">
-              <thead><tr><th>时间</th><th>采样值</th></tr></thead>
-              <tbody>
-              @if (!reviewLoading && !reviewError && !historyPoints.length) {<tr><td colspan="2">__</td></tr>}
-              @for (point of reviewSeries(); track $index) {
-                <tr><td>{{point.time}}</td><td>{{point.value}}</td></tr>
-              }
-              </tbody>
-            </table>
-          } @else {
-            <div class="detail-summary">
-              <span>通讯协议</span><strong>{{reviewDevice.protocol}}</strong>
-              <span>功能分类</span><strong>{{reviewDevice.functionCategory}}</strong>
-              <span>最近更新时间</span><strong>{{reviewDevice.updatedAt}}</strong>
-            </div>
-            <table class="history-table"><tbody>
-              @for (point of detailPoints; track point.label) {<tr><td>{{point.label}}</td><td>{{point.value}}</td></tr>}
-            </tbody></table>
-          }
-        </div>
-      </section>
-    </div>
-  }
 </main>
