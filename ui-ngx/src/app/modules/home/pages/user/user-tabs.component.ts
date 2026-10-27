@@ -28,6 +28,21 @@ import { User } from '@app/shared/models/user.model';
 })
 export class UserTabsComponent extends EntityTabsComponent<User> {
 
+  resource = {
+    USER: 'USER',
+    ALARM: 'ALARM',
+    AUDIT_LOG: 'AUDIT_LOG',
+    API_KEY: 'API_KEY'
+  };
+
+  operation = {
+    READ: 'READ',
+    READ_ATTRIBUTES: 'READ_ATTRIBUTES',
+    WRITE_ATTRIBUTES: 'WRITE_ATTRIBUTES',
+    READ_TELEMETRY: 'READ_TELEMETRY',
+    WRITE_TELEMETRY: 'WRITE_TELEMETRY'
+  };
+
   constructor(protected store: Store<AppState>) {
     super(store);
   }

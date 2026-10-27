@@ -899,6 +899,18 @@ pre.tb-highlight {
     &.tb-pointer {
       cursor: pointer;
     }
+    /* Chips emitted by chipsCell() — rendered through innerHTML, so they cannot carry component
+       styles and have to be styled from here. PE shows entity-group membership as badges. */
+    .tb-cell-chip {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 2px 4px 2px 0;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.08);
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+    }
   }
 
   .mdc-data-table__row:last-child .mdc-data-table__cell {

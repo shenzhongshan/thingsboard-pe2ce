@@ -16,3 +16,10 @@
 :host ::ng-deep .mat-padding{
   padding: 0;
 }
+
+/* SYS_ADMIN adding a tenant admin has no owner to pick, so step 2 is absent — hide the stepper
+   header too, otherwise a lone "① 用户详情" chip sits above the form for no reason.
+   PE parity: its wizard applies a `no-stepper` class in exactly this case. */
+:host ::ng-deep .tb-no-stepper .mat-horizontal-stepper-header-container {
+  display: none;
+}

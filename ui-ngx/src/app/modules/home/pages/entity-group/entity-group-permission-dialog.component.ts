@@ -23,6 +23,10 @@ import { EntityGroup } from '@shared/models/entity-group.models';
 import { Role } from '@shared/models/role.models';
 import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
+import { EntityId } from '@shared/models/id/entity-id';
+import { EntityInfoData } from '@shared/models/entity.models';
+import { TenantId } from '@shared/models/id/tenant-id';
+import { CustomerId } from '@shared/models/id/customer-id';
 
 export interface EntityGroupPermissionDialogData {
   entityGroup: EntityGroup;
@@ -38,9 +42,7 @@ export class EntityGroupPermissionDialogComponent implements OnInit {
   form: UntypedFormGroup;
   roles: Role[] = [];
   userGroups: EntityGroup[] = [];
-  // Owner display of the granting user group — simplified to the target group's own owner scope
-  // (tenant vs customer) rather than a full cross-owner picker.
-  ownerLabel: string;
+  defaultOwnerId: EntityId;
 
   constructor(@Inject(MAT_DIALOG_DATA) public data: EntityGroupPermissionDialogData,
               private dialogRef: MatDialogRef<EntityGroupPermissionDialogComponent, boolean>,
@@ -49,15 +51,32 @@ export class EntityGroupPermissionDialogComponent implements OnInit {
               public fb: UntypedFormBuilder) {
     this.form = this.fb.group({
       roleId: [null, [Validators.required]],
+      owner: [null, [Validators.required]],
       userGroupId: [null, [Validators.required]]
     });
   }
 
   ngOnInit() {
-    const ownerCustomerId = this.data.entityGroup.ownerId?.entityType === EntityType.CUSTOMER
-      ? this.data.entityGroup.ownerId.id : undefined;
-    this.ownerLabel = ownerCustomerId ? 'entity-group.owner-customer' : 'entity-group.owner-tenant';
+    this.defaultOwnerId = this.data.entityGroup.ownerId?.entityType === EntityType.CUSTOMER
+      ? new CustomerId(this.data.entityGroup.ownerId.id)
+      : new TenantId(this.data.entityGroup.tenantId.id);
+    this.form.get('owner').setValue(this.defaultOwnerId, {emitEvent: false});
     this.roleService.getRoles(new PageLink(1024, 0)).subscribe(page => this.roles = page.data);
+    this.loadUserGroups(this.defaultOwnerId);
+    this.form.get('owner').valueChanges.subscribe((owner) => {
+      this.form.get('userGroupId').reset();
+      this.loadUserGroups(this.ownerIdOf(owner));
+    });
+  }
+
+  /** The owner picker emits either a plain EntityId or (once touched) an EntityInfoData — unwrap to
+   * the id either way. */
+  private ownerIdOf(owner: EntityInfoData | EntityId): EntityId {
+    return owner && (owner as EntityInfoData).name !== undefined ? (owner as EntityInfoData).id : owner as EntityId;
+  }
+
+  private loadUserGroups(ownerId: EntityId) {
+    const ownerCustomerId = ownerId?.entityType === EntityType.CUSTOMER ? ownerId.id : undefined;
     this.entityGroupService.getEntityGroupsByType(EntityType.USER, new PageLink(1024, 0), ownerCustomerId)
       .subscribe(page => this.userGroups = page.data);
   }

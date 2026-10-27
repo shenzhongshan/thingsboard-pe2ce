@@ -1,0 +1,97 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="mat-padding flex flex-col gap-2">
+  <div class="flex flex-row items-center">
+    <span class="mat-headline-6" translate>group-permission.user-group-roles</span>
+    <span class="flex-1"></span>
+    @if (selection.selected.length) {
+      <button mat-icon-button type="button" (click)="deleteSelected($event)" matTooltip="{{ 'action.delete' | translate }}">
+        <mat-icon>delete</mat-icon>
+      </button>
+    }
+    <button mat-icon-button type="button" (click)="addPermission()" matTooltip="{{ 'group-permission.add-group-permission' | translate }}">
+      <mat-icon>add</mat-icon>
+    </button>
+    <button mat-icon-button type="button" (click)="reload()" matTooltip="{{ 'action.refresh' | translate }}">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </div>
+  <div class="tb-outlined-border" style="overflow-x: auto;">
+    <table mat-table [dataSource]="dataSource" matSort matSortActive="roleName" matSortDirection="asc" style="width: 100%;">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef style="width: 40px;">
+          <mat-checkbox (change)="toggleAll()"
+                        [checked]="selection.hasValue() && isAllSelected()"
+                        [indeterminate]="selection.hasValue() && !isAllSelected()">
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let p">
+          <mat-checkbox (click)="$event.stopPropagation()"
+                        (change)="selection.toggle(p)"
+                        [checked]="selection.isSelected(p)">
+          </mat-checkbox>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="roleName">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'role.role' | translate }}</th>
+        <td mat-cell *matCellDef="let p">{{ p.roleName }}</td>
+      </ng-container>
+      <ng-container matColumnDef="roleType">
+        <th mat-header-cell *matHeaderCellDef style="width: 110px;">{{ 'role.role-type' | translate }}</th>
+        <td mat-cell *matCellDef="let p">{{ p.roleType ? (('role.type-' + p.roleType.toLowerCase()) | translate) : '' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="entityGroupType">
+        <th mat-header-cell *matHeaderCellDef style="width: 120px;">{{ 'entity-group.target-group-type' | translate }}</th>
+        <td mat-cell *matCellDef="let p">{{ p.entityGroupType ? (('entity-group.group-type-' + p.entityGroupType.toLowerCase()) | translate) : '' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="entityGroup">
+        <th mat-header-cell *matHeaderCellDef>{{ 'entity-group.target-group' | translate }}</th>
+        <td mat-cell *matCellDef="let p">{{ p.entityGroupName || '' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="entityGroupOwner">
+        <th mat-header-cell *matHeaderCellDef style="width: 110px;">{{ 'entity-group.target-group-owner' | translate }}</th>
+        <td mat-cell *matCellDef="let p">
+          {{ (p.entityGroupOwnerName === 'customer' ? 'entity-group.owner-customer' : 'entity-group.owner-tenant') | translate }}
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef style="width: 140px;"></th>
+        <td mat-cell *matCellDef="let p">
+          <button mat-icon-button type="button" (click)="viewRole($event, p)"
+                  matTooltip="{{ 'role.role' | translate }}">
+            <mat-icon>visibility</mat-icon>
+          </button>
+          <button mat-icon-button type="button" (click)="editPermission($event, p)"
+                  matTooltip="{{ 'action.edit' | translate }}">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button type="button" (click)="deletePermission($event, p)"
+                  matTooltip="{{ 'action.delete' | translate }}">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="['select', 'roleName', 'roleType', 'entityGroupType', 'entityGroup', 'entityGroupOwner', 'actions']"></tr>
+      <tr mat-row *matRowDef="let p; columns: ['select', 'roleName', 'roleType', 'entityGroupType', 'entityGroup', 'entityGroupOwner', 'actions'];"></tr>
+    </table>
+    @if (!dataSource.data.length) {
+      <div class="tb-no-data-available" style="padding: 16px 0; text-align: center;" translate>entity-group.no-roles-text</div>
+    }
+    <mat-paginator [pageSize]="10" [pageSizeOptions]="[10, 20, 30]" showFirstLastButtons></mat-paginator>
+  </div>
+</div>

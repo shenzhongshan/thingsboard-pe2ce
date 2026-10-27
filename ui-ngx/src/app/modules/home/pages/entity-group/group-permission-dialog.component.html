@@ -1,0 +1,93 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div style="min-width: 560px;">
+  <mat-toolbar color="primary">
+    <h2>{{ (isEdit ? 'group-permission.edit-group-permission' : 'group-permission.add-group-permission') | translate }}</h2>
+    <span class="flex-1"></span>
+    <button mat-icon-button (click)="cancel()" type="button">
+      <mat-icon class="material-icons">close</mat-icon>
+    </button>
+  </mat-toolbar>
+  @if (form) {
+    <div mat-dialog-content>
+      <form [formGroup]="form" class="flex flex-col" style="padding-top: 8px;">
+        <div class="tb-small" style="color: rgba(0,0,0,0.54); padding-bottom: 4px;" translate>role.role</div>
+        <div class="flex flex-row gap-2">
+          <mat-form-field style="width: 200px;">
+            <mat-label translate>role.role-type</mat-label>
+            <mat-select formControlName="roleType" required>
+              @for (t of roleTypes; track t) {
+                <mat-option [value]="t">{{ roleTypeTranslations.get(t) | translate }}</mat-option>
+              }
+            </mat-select>
+            @if (form.get('roleType').hasError('required')) {
+              <mat-error>{{ 'role.role-type-required' | translate }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field class="flex-1">
+            <mat-label translate>role.role</mat-label>
+            <mat-select formControlName="roleId" required>
+              @for (r of rolesOfType; track r.id.id) {
+                <mat-option [value]="r.id.id">{{ r.name }}</mat-option>
+              }
+            </mat-select>
+            @if (form.get('roleId').hasError('required')) {
+              <mat-error>{{ 'role.role-required' | translate }}</mat-error>
+            }
+          </mat-form-field>
+        </div>
+        @if (isGroupRole) {
+          <div class="tb-small" style="color: rgba(0,0,0,0.54); padding-bottom: 4px;" translate>entity-group.entity-group</div>
+          <div class="flex flex-row gap-2">
+            <tb-owner-autocomplete
+              class="flex-1"
+              required
+              formControlName="entityGroupOwnerId"
+              placeholderText="entity-group.group-owner"
+              notFoundText="entity-group.no-owners-text"
+              requiredText="entity-group.owner-required"
+              useOwnerInfoValue>
+            </tb-owner-autocomplete>
+            <mat-form-field style="width: 160px;">
+              <mat-label translate>entity-group.target-group-type</mat-label>
+              <mat-select formControlName="entityGroupType" required>
+                @for (t of entityGroupTypes; track t) {
+                  <mat-option [value]="t">{{ ('entity-group.group-type-' + t.toLowerCase()) | translate }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <tb-entity-group-autocomplete
+              class="flex-1"
+              required
+              formControlName="entityGroupId"
+              placeholderText="entity-group.select-entity-group"
+              [groupType]="form.get('entityGroupType').value"
+              [ownerId]="ownerId()">
+            </tb-entity-group-autocomplete>
+          </div>
+        }
+      </form>
+    </div>
+    <div mat-dialog-actions class="flex items-center justify-end">
+      <button mat-button type="button" (click)="cancel()">{{ 'action.cancel' | translate }}</button>
+      <button mat-raised-button color="primary" type="button" (click)="save()">
+        {{ (isEdit ? 'action.save' : 'action.add') | translate }}
+      </button>
+    </div>
+  }
+</div>

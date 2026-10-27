@@ -36,6 +36,10 @@ import { CustomerId } from '@shared/models/id/customer-id';
 import { MatDialog } from '@angular/material/dialog';
 import { EntityAction } from '@home/models/entity/entity-component.models';
 import { AddUserDialogComponent, AddUserDialogData } from '@modules/home/pages/user/add-user-dialog.component';
+import {
+  UserOwnerGroupsDialogComponent,
+  UserOwnerGroupsDialogData
+} from '@modules/home/pages/user/user-owner-groups-dialog.component';
 import { AuthState } from '@core/auth/auth.models';
 import { select, Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
@@ -144,6 +148,14 @@ export class UsersTableConfigResolver  {
 
   updateActionCellDescriptors(auth: AuthState) {
     this.config.cellActionDescriptors.splice(0);
+    this.config.cellActionDescriptors.push(
+      {
+        name: this.translate.instant('user.manage-owner-and-groups'),
+        icon: 'groups',
+        isEnabled: () => true,
+        onAction: ($event, entity) => this.manageOwnerAndGroups($event, entity)
+      }
+    );
     if (auth.userTokenAccessEnabled) {
       this.config.cellActionDescriptors.push(
         {
@@ -178,8 +190,7 @@ export class UsersTableConfigResolver  {
       panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
       data: {
         tenantId: this.tenantId,
-        customerId: this.customerId,
-        authority: this.authority
+        customerId: this.customerId
       }
     }).afterClosed();
   }
@@ -197,6 +208,22 @@ export class UsersTableConfigResolver  {
       $event.stopPropagation();
     }
     this.authService.loginAsUser(user.id.id).subscribe();
+  }
+
+  manageOwnerAndGroups($event: Event, user: User) {
+    if ($event) {
+      $event.stopPropagation();
+    }
+    this.dialog.open<UserOwnerGroupsDialogComponent, UserOwnerGroupsDialogData, boolean>(
+      UserOwnerGroupsDialogComponent, {
+        disableClose: true,
+        panelClass: ['tb-dialog'],
+        data: {user}
+      }).afterClosed().subscribe((changed) => {
+      if (changed) {
+        this.config.getTable().resetSortAndFilter(true);
+      }
+    });
   }
 
   displayActivationLink($event: Event, user: User) {
@@ -254,6 +281,9 @@ export class UsersTableConfigResolver  {
         return true;
       case 'loginAsUser':
         this.loginAsUser(action.event, action.entity);
+        return true;
+      case 'manageOwnerAndGroups':
+        this.manageOwnerAndGroups(action.event, action.entity);
         return true;
       case 'displayActivationLink':
         this.displayActivationLink(action.event, action.entity);

@@ -25,6 +25,11 @@
       </mat-form-field>
       <button mat-icon-button type="button" (click)="exitSearchMode()"><mat-icon>close</mat-icon></button>
     } @else {
+      @if (selection.selected.length) {
+        <button mat-icon-button type="button" (click)="deleteSelected($event)" matTooltip="{{ 'action.delete' | translate }}">
+          <mat-icon>delete</mat-icon>
+        </button>
+      }
       <button mat-icon-button type="button" (click)="addPermission()" matTooltip="{{ 'action.add' | translate }}">
         <mat-icon>add</mat-icon>
       </button>
@@ -36,34 +41,53 @@
       </button>
     }
   </div>
-  <table mat-table [dataSource]="filteredPermissions" style="width: 100%;">
-    <ng-container matColumnDef="roleName">
-      <th mat-header-cell *matHeaderCellDef translate>entity-group.permissions-role-name</th>
-      <td mat-cell *matCellDef="let p">{{ p.roleName }}</td>
-    </ng-container>
-    <ng-container matColumnDef="userGroupName">
-      <th mat-header-cell *matHeaderCellDef translate>entity-group.permissions-user-group-name</th>
-      <td mat-cell *matCellDef="let p">{{ p.userGroupName }}</td>
-    </ng-container>
-    <ng-container matColumnDef="userGroupOwnerName">
-      <th mat-header-cell *matHeaderCellDef translate>entity-group.permissions-user-group-owner</th>
-      <td mat-cell *matCellDef="let p">
-        {{ (p.userGroupOwnerName === 'customer' ? 'entity-group.owner-customer' : 'entity-group.owner-tenant') | translate }}
-      </td>
-    </ng-container>
-    <ng-container matColumnDef="actions">
-      <th mat-header-cell *matHeaderCellDef></th>
-      <td mat-cell *matCellDef="let p">
-        <button mat-icon-button (click)="deletePermission(p)" matTooltip="{{ 'action.delete' | translate }}">
-          <mat-icon>delete</mat-icon>
-        </button>
-      </td>
-    </ng-container>
-    <tr mat-header-row *matHeaderRowDef="['roleName', 'userGroupName', 'userGroupOwnerName', 'actions']"></tr>
-    <tr mat-row *matRowDef="let row; columns: ['roleName', 'userGroupName', 'userGroupOwnerName', 'actions'];"></tr>
-  </table>
-  @if (!filteredPermissions.length) {
-    <div class="tb-no-data-available" style="padding: 16px 0; text-align: center;" translate>entity-group.permissions-no-permissions-text</div>
-  }
-  <mat-paginator [length]="filteredPermissions.length" [pageSize]="10" [pageSizeOptions]="[10, 20, 30]" showFirstLastButtons></mat-paginator>
+  <div class="tb-outlined-border" style="overflow-x: auto;">
+    <table mat-table [dataSource]="dataSource" matSort matSortActive="roleName" matSortDirection="asc" style="width: 100%;">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef style="width: 40px;">
+          <mat-checkbox (change)="toggleAll()"
+                        [checked]="selection.hasValue() && isAllSelected()"
+                        [indeterminate]="selection.hasValue() && !isAllSelected()">
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let p">
+          <mat-checkbox (click)="$event.stopPropagation()"
+                        (change)="selection.toggle(p)"
+                        [checked]="selection.isSelected(p)">
+          </mat-checkbox>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="roleName">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header translate>entity-group.permissions-role-name</th>
+        <td mat-cell *matCellDef="let p">{{ p.roleName }}</td>
+      </ng-container>
+      <ng-container matColumnDef="userGroupName">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header translate>entity-group.permissions-user-group-name</th>
+        <td mat-cell *matCellDef="let p">{{ p.userGroupName }}</td>
+      </ng-container>
+      <ng-container matColumnDef="userGroupOwnerName">
+        <th mat-header-cell *matHeaderCellDef translate>entity-group.permissions-user-group-owner</th>
+        <td mat-cell *matCellDef="let p">
+          {{ (p.userGroupOwnerName === 'customer' ? 'entity-group.owner-customer' : 'entity-group.owner-tenant') | translate }}
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef style="width: 100px;"></th>
+        <td mat-cell *matCellDef="let p">
+          <button mat-icon-button (click)="viewRole($event, p)" matTooltip="{{ 'role.role' | translate }}">
+            <mat-icon>visibility</mat-icon>
+          </button>
+          <button mat-icon-button (click)="deletePermission($event, p)" matTooltip="{{ 'action.delete' | translate }}">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="['select', 'roleName', 'userGroupName', 'userGroupOwnerName', 'actions']"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['select', 'roleName', 'userGroupName', 'userGroupOwnerName', 'actions'];"></tr>
+    </table>
+    @if (!dataSource.data.length) {
+      <div class="tb-no-data-available" style="padding: 16px 0; text-align: center;" translate>entity-group.permissions-no-permissions-text</div>
+    }
+    <mat-paginator [pageSize]="10" [pageSizeOptions]="[10, 20, 30]" showFirstLastButtons></mat-paginator>
+  </div>
 </div>

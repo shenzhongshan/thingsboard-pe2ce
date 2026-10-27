@@ -140,6 +140,7 @@ public class BaseGroupPermissionService implements GroupPermissionService {
                 EntityGroup group = entityGroupService.findEntityGroupById(tenantId, gp.getEntityGroupId());
                 if (group != null) {
                     info.put("entityGroupName", group.getName());
+                    info.put("entityGroupOwnerName", group.getOwnerId() instanceof CustomerId ? "customer" : "tenant");
                 }
             }
             result.add(info);

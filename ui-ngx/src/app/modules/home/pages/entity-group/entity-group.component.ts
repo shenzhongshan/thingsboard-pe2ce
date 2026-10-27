@@ -72,6 +72,21 @@ export class EntityGroupComponent extends EntityComponent<EntityGroup> {
     return this.entity?.additionalInfo?.isPublic === true;
   }
 
+  /**
+   * Sharing grants a user group access to a group of entities, and "make public" exposes entities
+   * to anonymous viewers — neither is meaningful for a group whose members *are* the users. PE's
+   * user-group details panel likewise offers only open/delete/copy-id.
+   */
+  get canShare(): boolean {
+    return this.entity?.type !== EntityType.USER;
+  }
+
+  /** Same exclusion as the entity-group list's own canBePublic(). */
+  get canBePublic(): boolean {
+    return [EntityType.ASSET, EntityType.DEVICE, EntityType.ENTITY_VIEW,
+      EntityType.EDGE, EntityType.DASHBOARD].includes(this.entity?.type);
+  }
+
   get showOpenButton(): boolean {
     return this.entitiesTableConfig?.componentsData?.showOpenButton !== false;
   }

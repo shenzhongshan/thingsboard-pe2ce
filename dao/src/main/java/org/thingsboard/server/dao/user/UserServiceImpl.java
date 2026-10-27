@@ -434,7 +434,11 @@ public class UserServiceImpl extends AbstractCachedEntityService<UserCacheKey, U
         }
         List<UUID> ids = infos.getData().stream().map(u -> u.getId().getId()).collect(Collectors.toList());
         Map<UUID, String> groupsByUserId = userDao.findGroupNamesByIds(ids);
-        infos.getData().forEach(u -> u.setGroups(groupsByUserId.get(u.getId().getId())));
+        Map<UUID, String> ownersByUserId = userDao.findOwnerNamesByIds(ids);
+        infos.getData().forEach(u -> {
+            u.setGroups(groupsByUserId.get(u.getId().getId()));
+            u.setOwnerName(ownersByUserId.get(u.getId().getId()));
+        });
         return infos;
     }
 

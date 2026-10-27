@@ -93,4 +93,10 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
             "AND eg.name <> 'All'")
     List<Object[]> findGroupNamesByUserIds(@Param("ids") List<UUID> ids);
 
+    /** Owning customer's title per user, for the user list's 客户名称 column. Tenant-level users
+     * (customerId = NULL_UUID) match no customer row and are simply absent from the result. */
+    @Query("SELECT u.id, c.title FROM UserEntity u JOIN CustomerEntity c ON c.id = u.customerId " +
+            "WHERE u.id IN :ids")
+    List<Object[]> findOwnerNamesByUserIds(@Param("ids") List<UUID> ids);
+
 }

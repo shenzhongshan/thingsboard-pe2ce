@@ -31,19 +31,19 @@
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
           (click)="openShareDialog($event)"
-          [class.!hidden]="isEdit || isAll">
+          [class.!hidden]="isEdit || isAll || !canShare">
     {{'entity-group.share-group' | translate }}
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
           (click)="onEntityAction($event, 'makePublic')"
-          [class.!hidden]="isEdit || isAll || isPublic">
+          [class.!hidden]="isEdit || isAll || isPublic || !canBePublic">
     {{'entity-group.make-public' | translate }}
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
           (click)="onEntityAction($event, 'makePrivate')"
-          [class.!hidden]="isEdit || isAll || !isPublic">
+          [class.!hidden]="isEdit || isAll || !isPublic || !canBePublic">
     {{'entity-group.make-private' | translate }}
   </button>
   <button mat-raised-button

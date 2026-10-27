@@ -35,10 +35,17 @@
       </mat-form-field>
       <div class="tb-small" style="color: rgba(0,0,0,0.54);" translate>entity-group.permissions-user-group</div>
       <div class="flex flex-row gap-2">
-        <mat-form-field class="flex-1" appearance="outline">
-          <mat-label translate>entity-group.permissions-user-group-owner</mat-label>
-          <input matInput disabled [value]="ownerLabel | translate">
-        </mat-form-field>
+        <tb-owner-autocomplete
+          class="flex-1"
+          required
+          formControlName="owner"
+          appearance="outline"
+          placeholderText="entity-group.permissions-user-group-owner"
+          notFoundText="entity-group.no-owners-text"
+          requiredText="entity-group.owner-required"
+          useOwnerInfoValue
+          [defaultOwnerId]="defaultOwnerId">
+        </tb-owner-autocomplete>
         <mat-form-field class="flex-1" appearance="outline">
           <mat-label translate>entity-group.permissions-select-user-group</mat-label>
           <mat-select formControlName="userGroupId" required>

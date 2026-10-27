@@ -117,4 +117,13 @@ public interface UserDao extends Dao<User>, TenantEntityDao<User> {
      */
     Map<UUID, String> findGroupNamesByIds(List<UUID> userIds);
 
+    /**
+     * Find the owning customer's title for each of the given user ids. Tenant-level users have no
+     * owning customer and are simply absent from the returned map.
+     *
+     * @param userIds the user ids
+     * @return map of user id to owning customer title
+     */
+    Map<UUID, String> findOwnerNamesByIds(List<UUID> userIds);
+
 }

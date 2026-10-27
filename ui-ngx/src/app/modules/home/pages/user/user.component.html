@@ -24,6 +24,12 @@
   </button>
   <button mat-raised-button color="primary"
           [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'manageOwnerAndGroups')"
+          [class.!hidden]="isEdit">
+    {{'user.manage-owner-and-groups' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
           (click)="onEntityAction($event, 'disableAccount')"
           [class.!hidden]="isEdit || !isUserActivated() || !isUserCredentialsEnabled()">
     {{'user.disable-account' | translate }}

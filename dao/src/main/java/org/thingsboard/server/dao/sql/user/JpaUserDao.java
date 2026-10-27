@@ -37,6 +37,7 @@ import org.thingsboard.server.dao.user.UserDao;
 import org.thingsboard.server.dao.util.GroupNamesUtil;
 import org.thingsboard.server.dao.util.SqlDao;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -179,6 +180,15 @@ public class JpaUserDao extends JpaAbstractDao<UserEntity, User> implements User
     @Override
     public Map<UUID, String> findGroupNamesByIds(List<UUID> userIds) {
         return GroupNamesUtil.groupNamesByEntityId(userRepository.findGroupNamesByUserIds(userIds));
+    }
+
+    @Override
+    public Map<UUID, String> findOwnerNamesByIds(List<UUID> userIds) {
+        Map<UUID, String> result = new HashMap<>();
+        for (Object[] row : userRepository.findOwnerNamesByUserIds(userIds)) {
+            result.put((UUID) row[0], (String) row[1]);
+        }
+        return result;
     }
 
 }

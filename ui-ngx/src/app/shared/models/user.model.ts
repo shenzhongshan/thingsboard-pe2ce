@@ -35,6 +35,8 @@ export interface User extends BaseData<UserId>, HasTenantId {
 
 export interface UserInfo extends User {
   groups?: string;
+  /** Owning customer's title; absent for tenant-level users. */
+  ownerName?: string;
 }
 
 export interface UserAdditionalInfo {

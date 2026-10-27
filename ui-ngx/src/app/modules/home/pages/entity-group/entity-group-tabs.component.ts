@@ -19,6 +19,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { EntityTabsComponent } from '@home/components/entity/entity-tabs.component';
 import { EntityGroup } from '@shared/models/entity-group.models';
+import { EntityType } from '@shared/models/entity-type.models';
 
 @Component({
     selector: 'tb-entity-group-tabs',
@@ -26,6 +27,8 @@ import { EntityGroup } from '@shared/models/entity-group.models';
     standalone: false
 })
 export class EntityGroupTabsComponent extends EntityTabsComponent<EntityGroup> {
+
+  entityType = EntityType;
 
   constructor(protected store: Store<AppState>) {
     super(store);
