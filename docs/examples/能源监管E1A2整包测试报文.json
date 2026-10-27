@@ -1,0 +1,43 @@
+{
+  "header": {
+    "time": "2026/10/26 14:26:01",
+    "client": "KSDCOM1260317001",
+    "slaveid": "KSDE1A2260101001"
+  },
+  "data": {
+    "DOut1": 0,
+    "DIn1": 0,
+    "DIn2": 0,
+    "PhAVolt": 230,
+    "PhBVolt": 230,
+    "PhCVolt": 230,
+    "LineVoltAB": 398.37,
+    "LineVoltBC": 398.37,
+    "LineVoltCA": 398.37,
+    "Freq": 50,
+    "PhACurr": 10,
+    "PhBCurr": 10,
+    "PhCCurr": 10,
+    "CurrVecSum": 0,
+    "ActPwrA": 2.3,
+    "ActPwrB": 2.3,
+    "ActPwrC": 2.3,
+    "ActPwrTot": 6.9,
+    "RctPwrA": 0,
+    "RctPwrB": 0,
+    "RctPwrC": 0,
+    "RctPwrTot": 0,
+    "AppPwrA": 2.3,
+    "AppPwrB": 2.3,
+    "AppPwrC": 2.3,
+    "AppPwrTot": 6.9,
+    "PwrFactA": 1,
+    "PwrFactB": 1,
+    "PwrFactC": 1,
+    "PwrFactT": 1,
+    "FwdActEA": 333.333333,
+    "FwdActEB": 333.333333,
+    "FwdActEC": 333.333334,
+    "FwdActET": 1000
+  }
+}

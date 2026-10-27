@@ -1,0 +1,17 @@
+{
+  "name": "能源监管MQTT转换器",
+  "type": "UPLINK",
+  "integrationType": "MQTT",
+  "debugSettings": {
+    "failuresEnabled": true,
+    "allEnabled": false
+  },
+  "configuration": {
+    "scriptLang": "TBEL",
+    "decoder": "/*\n * 能源监管MQTT集成上行转换器（TBEL）。\n * 只处理E1A2的header/data整包报文；设备已上传平台规范键，协议键同名写入。\n * 保留原值及原始类型，不重命名、不换算、不取整、不将状态转成中文。\n */\nvar json = decodeToJson(payload);\nif (json == null || json.header == null || json.data == null) {\n    // 缺少设备标识或遥测容器时，无法生成有效的设备上行数据。\n    return null;\n}\nvar header = json.header;\nvar data = json.data;\n\n// slaveid为标准子设备编号；salveid仅兼容现有现场报文的旧拼写。\nvar deviceName = header.slaveid;\nif (deviceName == null || deviceName == \"\") {\n    deviceName = header.salveid;\n}\nif (deviceName == null || deviceName == \"\") {\n    // 没有子设备编号时，client本身必须是有效的KSD能源设备编号。\n    deviceName = header.client;\n}\nif (deviceName == null || deviceName == \"\") {\n    return null;\n}\n\n// 与防雷、电气安全保持一致：第一个下划线及其后附加标记不属于设备编号。\nvar suffixIndex = deviceName.indexOf(\"_\");\nif (suffixIndex >= 0) {\n    deviceName = deviceName.substring(0, suffixIndex);\n}\nif (deviceName.length < 7 || deviceName.substring(0, 3) != \"KSD\") {\n    return null;\n}\nvar deviceType = deviceName.substring(3, 7);\n\n// 分类与thingsboard.yml一致；本脚本不处理防雷、电气安全或未配置的型号。\nvar productNameMap = {\n    \"E1A2\": \"ESA智能电表\"\n};\nvar functionCategoryMap = {\n    \"E1A2\": \"energy_meter\"\n};\nvar productName = productNameMap[deviceType];\nvar functionCategory = functionCategoryMap[deviceType];\nif (productName == null || functionCategory == null) {\n    return null;\n}\n\n/* E1A2完整34项白名单，与能源监管实时测点定义一致；不接收旧协议别名。 */\nvar protocolKeysByModel = {\n    \"E1A2\": {\n        \"DOut1\": true,\n        \"DIn1\": true,\n        \"DIn2\": true,\n        \"PhAVolt\": true,\n        \"PhBVolt\": true,\n        \"PhCVolt\": true,\n        \"LineVoltAB\": true,\n        \"LineVoltBC\": true,\n        \"LineVoltCA\": true,\n        \"Freq\": true,\n        \"PhACurr\": true,\n        \"PhBCurr\": true,\n        \"PhCCurr\": true,\n        \"CurrVecSum\": true,\n        \"ActPwrA\": true,\n        \"ActPwrB\": true,\n        \"ActPwrC\": true,\n        \"ActPwrTot\": true,\n        \"RctPwrA\": true,\n        \"RctPwrB\": true,\n        \"RctPwrC\": true,\n        \"RctPwrTot\": true,\n        \"AppPwrA\": true,\n        \"AppPwrB\": true,\n        \"AppPwrC\": true,\n        \"AppPwrTot\": true,\n        \"PwrFactA\": true,\n        \"PwrFactB\": true,\n        \"PwrFactC\": true,\n        \"PwrFactT\": true,\n        \"FwdActEA\": true,\n        \"FwdActEB\": true,\n        \"FwdActEC\": true,\n        \"FwdActET\": true\n    }\n};\nvar protocolKeys = protocolKeysByModel[deviceType];\nvar telemetry = {};\nforeach (entry : data.entrySet()) {\n    var key = entry.getKey();\n    var value = entry.getValue();\n    // 0为有效读数；只跳过null及未配置的键，不根据数值大小过滤，也不改变类型。\n    if (protocolKeys[key] == true && value != null) {\n        telemetry[key] = value;\n    }\n}\nif (telemetry.size() == 0) {\n    return null;\n}\n\n// 沿用现有集成转换器输出结构：遥测与分类属性分开返回，由平台执行保存。\nreturn {\n    \"deviceName\": deviceName,\n    \"deviceType\": deviceType,\n    \"telemetry\": telemetry,\n    \"attributes\": {\n        \"productCategory\": \"energy_regulation\",\n        \"functionCategory\": functionCategory,\n        \"productName\": productName\n    }\n};\n",
+    "updateOnlyKeys": false
+  },
+  "additionalInfo": {
+    "description": "仅处理E1A2整包协议；34个规范测点原键原值写入，无重命名和换算。"
+  }
+}

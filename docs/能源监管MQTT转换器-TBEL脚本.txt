@@ -1,0 +1,113 @@
+/*
+ * 能源监管MQTT集成上行转换器（TBEL）。
+ * 只处理E1A2的header/data整包报文；设备已上传平台规范键，协议键同名写入。
+ * 保留原值及原始类型，不重命名、不换算、不取整、不将状态转成中文。
+ */
+var json = decodeToJson(payload);
+if (json == null || json.header == null || json.data == null) {
+    // 缺少设备标识或遥测容器时，无法生成有效的设备上行数据。
+    return null;
+}
+var header = json.header;
+var data = json.data;
+
+// slaveid为标准子设备编号；salveid仅兼容现有现场报文的旧拼写。
+var deviceName = header.slaveid;
+if (deviceName == null || deviceName == "") {
+    deviceName = header.salveid;
+}
+if (deviceName == null || deviceName == "") {
+    // 没有子设备编号时，client本身必须是有效的KSD能源设备编号。
+    deviceName = header.client;
+}
+if (deviceName == null || deviceName == "") {
+    return null;
+}
+
+// 与防雷、电气安全保持一致：第一个下划线及其后附加标记不属于设备编号。
+var suffixIndex = deviceName.indexOf("_");
+if (suffixIndex >= 0) {
+    deviceName = deviceName.substring(0, suffixIndex);
+}
+if (deviceName.length < 7 || deviceName.substring(0, 3) != "KSD") {
+    return null;
+}
+var deviceType = deviceName.substring(3, 7);
+
+// 分类与thingsboard.yml一致；本脚本不处理防雷、电气安全或未配置的型号。
+var productNameMap = {
+    "E1A2": "ESA智能电表"
+};
+var functionCategoryMap = {
+    "E1A2": "energy_meter"
+};
+var productName = productNameMap[deviceType];
+var functionCategory = functionCategoryMap[deviceType];
+if (productName == null || functionCategory == null) {
+    return null;
+}
+
+/* E1A2完整34项白名单，与能源监管实时测点定义一致；不接收旧协议别名。 */
+var protocolKeysByModel = {
+    "E1A2": {
+        "DOut1": true,
+        "DIn1": true,
+        "DIn2": true,
+        "PhAVolt": true,
+        "PhBVolt": true,
+        "PhCVolt": true,
+        "LineVoltAB": true,
+        "LineVoltBC": true,
+        "LineVoltCA": true,
+        "Freq": true,
+        "PhACurr": true,
+        "PhBCurr": true,
+        "PhCCurr": true,
+        "CurrVecSum": true,
+        "ActPwrA": true,
+        "ActPwrB": true,
+        "ActPwrC": true,
+        "ActPwrTot": true,
+        "RctPwrA": true,
+        "RctPwrB": true,
+        "RctPwrC": true,
+        "RctPwrTot": true,
+        "AppPwrA": true,
+        "AppPwrB": true,
+        "AppPwrC": true,
+        "AppPwrTot": true,
+        "PwrFactA": true,
+        "PwrFactB": true,
+        "PwrFactC": true,
+        "PwrFactT": true,
+        "FwdActEA": true,
+        "FwdActEB": true,
+        "FwdActEC": true,
+        "FwdActET": true
+    }
+};
+var protocolKeys = protocolKeysByModel[deviceType];
+var telemetry = {};
+foreach (entry : data.entrySet()) {
+    var key = entry.getKey();
+    var value = entry.getValue();
+    // 0为有效读数；只跳过null及未配置的键，不根据数值大小过滤，也不改变类型。
+    if (protocolKeys[key] == true && value != null) {
+        telemetry[key] = value;
+    }
+}
+if (telemetry.size() == 0) {
+    return null;
+}
+
+// 沿用现有集成转换器输出结构：遥测与分类属性分开返回，由平台执行保存。
+return {
+    "deviceName": deviceName,
+    "deviceType": deviceType,
+    "telemetry": telemetry,
+    "attributes": {
+        "productCategory": "energy_regulation",
+        "functionCategory": functionCategory,
+        "productName": productName
+    }
+};
