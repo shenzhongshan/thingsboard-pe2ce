@@ -1,0 +1,51 @@
+/** 文件职责：告警分析周期卡片与趋势时间桶的统一返回 DTO。 */
+package org.thingsboard.server.service.alarms.dto;
+
+import lombok.Getter;
+
+import java.util.Collections;
+import java.util.List;
+
+/** 智能防雷告警分析顶部日、月、年统计；范围为当前用户可见防雷设备。 */
+@Getter
+public class DeviceAlarmAnalysisSummaryDTO {
+
+    /** 今日告警次数及与昨日对比。 */
+    private final DeviceAlarmPeriodSummaryDTO day;
+    /** 本月告警次数及与上月对比。 */
+    private final DeviceAlarmPeriodSummaryDTO month;
+    /** 今年告警次数及与去年对比。 */
+    private final DeviceAlarmPeriodSummaryDTO year;
+    /** 今日按小时统计的趋势数据。 */
+    private final List<DeviceAlarmTrendPointDTO> dayTrend;
+    /** 本月按日期统计的趋势数据。 */
+    private final List<DeviceAlarmTrendPointDTO> monthTrend;
+    /** 今年按月份统计的趋势数据。 */
+    private final List<DeviceAlarmTrendPointDTO> yearTrend;
+    /** 当前仍未清除且严重等级为 CRITICAL 的重点设备。 */
+    private final List<DeviceAlarmFocusDeviceDTO> focusDevices;
+
+    /** 兼容原有三周期调用方；未提供趋势时返回空列表。 */
+    public DeviceAlarmAnalysisSummaryDTO(DeviceAlarmPeriodSummaryDTO day,
+                                                 DeviceAlarmPeriodSummaryDTO month,
+                                                 DeviceAlarmPeriodSummaryDTO year) {
+        this(day, month, year, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+    }
+
+    /** 组装周期卡片与日/月/年趋势数据。 */
+    public DeviceAlarmAnalysisSummaryDTO(DeviceAlarmPeriodSummaryDTO day,
+                                                 DeviceAlarmPeriodSummaryDTO month,
+                                                 DeviceAlarmPeriodSummaryDTO year,
+                                                 List<DeviceAlarmTrendPointDTO> dayTrend,
+                                                 List<DeviceAlarmTrendPointDTO> monthTrend,
+                                                 List<DeviceAlarmTrendPointDTO> yearTrend,
+                                                 List<DeviceAlarmFocusDeviceDTO> focusDevices) {
+        this.day = day;
+        this.month = month;
+        this.year = year;
+        this.dayTrend = dayTrend;
+        this.monthTrend = monthTrend;
+        this.yearTrend = yearTrend;
+        this.focusDevices = focusDevices;
+    }
+}

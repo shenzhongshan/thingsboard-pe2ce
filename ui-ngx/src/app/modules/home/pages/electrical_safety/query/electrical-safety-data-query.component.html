@@ -1,0 +1,144 @@
+<!-- 文件职责：以智能防雷数据查询页相同的布局展示电气安全筛选栏、设备表格和分页区域。 -->
+<main class="data-query-page" aria-label="电气安全数据查询">
+  <aside class="asset-panel" aria-label="电气安全资产范围">
+    <tb-smart-lightning-root-asset-filter
+      [roots]="assetTree.roots"
+      [selectedRootAssetId]="selectedRootAssetId"
+      (rootAssetChange)="selectRootAsset($event)">
+    </tb-smart-lightning-root-asset-filter>
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
+      searchPlaceholder="输入资产名称"
+      treeAriaLabel="电气安全资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
+  </aside>
+
+  <section class="query-content">
+    <div class="filter-panel" role="search" aria-label="电气安全设备筛选">
+      <label>
+        <span>产品名称</span>
+        <select [(ngModel)]="productNameFilter" (ngModelChange)="resetPage()" name="productName">
+          <option value="">全部</option>
+          @for (productName of productNames; track productName) {
+            <option [value]="productName">{{productName}}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>功能</span>
+        <select [(ngModel)]="functionType" (ngModelChange)="resetPage()" name="functionType">
+          <option value="">全部</option>
+          @for (category of functionCategories; track category) {
+            <option [value]="category">{{category}}</option>
+          }
+        </select>
+      </label>
+      <label class="keyword-input">
+        <span>关键词</span>
+        <input [(ngModel)]="keyword" (ngModelChange)="resetPage()" name="keyword"
+               placeholder="请输入设备名称、类型或产品名称" aria-label="设备名称搜索">
+        <tb-icon aria-hidden="true">search</tb-icon>
+      </label>
+      <div class="filter-actions">
+        <button type="button" class="reset-button" (click)="reset()">重置</button>
+      </div>
+    </div>
+
+    <section class="result-panel" aria-label="电气安全设备查询结果">
+      <header class="result-toolbar">
+        <button type="button" class="export-button" (click)="exportRows()" [disabled]="!filteredRows.length">
+          <tb-icon aria-hidden="true">download</tb-icon>导出
+        </button>
+        <div class="status-tabs" role="tablist" aria-label="设备状态">
+          @for (status of statuses; track status) {
+            <button type="button" role="tab" [attr.aria-pressed]="activeStatus === status"
+                    [class.active]="activeStatus === status" (click)="setStatus(status)">
+              {{status}}
+            </button>
+          }
+        </div>
+        <div class="toolbar-tail">
+          <span class="selected-asset" [title]="selectedAssetName">{{selectedAssetName}}</span>
+        </div>
+      </header>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th><input type="checkbox" aria-label="选择本页全部设备" [checked]="allPageRowsSelected"
+                         (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
+              <th>序号</th>
+              <th>设备名称</th>
+              <th>设备类型</th>
+              <th>设备协议</th>
+              <th>状态</th>
+              <th>产品名称</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (devicesLoading) {
+              <tr><td colspan="8" class="table-state">正在加载设备</td></tr>
+            } @else if (devicesLoadError) {
+              <tr><td colspan="8" class="table-state">设备信息加载失败</td></tr>
+            } @else if (!pageRows.length) {
+              <tr><td colspan="8" class="table-state">当前条件下暂无设备</td></tr>
+            } @else {
+              @for (row of pageRows; track row.id; let index = $index) {
+                <tr [class.row-selected]="selectedRowIds.has(row.id)">
+                  <td>
+                    <input type="checkbox" [checked]="selectedRowIds.has(row.id)" (change)="toggleRow(row.id)"
+                           [attr.aria-label]="'选择设备' + row.deviceName">
+                  </td>
+                  <td>{{(page - 1) * pageSize + index + 1}}</td>
+                  <td [title]="row.assetPath">{{row.deviceName}}</td>
+                  <td [title]="row.deviceType">{{row.deviceType}}</td>
+                  <td [title]="row.protocol">{{row.protocol}}</td>
+                  <td>
+                    <span [class]="'status-tag ' + row.status"
+                          [title]="row.alarmSeverity ? '未处理告警：' + row.alarmSeverity : row.status">
+                      {{row.status}}
+                    </span>
+                  </td>
+                  <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
+                  <td class="operation-cell">
+                    <button type="button" class="trace-button" (click)="openHistoryReview(row)"
+                            title="查看历史遥测数据">回顾</button>
+                    <!-- 查询页与监测页使用同一详情组件，并携带返回来源。 -->
+                    <a class="detail-button" [routerLink]="['/electrical-safety/query/device', row.id]"
+                       [queryParams]="{returnUrl: '/electrical-safety/query', returnAssetId: selectedTreeNodeId || null, returnRootAssetId: selectedRootAssetId || null}"
+                       [attr.aria-label]="'查看设备详情：' + row.deviceName" title="设备详情">详情</a>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (!devicesLoading && !devicesLoadError) {
+        <nav class="pagination" aria-label="查询结果分页">
+          <span>共 {{filteredRows.length}} 条</span>
+          <span>{{pageSize}} / 页</span>
+          <button type="button" aria-label="上一页" (click)="setPage(page - 1)" [disabled]="page === 1">‹</button>
+          <button type="button" class="active" aria-current="page">{{page}}</button>
+          <span>/ {{totalPages}}</span>
+          <button type="button" aria-label="下一页" (click)="setPage(page + 1)" [disabled]="page === totalPages">›</button>
+        </nav>
+      }
+    </section>
+  </section>
+</main>

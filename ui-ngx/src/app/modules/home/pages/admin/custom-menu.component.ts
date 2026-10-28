@@ -234,10 +234,9 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
   }
 
   hideAll() {
+    // “隐藏全部”现在包含原生首页，用户可以再单独打开需要保留的入口。
     const hide = (items: EditorMenuItem[]) => items.forEach((i) => {
-      if (!i.isHome) {
-        i.visible = false;
-      }
+      i.visible = false;
       hide(i.pages);
     });
     hide(this.items);

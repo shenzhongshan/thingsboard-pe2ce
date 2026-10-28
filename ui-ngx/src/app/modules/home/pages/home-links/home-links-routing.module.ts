@@ -15,7 +15,7 @@
 ///
 
 import { inject, NgModule } from '@angular/core';
-import { ActivatedRouteSnapshot, ResolveFn, RouterModule, RouterStateSnapshot, Routes } from '@angular/router';
+import { ActivatedRouteSnapshot, CanActivateFn, ResolveFn, Router, RouterModule, RouterStateSnapshot, Routes } from '@angular/router';
 
 import { HomeLinksComponent } from './home-links.component';
 import { HelpArticleComponent } from '../help-center/help-article.component';
@@ -119,10 +119,27 @@ export const homeDashboardResolver: ResolveFn<HomeDashboard> = (
     })
   );
 
+/**
+ * 客户用户访问原生 /home 时进入自定义平台首页。
+ *
+ * 分流只放在首页路由上，不修改 AuthService，因此不会影响登录、MFA、令牌刷新、
+ * 受保护地址回跳或其他业务页面的权限判断。系统管理员和租户管理员仍使用原生首页。
+ */
+export const customerHomeRedirectGuard: CanActivateFn = () => {
+  const store = inject(Store<AppState>);
+  const router = inject(Router);
+  const currentUser = getCurrentAuthUser(store);
+  if (currentUser?.authority === Authority.CUSTOMER_USER) {
+    return router.parseUrl('/platform-home');
+  }
+  return true;
+};
+
 const routes: Routes = [
   {
     path: 'home',
     component: HomeLinksComponent,
+    canActivate: [customerHomeRedirectGuard],
     data: {
       auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       title: 'home.home',

@@ -1,47 +1,28 @@
-<main class="alarm-list-page" [attr.aria-label]="pageTitle">
+<!-- 文件职责：告警列表模块的 smart-lightning-alarm-list.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<main class="alarm-list-page" [class.processing-mode]="processingMode" [attr.aria-label]="pageTitle">
   <aside class="asset-panel">
     <tb-smart-lightning-root-asset-filter
       [roots]="assetTree.roots"
       [selectedRootAssetId]="selectedRootAssetId"
       (rootAssetChange)="selectRootAsset($event)">
     </tb-smart-lightning-root-asset-filter>
-    <div class="asset-panel-title">
-      <div>
-        <h1>企业 / 项目</h1>
-        <span>资产数：{{assetCount}}</span>
-      </div>
-      <button type="button" class="asset-query-button" (click)="query()">查询</button>
-    </div>
-    <label class="asset-search">
-      <tb-icon>search</tb-icon>
-      <input [(ngModel)]="assetSearch" placeholder="输入关键词进行搜索" aria-label="搜索项目或设备">
-    </label>
-    @if (assetsLoading) {
-      <div class="asset-state">正在读取资产…</div>
-    } @else if (assetsLoadError) {
-      <div class="asset-state error">资产树读取失败</div>
-    } @else if (!assetTree.roots.length) {
-      <div class="asset-state">当前没有可见资产</div>
-    } @else {
-      <div class="asset-tree" role="tree" aria-label="报警资产范围">
-        @for (item of visibleAssetNodes; track item.node.id) {
-          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)"
-                  [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem"
-                  [attr.aria-selected]="selectedAssetIds.has(item.node.id)"
-                  [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
-            @if (item.node.childIds.length) {
-              <span class="tree-toggle" (click)="toggleAssetNode($event, item.node)">
-                <tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon>
-              </span>
-            } @else {
-              <span class="tree-toggle spacer"></span>
-            }
-            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon>
-            <span class="asset-name" [title]="item.node.name">{{item.node.name}}</span>
-          </button>
-        }
-      </div>
-    }
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="true"
+      searchPlaceholder="输入关键词进行搜索"
+      treeAriaLabel="报警资产范围"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (toggleNode)="toggleAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()">
+    </tb-smart-lightning-asset-tree>
   </aside>
 
   <section class="alarm-content">
@@ -49,21 +30,21 @@
       <label>
         <span>报警类型</span>
         <select [(ngModel)]="filters.alarmType" name="alarmType">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (type of alarmTypes; track type) {<option [value]="type">{{type}}</option>}
         </select>
       </label>
       <label>
         <span>报警等级</span>
         <select [(ngModel)]="filters.severity" name="severity">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (severity of severities; track severity) {<option [value]="severity">{{severity}}</option>}
         </select>
       </label>
       <label>
         <span>工单状态</span>
         <select [(ngModel)]="filters.workOrderStatus" name="workOrderStatus">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (status of workOrderStatuses; track status) {<option [value]="status">{{status}}</option>}
         </select>
       </label>
@@ -72,6 +53,15 @@
         <input [(ngModel)]="filters.keyword" name="keyword" placeholder="项目名称 / 设备名称 / 描述">
         <tb-icon>search</tb-icon>
       </label>
+      @if (processingMode) {
+        <label class="product-filter">
+          <span>产品名称</span>
+          <select [(ngModel)]="filters.productName" name="productName">
+            <option value="">全部</option>
+            @for (productName of productNames; track productName) {<option [value]="productName">{{productName}}</option>}
+          </select>
+        </label>
+      }
       <label class="time-range">
         <span>时间</span>
         <input type="datetime-local" [(ngModel)]="filters.startTime" name="startTime" aria-label="开始时间">
@@ -79,7 +69,6 @@
         <input type="datetime-local" [(ngModel)]="filters.endTime" name="endTime" aria-label="结束时间">
       </label>
       <div class="filter-actions">
-        <button type="submit" class="query-button">查询</button>
         <button type="button" class="reset-button" (click)="reset()">重置</button>
       </div>
     </form>
@@ -91,7 +80,7 @@
             <tb-icon>download</tb-icon>导出
           </button>
           <button type="button" class="process-button" (click)="acknowledgeSelected()" [disabled]="!selectedRows.size">
-            <tb-icon>touch_app</tb-icon>一键处理
+            <tb-icon>touch_app</tb-icon>批量确认
           </button>
         </div>
         <div class="severity-tabs" role="tablist" aria-label="报警等级筛选">
@@ -109,45 +98,58 @@
           <tr>
             <th class="check-column"><input type="checkbox" aria-label="选择本页全部告警" [checked]="allPageRowsSelected"
                        (change)="togglePageRows()" [disabled]="!pageRows.length"></th>
-            <th>项目/设备/企业名称</th>
-            <th>报警时间</th>
+            <th>设备名</th>
+            <th>告警状态</th>
             <th>工单状态</th>
             <th>报警类型</th>
             <th>报警等级</th>
-            <th>网关识别号</th>
             <th>设备型号</th>
             <th>仪表地址</th>
-            <th>回路名称</th>
-            <th>时段设置</th>
-            <th>详情描述</th>
-            <th>操作</th>
+            <th class="operation-column">操作</th>
           </tr>
           </thead>
           <tbody>
           @if (alarmsLoading) {
-            <tr><td colspan="13" class="table-state">正在读取告警信息…</td></tr>
+            <tr><td colspan="10" class="table-state">正在读取告警信息…</td></tr>
           } @else if (alarmsLoadError) {
-            <tr><td colspan="13" class="table-state error">告警信息读取失败，请稍后重试</td></tr>
+            <tr><td colspan="10" class="table-state error">告警信息读取失败，请稍后重试</td></tr>
           } @else if (!pageRows.length) {
-            <tr><td colspan="13" class="table-state">当前资产范围暂无符合条件的告警</td></tr>
+            <tr><td colspan="10" class="table-state">当前资产范围暂无符合条件的告警</td></tr>
           } @else {
             @for (row of pageRows; track row.id) {
               <tr [class.row-selected]="selectedRows.has(row.id)">
                 <td class="check-column"><input type="checkbox" [checked]="selectedRows.has(row.id)"
                     (change)="toggleRow(row.id)" [attr.aria-label]="'选择告警' + row.alarmType"></td>
                 <td class="name-cell" [title]="row.projectDeviceName">{{row.projectDeviceName}}</td>
-                <td>{{formatTime(row.alarmTime)}}</td>
+                <td><span [class]="'alarm-status-tag ' + alarmStatusTone(row.alarmStatus)">{{row.alarmStatus}}</span></td>
                 <td><span [class]="'work-order-tag ' + workOrderTone(row.workOrderStatus)">{{row.workOrderStatus}}</span></td>
                 <td>{{row.alarmType}}</td>
                 <td><span [class]="'severity-tag ' + row.severityTone">{{row.severity}}</span></td>
-                <td [title]="row.gatewayIdentifier">{{row.gatewayIdentifier}}</td>
                 <td [title]="row.deviceType">{{row.deviceType}}</td>
                 <td [title]="row.meterAddress">{{row.meterAddress}}</td>
-                <td [title]="row.circuitName">{{row.circuitName}}</td>
-                <td>{{row.timeSetting}}</td>
-                <td class="description-cell" [title]="row.detailDescription">{{row.detailDescription}}</td>
-                <td class="operation-cell">
-                  <button type="button" class="detail-button" (click)="openAlarmDetails(row)">详情</button>
+                <td class="operation-cell" [class.processing-mode]="processingMode">
+                  <!-- 保持 td 的表格单元格布局，只在内部容器排列按钮，确保表头与内容列边界一致。 -->
+                  <div class="operation-actions" [class.processing-mode]="processingMode">
+                    <button type="button" class="detail-button" (click)="openAlarmDetails(row)">详情</button>
+                    @if (!processingMode) {
+                      <button type="button" class="dispatch-button"
+                              [class.action-hidden]="!dispatchMode || !canDispatch(row)"
+                              [attr.aria-hidden]="!dispatchMode || !canDispatch(row)"
+                              (click)="openAlarmDispatch(row)">派发</button>
+                      <button type="button" class="ack-button"
+                              [class.action-hidden]="!processingMode || !canAcknowledge(row)"
+                              [attr.aria-hidden]="!processingMode || !canAcknowledge(row)"
+                              (click)="acknowledgeAlarm(row)">确认</button>
+                      <button type="button" class="clear-button"
+                              [class.action-hidden]="!processingMode || !canClear(row)"
+                              [attr.aria-hidden]="!processingMode || !canClear(row)"
+                              (click)="clearAlarm(row)">清除</button>
+                      <button type="button" class="comment-button"
+                              [class.action-hidden]="!processingMode"
+                              [attr.aria-hidden]="!processingMode"
+                              (click)="openAlarmComment(row)">备注</button>
+                    }
+                  </div>
                 </td>
               </tr>
             }

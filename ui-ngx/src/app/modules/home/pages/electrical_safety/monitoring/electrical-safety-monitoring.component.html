@@ -1,0 +1,160 @@
+<!-- 文件职责：沿用智能防雷数据监测页的结构和共享资产树，展示电气安全模块接口数据。 -->
+<main class="monitoring-page" aria-label="电气安全数据监测">
+  <aside class="asset-panel">
+    <tb-smart-lightning-root-asset-filter
+      [roots]="assetTree.roots"
+      [selectedRootAssetId]="selectedRootAssetId"
+      (rootAssetChange)="selectRootAsset($event)">
+    </tb-smart-lightning-root-asset-filter>
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
+      searchPlaceholder="搜索资产名称"
+      treeAriaLabel="电气安全资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
+  </aside>
+
+  <section class="monitoring-content">
+    <section class="realtime-analysis" aria-label="实时监测分析" aria-live="polite">
+      @if (devicesLoading || assetsLoading) {
+        <div class="realtime-analysis-state" role="status">正在读取 {{selectedAssetName}} 的实时分析数据…</div>
+      } @else if (devicesLoadError || assetsLoadError) {
+        <div class="realtime-analysis-state error" role="alert">电气安全设备数据读取失败</div>
+      } @else {
+        <article class="scope-overview">
+          <div class="scope-overview-title">
+            <span class="scope-overview-icon"><tb-icon>monitor_heart</tb-icon></span>
+            <div><h2>{{selectedAssetName}} · 实时状态</h2><p>当前选中资产及全部下级设备</p></div>
+            <span class="analysis-status" [class]="'analysis-status status-' + scopeStatus">{{scopeStatus}}</span>
+          </div>
+          <dl class="scope-overview-metrics">
+            <div><dt>设备总数</dt><dd>{{scopeSummary.totalDevices ?? '--'}}</dd></div>
+            <div><dt>在线设备</dt><dd class="healthy">{{scopeSummary.onlineDevices ?? '--'}}</dd></div>
+            <div><dt>离线设备</dt><dd class="muted">{{scopeSummary.offlineDevices ?? '--'}}</dd></div>
+            <div><dt>告警设备</dt><dd class="critical">{{scopeSummary.alarmDevices ?? '--'}}</dd></div>
+          </dl>
+        </article>
+
+        <div class="analysis-grid electrical-safety-analysis-grid">
+          @for (card of summaryCards; track card.key) {
+            <article class="analysis-card"
+                     [class.fire]="card.key === 'fire'"
+                     [class.leakage]="card.key === 'leakage'"
+                     [class.power-quality]="card.key === 'power-quality'"
+                     [class.arc-fault]="card.key === 'arc-fault'">
+              <header class="analysis-title">
+                <div><tb-icon>{{card.icon}}</tb-icon><h2>{{card.title}}</h2></div>
+                <span class="analysis-status"
+                      [class]="'analysis-status status-' + categoryStatus(card.key)">{{categoryStatus(card.key)}}</span>
+              </header>
+              <dl class="analysis-device-counts">
+                <div><dt>监测设备</dt><dd>{{categorySummary(card.key).total ?? '--'}}</dd></div>
+                <div><dt>在线</dt><dd class="healthy">{{categorySummary(card.key).online ?? '--'}}</dd></div>
+                <div><dt>离线</dt><dd class="muted">{{categorySummary(card.key).offline ?? '--'}}</dd></div>
+                <div><dt>告警设备</dt><dd class="critical">{{categorySummary(card.key).alarms ?? '--'}}</dd></div>
+              </dl>
+              <dl class="analysis-detail-grid">
+                @for (metric of card.metrics; track metric.label) {
+                  <div [attr.title]="metric.title || null"
+                       [attr.tabindex]="metric.title ? 0 : null"
+                       [class.has-source-tooltip]="!!metric.title">
+                    <dt>{{metric.label}}</dt>
+                    <dd [class.healthy]="metric.tone === 'healthy'"
+                        [class.warning]="metric.tone === 'warning'"
+                        [class.critical]="metric.tone === 'critical'">{{metric.value}}{{metric.unit ? ' ' + metric.unit : ''}}</dd>
+                  </div>
+                }
+              </dl>
+            </article>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="device-overview">
+      <div class="overview-toolbar">
+        <h2>设备总览</h2>
+        <nav class="category-tabs" aria-label="设备功能分类">
+          @for (category of categories; track category.key) {
+            <button type="button" [class.active]="activeCategory === category.key"
+                    [attr.aria-pressed]="activeCategory === category.key"
+                    (click)="selectCategory(category.key)">{{category.label}}</button>
+          }
+        </nav>
+        <label class="device-search">
+          <tb-icon aria-hidden="true">search</tb-icon>
+          <input type="text" [(ngModel)]="deviceSearch" (ngModelChange)="resetDevicePage()"
+                 placeholder="设备名称 / 产品型号" aria-label="搜索设备名称或产品型号">
+        </label>
+      </div>
+
+      <div class="device-grid">
+        @if (devicesLoading) {
+          <div class="device-grid-state" role="status">正在读取电气安全设备信息…</div>
+        } @else if (devicesLoadError) {
+          <div class="device-grid-state error" role="alert">电气安全设备信息读取失败</div>
+        } @else if (pagedDevices.length) {
+          @for (device of pagedDevices; track device.id) {
+            <article class="device-card"
+                     [class.alarm-card]="deviceStatus(device) === '报警'"
+                     [class.offline-card]="deviceStatus(device) === '离线'">
+              <header>
+                <h3 [title]="device.productName === '--' ? device.name : device.name + ' / ' + device.productName">
+                  {{device.productName === '--' ? device.name : device.name + ' / ' + device.productName}}
+                </h3>
+                <span [class]="'device-status ' + deviceStatus(device)">{{deviceStatus(device)}}</span>
+              </header>
+              <div class="device-body">
+                <div class="device-icon"><tb-icon>electric_meter</tb-icon></div>
+                <div class="device-details">
+                  <p><span>设备地址：</span><strong [title]="device.assetPath">{{device.assetPath}}</strong></p>
+                  <p><span>产品型号：</span><strong [title]="device.model">{{device.model}}</strong></p>
+                  <p><span>最近活跃时间：</span><strong>{{device.lastReportTime}}</strong></p>
+                </div>
+              </div>
+              @if (device.realtimeMetrics.length) {
+                <dl class="device-realtime-metrics" aria-label="实时遥测">
+                  @for (metric of device.realtimeMetrics; track metric.key) {
+                    <div [title]="metric.title">
+                      <dt>{{metric.label}}</dt>
+                      <dd [class.abnormal]="metric.abnormal">{{metric.value}}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+              <footer>
+                <!-- 保留当前资产范围，返回监测页时恢复原位置。 -->
+                <a class="detail" [routerLink]="['/electrical-safety/monitor/device', device.id]"
+                   [queryParams]="{returnUrl: '/electrical-safety/monitor', returnAssetId: selectedTreeNodeId || null, returnRootAssetId: selectedRootAssetId || null}"
+                   [attr.aria-label]="'查看设备详情：' + device.name" title="设备详情">详情</a>
+              </footer>
+            </article>
+          }
+        } @else {
+          <div class="device-grid-state" role="status">当前节点及下属节点没有符合条件的设备</div>
+        }
+      </div>
+
+      <nav class="pagination" aria-label="设备分页">
+        <span>共 {{filteredDevices.length}} 台 · {{devicePageSize}} / 页</span>
+        <button type="button" aria-label="上一页" (click)="setDevicePage(devicePagination.currentPage - 1)"
+                [disabled]="devicePagination.currentPage === 1">‹</button>
+        <button type="button" class="active" aria-current="page">{{devicePagination.currentPage}}</button>
+        <span>/ {{devicePagination.totalPages}}</span>
+        <button type="button" aria-label="下一页" (click)="setDevicePage(devicePagination.currentPage + 1)"
+                [disabled]="devicePagination.currentPage === devicePagination.totalPages">›</button>
+      </nav>
+    </section>
+  </section>
+</main>

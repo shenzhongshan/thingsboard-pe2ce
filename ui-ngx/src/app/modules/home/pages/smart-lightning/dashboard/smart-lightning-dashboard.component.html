@@ -1,8 +1,9 @@
+<!-- 文件职责：看板模块的 smart-lightning-dashboard.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  智能防雷看板模板：设备汇总、地图、地网/SPD/雷电/告警等图表面板与告警记录表。
+  各图表通过 #chartHost[data-chart] 标识，周期切换由 period-switcher 组件独立控制。
+-->
 <main class="lightning-page" aria-label="智能防雷看板">
-  <header class="lightning-heading">
-    <h1>智能防雷看板</h1>
-  </header>
-
   <section class="dashboard-grid">
     <article class="panel device-summary">
       <div class="panel-title">
@@ -21,7 +22,7 @@
           <div><dt>设备总数</dt><dd class="blue">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.total}}</dd></div>
           <div><dt>在线设备</dt><dd class="green">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.online}}</dd></div>
           <div><dt>离线设备</dt><dd class="amber">{{devicesLoading || devicesLoadError ? '--' : deviceSummary.offline}}</dd></div>
-          <div><dt>变量报警</dt><dd class="red">{{alarmsLoading || alarmsLoadError ? '--' : activeAlarmCount}}</dd></div>
+          <div><dt>告警数量</dt><dd class="red">{{alarmSummaryLoading || alarmSummaryLoadError ? '--' : activeAlarmCount}}</dd></div>
         </dl>
       </div>
       <div class="ring-legend"><span><i class="online"></i>在线</span><span><i class="offline"></i>离线</span></div>
@@ -30,24 +31,156 @@
     <article class="panel map-panel">
       <div class="map-toolbar">
         <span><tb-icon>location_on</tb-icon> 防雷设备分布</span>
-        <span class="map-hint">点击点位查看状态</span>
+        <div class="map-toolbar-actions">
+          <span class="map-hint">点击点位查看状态</span>
+          <button type="button" class="map-add-point" [class.active]="isAddingMapPoint" (click)="toggleMapPointMode()">
+            <tb-icon>{{isAddingMapPoint ? 'close' : 'add_location_alt'}}</tb-icon>
+            {{isAddingMapPoint ? '取消选点' : '添加点位'}}
+          </button>
+        </div>
       </div>
-      <div #mapHost class="tianditu-map" aria-label="智能防雷设备地图"></div>
+      <!-- 地图由公共组件统一渲染；本页通过 includeDevice 仅保留防雷设备。 -->
+      <div class="tianditu-map" aria-label="智能防雷设备地图">
+        <tb-smart-lightning-device-map
+          #deviceMap
+          [devices]="mapDevicesForMap"
+          [includeDevice]="includeSmartLightningMapDevice"
+          [addingPoint]="isAddingMapPoint"
+          [draftPoint]="pendingMapPoint"
+          [assetPaths]="mapAssetPaths"
+          [activeAlarmNames]="activeAlarmNames"
+          (mapClick)="onMapClick($event)">
+        </tb-smart-lightning-device-map>
+      </div>
+      @if (pendingMapPoint) {
+        <div class="map-point-binding-panel" role="dialog" aria-label="绑定地图点位设备">
+          <div class="map-point-binding-title">绑定设备</div>
+          <div class="map-point-binding-coordinates">
+            纬度 {{pendingMapPoint.latitude}}，经度 {{pendingMapPoint.longitude}}
+          </div>
+          <select [value]="selectedMapDeviceId" (change)="selectMapDevice($event)" aria-label="选择设备">
+            <option value="">请选择设备</option>
+            @for (device of availableMapDevices; track device.deviceId) {
+              <option [value]="device.deviceId">{{device.deviceName}}</option>
+            }
+            @if (availableMapDevices.length === 0) {
+              <option value="" disabled>暂无未绑定设备</option>
+            }
+          </select>
+          @if (mapPointSaveError) {
+            <div class="map-point-binding-error">{{mapPointSaveError}}</div>
+          }
+          <div class="map-point-binding-actions">
+            <button type="button" class="map-point-cancel" (click)="cancelMapPointBinding()">取消</button>
+            <button type="button" class="map-point-confirm" [disabled]="!selectedMapDeviceId || mapPointSaving" (click)="saveMapPointBinding()">
+              {{mapPointSaving ? '保存中…' : '绑定设备'}}
+            </button>
+          </div>
+        </div>
+      }
     </article>
 
-    <article class="panel chart-panel ground-panel">
-      <div class="panel-title"><h2>地网监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.ground" (periodChange)="setChartPeriod('ground', $event)"></tb-smart-lightning-period-switcher></div>
-      <div #chartHost data-chart="ground" class="chart" aria-label="地网监测趋势图"></div>
+    <article class="panel ground-panel">
+      <div class="panel-title">
+        <h2>地网监测</h2>
+        <tb-smart-lightning-period-switcher [activePeriod]="groundAlarmPeriod" (periodChange)="setGroundAlarmPeriod($event)"></tb-smart-lightning-period-switcher>
+      </div>
+      @if (groundLoading) {
+        <div class="ground-state">正在读取地网设备数据…</div>
+      } @else if (groundLoadError || !groundSummary) {
+        <div class="ground-state error">地网监测数据加载失败。<button type="button" (click)="loadGroundSummary()">重试</button></div>
+      } @else {
+        <div class="ground-overview">
+          <section class="ground-section ground-device-overview" aria-label="地网设备概况">
+            <dl class="ground-device-metrics">
+              <div><dt>总数</dt><dd class="blue">{{groundSummary.total}}</dd></div>
+              <div><dt>在线</dt><dd class="green">{{groundSummary.online}}</dd></div>
+              <div><dt>离线</dt><dd class="amber">{{groundSummary.offline}}</dd></div>
+            </dl>
+          </section>
+          <section class="ground-section ground-alarm-overview" aria-label="地网告警信息">
+            <p class="ground-number red" [attr.title]="formatGroundAlarmTooltip(groundSummary)">{{groundSummary.alarmCount}}次</p>
+            <span>所选时段告警数</span>
+            <span class="ground-alarm-rate">报警率 {{formatGroundAlarmRate(groundSummary.alarmRate)}}</span>
+          </section>
+          <section class="ground-section ground-resistance-overview" aria-label="地网阻值范围">
+            <dl class="ground-resistance-metrics">
+              <div><dt>最大阻值</dt><dd [title]="formatGroundExtremaTooltip('最大阻值', groundSummary.resistanceExtrema?.maximum ?? groundSummary.maxResistance, groundSummary.resistanceExtrema?.maximumDeviceName, groundSummary.resistanceExtrema?.maximumParameter, groundSummary.resistanceExtrema?.maximumTime)">{{formatGroundResistance(groundSummary.maxResistance)}}</dd></div>
+              <div><dt>最小阻值</dt><dd [title]="formatGroundExtremaTooltip('最小阻值', groundSummary.resistanceExtrema?.minimum ?? groundSummary.minResistance, groundSummary.resistanceExtrema?.minimumDeviceName, groundSummary.resistanceExtrema?.minimumParameter, groundSummary.resistanceExtrema?.minimumTime)">{{formatGroundResistance(groundSummary.minResistance)}}</dd></div>
+            </dl>
+          </section>
+        </div>
+      }
     </article>
 
-    <article class="panel chart-panel alarm-panel">
-      <div class="panel-title"><h2>报警信息</h2><span class="period-readout">当前未清除</span></div>
-      <div #chartHost data-chart="alarm" class="chart" aria-label="报警信息柱状图"></div>
-    </article>
+    <tb-device-alarm-information-chart
+      class="panel chart-panel alarm-panel"
+      [items]="alarmInformationItems"
+      [loading]="alarmSummaryLoading"
+      [loadError]="alarmSummaryLoadError"
+      emptyMessage="当前没有未清除告警">
+      <span alarm-information-actions class="period-readout">当前未清除</span>
+    </tb-device-alarm-information-chart>
 
-    <article class="panel chart-panel spd-panel">
+    <article class="panel monitoring-summary-panel spd-panel">
       <div class="panel-title"><h2>SPD监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.spd" (periodChange)="setChartPeriod('spd', $event)"></tb-smart-lightning-period-switcher></div>
-      <div #chartHost data-chart="spd" class="chart" aria-label="SPD 监测趋势图"></div>
+      @if (spdLoading) {
+        <div class="monitoring-summary-state">正在读取 SPD 设备数据…</div>
+      } @else if (spdLoadError || !spdSummary) {
+        <div class="monitoring-summary-state error">SPD 监测数据加载失败。<button type="button" (click)="loadSpdSummary()">重试</button></div>
+      } @else {
+        <div class="monitoring-summary-overview">
+          <section class="monitoring-device-metrics" aria-label="SPD设备概况">
+            <div><span>设备总数</span><strong class="blue">{{spdSummary.totalDevices}}</strong></div>
+            <div><span>在线</span><strong class="green">{{spdSummary.onlineDevices}}</strong></div>
+            <div><span>离线</span><strong class="amber">{{spdSummary.offlineDevices}}</strong></div>
+          </section>
+          <section class="monitoring-alarm-metric spd-realtime-metrics" aria-label="SPD告警与实时参数">
+            <div class="spd-alarm-highlight">
+              <span>本周期告警数</span><strong class="red" [attr.title]="formatSpdAlarmTypeTooltip(spdSummary)">{{spdSummary.alarmCount}}次</strong>
+            </div>
+            <div class="spd-realtime-grid">
+              <div title="正常设备数 / 有 GndStatus 参数的设备总数"><span>接地状态</span><strong class="green">{{spdSummary.groundStatusNormalCount}}/{{spdSummary.groundStatusDeviceCount}}</strong></div>
+              <div title="正常设备数 / 有 McbStatus 参数的设备总数"><span>空开状态</span><strong class="green">{{spdSummary.breakerStatusNormalCount}}/{{spdSummary.breakerStatusDeviceCount}}</strong></div>
+              <div title="正常设备数 / 有温度键（键名包含 Temp）的设备总数；同一设备任一温度达到 65℃ 即不计为正常"><span>温度状态</span><strong class="green">{{spdSummary.temperatureNormalCount}}/{{spdSummary.temperatureDeviceCount}}</strong></div>
+              <div title="正常设备数 / 有 SPD_RUL 参数的设备总数（SPD_RUL 不低于 20%）"><span>寿命状态</span><strong class="green">{{spdSummary.degradationNormalCount}}/{{spdSummary.degradationDeviceCount}}</strong></div>
+            </div>
+          </section>
+          <section class="monitoring-primary-metric spd-primary-metric" aria-label="SPD周期统计指标">
+            <div class="spd-periodic-grid">
+              <div class="spd-periodic-item spd-periodic-count">
+                <span>雷击次数</span>
+                <strong class="blue">{{spdSummary.lightningCount == null ? '__' : spdSummary.lightningCount + '次'}}</strong>
+              </div>
+              <div class="spd-periodic-item">
+                <span>温度</span>
+                <div class="spd-periodic-values">
+                  <strong class="red" [attr.title]="formatSpdExtremaTooltip('温度最大值', spdSummary.temperatureExtrema?.maximum, SMART_LIGHTNING_UNITS.temperature, spdSummary.temperatureExtrema?.maximumDeviceName, spdSummary.temperatureExtrema?.maximumParameter, spdSummary.temperatureExtrema?.maximumTime)">{{formatSpdPeriodicValue(spdSummary.temperatureExtrema?.maximum, SMART_LIGHTNING_UNITS.temperature)}}</strong>
+                  <strong class="blue" [attr.title]="formatSpdExtremaTooltip('温度最小值', spdSummary.temperatureExtrema?.minimum, SMART_LIGHTNING_UNITS.temperature, spdSummary.temperatureExtrema?.minimumDeviceName, spdSummary.temperatureExtrema?.minimumParameter, spdSummary.temperatureExtrema?.minimumTime)">{{formatSpdPeriodicValue(spdSummary.temperatureExtrema?.minimum, SMART_LIGHTNING_UNITS.temperature)}}</strong>
+                </div>
+                <div class="spd-periodic-labels"><small>最大</small><small>最小</small></div>
+              </div>
+              <div class="spd-periodic-item" aria-label="最大漏流和最小漏流">
+                <span>漏电流</span>
+                <div class="spd-periodic-values">
+                  <strong class="red" [attr.title]="formatSpdExtremaTooltip('漏电流最大值', spdSummary.leakageExtrema?.maximum, SMART_LIGHTNING_UNITS.leakageCurrent, spdSummary.leakageExtrema?.maximumDeviceName, spdSummary.leakageExtrema?.maximumParameter, spdSummary.leakageExtrema?.maximumTime)">{{formatSpdPeriodicValue(spdSummary.leakageExtrema?.maximum, SMART_LIGHTNING_UNITS.leakageCurrent)}}</strong>
+                  <strong class="blue" [attr.title]="formatSpdExtremaTooltip('漏电流最小值', spdSummary.leakageExtrema?.minimum, SMART_LIGHTNING_UNITS.leakageCurrent, spdSummary.leakageExtrema?.minimumDeviceName, spdSummary.leakageExtrema?.minimumParameter, spdSummary.leakageExtrema?.minimumTime)">{{formatSpdPeriodicValue(spdSummary.leakageExtrema?.minimum, SMART_LIGHTNING_UNITS.leakageCurrent)}}</strong>
+                </div>
+                <div class="spd-periodic-labels"><small>最大</small><small>最小</small></div>
+              </div>
+              <div class="spd-periodic-item">
+                <span>电压</span>
+                <div class="spd-periodic-values">
+                  <strong class="red" [attr.title]="formatSpdExtremaTooltip('电压最大值', spdSummary.voltageExtrema?.maximum, SMART_LIGHTNING_UNITS.voltage, spdSummary.voltageExtrema?.maximumDeviceName, spdSummary.voltageExtrema?.maximumParameter, spdSummary.voltageExtrema?.maximumTime)">{{formatSpdPeriodicValue(spdSummary.voltageExtrema?.maximum, SMART_LIGHTNING_UNITS.voltage)}}</strong>
+                  <strong class="blue" [attr.title]="formatSpdExtremaTooltip('电压最小值', spdSummary.voltageExtrema?.minimum, SMART_LIGHTNING_UNITS.voltage, spdSummary.voltageExtrema?.minimumDeviceName, spdSummary.voltageExtrema?.minimumParameter, spdSummary.voltageExtrema?.minimumTime)">{{formatSpdPeriodicValue(spdSummary.voltageExtrema?.minimum, SMART_LIGHTNING_UNITS.voltage)}}</strong>
+                </div>
+                <div class="spd-periodic-labels"><small>最大</small><small>最小</small></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- SPD 周期统计保留在原指标区域内，不新增独立卡片。 -->
+      }
     </article>
 
     <article class="panel chart-panel orders-panel">
@@ -58,34 +191,39 @@
     <article class="panel records-panel">
       <div class="panel-title">
         <h2>告警记录</h2>
-        <a class="more-link" routerLink="/alarms/alarms">查看全部 <tb-icon>arrow_forward</tb-icon></a>
+        <a class="more-link" routerLink="/deviceAlarms/list">查看全部 <tb-icon>arrow_forward</tb-icon></a>
       </div>
-      <div class="table-scroll">
-        @if (alarmsLoading) {
-          <div class="table-state">正在加载活动告警…</div>
-        } @else if (alarmsLoadError) {
-          <div class="table-state error">告警记录加载失败。<button type="button" (click)="loadLatestAlarms()">重试</button></div>
-        } @else if (!alarms.length) {
-          <div class="table-state">当前没有活动告警</div>
-        } @else {
-        <table>
-          <thead><tr><th title="来源位置">来源位置</th><th title="次级位置">次级位置</th><th title="设备类型">设备类型</th><th title="设备名称">设备名称</th><th title="告警类型">告警类型</th><th title="告警等级">告警等级</th><th title="确认状态">确认状态</th><th title="触发时间">触发时间</th></tr></thead>
-          <tbody>
-            @for (alarm of alarms; track alarm.source + alarm.device + alarm.startTs) {
-              <tr><td [title]="alarm.source">{{alarm.source}}</td><td [title]="alarm.secondaryLocation">{{alarm.secondaryLocation}}</td>
-                <td [title]="alarm.deviceType">{{alarm.deviceType}}</td><td [title]="alarm.deviceName">{{alarm.deviceName}}</td><td [title]="alarm.type">{{alarm.type}}</td>
-                <td><span class="alarm-severity" [class]="alarm.severityTone">{{alarm.severity}}</span></td>
-                <td [title]="alarm.status">{{alarm.status}}</td><td>{{alarm.startTs | date:'yyyy/MM/dd HH:mm'}}</td></tr>
-            }
-          </tbody>
-        </table>
-        }
-      </div>
+      <tb-device-alarm-records
+        [alarms]="alarms"
+        [loading]="alarmsLoading"
+        [loadError]="alarmsLoadError"
+        (retry)="loadLatestAlarms()">
+      </tb-device-alarm-records>
     </article>
 
-    <article class="panel chart-panel lightning-panel">
+    <article class="panel monitoring-summary-panel lightning-panel">
       <div class="panel-title"><h2>雷电监测</h2><tb-smart-lightning-period-switcher [activePeriod]="chartPeriods.lightning" (periodChange)="setChartPeriod('lightning', $event)"></tb-smart-lightning-period-switcher></div>
-      <div #chartHost data-chart="lightning" class="chart" aria-label="雷电监测横向柱状图"></div>
+      @if (lightningLoading) {
+        <div class="monitoring-summary-state">正在读取雷电流设备数据…</div>
+      } @else if (lightningLoadError || !lightningSummary) {
+        <div class="monitoring-summary-state error">雷电监测数据加载失败。<button type="button" (click)="loadLightningSummary()">重试</button></div>
+      } @else {
+        <div class="monitoring-summary-overview">
+          <section class="monitoring-device-metrics" aria-label="雷电设备概况">
+            <div><span>设备总数</span><strong class="blue">{{lightningSummary.totalDevices}}</strong></div>
+            <div><span>在线</span><strong class="green">{{lightningSummary.onlineDevices}}</strong></div>
+            <div><span>离线</span><strong class="amber">{{lightningSummary.offlineDevices}}</strong></div>
+          </section>
+          <section class="monitoring-alarm-metric" aria-label="雷电周期告警数">
+            <span>本周期告警数</span><strong class="red" [attr.title]="formatLightningAlarmTooltip(lightningSummary)">{{lightningSummary.alarmCount}}</strong>
+          </section>
+          <section class="monitoring-primary-metric lightning-primary-metric" aria-label="雷击次数和峰值电流范围">
+            <div><span>雷击次数</span><strong class="blue">{{lightningSummary.eventCount ?? '__'}}</strong></div>
+            <div><span>最大峰值</span><strong class="blue" [attr.title]="formatLightningMaximumTooltip(lightningSummary)">{{formatLightningPeak(lightningSummary.maxPeakCurrent)}}</strong></div>
+            <div><span>最小峰值</span><strong class="blue" [attr.title]="formatLightningMinimumTooltip(lightningSummary)">{{formatLightningPeak(lightningSummary.minPeakCurrent)}}</strong></div>
+          </section>
+        </div>
+      }
     </article>
   </section>
 </main>

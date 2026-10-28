@@ -21,45 +21,42 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.thingsboard.server.common.data.AttributeScope;
-import org.thingsboard.server.common.data.DeviceInfo;
-import org.thingsboard.server.common.data.EntityType;
-import org.thingsboard.server.common.data.HasName;
 import org.thingsboard.server.common.data.alarm.AlarmInfo;
 import org.thingsboard.server.common.data.alarm.AlarmQueryV2;
 import org.thingsboard.server.common.data.alarm.AlarmSearchStatus;
+import org.thingsboard.server.common.data.alarm.AlarmSeverity;
+import org.thingsboard.server.common.data.DeviceInfo;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
-import org.thingsboard.server.common.data.id.AssetId;
-import org.thingsboard.server.common.data.id.EntityId;
-import org.thingsboard.server.common.data.id.HasId;
-import org.thingsboard.server.common.data.kv.EntityAttributeKvEntry;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
-import org.thingsboard.server.common.data.page.SortOrder;
 import org.thingsboard.server.common.data.page.TimePageLink;
-import org.thingsboard.server.common.data.relation.EntityRelation;
-import org.thingsboard.server.common.data.relation.RelationTypeGroup;
-import org.thingsboard.server.dao.relation.RelationService;
+import org.thingsboard.server.common.data.id.UserId;
 import org.thingsboard.server.queue.util.TbCoreComponent;
-import org.thingsboard.server.service.entitiy.UserEntitiesService;
-import org.thingsboard.server.service.monitoring.DeviceStatusSummary;
-import org.thingsboard.server.service.monitoring.SmartLightningMonitoringTreeBuilder;
-import org.thingsboard.server.service.monitoring.DeviceStatusSummaryCalculator;
-import org.thingsboard.server.service.security.model.SecurityUser;
-import org.thingsboard.server.service.security.permission.Operation;
+import org.thingsboard.server.service.monitoring.service.SmartLightningAlarmService;
+import org.thingsboard.server.service.monitoring.converter.MonitoringVOConverter;
+import org.thingsboard.server.service.monitoring.vo.DeviceStatusSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.GroundMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningDeviceContextVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningMonitoringTreeVO;
+import org.thingsboard.server.service.monitoring.vo.SpdMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.LightningCurrentMonitoringSummaryVO;
+import org.thingsboard.server.service.monitoring.vo.SmartLightningRealtimeAnalysisVO;
+import org.thingsboard.server.service.monitoring.service.DeviceStatusSummaryService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningDashboardService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningDataQueryService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringService;
+import org.thingsboard.server.service.monitoring.service.SmartLightningMonitoringTreeService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 智能防雷数据监测页专用接口。
  *
- * <p>浏览器只发起一次请求。控制器先取得当前用户可见的资产和设备，随后在服务端读取
- * Contains 关系并组装树，避免前端按层级和每个资产反复访问通用关系接口。</p>
+ * <p>控制器只负责 HTTP 请求、权限注解和当前用户上下文；实体查询、属性读取、告警统计及
+ * 分页过滤均由 monitoring/service 下的业务服务完成。</p>
  */
 @RestController
 @TbCoreComponent
@@ -67,33 +64,29 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SmartLightningMonitoringController extends BaseController {
 
-    /** 单次读取上限；监测树不是分页列表，页面需要完整层级。 */
-    private static final int TREE_ENTITY_PAGE_SIZE = 10_000;
-    /** 服务器属性名和值：只有明确标记为 lightning 的设备进入智能防雷列表。 */
-    private static final String PRODUCT_CATEGORY_ATTRIBUTE = "productCategory";
-    private static final String LIGHTNING_PRODUCT_CATEGORY = "lightning";
-    private static final String ACTIVE_ATTRIBUTE = "active";
-    private static final List<String> DEVICE_STATUS_ATTRIBUTES = List.of(PRODUCT_CATEGORY_ATTRIBUTE, ACTIVE_ATTRIBUTE);
-
-    private final UserEntitiesService userEntitiesService;
-    private final RelationService relationService;
-    private final SmartLightningMonitoringTreeBuilder treeBuilder;
+    private final SmartLightningMonitoringTreeService monitoringTreeService;
+    private final SmartLightningAlarmService smartLightningAlarmService;
+    private final DeviceStatusSummaryService deviceStatusSummaryService;
+    private final SmartLightningDashboardService dashboardService;
+    private final SmartLightningMonitoringService monitoringService;
+    private final SmartLightningDataQueryService dataQueryService;
 
     @GetMapping("/tree")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public SmartLightningMonitoringTreeBuilder.TreeResponse getMonitoringTree() throws ThingsboardException {
-        SecurityUser user = getCurrentUser();
-        List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleAssets = findVisibleEntities(user, EntityType.ASSET);
-        List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleDevices = findVisibleEntities(user, EntityType.DEVICE);
-        List<EntityRelation> relations = new ArrayList<>();
+    public SmartLightningMonitoringTreeVO getMonitoringTree() throws ThingsboardException {
+        return MonitoringVOConverter.toVO(monitoringTreeService.getTree(getCurrentUser()));
+    }
 
-        // 只从可见资产向外查 Contains；树构建器会再次过滤不可见的关系另一端。
-        for (SmartLightningMonitoringTreeBuilder.VisibleEntity asset : visibleAssets) {
-            relations.addAll(relationService.findByFrom(user.getTenantId(), new AssetId(asset.id()), RelationTypeGroup.COMMON));
-        }
-        List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleEntities = new ArrayList<>(visibleAssets);
-        visibleEntities.addAll(visibleDevices);
-        return treeBuilder.build(visibleEntities, relations);
+    /**
+     * 返回数据监测页的实时聚合结果。
+     * assetId 为空时统计全部可见防雷设备，传入时统计该资产及其全部后代设备。
+     */
+    @GetMapping("/realtime-analysis")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public SmartLightningRealtimeAnalysisVO getRealtimeAnalysis(
+            @RequestParam(required = false) UUID assetId) throws ThingsboardException {
+        return MonitoringVOConverter.toVO(
+                monitoringService.getRealtimeAnalysis(getCurrentUser(), assetId));
     }
 
     /**
@@ -101,40 +94,40 @@ public class SmartLightningMonitoringController extends BaseController {
      *
      * <p>此接口不按 productCategory 过滤，范围是当前登录用户拥有 READ 权限的全部设备。
      * 在线状态只读取设备 SERVER_SCOPE 中的 active 属性（true/1），不使用 DeviceInfo.active；
-     * 未清除告警按设备去重后计入异常。</p>
+     * 未清除告警设备与 active 不是 true/1 的设备合并去重后计入异常。</p>
      */
     @GetMapping("/device-status-summary")
     @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
-    public DeviceStatusSummary getDeviceStatusSummary() throws ThingsboardException {
-        SecurityUser user = getCurrentUser();
-        List<UUID> visibleDeviceIds = new ArrayList<>();
-        for (HasName entity : findVisibleEntities(user, EntityType.DEVICE, null)) {
-            if (entity instanceof HasId<?> identifiedEntity && identifiedEntity.getId() != null) {
-                visibleDeviceIds.add(identifiedEntity.getId().getId());
-            }
-        }
+    public DeviceStatusSummaryVO getDeviceStatusSummary() throws ThingsboardException {
+        return MonitoringVOConverter.toVO(deviceStatusSummaryService.getSummary(getCurrentUser()));
+    }
 
-        List<EntityId> entityIds = new ArrayList<>();
-        for (UUID deviceId : visibleDeviceIds) {
-            entityIds.add(new org.thingsboard.server.common.data.id.DeviceId(deviceId));
-        }
-        List<EntityAttributeKvEntry> attributes = attributesService.findLatestByEntityIdsAndScopeWithEntityId(
-                user.getTenantId(), entityIds, AttributeScope.SERVER_SCOPE, List.of(ACTIVE_ATTRIBUTE));
-        Map<UUID, String> activeValuesByDeviceId = new HashMap<>();
-        for (EntityAttributeKvEntry entry : attributes) {
-            if (entry.entityId() != null && entry.attribute() != null && ACTIVE_ATTRIBUTE.equals(entry.attribute().getKey())) {
-                activeValuesByDeviceId.put(entry.entityId(), entry.attribute().getValueAsString());
-            }
-        }
+    /** 地网监测接口仅负责接收请求并委托给业务服务。 */
+    @GetMapping("/ground-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public GroundMonitoringSummaryVO getGroundMonitoringSummary(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return MonitoringVOConverter.toVO(dashboardService.getGroundSummary(getCurrentUser(), period));
+    }
 
-        List<UUID> activeAlarmDeviceIds = new ArrayList<>();
-        for (AlarmInfo alarm : findAllActiveAlarms(user)) {
-            EntityId originator = alarm.getOriginator();
-            if (originator != null && originator.getEntityType() == EntityType.DEVICE) {
-                activeAlarmDeviceIds.add(originator.getId());
-            }
-        }
-        return DeviceStatusSummaryCalculator.calculate(visibleDeviceIds, activeValuesByDeviceId, activeAlarmDeviceIds);
+    /** SPD 监测摘要：设备状态为当前快照，告警和周期数据盒子按所选周期统计。 */
+    @GetMapping("/spd-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public SpdMonitoringSummaryVO getSpdMonitoringSummary(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return MonitoringVOConverter.toVO(dashboardService.getSpdSummary(getCurrentUser(), period));
+    }
+
+    /** 雷电流监测摘要：单条 surgeCount 直接计数，多条记录按累计计数器差值汇总。 */
+    @GetMapping("/lightning-current-summary")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public LightningCurrentMonitoringSummaryVO getLightningCurrentMonitoringSummary(
+            @RequestParam(defaultValue = "day") String period
+    ) throws ThingsboardException {
+        return MonitoringVOConverter.toVO(
+                dashboardService.getLightningCurrentSummary(getCurrentUser(), period));
     }
 
     /**
@@ -151,115 +144,92 @@ public class SmartLightningMonitoringController extends BaseController {
             @RequestParam int page,
             @RequestParam(required = false) String textSearch
     ) throws ThingsboardException {
-        PageLink requestedPage = createPageLink(pageSize, page, textSearch, null, null);
-        SecurityUser user = getCurrentUser();
-
-        // 读取完整的当前用户可见设备集合，再按服务器属性过滤，保证分页总数准确。
-        // 设备接口与资产树共用同一个当前用户可见实体查询方法，避免两套授权/查询逻辑。
-        List<DeviceInfo> visibleDevices = new ArrayList<>();
-        for (HasName entity : findVisibleEntities(user, EntityType.DEVICE, requestedPage.getTextSearch())) {
-            if (entity instanceof DeviceInfo deviceInfo) {
-                visibleDevices.add(deviceInfo);
-            }
-        }
-
-        List<EntityId> deviceIds = new ArrayList<>();
-        for (DeviceInfo device : visibleDevices) {
-            deviceIds.add(device.getId());
-        }
-
-        // 一次读取所有设备的 productCategory 和 active，避免每台设备单独访问属性服务。
-        List<EntityAttributeKvEntry> statusAttributes = attributesService.findLatestByEntityIdsAndScopeWithEntityId(
-                user.getTenantId(), deviceIds, AttributeScope.SERVER_SCOPE, DEVICE_STATUS_ATTRIBUTES);
-        Map<UUID, Map<String, String>> attributesByDevice = groupAttributesByDevice(statusAttributes);
-
-        List<DeviceInfo> lightningDevices = new ArrayList<>();
-        for (DeviceInfo device : visibleDevices) {
-            Map<String, String> deviceAttributes = attributesByDevice.get(device.getId().getId());
-            if (deviceAttributes == null) {
-                continue;
-            }
-            String categoryValue = deviceAttributes.get(PRODUCT_CATEGORY_ATTRIBUTE);
-            if (categoryValue == null || !LIGHTNING_PRODUCT_CATEGORY.equalsIgnoreCase(categoryValue.trim())) {
-                continue;
-            }
-            device.setActive(isActive(deviceAttributes.get(ACTIVE_ATTRIBUTE)));
-            lightningDevices.add(device);
-        }
-
-        int total = lightningDevices.size();
-        int from = Math.min(requestedPage.getPage() * requestedPage.getPageSize(), total);
-        int to = Math.min(from + requestedPage.getPageSize(), total);
-        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / requestedPage.getPageSize());
-        return new PageData<>(lightningDevices.subList(from, to), totalPages, total, to < total);
-    }
-
-    /** 将一次批量查询返回的属性按设备 ID 分组，便于普通循环读取。 */
-    private Map<UUID, Map<String, String>> groupAttributesByDevice(List<EntityAttributeKvEntry> statusAttributes) {
-        Map<UUID, Map<String, String>> attributesByDevice = new HashMap<>();
-        for (EntityAttributeKvEntry entry : statusAttributes) {
-            if (entry.entityId() == null || entry.attribute() == null) {
-                continue;
-            }
-            Map<String, String> deviceAttributes = attributesByDevice.get(entry.entityId());
-            if (deviceAttributes == null) {
-                deviceAttributes = new HashMap<>();
-                attributesByDevice.put(entry.entityId(), deviceAttributes);
-            }
-            deviceAttributes.put(entry.attribute().getKey(), entry.attribute().getValueAsString());
-        }
-        return attributesByDevice;
-    }
-
-    /** 逐页读取未清除告警，避免固定 10,000 条时漏统计异常设备。 */
-    private List<AlarmInfo> findAllActiveAlarms(SecurityUser user) {
-        List<AlarmInfo> alarms = new ArrayList<>();
-        TimePageLink pageLink = new TimePageLink(TREE_ENTITY_PAGE_SIZE, 0, null, SortOrder.BY_CREATED_TIME_DESC);
-        while (pageLink != null) {
-            AlarmQueryV2 query = new AlarmQueryV2(
-                    null, pageLink, Collections.emptyList(), List.of(AlarmSearchStatus.ACTIVE), Collections.emptyList(), null);
-            PageData<AlarmInfo> pageData;
-            if (user.isCustomerUser()) {
-                pageData = alarmService.findCustomerAlarmsV2(user.getTenantId(), user.getCustomerId(), query);
-            } else {
-                pageData = alarmService.findAlarmsV2(user.getTenantId(), query);
-            }
-            alarms.addAll(pageData.getData());
-            pageLink = pageData.hasNext() ? pageLink.nextPageLink() : null;
-        }
-        return alarms;
-    }
-
-    /** active 属性支持布尔字符串和 0/1 两种常见格式。 */
-    private boolean isActive(String value) {
-        return "true".equalsIgnoreCase(value) || "1".equals(value);
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return dataQueryService.getDevices(getCurrentUser(), pageLink);
     }
 
     /**
-     * 复用平台的“当前用户可见实体”服务，而不是按租户直查。
-     * 这样客户用户和通过实体组分享获得权限的用户，都只会看到被授权的数据。
+     * 返回当前用户可见防雷设备及页面所需服务器属性。
+     * 属性由后端按设备 ID 批量查询，避免前端逐台请求。
      */
-    private List<SmartLightningMonitoringTreeBuilder.VisibleEntity> findVisibleEntities(SecurityUser user, EntityType entityType)
-            throws ThingsboardException {
-        List<SmartLightningMonitoringTreeBuilder.VisibleEntity> visibleEntities = new ArrayList<>();
-        for (HasName entity : findVisibleEntities(user, entityType, null)) {
-            if (entity instanceof HasId<?> identifiedEntity && identifiedEntity.getId() != null) {
-                visibleEntities.add(new SmartLightningMonitoringTreeBuilder.VisibleEntity(
-                        identifiedEntity.getId().getId(), entity.getName(), entityType));
-            }
-        }
-        return visibleEntities;
+    @GetMapping("/device-contexts")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public PageData<SmartLightningDeviceContextVO> getLightningDeviceContexts(
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch
+    ) throws ThingsboardException {
+        PageLink pageLink = createPageLink(pageSize, page, textSearch, null, null);
+        return MonitoringVOConverter.toDeviceContextPage(
+                dataQueryService.getDeviceContexts(getCurrentUser(), pageLink));
     }
 
     /**
-     * 查询当前用户可见实体的统一入口。设备列表和资产树都必须经过这里，
-     * 这样租户、客户及实体组授权边界保持一致。
+     * 查询智能防雷模块的告警页；筛选和分页参数沿用 ThingsBoard v2 告警查询格式。
+     *
+     * <p>productCategory 必须为 lightning；实际查询还会限制在当前用户有 READ 权限的防雷设备内。</p>
+     *
+     * @param productCategory 产品大类，只接受 lightning，用于防止跨模块查询
+     * @param statusList 告警状态筛选，可传多个原生 AlarmSearchStatus 枚举值
+     * @param severityList 告警严重程度筛选，可传多个原生 AlarmSeverity 枚举值
+     * @param typeList 告警类型筛选；为空时不按告警类型限制
+     * @param assigneeId 受理人用户 ID；为空时不按受理人限制
+     * @param pageSize 每页记录数
+     * @param page 从 0 开始的页码
+     * @param textSearch ThingsBoard 告警文本搜索条件
+     * @param sortProperty 排序字段；未提供时按创建时间倒序
+     * @param sortOrder 排序方向
+     * @param startTime 查询开始时间，Unix 毫秒时间戳
+     * @param endTime 查询结束时间，Unix 毫秒时间戳
+     * @return 当前用户可见防雷设备产生的告警分页，保留原生 AlarmInfo 字段和分页信息
+     * @throws ThingsboardException 当前用户权限校验或告警查询失败时抛出
      */
-    private List<? extends HasName> findVisibleEntities(SecurityUser user, EntityType entityType, String textSearch)
-            throws ThingsboardException {
-        PageData<? extends HasName> pageData = userEntitiesService.findUserEntities(
-                user, entityType, Operation.READ,
-                new PageLink(TREE_ENTITY_PAGE_SIZE, 0, textSearch));
-        return pageData.getData();
+    @GetMapping("/alarms")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
+    public PageData<AlarmInfo> getLightningAlarms(
+            @RequestParam String productCategory,
+            @RequestParam(required = false) String[] statusList,
+            @RequestParam(required = false) String[] severityList,
+            @RequestParam(required = false) String[] typeList,
+            @RequestParam(required = false) String assigneeId,
+            @RequestParam int pageSize,
+            @RequestParam int page,
+            @RequestParam(required = false) String textSearch,
+            @RequestParam(required = false) String sortProperty,
+            @RequestParam(required = false) String sortOrder,
+            @RequestParam(required = false) Long startTime,
+            @RequestParam(required = false) Long endTime
+    ) throws ThingsboardException {
+        // 将 URL 中的状态名称转换成平台枚举；未传状态条件时保留空列表，表示不按状态过滤。
+        List<AlarmSearchStatus> alarmStatusList = new java.util.ArrayList<>();
+        if (statusList != null) {
+            for (String status : statusList) {
+                if (status != null && !status.isBlank()) {
+                    alarmStatusList.add(AlarmSearchStatus.valueOf(status));
+                }
+            }
+        }
+        // 将严重程度名称转换成平台枚举；忽略空白项，避免它们进入底层查询条件。
+        List<AlarmSeverity> alarmSeverityList = new java.util.ArrayList<>();
+        if (severityList != null) {
+            for (String severity : severityList) {
+                if (severity != null && !severity.isBlank()) {
+                    alarmSeverityList.add(AlarmSeverity.valueOf(severity));
+                }
+            }
+        }
+        // 保留调用方给出的告警类型；null 转为空列表以表达“不限制类型”。
+        List<String> alarmTypeList = typeList == null ? Collections.emptyList() : Arrays.asList(typeList);
+        // 将受理人字符串解析为 ThingsBoard 用户 ID；未指定受理人时传 null 表示不筛选。
+        UserId alarmAssigneeId = assigneeId == null ? null : new UserId(UUID.fromString(assigneeId));
+        // 统一构建平台时间分页链接，时间范围使用 Unix 毫秒并携带文本搜索和排序参数。
+        TimePageLink pageLink = createTimePageLink(
+                pageSize, page, textSearch, sortProperty, sortOrder, startTime, endTime);
+        // 该模块查询不绑定单一 affectedEntity，由模块 Service 再限制到当前用户可见的防雷设备集合。
+        AlarmQueryV2 query = new AlarmQueryV2(
+                null, pageLink, alarmTypeList, alarmStatusList, alarmSeverityList, alarmAssigneeId);
+        // 将当前用户、原生告警条件和模块类别交给业务层完成分类校验及设备权限过滤。
+        return smartLightningAlarmService.findAlarms(getCurrentUser(), query, productCategory);
     }
+
 }

@@ -212,6 +212,28 @@ public class RelationServiceTest extends AbstractServiceTest {
         Assert.assertEquals(0, relations.size());
     }
 
+    /** 验证批量出边查询一次返回多个资产的 Contains 关系，避免资产树逐个查询。 */
+    @Test
+    public void testFindFromBatch() {
+        AssetId parentA = new AssetId(Uuids.timeBased());
+        AssetId parentB = new AssetId(Uuids.timeBased());
+        AssetId childA = new AssetId(Uuids.timeBased());
+        AssetId childB = new AssetId(Uuids.timeBased());
+
+        saveRelation(new EntityRelation(parentA, childA, EntityRelation.CONTAINS_TYPE));
+        saveRelation(new EntityRelation(parentB, childB, EntityRelation.CONTAINS_TYPE));
+
+        List<EntityRelation> relations = relationService.findByFrom(
+                SYSTEM_TENANT_ID, List.of(parentA, parentB), RelationTypeGroup.COMMON);
+
+        Assert.assertEquals(2, relations.size());
+        for (EntityRelation relation : relations) {
+            Assert.assertEquals(EntityRelation.CONTAINS_TYPE, relation.getType());
+            Assert.assertTrue(parentA.equals(relation.getFrom()) || parentB.equals(relation.getFrom()));
+            Assert.assertTrue(childA.equals(relation.getTo()) || childB.equals(relation.getTo()));
+        }
+    }
+
     private EntityRelation saveRelation(EntityRelation relation) {
         return relationService.saveRelation(SYSTEM_TENANT_ID, relation);
     }

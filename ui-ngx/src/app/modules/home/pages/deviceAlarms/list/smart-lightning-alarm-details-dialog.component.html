@@ -1,0 +1,74 @@
+<!-- 文件职责：告警列表模块的 smart-lightning-alarm-details-dialog.component，负责告警详情、派发、活动和处理操作的模板渲染。 -->
+<section class="alarm-detail-dialog" aria-label="告警详情">
+  <header>
+    <div>
+      <h2>告警详情</h2>
+      <p>{{actionMode ? '查看告警、派发受理人并记录处理活动' : '查看告警基本信息与详细信息'}}</p>
+    </div>
+    <button type="button" aria-label="关闭" (click)="close()">×</button>
+  </header>
+
+  @if (loading) {
+    <div class="dialog-state">正在读取告警详情…</div>
+  } @else if (loadError) {
+    <div class="dialog-state error">告警详情读取失败，请关闭后重试。</div>
+  } @else if (alarm) {
+    <div class="dialog-body">
+      <section class="detail-section" aria-labelledby="alarm-basic-title">
+        <h3 id="alarm-basic-title">基本信息</h3>
+        <div class="detail-grid">
+          <div><span>来源设备</span><strong [title]="alarm.originatorLabel || alarm.originatorDisplayName || alarm.originatorName || '--'">{{alarm.originatorLabel || alarm.originatorDisplayName || alarm.originatorName || '--'}}</strong></div>
+          <div><span>告警类型</span><strong [title]="alarm.type || '--'">{{alarm.type || '--'}}</strong></div>
+          <div><span>告警等级</span><strong [class]="'severity ' + (alarm.severity || '').toLowerCase()">{{severityLabel(alarm.severity)}}</strong></div>
+          <div><span>告警状态</span><strong>{{statusLabel(alarm.status)}}</strong></div>
+          <div><span>告警时间</span><strong>{{formatTime(alarm.startTs || alarm.createdTime)}}</strong></div>
+          <div><span>受理人</span><strong>{{assigneeLabel(alarm)}}</strong></div>
+          <div><span>派发时间</span><strong>{{formatTime(alarm.assignTs)}}</strong></div>
+          <div><span>确认时间</span><strong>{{formatTime(alarm.ackTs)}}</strong></div>
+          <div><span>清除时间</span><strong>{{formatTime(alarm.clearTs)}}</strong></div>
+        </div>
+      </section>
+
+      <section class="detail-content" aria-labelledby="alarm-detail-title">
+        <h3 id="alarm-detail-title">详细信息</h3>
+        <pre>{{detailText(alarm.details)}}</pre>
+      </section>
+
+      @if (actionMode) {
+        <section class="dispatch-section" aria-labelledby="alarm-dispatch-title">
+          <div class="section-heading">
+            <div>
+              <h3 id="alarm-dispatch-title">派发</h3>
+              <p>选择或更换当前告警的受理人</p>
+            </div>
+            <span>{{assigneeLabel(alarm)}}</span>
+          </div>
+          <tb-alarm-assignee
+            [alarm]="alarm"
+            [allowAssign]="!actionPending"
+            (alarmReassigned)="onReassigned()" />
+        </section>
+
+        <section class="activity-section" aria-label="告警活动">
+          <tb-alarm-comment
+            #alarmCommentComponent
+            [alarmId]="alarmId" />
+        </section>
+      }
+    </div>
+  }
+
+  <footer>
+    @if (actionError) {
+      <span class="action-error" role="alert">{{actionError}}</span>
+    }
+    <span class="footer-spacer"></span>
+    <button type="button" class="close-button" (click)="close()">关闭</button>
+    @if (canAcknowledge()) {
+      <button type="button" class="acknowledge-button" [disabled]="actionPending" (click)="acknowledge()">确认</button>
+    }
+    @if (canClear()) {
+      <button type="button" class="clear-button" [disabled]="actionPending" (click)="clear()">清除</button>
+    }
+  </footer>
+</section>

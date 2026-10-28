@@ -1,3 +1,4 @@
+/** 文件职责：数据查询模块的 smart-lightning-history-review-dialog.component，负责页面状态管理、接口调用与用户交互。 */
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -21,8 +22,10 @@ import {Subject, takeUntil} from 'rxjs';
 import {
   buildSmartLightningHistoryPoints,
   filterSmartLightningTelemetryParameters,
+  getSmartLightningHistoryYAxisRange,
   getSmartLightningTelemetryParameterLabel,
   getSmartLightningTelemetryParameterUnit,
+  SmartLightningHistoryMetricDefinition,
   SmartLightningHistoryPoint
 } from './smart-lightning-history-review.data';
 
@@ -30,6 +33,8 @@ export interface SmartLightningHistoryReviewDialogData {
   deviceId: string;
   deviceName: string;
   deviceProfileName: string;
+  /** 非防雷页面可传入本模块已确认的测点表；不传时沿用防雷型号定义。 */
+  metricDefinitions?: readonly SmartLightningHistoryMetricDefinition[];
 }
 
 type HistoryRangePreset = '24h' | '7d' | '30d' | 'custom';
@@ -41,6 +46,12 @@ const HISTORY_RANGE_HOURS: Record<QuickHistoryRangePreset, number> = {
   '30d': 24 * 30
 };
 
+/**
+ * 历史遥测“回顾”弹窗组件。
+ *
+ * <p>单选一个数值型遥测参数，按起止时间查询历史数据并绘制 ECharts 折线；
+ * 不影响看板各图表独立的日/周/月筛选。</p>
+ */
 @Component({
   selector: 'tb-smart-lightning-history-review-dialog',
   templateUrl: './smart-lightning-history-review-dialog.component.html',
@@ -100,14 +111,18 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
 
   get selectedParameterLabel(): string {
     return this.selectedParameter
-      ? getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, this.selectedParameter)
+      ? getSmartLightningTelemetryParameterLabel(
+        this.data.deviceProfileName, this.selectedParameter, this.data.metricDefinitions
+      )
       : '设备参数';
   }
 
+  /** 遥测参数展示文本：配置过映射的显示中文业务名并保留原始键。 */
   parameterLabel(key: string): string {
-    return getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, key);
+    return getSmartLightningTelemetryParameterLabel(this.data.deviceProfileName, key, this.data.metricDefinitions);
   }
 
+  /** 关闭弹窗，断开图表尺寸监听。 */
   close(): void {
     this.dialogRef.close();
   }
@@ -122,16 +137,19 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     this.rangeError = '';
   }
 
+  /** 手动修改时间后标记为自定义范围，退出快捷区间高亮。 */
   markCustomRange(): void {
     this.rangePreset = 'custom';
   }
 
+  /** 把结束时间快捷设置为当前时刻。 */
   setEndNow(): void {
     this.endTime = this.toLocalDateTime(Date.now());
     this.rangePreset = 'custom';
     this.rangeError = '';
   }
 
+  /** 校验时间范围后调用历史遥测接口，构造折线数据并渲染；含加载/空数据/失败状态。 */
   loadHistory(): void {
     this.rangeError = '';
     const startTs = new Date(this.startTime).getTime();
@@ -178,6 +196,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     });
   }
 
+  /** 读取设备可用遥测键，并按“数值参数优先”过滤出可回顾的参数列表。 */
   private loadParameterKeys(): void {
     this.keysLoading = true;
     this.keysLoadError = false;
@@ -187,7 +206,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       DataKeyType.timeseries
     ).pipe(takeUntil(this.destroy$)).subscribe({
       next: (keys) => {
-        this.parameterKeys = filterSmartLightningTelemetryParameters(this.data.deviceProfileName, keys)
+        this.parameterKeys = filterSmartLightningTelemetryParameters(
+          this.data.deviceProfileName, keys, this.data.metricDefinitions
+        )
           .sort((left, right) => left.localeCompare(right));
         this.selectedParameter = this.parameterKeys[0] || '';
         this.keysLoading = false;
@@ -205,11 +226,15 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     });
   }
 
+  /** 渲染/更新历史折线图，容器尺寸变化时同步重绘。 */
   private renderChart(): void {
     if (!this.chart) {
       return;
     }
-    const unit = getSmartLightningTelemetryParameterUnit(this.data.deviceProfileName, this.selectedParameter);
+    const unit = getSmartLightningTelemetryParameterUnit(
+      this.data.deviceProfileName, this.selectedParameter, this.data.metricDefinitions
+    );
+    const yAxisRange = getSmartLightningHistoryYAxisRange(this.points);
     const option: EChartsOption = {
       animationDuration: 250,
       color: ['#7147ff'],
@@ -229,6 +254,9 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
       },
       yAxis: {
         type: 'value',
+        min: yAxisRange.min,
+        max: yAxisRange.max,
+        scale: true,
         name: unit,
         nameTextStyle: {color: '#657b8e'},
         axisLabel: {color: '#657b8e', fontSize: 11},
@@ -248,6 +276,7 @@ export class SmartLightningHistoryReviewDialogComponent implements OnInit, After
     this.chart.setOption(option, true);
   }
 
+  /** 把时间戳转为 datetime-local 输入框使用的本地时间文本。 */
   private toLocalDateTime(timestamp: number): string {
     const date = new Date(timestamp);
     const pad = (value: number): string => String(value).padStart(2, '0');

@@ -1,0 +1,46 @@
+<div #mapHost class="smart-lightning-device-map" aria-label="设备天地图"></div>
+<button type="button"
+        class="smart-lightning-map-layer-toggle"
+        [attr.aria-label]="'切换到底图：' + nextBaseLayerLabel"
+        [title]="'切换到底图：' + nextBaseLayerLabel"
+        (click)="toggleBaseLayer()">
+  <tb-icon aria-hidden="true">{{nextBaseLayerIcon}}</tb-icon>
+</button>
+
+@if (selectedDevice; as device) {
+  <div class="smart-lightning-map-modal-backdrop" role="presentation" (click)="closeDeviceDetails()">
+    <section class="smart-lightning-map-modal" role="dialog" aria-modal="true" aria-labelledby="smart-lightning-map-modal-title" (click)="$event.stopPropagation()">
+      <header class="smart-lightning-map-modal-header" [class]="selectedDeviceStatusClass()">
+        <div class="smart-lightning-map-modal-heading">
+          <span class="smart-lightning-map-modal-eyebrow">设备点位详情</span>
+          <h3 id="smart-lightning-map-modal-title">{{device.name}}</h3>
+        </div>
+        <button type="button" class="smart-lightning-map-modal-close" aria-label="关闭设备详情" (click)="closeDeviceDetails()">
+          <span aria-hidden="true">×</span>
+        </button>
+      </header>
+
+      <div class="smart-lightning-map-modal-status" [class]="selectedDeviceStatusClass()">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>当前状态：{{selectedDeviceStatus()}}</span>
+      </div>
+
+      <dl class="smart-lightning-map-modal-details">
+        <div><dt>产品名称</dt><dd>{{device.productName || '未配置'}}</dd></div>
+        <div><dt>设备类型</dt><dd>{{device.profileName || '未配置'}}</dd></div>
+        <div><dt>绝对路径</dt><dd class="path-value" [title]="selectedDeviceAssetPath()">{{selectedDeviceAssetPath()}}</dd></div>
+        <!-- 地图详情最多展示五位小数，坐标值本身仍保留原精度用于点位定位。 -->
+        <div><dt>坐标</dt><dd>{{formatCoordinate(device.latitude, 'latitude')}}, {{formatCoordinate(device.longitude, 'longitude')}}</dd></div>
+      </dl>
+
+      <div class="smart-lightning-map-modal-alarm" [class.has-alarm]="selectedDeviceAlarms().length > 0">
+        <span class="alarm-label">告警情况</span>
+        @if (selectedDeviceAlarms().length > 0) {
+          <span class="alarm-value">{{selectedDeviceAlarms().join('/')}}</span>
+        } @else {
+          <span class="alarm-value">无未清除告警</span>
+        }
+      </div>
+    </section>
+  </div>
+}

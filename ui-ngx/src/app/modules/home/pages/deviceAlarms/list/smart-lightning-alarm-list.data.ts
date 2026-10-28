@@ -1,22 +1,34 @@
-export type SmartLightningAlarmListSeverityTone = 'critical' | 'major' | 'minor' | 'warning' | 'indeterminate';
-export type SmartLightningAlarmListWorkOrderStatus = '未派发' | '已派发' | '已处理';
-export type SmartLightningAlarmListSeverityTab = '全部' | '紧急' | '一般' | '正常';
+/** 文件职责：告警列表模块的 smart-lightning-alarm-list.data，定义数据模型、接口结果映射与纯函数。 */
+import {
+  getSmartLightningAlarmSeverityLabel,
+  getSmartLightningAlarmSeverityTone,
+  getSmartLightningAlarmStatusLabel
+} from '../shared/smart-lightning-alarm-display';
+import type {SmartLightningAlarmSeverityTone} from '../shared/smart-lightning-alarm-display';
+
+export type SmartLightningAlarmListSeverityTone = SmartLightningAlarmSeverityTone;
+export type SmartLightningAlarmListWorkOrderStatus = '未派发' | '已派发';
+export type SmartLightningAlarmListAlarmStatus = '未确认未清除' | '已确认未清除' | '未确认已清除' | '已确认已清除';
+export type SmartLightningAlarmListSeverityTab = '全部' | '严重' | '重要' | '次要' | '警告' | '不确定';
 
 export interface SmartLightningAlarmListRow {
   id: string;
   originatorId: string;
   projectDeviceName: string;
   alarmTime: number;
+  alarmStatus: SmartLightningAlarmListAlarmStatus;
   workOrderStatus: SmartLightningAlarmListWorkOrderStatus;
   alarmType: string;
   severity: string;
   severityTone: SmartLightningAlarmListSeverityTone;
-  gatewayIdentifier: string;
   deviceType: string;
+  productName: string;
   meterAddress: string;
-  circuitName: string;
   timeSetting: string;
   detailDescription: string;
+  /** 原生告警状态，用于决定确认、清除和派发操作是否可用。 */
+  status: string;
+  cleared: boolean;
 }
 
 export interface SmartLightningAlarmListFilters {
@@ -24,6 +36,7 @@ export interface SmartLightningAlarmListFilters {
   alarmType: string;
   severity: string;
   workOrderStatus: string;
+  productName: string;
   keyword: string;
   startTime: string;
   endTime: string;
@@ -33,8 +46,6 @@ export interface SmartLightningAlarmListContext {
   deviceType?: string;
   productName?: string;
   meterAddress?: string;
-  circuitName?: string;
-  gatewayIdentifier?: string;
   timeSetting?: string;
 }
 
@@ -54,14 +65,6 @@ export interface SmartLightningAlarmLike {
   details?: unknown;
 }
 
-const severityLabels: Record<SmartLightningAlarmListSeverityTone, string> = {
-  critical: '严重',
-  major: '重要',
-  minor: '次要',
-  warning: '警告',
-  indeterminate: '不确定'
-};
-
 const severityRank: Record<SmartLightningAlarmListSeverityTone, number> = {
   critical: 0,
   major: 1,
@@ -70,14 +73,18 @@ const severityRank: Record<SmartLightningAlarmListSeverityTone, number> = {
   indeterminate: 4
 };
 
-const alarmSeverityTone = (severity: string): SmartLightningAlarmListSeverityTone => {
-  switch (severity) {
-    case 'CRITICAL': return 'critical';
-    case 'MAJOR': return 'major';
-    case 'MINOR': return 'minor';
-    case 'WARNING': return 'warning';
-    default: return 'indeterminate';
-  }
+/** 同一告警状态、同一严重程度下，未派发优先于已派发。 */
+const workOrderStatusRank: Record<SmartLightningAlarmListWorkOrderStatus, number> = {
+  '未派发': 0,
+  '已派发': 1
+};
+
+/** ThingsBoard 原生告警状态在页面中的中文展示与排序顺序。 */
+const alarmStatusRank: Record<SmartLightningAlarmListAlarmStatus, number> = {
+  '未确认未清除': 0,
+  '已确认未清除': 1,
+  '未确认已清除': 2,
+  '已确认已清除': 3
 };
 
 const valueAsText = (value: unknown, fallback = '--'): string => {
@@ -122,59 +129,62 @@ const detailText = (details: unknown): string => {
   return String(details);
 };
 
-const workOrderStatus = (alarm: Pick<SmartLightningAlarmLike, 'status' | 'cleared' | 'assignTs'>): SmartLightningAlarmListWorkOrderStatus => {
-  if (alarm.cleared || alarm.status === 'CLEARED_ACK' || alarm.status === 'CLEARED_UNACK') {
-    return '已处理';
-  }
-  return alarm.assignTs > 0 ? '已派发' : '未派发';
-};
+/** 工单列仅反映是否已经派发，不再混入告警确认/清除状态。 */
+const workOrderStatus = (alarm: Pick<SmartLightningAlarmLike, 'assignTs'>): SmartLightningAlarmListWorkOrderStatus =>
+  alarm.assignTs > 0 ? '已派发' : '未派发';
 
 /** 将原生 AlarmInfo 和设备上下文转换为原型表格使用的行结构。 */
 export const mapSmartLightningAlarmListRow = (
   alarm: SmartLightningAlarmLike,
-  context: SmartLightningAlarmListContext = {}
+  context: SmartLightningAlarmListContext = {},
+  assetPath = ''
 ): SmartLightningAlarmListRow => {
-  const tone = alarmSeverityTone(alarm.severity);
+  const tone = getSmartLightningAlarmSeverityTone(alarm.severity);
   return {
     id: alarm.id?.id || `${alarm.originator?.id || 'unknown'}-${alarm.startTs}-${alarm.type || 'alarm'}`,
     originatorId: alarm.originator?.id || '',
     projectDeviceName: valueAsText(alarm.originatorDisplayName || alarm.originatorName, '未命名来源'),
     alarmTime: Number(alarm.startTs) || Number(alarm.createdTime) || 0,
+    alarmStatus: getSmartLightningAlarmStatusLabel(alarm.status) as SmartLightningAlarmListAlarmStatus,
     workOrderStatus: workOrderStatus(alarm),
     alarmType: valueAsText(alarm.type, '未分类'),
-    severity: severityLabels[tone],
+    severity: getSmartLightningAlarmSeverityLabel(tone),
     severityTone: tone,
-    gatewayIdentifier: valueAsText(context.gatewayIdentifier || detailValue(alarm.details, ['gatewayIdentifier', 'gatewayId', 'gateway'])),
     deviceType: valueAsText(context.deviceType),
-    meterAddress: valueAsText(context.meterAddress || detailValue(alarm.details, ['meterAddress', 'instrumentAddress', 'address'])),
-    circuitName: valueAsText(context.circuitName || detailValue(alarm.details, ['circuitName', 'loopName', 'circuit'])),
+    productName: valueAsText(context.productName),
+    // 仪表地址列展示设备的资产树绝对地址；设备不在树内时回退服务器属性或告警详情。
+    meterAddress: valueAsText(assetPath.trim() || context.meterAddress || detailValue(alarm.details, ['meterAddress', 'instrumentAddress', 'address'])),
     timeSetting: valueAsText(context.timeSetting || detailValue(alarm.details, ['timeSetting', 'period']), '全时段'),
-    detailDescription: detailText(alarm.details)
+    detailDescription: detailText(alarm.details),
+    status: alarm.status,
+    cleared: Boolean(alarm.cleared)
   };
 };
 
-/** 活动/未处理告警优先，活动告警按严重程度，已处理告警按发生时间倒序。 */
+/**
+ * 列表排序：先按原生告警状态（未确认未清除 → 已确认未清除 → 未确认已清除 → 已确认已清除）；
+ * 每个状态组内按严重程度由高到低，再按派发状态和告警发生时间排序。
+ */
 export const sortSmartLightningAlarmListRows = (rows: SmartLightningAlarmListRow[]): SmartLightningAlarmListRow[] =>
   [...rows].sort((left, right) => {
-    const leftHandled = left.workOrderStatus === '已处理';
-    const rightHandled = right.workOrderStatus === '已处理';
-    if (leftHandled !== rightHandled) {
-      return leftHandled ? 1 : -1;
+    const alarmStatusDifference = alarmStatusRank[left.alarmStatus] - alarmStatusRank[right.alarmStatus];
+    if (alarmStatusDifference) {
+      return alarmStatusDifference;
     }
-    if (!leftHandled) {
-      const severityDifference = severityRank[left.severityTone] - severityRank[right.severityTone];
-      if (severityDifference) {
-        return severityDifference;
-      }
+    const severityDifference = severityRank[left.severityTone] - severityRank[right.severityTone];
+    if (severityDifference) {
+      return severityDifference;
+    }
+    const workOrderDifference = workOrderStatusRank[left.workOrderStatus] - workOrderStatusRank[right.workOrderStatus];
+    if (workOrderDifference) {
+      return workOrderDifference;
     }
     return right.alarmTime - left.alarmTime;
   });
 
 const matchesSeverityTab = (row: SmartLightningAlarmListRow, tab: SmartLightningAlarmListSeverityTab): boolean => {
   if (tab === '全部') return true;
-  if (tab === '紧急') return row.severityTone === 'critical';
-  if (tab === '一般') return row.severityTone === 'major' || row.severityTone === 'minor';
-  return row.severityTone === 'warning' || row.severityTone === 'indeterminate';
+  return row.severity === tab;
 };
 
 /** 前端筛选仅作用于已经按资产树授权范围取得的告警。 */
@@ -190,8 +200,9 @@ export const filterSmartLightningAlarmListRows = (
     (!filters.alarmType || row.alarmType === filters.alarmType) &&
     (!filters.severity || row.severity === filters.severity) &&
     (!filters.workOrderStatus || row.workOrderStatus === filters.workOrderStatus) &&
+    (!filters.productName || row.productName === filters.productName) &&
     row.alarmTime >= startTime && row.alarmTime <= endTime &&
-    (!keyword || `${row.projectDeviceName} ${row.alarmType} ${row.gatewayIdentifier} ${row.deviceType} ${row.meterAddress} ${row.circuitName} ${row.detailDescription}`.toLowerCase().includes(keyword))
+    (!keyword || `${row.projectDeviceName} ${row.alarmType} ${row.deviceType} ${row.meterAddress} ${row.detailDescription}`.toLowerCase().includes(keyword))
   );
 };
 

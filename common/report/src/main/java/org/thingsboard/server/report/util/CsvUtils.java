@@ -36,6 +36,13 @@ public class CsvUtils {
 
     public static byte[] generateCsv(List<List<String>> rows) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            // UTF-8 BOM: Excel assumes ANSI/GBK without it and renders Chinese headers as
+            // mojibake (WPS auto-detects UTF-8, Excel does not).
+            out.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
+        } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+        }
         try (OutputStreamWriter writer = new OutputStreamWriter((OutputStream)out, StandardCharsets.UTF_8);
              CSVPrinter csvPrinter = new CSVPrinter((Appendable)writer, CSVFormat.DEFAULT);){
             for (List<String> row : rows) {

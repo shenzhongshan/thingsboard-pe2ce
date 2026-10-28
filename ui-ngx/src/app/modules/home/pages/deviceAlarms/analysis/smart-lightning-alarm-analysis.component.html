@@ -1,0 +1,256 @@
+<!-- 文件职责：告警分析模块的 smart-lightning-alarm-analysis.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  告警分析页模板：顶部周期统计与分析摘要（真实接口）+
+  左侧站点/类型排名与告警趋势 + 右侧严重程度、状态分布、设备覆盖率和重点设备模块。
+-->
+<main class="alarm-analysis-page" aria-label="告警分析">
+  <section class="analysis-content">
+    <section class="summary-grid" aria-label="告警周期统计">
+      <article class="summary-card summary-card derived-summary-card">
+          <div class="summary-icon" aria-hidden="true">分析</div>
+          <div class="summary-values">
+            <div><span>统计站点</span><strong>{{siteRows.length}}</strong></div>
+            <div><span>告警类型</span><strong>{{typeBars.length}}</strong></div>
+            <div><span>重点站点</span><strong>{{summaryLoading || summaryError ? '—' : alarmSiteCount}}</strong></div>
+            <div><span>重点设备</span><strong>{{summaryLoading || summaryError ? '—' : focusDevices.length}}</strong></div>
+          </div>
+        </article>
+
+      @for (card of periods; track card.key) {
+        <article class="summary-card" [class]="'summary-card ' + card.tone">
+          <div class="summary-icon" aria-hidden="true">{{card.label}}</div>
+          <div class="summary-values">
+            <div><span>{{card.currentLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.total}}</strong></div>
+            <div><span>{{card.previousLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.previous}}</strong></div>
+            <div><span>{{card.changeLabel}}</span><strong>{{summaryLoading || summaryError ? '—' : card.change}}</strong></div>
+          </div>
+        </article>
+      }
+
+    </section>
+
+    <section class="analysis-grid">
+      <article class="surface site-panel">
+        <header class="panel-heading">
+          <div>
+            <h2>{{selectedRankingTab === 'site' ? '站点告警排名' : '告警类型排名'}}</h2>
+            <p>{{selectedRankingTab === 'site' ? '按末级设备父资产统计周期告警总量' : '按当前周期统计告警类型数量'}}</p>
+          </div>
+          <div class="site-panel-actions">
+            <div class="ranking-tabs" role="tablist" aria-label="排行维度">
+              <button type="button" [class.active]="selectedRankingTab === 'site'" (click)="selectRankingTab('site')" role="tab">站点</button>
+              <button type="button" [class.active]="selectedRankingTab === 'type'" (click)="selectRankingTab('type')" role="tab">类型</button>
+            </div>
+            @if (selectedRankingTab === 'site') {
+              <tb-smart-lightning-period-switcher
+                [activePeriod]="sitePeriod"
+                (periodChange)="setSitePeriod($event)">
+              </tb-smart-lightning-period-switcher>
+            } @else {
+              <tb-smart-lightning-period-switcher
+                [activePeriod]="typePeriod"
+                (periodChange)="setTypePeriod($event)">
+              </tb-smart-lightning-period-switcher>
+            }
+          </div>
+        </header>
+        @if (selectedRankingTab === 'site') {
+        <div class="site-table-wrap">
+          <table class="site-table">
+            <caption class="visually-hidden">站点告警排名</caption>
+            <thead>
+            <tr><th scope="col">序号</th><th scope="col">站点名称</th><th scope="col">告警处理率</th><th scope="col">告警数目</th></tr>
+            </thead>
+            <tbody>
+            @if (siteLoading) {
+              <tr><td colspan="4">正在加载站点告警数据…</td></tr>
+            } @else if (siteError) {
+              <tr><td colspan="4">站点告警数据加载失败</td></tr>
+            } @else if (!siteRows.length) {
+              <tr><td colspan="4">暂无末级设备父资产数据</td></tr>
+            } @else {
+              @for (row of siteRows; track row.name; let index = $index) {
+              <tr>
+                <td>{{index + 1}}</td>
+                <td class="site-name" [title]="row.name">{{row.name}}</td>
+                <td>
+                  <div class="rate-cell" [attr.aria-label]="'处理率 ' + row.handledRate + '%'">
+                    <span class="rate-track"><span [style.width.%]="row.handledRate"></span></span>
+                    <span>{{row.handledRate}}%</span>
+                  </div>
+                </td>
+                <td>{{row.count}}</td>
+              </tr>
+              }
+            }
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer"><span>共 {{siteRows.length}} 个末级设备父资产</span></footer>
+        } @else {
+        <div class="site-table-wrap">
+          <table class="site-table type-table">
+            <caption class="visually-hidden">告警类型排名</caption>
+            <thead>
+            <tr><th scope="col">序号</th><th scope="col">告警类型</th><th scope="col">占比</th><th scope="col">告警数量</th></tr>
+            </thead>
+            <tbody>
+            @if (typeLoading) {
+              <tr><td colspan="4">正在加载告警类型数据…</td></tr>
+            } @else if (typeError || !typeBars.length) {
+              <tr><td colspan="4">暂无告警类型数据</td></tr>
+            } @else {
+              @for (bar of typeBars; track bar.name; let index = $index) {
+              <tr>
+                <td>{{index + 1}}</td>
+                <td class="site-name" [title]="bar.name">{{bar.name}}</td>
+                <td>
+                  <div class="rate-cell" [attr.aria-label]="'占比 ' + bar.percentage + '%'">
+                    <span class="rate-track"><span [style.width.%]="bar.percentage"></span></span>
+                    <span>{{bar.percentage}}%</span>
+                  </div>
+                </td>
+                <td>{{bar.count}}</td>
+              </tr>
+              }
+            }
+            </tbody>
+          </table>
+        </div>
+        <footer class="table-footer"><span>共 {{typeBars.length}} 种告警类型</span></footer>
+        }
+      </article>
+
+      <article class="surface trend-panel">
+        <header class="panel-heading compact">
+          <div>
+            <h2>告警趋势</h2>
+            <p>告警数量按周期变化趋势</p>
+          </div>
+          <div class="period-tabs" role="tablist" aria-label="告警趋势周期">
+            @for (period of periods; track period.key) {
+              <button type="button" [class.active]="trendPeriod === period.key" (click)="setTrendPeriod(period.key)" role="tab">{{period.label}}</button>
+            }
+          </div>
+        </header>
+        <div #trendChart class="trend-chart" role="img" aria-label="告警趋势折线图"></div>
+      </article>
+
+      <section class="analysis-side-grid">
+        <article class="surface severity-panel">
+          <header class="panel-heading compact">
+            <div>
+              <h2>告警严重程度分布</h2>
+              <p>当前周期告警记录按严重程度统计</p>
+            </div>
+            <tb-smart-lightning-period-switcher
+              [activePeriod]="severityPeriod"
+              (periodChange)="setSeverityPeriod($event)">
+            </tb-smart-lightning-period-switcher>
+          </header>
+          <div class="severity-list">
+            @if (severityLoading) {
+              <span class="analysis-empty">正在加载…</span>
+            } @else if (severityError || !severityRows.length) {
+              <span class="analysis-empty">暂无严重程度数据</span>
+            } @else {
+              @for (row of severityRows; track row.code) {
+                <div class="severity-row">
+                  <span class="severity-name" [class]="'severity-name ' + row.tone">{{row.name}}</span>
+                  <span class="severity-track"><span [class]="'severity-fill ' + row.tone" [style.width.%]="row.percentage"></span></span>
+                  <strong>{{row.count}}</strong>
+                </div>
+              }
+            }
+          </div>
+        </article>
+
+        <article class="surface status-panel">
+          <header class="panel-heading compact">
+            <div>
+              <h2>告警状态分布</h2>
+              <p>当前周期告警记录确认与清除状态</p>
+            </div>
+            <tb-smart-lightning-period-switcher
+              [activePeriod]="statusPeriod"
+              (periodChange)="setStatusPeriod($event)">
+            </tb-smart-lightning-period-switcher>
+          </header>
+          <div class="status-list">
+            @if (statusLoading) {
+              <span class="analysis-empty">正在加载…</span>
+            } @else if (statusError || !statusRows.length) {
+              <span class="analysis-empty">暂无告警状态数据</span>
+            } @else {
+              @for (row of statusRows; track row.code) {
+                <div class="status-row">
+                  <span class="status-name" [class]="'status-name ' + row.tone">{{row.name}}</span>
+                  <span class="status-track"><span [class]="'status-fill ' + row.tone" [style.width.%]="row.percentage"></span></span>
+                  <strong>{{row.count}}</strong>
+                </div>
+              }
+            }
+          </div>
+        </article>
+
+        <article class="surface coverage-panel">
+          <header class="panel-heading compact">
+            <div>
+              <h2>设备告警覆盖率</h2>
+              <p>当前周期内发生告警的设备范围</p>
+            </div>
+            <tb-smart-lightning-period-switcher
+              [activePeriod]="coveragePeriod"
+              (periodChange)="setCoveragePeriod($event)">
+            </tb-smart-lightning-period-switcher>
+          </header>
+          <div class="coverage-content">
+            @if (coverageLoading) {
+              <span class="analysis-empty">正在加载…</span>
+            } @else if (coverageError) {
+              <span class="analysis-empty">设备覆盖率加载失败</span>
+            } @else {
+              <div class="coverage-highlight">
+                <strong>{{alarmCoveragePercent}}%</strong>
+                <span>设备告警覆盖率</span>
+              </div>
+              <div class="coverage-track"><span [style.width.%]="alarmCoveragePercent"></span></div>
+              <div class="coverage-stats">
+                <span>可见设备 <strong>{{deviceCoverage.totalDevices}}</strong></span>
+                <span>告警设备 <strong>{{deviceCoverage.alarmedDevices}}</strong></span>
+                <span>未清除设备 <strong>{{deviceCoverage.activeAlarmDevices}}</strong></span>
+              </div>
+            }
+          </div>
+        </article>
+
+        <article class="surface efficiency-panel">
+          <header class="panel-heading compact">
+            <div>
+              <h2>重点设备</h2>
+              <p>严重告警且尚未清除的设备</p>
+            </div>
+          </header>
+          <div class="focus-device-list">
+            @if (summaryLoading) {
+              <span class="analysis-empty">正在加载…</span>
+            } @else if (summaryError || !focusDevices.length) {
+              <span class="analysis-empty">暂无严重未清除告警设备</span>
+            } @else {
+              @for (device of focusDevices; track device.deviceName + device.alarmType) {
+                <div class="focus-device-row">
+                  <div class="focus-device-main">
+                    <strong [title]="device.deviceName">{{device.deviceName}}</strong>
+                    <span [title]="device.parentNodeName">{{device.parentNodeName}}</span>
+                  </div>
+                  <span class="focus-alarm-type" [title]="device.alarmType">{{device.alarmType}}</span>
+                  <span class="focus-duration">{{formatAlarmDuration(device.durationMs)}}</span>
+                </div>
+              }
+            }
+          </div>
+        </article>
+      </section>
+    </section>
+  </section>
+</main>

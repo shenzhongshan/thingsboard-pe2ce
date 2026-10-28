@@ -1,18 +1,20 @@
+/** 文件职责：告警列表模块的 smart-lightning-alarm-list.component，负责页面状态管理、接口调用与用户交互。 */
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { AttributeService } from '@core/http/attribute.service';
 import { AlarmService } from '@core/http/alarm.service';
-import { AlarmDetailsDialogComponent, AlarmDetailsDialogData } from '@home/components/alarm/alarm-details-dialog.component';
-import { DeviceInfo } from '@shared/models/device.models';
-import { AlarmInfo, AlarmQueryV2 } from '@shared/models/alarm.models';
+import { DialogService } from '@core/services/dialog.service';
+import { AlarmCommentDialogComponent, AlarmCommentDialogData } from '@home/components/alarm/alarm-comment-dialog.component';
+import { AlarmQueryV2 } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { MAX_SAFE_PAGE_SIZE, TimePageLink } from '@shared/models/page/page-link';
 import { Direction } from '@shared/models/page/sort-order';
-import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
-import { catchError, forkJoin, map, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { auditTime, catchError, forkJoin, map, merge, of, Subject, takeUntil } from 'rxjs';
 import {
   buildSmartLightningMonitoringAssetTreeFromRoots,
+  getSmartLightningActiveAlarmDeviceIds,
+  getSmartLightningDefaultExpandedAssetIds,
+  getSmartLightningMonitoringAssetPaths,
   getSmartLightningMonitoringRootAssetIds,
   getSmartLightningMonitoringVisibleRoots,
   getSmartLightningMonitoringSelectedAssetIds,
@@ -20,6 +22,7 @@ import {
   SmartLightningMonitoringAssetTree
 } from '../../smart-lightning/monitoring/smart-lightning-monitoring.data';
 import { SmartLightningMonitoringApiService } from '../../smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import { HomeOverviewApiService, HomeOverviewDeviceContext } from '../../homeOverview/home-overview-api.service';
 import {
   filterSmartLightningAlarmListRows,
   formatSmartLightningAlarmListTime,
@@ -30,11 +33,15 @@ import {
   SmartLightningAlarmListSeverityTab,
   sortSmartLightningAlarmListRows
 } from './smart-lightning-alarm-list.data';
-
-interface AlarmDeviceContext {
-  devices: DeviceInfo[];
-  attributesByDeviceId: Map<string, SmartLightningAlarmListContext>;
-}
+import {
+  SmartLightningAlarmDetailsDialogComponent,
+  SmartLightningAlarmDetailsDialogData
+} from './smart-lightning-alarm-details-dialog.component';
+import {
+  SmartLightningAlarmDispatchDialogComponent,
+  SmartLightningAlarmDispatchDialogData
+} from './smart-lightning-alarm-dispatch-dialog.component';
+import { SmartLightningRealtimeService } from '../../smart-lightning/shared/realtime/smart-lightning-realtime.service';
 
 @Component({
   selector: 'tb-smart-lightning-alarm-list',
@@ -44,74 +51,103 @@ interface AlarmDeviceContext {
   standalone: false
 })
 export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
-  /** 由路由数据区分普通告警列表和告警派发页面。 */
-  readonly dispatchMode: boolean;
-  readonly pageTitle: string;
+  /** 由路由数据区分普通列表、告警派发和告警处理页面。
+   *  同一组件在 /deviceAlarms/* 多个路由间导航时会被 Angular 复用，
+   *  因此模式不能在构造器读取一次快照，必须订阅路由数据变化。 */
+  dispatchMode = false;
+  processingMode = false;
+  pageTitle = '智能防雷报警信息';
+  private routeDataLoaded = false;
   assetTree: SmartLightningMonitoringAssetTree = {roots: [], nodes: new Map()};
   expandedAssetIds = new Set<string>();
   selectedAssetIds = new Set<string>();
   selectedRootAssetId = '';
+  private selectedTreeNodeId = '';
+  private selectionSource: 'root' | 'node' = 'root';
   selectedAssetName = '全部资产';
   assetSearch = '';
   assetsLoading = true;
   assetsLoadError = false;
   alarmsLoading = true;
   alarmsLoadError = false;
+  /** 未清除告警设备 ID；共享资产树据此标记设备所在资产并向全部上级传播。 */
+  activeAlarmDeviceIds = new Set<string>();
   readonly pageSize = 20;
   page = 1;
-  readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '紧急', '一般', '正常'];
+  readonly severityTabs: SmartLightningAlarmListSeverityTab[] = ['全部', '严重', '重要', '次要', '警告', '不确定'];
   selectedRows = new Set<string>();
   filters: SmartLightningAlarmListFilters = {
-    severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''
+    severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: '', keyword: '', startTime: '', endTime: ''
   };
 
   private allRows: SmartLightningAlarmListRow[] = [];
   private readonly deviceIds = new Set<string>();
   private readonly deviceContexts = new Map<string, SmartLightningAlarmListContext>();
+  /** 设备的资产树绝对地址（根资产到设备逐级 / 分隔），用于仪表地址列展示。 */
+  private deviceAssetPaths = new Map<string, string>();
   private readonly destroy$ = new Subject<void>();
 
   constructor(
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly attributeService: AttributeService,
+    private readonly homeOverviewApi: HomeOverviewApiService,
     private readonly alarmService: AlarmService,
     private readonly dialog: MatDialog,
+    private readonly dialogService: DialogService,
     private readonly cd: ChangeDetectorRef,
-    private readonly route: ActivatedRoute
+    private readonly route: ActivatedRoute,
+    private readonly realtimeService: SmartLightningRealtimeService
   ) {
-    this.dispatchMode = this.route.snapshot.data['dispatchMode'] === true;
-    this.pageTitle = this.route.snapshot.data['title'] || '智能防雷报警信息';
   }
 
   ngOnInit(): void {
-    this.loadAssetTree();
+    // 路由数据订阅放在 ngOnInit：组件复用期间路由切换会推送新的 data，
+    // 操作列（派发/确认/清除/备注）按最新模式重新渲染。
+    this.route.data.pipe(takeUntil(this.destroy$)).subscribe((data) => {
+      this.dispatchMode = data['dispatchMode'] === true;
+      this.processingMode = data['processingMode'] === true;
+      this.pageTitle = data['title'] || '智能防雷报警信息';
+      this.cd.markForCheck();
+    });
+    // 告警列表不因普通遥测变化重载；仅设备展示上下文变化时刷新设备信息。
+    this.realtimeService.deviceContextIncrementalChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadDeviceContexts(false);
+      }
+    });
+    // 设备/资产成员变化才重读树结构与设备集合，并在新集合就绪后刷新告警。
+    merge(
+      this.realtimeService.deviceMembershipChanged$,
+      this.realtimeService.assetMembershipChanged$
+    ).pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading) {
+        this.loadAssetTree(true);
+      }
+    });
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (!this.assetsLoading && this.deviceIds.size) {
+        this.loadAlarms();
+      }
+    });
+    this.realtimeService.acquire();
+    if (!this.routeDataLoaded) {
+      this.routeDataLoaded = true;
+      this.loadAssetTree();
+    }
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  get visibleAssetNodes(): Array<{node: SmartLightningMonitoringAssetNode; depth: number}> {
-    const result: Array<{node: SmartLightningMonitoringAssetNode; depth: number}> = [];
-    const query = this.assetSearch.trim().toLowerCase();
-    const hasMatch = (node: SmartLightningMonitoringAssetNode): boolean =>
-      node.name.toLowerCase().includes(query) || node.childIds.some((childId) => {
-        const child = this.assetTree.nodes.get(childId);
-        return child ? hasMatch(child) : false;
-      });
-    const append = (node: SmartLightningMonitoringAssetNode, depth: number): void => {
-      if (query && !hasMatch(node)) return;
-      result.push({node, depth});
-      if (query || this.expandedAssetIds.has(node.id)) {
-        node.childIds.forEach((childId) => {
-          const child = this.assetTree.nodes.get(childId);
-          if (child) append(child, depth + 1);
-        });
-      }
-    };
-    getSmartLightningMonitoringVisibleRoots(this.assetTree, this.selectedRootAssetId)
-      .forEach((root) => append(root, 0));
-    return result;
+    this.realtimeService.release();
   }
 
   get filteredRows(): SmartLightningAlarmListRow[] {
@@ -135,6 +171,20 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     return this.uniqueValues(this.allRows.map((row) => row.alarmType));
   }
 
+  /**
+   * 返回当前资产范围内的全部产品名称，供告警处理页下拉筛选。
+   *
+   * 产品选项不能只从未清除告警生成：设备可能暂时没有活动告警，
+   * 但仍然需要按该产品查询已确认或已清除的历史告警。因此这里以
+   * 全部设备上下文为主，并合并已经加载的告警行作为容错补充。
+   */
+  get productNames(): string[] {
+    const deviceProductNames = [...this.deviceContexts.values()]
+      .map((context) => context.productName || '');
+    const alarmProductNames = this.allRows.map((row) => row.productName);
+    return this.uniqueValues([...deviceProductNames, ...alarmProductNames]);
+  }
+
   get assetCount(): number {
     const visibleIds = new Set(getSmartLightningMonitoringRootAssetIds(this.assetTree, this.selectedRootAssetId));
     return [...this.assetTree.nodes.values()]
@@ -146,7 +196,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   get workOrderStatuses(): string[] {
-    return ['未派发', '已派发', '已处理'];
+    return ['未派发', '已派发'];
   }
 
   get allPageRowsSelected(): boolean {
@@ -158,13 +208,20 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   workOrderTone(status: string): string {
-    if (status === '已处理') return 'handled';
     if (status === '已派发') return 'assigned';
     return 'unassigned';
   }
 
-  toggleAssetNode(event: Event, node: SmartLightningMonitoringAssetNode): void {
-    event.stopPropagation();
+  alarmStatusTone(status: string): string {
+    switch (status) {
+      case '已确认未清除': return 'active-ack';
+      case '未确认已清除': return 'cleared-unack';
+      case '已确认已清除': return 'cleared-ack';
+      default: return 'active-unack';
+    }
+  }
+
+  toggleAssetNode(node: SmartLightningMonitoringAssetNode): void {
     if (this.expandedAssetIds.has(node.id)) this.expandedAssetIds.delete(node.id);
     else this.expandedAssetIds.add(node.id);
     this.expandedAssetIds = new Set(this.expandedAssetIds);
@@ -173,6 +230,8 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   selectAssetNode(node: SmartLightningMonitoringAssetNode): void {
     // 保留资产树递归得到的全部节点；设备接口返回后，filteredRows 只会取其中的 DEVICE 节点。
     this.selectedAssetIds = new Set(getSmartLightningMonitoringSelectedAssetIds(this.assetTree.nodes, node.id));
+    this.selectedTreeNodeId = node.id;
+    this.selectionSource = 'node';
     this.selectedAssetName = node.name;
     this.openDescendants(node.id);
     this.page = 1;
@@ -182,18 +241,30 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   /** 根资产筛选与告警列表共享同一棵树，切换后只保留对应子树的告警。 */
-  selectRootAsset(rootAssetId: string): void {
+  selectRootAsset(rootAssetId: string, expandDescendants = true): void {
     this.selectedRootAssetId = rootAssetId;
+    this.selectedTreeNodeId = rootAssetId;
+    this.selectionSource = 'root';
     const roots = getSmartLightningMonitoringVisibleRoots(this.assetTree, rootAssetId);
     this.selectedAssetIds = new Set(getSmartLightningMonitoringRootAssetIds(this.assetTree, rootAssetId));
     this.selectedAssetName = rootAssetId && roots[0] ? roots[0].name : '全部根资产';
-    roots.forEach((root) => this.openDescendants(root.id));
+    if (expandDescendants) {
+      roots.forEach((root) => this.openDescendants(root.id));
+    }
     this.selectedRows.clear();
     this.selectedRows = new Set(this.selectedRows);
     this.page = 1;
     this.cd.markForCheck();
   }
 
+  /**
+   * 资产树一键全选：沿用当前根资产筛选范围，选中该范围内的全部资产和设备节点。
+   * 共享树组件只负责派发事件，告警列表必须在这里更新 selectedAssetIds，
+   * filteredRows 才会按设备节点重新计算告警数据。
+   */
+  selectAllAssets(): void {
+    this.selectRootAsset(this.selectedRootAssetId);
+  }
   setSeverityTab(tab: SmartLightningAlarmListSeverityTab): void {
     this.filters = {...this.filters, severityTab: tab};
     this.page = 1;
@@ -206,7 +277,7 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   reset(): void {
-    this.filters = {severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', keyword: '', startTime: '', endTime: ''};
+    this.filters = {severityTab: '全部', alarmType: '', severity: '', workOrderStatus: '', productName: '', keyword: '', startTime: '', endTime: ''};
     this.query();
   }
 
@@ -227,10 +298,10 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     this.selectedRows = next;
   }
 
-  /** 一键处理只确认当前选中的活动告警；已处理行不会再次请求。 */
+  /** 一键处理只确认当前仍可由 ThingsBoard 原生接口确认的告警。 */
   acknowledgeSelected(): void {
     const ids = this.pageRows
-      .filter((row) => this.selectedRows.has(row.id) && row.workOrderStatus !== '已处理')
+      .filter((row) => this.selectedRows.has(row.id) && this.canAcknowledge(row))
       .map((row) => row.id);
     if (!ids.length) return;
     const requests = ids.map((id) => this.alarmService.ackAlarm(id).pipe(catchError(() => of(null))));
@@ -241,24 +312,73 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 详情直接打开系统已有告警详情对话框；派发页启用受理人、确认和处理操作。 */
+  /**
+   * 打开告警详情。
+   *
+   * <p>告警处理页在本模块的自定义弹窗内整合派发、活动、确认和清除；
+   * 普通列表打开同一个弹窗的只读模式。</p>
+   */
   openAlarmDetails(row: SmartLightningAlarmListRow): void {
-    const data: AlarmDetailsDialogData = {
+    const data: SmartLightningAlarmDetailsDialogData = {
       alarmId: row.id,
-      allowAcknowledgment: this.dispatchMode,
-      allowClear: this.dispatchMode,
-      displayDetails: true,
-      allowAssign: this.dispatchMode
+      actionMode: this.processingMode
     };
-    this.dialog.open(AlarmDetailsDialogComponent, {
+    this.dialog.open<SmartLightningAlarmDetailsDialogComponent, SmartLightningAlarmDetailsDialogData, boolean>(SmartLightningAlarmDetailsDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'smart-lightning-alarm-detail-panel'],
+      data
+    }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
+      if (updated) this.loadAlarms();
+    });
+  }
+
+  openAlarmDispatch(row: SmartLightningAlarmListRow): void {
+    const data: SmartLightningAlarmDispatchDialogData = {alarmId: row.id};
+    this.dialog.open<SmartLightningAlarmDispatchDialogComponent, SmartLightningAlarmDispatchDialogData, boolean>(
+      SmartLightningAlarmDispatchDialogComponent,
+      {disableClose: true, panelClass: ['tb-dialog'], data}
+    ).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
+      if (updated) this.loadAlarms();
+    });
+  }
+
+  acknowledgeAlarm(row: SmartLightningAlarmListRow): void {
+    if (!this.canAcknowledge(row)) return;
+    this.dialogService.confirm('确认告警', `确认“${row.alarmType}”告警后，告警仍会保持活动状态。`, '取消', '确认')
+      .pipe(takeUntil(this.destroy$)).subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.alarmService.ackAlarm(row.id).pipe(takeUntil(this.destroy$)).subscribe(() => this.loadAlarms());
+      });
+  }
+
+  clearAlarm(row: SmartLightningAlarmListRow): void {
+    if (!this.canClear(row)) return;
+    this.dialogService.confirm('清除告警', `清除“${row.alarmType}”告警后，该告警将进入已处理状态。`, '取消', '清除')
+      .pipe(takeUntil(this.destroy$)).subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.alarmService.clearAlarm(row.id).pipe(takeUntil(this.destroy$)).subscribe(() => this.loadAlarms());
+      });
+  }
+
+  openAlarmComment(row: SmartLightningAlarmListRow): void {
+    const data: AlarmCommentDialogData = {alarmId: row.id};
+    this.dialog.open<AlarmCommentDialogComponent, AlarmCommentDialogData, void>(AlarmCommentDialogComponent, {
       disableClose: true,
       panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
       data
-    }).afterClosed().pipe(takeUntil(this.destroy$)).subscribe((updated) => {
-      if (updated) {
-        this.loadAlarms();
-      }
     });
+  }
+
+  canAcknowledge(row: SmartLightningAlarmListRow): boolean {
+    return row.status === 'ACTIVE_UNACK' || row.status === 'CLEARED_UNACK';
+  }
+
+  canClear(row: SmartLightningAlarmListRow): boolean {
+    return row.status === 'ACTIVE_UNACK' || row.status === 'ACTIVE_ACK';
+  }
+
+  canDispatch(row: SmartLightningAlarmListRow): boolean {
+    return row.workOrderStatus === '未派发' && (row.status === 'ACTIVE_UNACK' || row.status === 'ACTIVE_ACK');
   }
 
   exportRows(): void {
@@ -268,9 +388,9 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     if (!rows.length) return;
     const escape = (value: string): string => `"${value.replace(/"/g, '""')}"`;
     const lines = [
-      ['项目/设备/企业名称', '报警时间', '工单状态', '报警类型', '报警等级', '网关识别号', '设备型号', '仪表地址', '回路名称', '时段设置', '详情描述'],
-      ...rows.map((row) => [row.projectDeviceName, this.formatTime(row.alarmTime), row.workOrderStatus, row.alarmType,
-        row.severity, row.gatewayIdentifier, row.deviceType, row.meterAddress, row.circuitName, row.timeSetting, row.detailDescription])
+      ['设备名', '报警时间', '告警状态', '工单状态', '报警类型', '报警等级', '设备型号', '仪表地址'],
+      ...rows.map((row) => [row.projectDeviceName, this.formatTime(row.alarmTime), row.alarmStatus, row.workOrderStatus, row.alarmType,
+        row.severity, row.deviceType, row.meterAddress])
     ];
     const blob = new Blob([`\uFEFF${lines.map((line) => line.map(escape).join(',')).join('\r\n')}`], {type: 'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
@@ -281,13 +401,35 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
     URL.revokeObjectURL(url);
   }
 
-  private loadAssetTree(): void {
+  private loadAssetTree(preserveSelection = false): void {
+    const previousExpandedIds = new Set(this.expandedAssetIds);
+    const previousSelectedTreeNodeId = this.selectedTreeNodeId;
+    const previousSelectionSource = this.selectionSource;
+    this.assetsLoading = true;
     this.monitoringApi.getTree().pipe(takeUntil(this.destroy$)).subscribe({
       next: ({roots}) => {
         this.assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(roots);
-        this.assetTree.roots.forEach((root) => this.expandedAssetIds.add(root.id));
-        this.expandedAssetIds = new Set(this.expandedAssetIds);
-        this.selectRootAsset('');
+        this.deviceAssetPaths = getSmartLightningMonitoringAssetPaths(this.assetTree);
+        // 树接口返回的是当前用户可见的全部资产和设备；以树中的设备 ID 作为告警页范围，
+        // 避免继续沿用防雷专用设备上下文而漏掉电气安全、能源监管等产品的告警。
+        this.deviceIds.clear();
+        for (const node of this.assetTree.nodes.values()) {
+          if (node.entityType === EntityType.DEVICE) {
+            this.deviceIds.add(node.id);
+          }
+        }
+        this.expandedAssetIds = preserveSelection
+          ? new Set([...previousExpandedIds].filter((id) => this.assetTree.nodes.has(id)))
+          : getSmartLightningDefaultExpandedAssetIds(this.assetTree);
+        const previousSelectedNode = this.assetTree.nodes.get(previousSelectedTreeNodeId);
+        if (preserveSelection && previousSelectionSource === 'node' && previousSelectedNode) {
+          this.selectAssetNode(previousSelectedNode);
+        } else if (preserveSelection && previousSelectionSource === 'root' &&
+          (!previousSelectedTreeNodeId || this.assetTree.roots.some((root) => root.id === previousSelectedTreeNodeId))) {
+          this.selectRootAsset(previousSelectedTreeNodeId, false);
+        } else {
+          this.selectRootAsset('', false);
+        }
         this.assetsLoading = false;
         this.loadDevicesAndAlarms();
         this.cd.markForCheck();
@@ -302,74 +444,74 @@ export class SmartLightningAlarmListComponent implements OnInit, OnDestroy {
   }
 
   private loadDevicesAndAlarms(): void {
-    this.alarmsLoading = true;
-    this.alarmsLoadError = false;
-    this.monitoringApi.getLightningDevices(MAX_SAFE_PAGE_SIZE, 0).pipe(
-      map((pageData) => pageData.data),
-      map((devices) => devices.filter((device) => this.assetTree.nodes.get(device.id.id)?.entityType === EntityType.DEVICE)),
-      switchMap((devices) => this.readDeviceContexts(devices)),
+    this.loadDeviceContexts(true);
+  }
+
+  /** 按需更新设备展示上下文；仅成员变化后才连带刷新告警列表。 */
+  private loadDeviceContexts(refreshAlarms: boolean): void {
+    if (refreshAlarms) {
+      this.alarmsLoading = true;
+      this.alarmsLoadError = false;
+    }
+    this.homeOverviewApi.getVisibleDeviceContexts().pipe(
+      map((contexts) => contexts.filter((device) => this.deviceIds.has(device.deviceId))),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: (context) => {
-        this.deviceIds.clear();
-        context.devices.forEach((device) => this.deviceIds.add(device.id.id));
+      next: (contexts) => {
         this.deviceContexts.clear();
-        context.attributesByDeviceId.forEach((value, key) => this.deviceContexts.set(key, value));
-        this.loadAlarms();
+        contexts.forEach((context) => {
+          this.deviceContexts.set(context.deviceId, this.toAlarmContext(context));
+        });
+        if (refreshAlarms) {
+          this.loadAlarms();
+        } else {
+          this.cd.markForCheck();
+        }
       },
       error: () => {
-        this.alarmsLoading = false;
-        this.alarmsLoadError = true;
-        this.cd.markForCheck();
+        // 设备上下文只补充型号、产品名等展示字段；上下文接口失败不能阻断平台告警查询。
+        if (refreshAlarms) this.loadAlarms();
+        else this.cd.markForCheck();
       }
     });
   }
 
-  private readDeviceContexts(devices: DeviceInfo[]) {
-    if (!devices.length) return of<AlarmDeviceContext>({devices: [], attributesByDeviceId: new Map()});
-    const requests = devices.map((device) => this.attributeService.getEntityAttributes(
-      device.id,
-      AttributeScope.SERVER_SCOPE,
-      ['productName', 'functionCategory', 'gatewayIdentifier', 'gatewayId', 'meterAddress', 'circuitName', 'timeSetting']
-    ).pipe(
-      map((attributes) => {
-        const values = new Map<string, unknown>();
-        attributes.forEach((attribute) => values.set(attribute.key, attribute.value));
-        return [device.id.id, {
-          deviceType: device.deviceProfileName || device.type || '--',
-          productName: String(values.get('productName') || '--'),
-          gatewayIdentifier: String(values.get('gatewayIdentifier') || values.get('gatewayId') || '--'),
-          meterAddress: String(values.get('meterAddress') || '--'),
-          circuitName: String(values.get('circuitName') || '--'),
-          timeSetting: String(values.get('timeSetting') || '全时段')
-        }] as const;
-      }),
-      catchError(() => of([device.id.id, {deviceType: device.deviceProfileName || device.type || '--'}] as const))
-    ));
-    return forkJoin(requests).pipe(map((entries) => ({
-      devices,
-      attributesByDeviceId: new Map<string, SmartLightningAlarmListContext>(entries)
-    })));
+  private toAlarmContext(context: HomeOverviewDeviceContext): SmartLightningAlarmListContext {
+    return {
+      deviceType: context.deviceProfileName || '--',
+      productName: context.productName || '--',
+      meterAddress: '--',
+      timeSetting: '全时段'
+    };
   }
 
   private loadAlarms(): void {
+    // 告警处理页需要同时查询未清除、已确认和已清除记录，空过滤对象表示不限制告警状态。
     const query = new AlarmQueryV2(
       null,
       new TimePageLink(MAX_SAFE_PAGE_SIZE, 0, null, {property: 'createdTime', direction: Direction.DESC}),
       {}
     );
+    // 使用 ThingsBoard 原生“当前用户全部告警”接口；租户管理员和客户用户仍按平台权限返回数据，
+    // 本共享告警页不再附加 productCategory=lightning 的模块级过滤。
     this.alarmService.getAllAlarmsV2(query).pipe(takeUntil(this.destroy$)).subscribe({
       next: (pageData) => {
         const rows = pageData.data
           .filter((alarm) => alarm.originator?.entityType === EntityType.DEVICE && this.deviceIds.has(alarm.originator.id))
-          .map((alarm) => mapSmartLightningAlarmListRow(alarm, this.deviceContexts.get(alarm.originator.id)));
+          .map((alarm) => mapSmartLightningAlarmListRow(
+            alarm,
+            this.deviceContexts.get(alarm.originator.id),
+            this.deviceAssetPaths.get(alarm.originator.id) || ''
+          ));
         this.allRows = sortSmartLightningAlarmListRows(rows);
+        this.activeAlarmDeviceIds = getSmartLightningActiveAlarmDeviceIds(pageData.data, this.deviceIds);
         this.page = 1;
         this.alarmsLoading = false;
         this.cd.markForCheck();
       },
       error: () => {
         this.allRows = [];
+        this.activeAlarmDeviceIds = new Set();
         this.alarmsLoading = false;
         this.alarmsLoadError = true;
         this.cd.markForCheck();

@@ -1,16 +1,18 @@
+/** 文件职责：数据查询模块的 smart-lightning-data-query.data，定义数据模型、接口结果映射与纯函数。 */
 import {
   getSmartLightningFunctionCategoryLabel,
   getSmartLightningMonitoringRootAssetIds,
   getSmartLightningMonitoringVisibleRoots
 } from '../monitoring/smart-lightning-monitoring.data';
 
-export type SmartLightningQueryStatus = '在线' | '离线' | '未连接';
+export type SmartLightningQueryStatus = '报警' | '离线' | '正常';
 
 export interface SmartLightningQueryRow {
   id: string;
   deviceName: string;
   protocol: string;
   status: SmartLightningQueryStatus;
+  alarmSeverity?: string;
   productName: string;
   deviceType: string;
   functionCategory: string;
@@ -70,14 +72,16 @@ const formatTime = (timestamp: number | null): string => {
 };
 
 /**
- * 把 ThingsBoard 设备实体与服务器属性转换成旧管理系统“数据查询”表格所需结构。
- * active=true 为在线；有活跃记录但当前不活跃为离线；从未有活跃记录为未连接。
+ * 把 ThingsBoard 设备实体、服务器属性和活动告警转换成数据查询表格行。
+ * 未处理告警优先级最高：有告警显示“报警”，否则 active=true 显示“正常”，其余显示“离线”。
  */
 export const buildSmartLightningQueryRows = (
   devices: SmartLightningQueryDeviceSource[],
   selectedDeviceIds: Set<string>,
   pathByDeviceId: Map<string, string>,
-  attributesByDeviceId: Map<string, SmartLightningQueryDeviceAttributes>
+  attributesByDeviceId: Map<string, SmartLightningQueryDeviceAttributes>,
+  activeAlarmDeviceIds: Set<string> = new Set(),
+  alarmSeverityByDeviceId: Map<string, string> = new Map()
 ): SmartLightningQueryRow[] => devices
   .filter((device) => selectedDeviceIds.has(device.id))
   .map((device) => {
@@ -86,12 +90,14 @@ export const buildSmartLightningQueryRows = (
     const activeValue = attributes.active;
     const active = activeValue === true || activeValue === 'true' ||
       (activeValue === undefined && device.active === true);
-    const status: SmartLightningQueryStatus = active ? '在线' : lastActivityTime ? '离线' : '未连接';
+    const hasActiveAlarm = activeAlarmDeviceIds.has(device.id);
+    const status: SmartLightningQueryStatus = hasActiveAlarm ? '报警' : active ? '正常' : '离线';
     return {
       id: device.id,
       deviceName: device.name,
       protocol: formatProtocol(attributes.deviceProtocol || device.protocol),
       status,
+      alarmSeverity: alarmSeverityByDeviceId.get(device.id),
       productName: textValue(attributes.productName) || '未配置产品名称',
       deviceType: device.deviceProfileName || '--',
       functionCategory: getSmartLightningFunctionCategoryLabel(attributes.functionCategory),

@@ -1,10 +1,10 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard.component，负责页面状态管理、接口调用与用户交互。 */
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   ElementRef,
-  NgZone,
   OnDestroy,
   QueryList,
   ViewChild,
@@ -17,15 +17,13 @@ import { EntityRelationService } from '@core/http/entity-relation.service';
 import * as echarts from 'echarts';
 import { ECharts, EChartsOption } from 'echarts';
 import L from 'leaflet';
-import { catchError, forkJoin, map, Observable, of, Subject, switchMap, takeUntil, tap } from 'rxjs';
-import { AlarmInfo, AlarmSearchStatus } from '@shared/models/alarm.models';
+import { auditTime, bufferTime, catchError, filter, forkJoin, map, merge, Observable, of, Subject, Subscription, switchMap, takeUntil, timer } from 'rxjs';
+import { AlarmInfo, AlarmStatus } from '@shared/models/alarm.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { AttributeScope, AlarmCountCmd, TelemetrySubscriber } from '@shared/models/telemetry/telemetry.models';
-import { AliasFilterType } from '@shared/models/alias.models';
+import { AttributeScope } from '@shared/models/telemetry/telemetry.models';
 import { MAX_SAFE_PAGE_SIZE } from '@shared/models/page/page-link';
+import type {DeviceAlarmInformationChartItem} from '@home/pages/deviceAlarms/shared/alarm-information/device-alarm-information-chart.model';
 import {
-  buildSmartLightningMock,
-  aggregateSmartLightningActiveAlarms,
   calculateSmartLightningDeviceSummary,
   compareSmartLightningAlarms,
   createSmartLightningAlarmQuery,
@@ -34,28 +32,67 @@ import {
   SmartLightningChartId,
   SmartLightningChartPeriods,
   SmartLightningAlarmRow,
-  SmartLightningAlarmTypeTotal,
   SmartLightningDeviceSummary,
   SMART_LIGHTNING_ALARM_DISPLAY_LIMIT,
-  SmartLightningMock,
   SmartLightningPeriod,
   formatSmartLightningAlarm,
+  formatSmartLightningResistance,
   getSmartLightningParentDirectory,
   getSmartLightningProductName,
-  getSmartLightningAlarmChartMessage,
   shouldReloadSmartLightningAlarms,
+  shouldScheduleSmartLightningAlarmSettleRefresh,
+  isLatestSmartLightningAlarmRequest,
 } from './smart-lightning-dashboard.data';
-import { smartLightningTianDiTuMapConfig } from './smart-lightning-map.config';
-import { SmartLightningMonitoringApiService } from '../monitoring/smart-lightning-monitoring-api.service';
-import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
+import {
+  filterSmartLightningMapDevicesWithoutPoints,
+  resolveSmartLightningMapCoordinates
+} from '../shared/map/smart-lightning-device-map.data';
+import {
+  SmartLightningGroundMonitoringSummary,
+  SmartLightningSpdMonitoringSummary,
+  SmartLightningCurrentMonitoringSummary,
+  SmartLightningMonitoringApiService,
+  SmartLightningDeviceContext
+} from '../monitoring/smart-lightning-monitoring-api.service';
+import {
+  buildSmartLightningMonitoringAssetTreeFromRoots,
+  getSmartLightningMonitoringAssetPaths
+} from '../monitoring/smart-lightning-monitoring.data';
+import {
+  SmartLightningDeviceTelemetryChange,
+  SmartLightningRealtimeService
+} from '../shared/realtime/smart-lightning-realtime.service';
+import {
+  buildSmartLightningExtremaTooltip,
+  buildSmartLightningMaximumTooltip,
+  formatSmartLightningMetric,
+  getSmartLightningPhaseLabel
+} from './smart-lightning-summary.data';
+import {SMART_LIGHTNING_UNITS} from '../shared/telemetry/smart-lightning-measurements';
+import {
+  doesSmartLightningPeakSampleInvalidateExtrema,
+  doesSmartLightningSampleInvalidateExtrema,
+  getSmartLightningPeriodDuration,
+  SmartLightningPeriodicExtremaSample,
+  updateSmartLightningPeakExtrema,
+  updateSmartLightningPeriodicExtrema
+} from './smart-lightning-dashboard-realtime.data';
+import {formatSmartLightningPolarityLabel} from '../monitoring/smart-lightning-device-detail.data';
+import { SmartLightningDeviceMapComponent } from '../shared/map/smart-lightning-device-map.component';
+import { SmartLightningMapDevice } from '../shared/map/smart-lightning-device-map.models';
 
-interface StationMarker {
-  name: string;
-  status: 'normal' | 'warning' | 'critical';
-  position: L.LatLngExpression;
-  detail: string;
+interface SmartLightningPendingMapPoint {
+  latitude: number;
+  longitude: number;
 }
 
+/**
+ * 智能防雷看板页面组件。
+ *
+ * <p>监控大屏：设备汇总、地图点位、地网/SPD/雷电/告警等图表与告警记录表。
+ * 设备数量、地网汇总、告警和地图点位接入真实接口；尚未接入历史数据的图表显示空态。
+ * 每张图表拥有独立的日/周/月周期状态，切换互不影响。</p>
+ */
 @Component({
   selector: 'tb-smart-lightning-dashboard',
   templateUrl: './smart-lightning-dashboard.component.html',
@@ -65,33 +102,113 @@ interface StationMarker {
 })
 export class SmartLightningDashboardComponent implements AfterViewInit, OnDestroy {
 
-  readonly markers: StationMarker[] = [
-    {name: '防雷监测器', status: 'normal', position: [22.54, 114.05], detail: '状态正常 · 3 车道配电箱'},
-    {name: '配电箱 A', status: 'critical', position: [22.48, 114.02], detail: '接地异常 · 请优先处理'},
-    {name: '发电厂', status: 'warning', position: [22.51, 114.11], detail: 'SPD 脱扣 · 等待派单'}
-  ];
+  /** 将统一单位表暴露给模板，避免模板内重复维护温度、电压和漏流单位。 */
+  readonly SMART_LIGHTNING_UNITS = SMART_LIGHTNING_UNITS;
 
-  @ViewChild('mapHost') mapHost!: ElementRef<HTMLDivElement>;
+  @ViewChild('deviceMap') deviceMap?: SmartLightningDeviceMapComponent;
   @ViewChildren('chartHost') chartHosts!: QueryList<ElementRef<HTMLDivElement>>;
 
-  data: SmartLightningMock = buildSmartLightningMock(SmartLightningPeriod.day);
   chartPeriods: SmartLightningChartPeriods = {...defaultSmartLightningChartPeriods};
   alarms: SmartLightningAlarmRow[] = [];
   alarmsLoading = true;
   alarmsLoadError = false;
+  alarmSummaryLoading = true;
+  alarmSummaryLoadError = false;
   deviceSummary: SmartLightningDeviceSummary = calculateSmartLightningDeviceSummary([]);
   devicesLoading = true;
   devicesLoadError = false;
+  groundAlarmPeriod = SmartLightningPeriod.day;
+  groundSummary: SmartLightningGroundMonitoringSummary | null = null;
+  groundLoading = true;
+  groundLoadError = false;
+  spdSummary: SmartLightningSpdMonitoringSummary | null = null;
+  spdLoading = true;
+  spdLoadError = false;
+  lightningSummary: SmartLightningCurrentMonitoringSummary | null = null;
+  lightningLoading = true;
+  lightningLoadError = false;
   activeAlarmCount: number | null = null;
-  activeAlarmTypeTotals: SmartLightningAlarmTypeTotal[] = [];
+  /** 转为共享图表契约的当前活动告警分类统计。 */
+  alarmInformationItems: DeviceAlarmInformationChartItem[] = [];
 
   private readonly charts = new Map<string, ECharts>();
   private readonly destroy$ = new Subject<void>();
-  private map?: L.Map;
+  /** 累计计数变化后回读服务端周期增量，合并同批设备更新，避免在浏览器推断历史基线。 */
+  private readonly counterRefreshRequests$ = new Subject<'spd' | 'lightning'>();
   private resizeObserver?: ResizeObserver;
-  private alarmRealtimeSubscriber?: TelemetrySubscriber;
   private realtimeAlarmCount: number | null = null;
   private initialAlarmLoadFinished = false;
+  /** 告警列表请求序号；只允许最后一次请求更新页面状态。 */
+  private alarmLoadRequestId = 0;
+  /** 告警创建通知可能早于后端落库，保存一次有界的延迟复读订阅。 */
+  private alarmSettleRefreshSubscription?: Subscription;
+  /** 最值在滚动周期边界滑出时，只安排一次现有接口校准，不做轮询。 */
+  private readonly extremaRefreshSubscriptions = new Map<'ground' | 'spd' | 'lightning', Subscription>();
+
+  /** 控制地图是否处于用户选点模式；坐标需在绑定设备后才会持久化。 */
+  isAddingMapPoint = false;
+  /** 当前用户可见的防雷设备，供地图点位绑定下拉框使用。 */
+  mapDevices: SmartLightningDeviceContext[] = [];
+  /** 将防雷设备上下文转换为公共地图模型；分类边界由本页面决定。 */
+  get mapDevicesForMap(): SmartLightningMapDevice[] {
+    return this.mapDevices.map((device) => {
+      const coordinates = this.resolveDeviceMapCoordinates(device);
+      return {
+        id: device.deviceId,
+        name: device.deviceName,
+        productName: device.productName || '--',
+        profileName: device.deviceProfileName || '--',
+        // 接口已按 productCategory=lightning 过滤；缺少回传值时按接口契约恢复分类。
+        productCategory: device.productCategory || 'lightning',
+        active: device.active === true,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+        assetPath: this.mapAssetPaths.get(device.deviceId) || '--',
+        alarmNames: this.activeAlarmNames.get(device.deviceId) || []
+      };
+    });
+  }
+  /** 智能防雷页面只显示 productCategory=lightning 的设备；公共组件不承担该业务筛选。 */
+  readonly includeSmartLightningMapDevice = (device: SmartLightningMapDevice): boolean =>
+    device.productCategory?.trim().toLowerCase() === 'lightning';
+  /**
+   * 地图点位绑定下拉框的候选设备。
+   *
+   * 过滤依据是已经绘制到地图上的设备点位 ID；已绑定设备不会再次出现在下拉框中，
+   * 避免同一设备被重复绑定到多个点位。
+   */
+  get availableMapDevices(): SmartLightningDeviceContext[] {
+    const mappedDeviceIds = new Set(this.mapDevices
+      .filter((device) => this.resolveDeviceMapCoordinates(device) !== null)
+      .map((device) => device.deviceId));
+    return filterSmartLightningMapDevicesWithoutPoints(
+      this.mapDevices,
+      mappedDeviceIds
+    );
+  }
+
+  /** 防雷设备地图统一优先使用 GPS 时序坐标，缺少有效整对时回退到服务器属性。 */
+  private resolveDeviceMapCoordinates(device: SmartLightningDeviceContext) {
+    return resolveSmartLightningMapCoordinates(
+      device.latitude,
+      device.longitude,
+      this.realtimeService.getLatestTelemetryValue(device.deviceId, 'Latitude')?.value,
+      this.realtimeService.getLatestTelemetryValue(device.deviceId, 'Longitude')?.value
+    );
+  }
+
+  /** 设备 ID 到根资产路径的索引，供公共地图组件弹窗显示绝对路径。 */
+  mapAssetPaths = new Map<string, string>();
+  /** 当前未清除告警按设备聚合的名称，供公共地图组件渲染状态和弹窗。 */
+  activeAlarmNames = new Map<string, string[]>();
+  /** 已选地图坐标；只有确认绑定后才会写入设备服务器属性。 */
+  pendingMapPoint: SmartLightningPendingMapPoint | null = null;
+  /** 绑定面板中选中的设备 ID。 */
+  selectedMapDeviceId = '';
+  /** 防止用户连续点击导致重复提交。 */
+  mapPointSaving = false;
+  /** 保存失败时在绑定面板内显示的错误信息。 */
+  mapPointSaveError = '';
 
   constructor(
     private readonly cd: ChangeDetectorRef,
@@ -100,16 +217,18 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     private readonly deviceService: DeviceService,
     private readonly entityRelationService: EntityRelationService,
     private readonly monitoringApi: SmartLightningMonitoringApiService,
-    private readonly telemetryWebsocketService: TelemetryWebsocketService,
-    private readonly ngZone: NgZone
+    private readonly realtimeService: SmartLightningRealtimeService
   ) {}
 
   ngAfterViewInit(): void {
-    this.initializeMap();
     this.renderCharts();
     this.loadLatestAlarms();
-    this.subscribeToAlarmCount();
+    this.loadAlarmSummary();
+    this.subscribeToRealtimeChanges();
     this.loadDeviceSummary();
+    this.loadGroundSummary();
+    this.loadSpdSummary();
+    this.loadLightningSummary();
     this.resizeObserver = new ResizeObserver(() => this.charts.forEach(chart => chart.resize()));
     this.chartHosts.forEach(host => this.resizeObserver.observe(host.nativeElement));
   }
@@ -117,104 +236,441 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.alarmRealtimeSubscriber?.unsubscribe();
+    this.alarmSettleRefreshSubscription?.unsubscribe();
+    this.extremaRefreshSubscriptions.forEach((subscription) => subscription.unsubscribe());
+    this.extremaRefreshSubscriptions.clear();
+    this.realtimeService.release();
     this.resizeObserver?.disconnect();
     this.charts.forEach(chart => chart.dispose());
     this.charts.clear();
-    this.map?.remove();
   }
 
+  /** 恢复地图上的添加点位入口，用户点击地图后生成一个临时点位。 */
+  toggleMapPointMode(): void {
+    if (!this.deviceMap) {
+      return;
+    }
+    if (this.isAddingMapPoint) {
+      this.isAddingMapPoint = false;
+      this.cd.markForCheck();
+      return;
+    }
+    this.isAddingMapPoint = true;
+    this.cd.markForCheck();
+  }
+
+  /** 公共地图组件回传用户点击的坐标，页面随后负责选择设备并保存属性。 */
+  onMapClick(point: L.LatLng): void {
+    this.isAddingMapPoint = false;
+    this.pendingMapPoint = {latitude: point.lat, longitude: point.lng};
+    this.selectedMapDeviceId = '';
+    this.mapPointSaveError = '';
+    this.cd.markForCheck();
+  }
+
+
+
+  /** 记录用户在绑定面板中选择的设备。 */
+  selectMapDevice(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.selectedMapDeviceId = select.value;
+    this.mapPointSaveError = '';
+  }
+
+  /** 将点位坐标写入设备 SERVER_SCOPE，绑定关系由设备属性持久化。 */
+  saveMapPointBinding(): void {
+    if (!this.pendingMapPoint || !this.selectedMapDeviceId || this.mapPointSaving) {
+      return;
+    }
+    // 下拉框会过滤已绑定设备，但提交前仍再次校验，防止并发刷新或旧页面状态造成重复绑定。
+    const selectedDevice = this.mapDevices.find((device) => device.deviceId === this.selectedMapDeviceId);
+    if (!selectedDevice || this.resolveDeviceMapCoordinates(selectedDevice) !== null) {
+      this.mapPointSaveError = '该设备已经绑定地图点位，请重新选择未绑定设备。';
+      this.selectedMapDeviceId = '';
+      this.cd.markForCheck();
+      return;
+    }
+    this.mapPointSaving = true;
+    this.mapPointSaveError = '';
+    // AttributeService 最终调用设备属性接口，保存内容不进入遥测表。
+    this.attributeService.saveEntityAttributes(
+      {entityType: EntityType.DEVICE, id: this.selectedMapDeviceId},
+      AttributeScope.SERVER_SCOPE,
+      [
+        {key: 'latitude', value: this.pendingMapPoint.latitude},
+        {key: 'longitude', value: this.pendingMapPoint.longitude}
+      ]
+    ).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        const device = this.mapDevices.find(item => item.deviceId === this.selectedMapDeviceId);
+        if (device) {
+          // 保存成功后同步本地上下文，立即复用持久化点位渲染逻辑，无需刷新页面。
+          device.latitude = this.pendingMapPoint.latitude;
+          device.longitude = this.pendingMapPoint.longitude;
+        }
+        // 清理临时图层后由公共组件重新生成正式图层，保证当前页面和重新进入页面表现一致。
+        this.deviceMap?.refresh();
+        this.deviceMap?.openDevicePopup(this.selectedMapDeviceId);
+        this.pendingMapPoint = null;
+        this.selectedMapDeviceId = '';
+        this.mapPointSaving = false;
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.mapPointSaving = false;
+        this.mapPointSaveError = '设备属性保存失败，请检查当前账号的设备写入权限。';
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 取消当前坐标的设备绑定，同时移除尚未保存的临时点位。 */
+  cancelMapPointBinding(): void {
+    this.pendingMapPoint = null;
+    this.selectedMapDeviceId = '';
+    this.mapPointSaveError = '';
+    this.cd.markForCheck();
+  }
+
+  /** 切换指定图表的统计周期，只影响该图表自身。 */
   setChartPeriod(chart: SmartLightningChartId, period: SmartLightningPeriod): void {
     if (period === this.chartPeriods[chart]) {
       return;
     }
     this.chartPeriods = setSmartLightningChartPeriod(this.chartPeriods, chart, period);
-    this.renderChart(chart);
+    if (chart === 'spd') {
+      this.loadSpdSummary();
+    } else if (chart === 'lightning') {
+      this.loadLightningSummary();
+    } else {
+      this.renderChart(chart);
+    }
     this.cd.markForCheck();
   }
 
+  /** 地网模块的日/周/月只影响按告警触发时间统计的告警数。 */
+  setGroundAlarmPeriod(period: SmartLightningPeriod): void {
+    if (period === this.groundAlarmPeriod) {
+      return;
+    }
+    this.groundAlarmPeriod = period;
+    this.loadGroundSummary();
+  }
+
+  /** 地网阻值展示格式化，空值显示占位符。 */
+  formatGroundResistance(value: number | null | undefined): string {
+    return formatSmartLightningResistance(value);
+  }
+
+  /** 地网报警率展示格式；接口按告警设备去重计算，前端不截断接口返回的小数位。 */
+  formatGroundAlarmRate(value: number | null | undefined): string {
+    return value === null || value === undefined || !Number.isFinite(value) ? '--' : `${value}%`;
+  }
+
+  /** 生成地网本周期告警数字的悬浮详情；告警类型按数量降序展示。 */
+  formatGroundAlarmTooltip(summary: SmartLightningGroundMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}次）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}次`);
+    return `告警类型统计（合计：${summary.alarmCount}次）\n${lines.join('\n')}`;
+  }
+
+  /** 生成地网阻值最值的悬浮详情，显示设备、参数和采集时间。 */
+  formatGroundExtremaTooltip(
+    label: string,
+    value: number | null | undefined,
+    deviceName: string | null | undefined,
+    parameter: string | null | undefined,
+    timestamp: number | null | undefined
+  ): string {
+    return buildSmartLightningExtremaTooltip(
+      label,
+      value,
+      SMART_LIGHTNING_UNITS.resistance,
+      deviceName,
+      parameter,
+      timestamp
+    );
+  }
+
+  /** 生成 SPD 本周期告警数字的悬浮详情；后端已按告警类型数量降序返回。 */
+  formatSpdAlarmTypeTooltip(summary: SmartLightningSpdMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}`);
+    return `告警类型统计（合计：${summary.alarmCount}）\n${lines.join('\n')}`;
+  }
+
+  /** SPD 卡片周期数值保留接口返回的原始小数位；单位只负责展示，不做精度处理。 */
+  formatSpdPeriodicValue(value: number | null | undefined, unit: string): string {
+    return formatSmartLightningMetric(value, unit);
+  }
+
+  /** 生成 SPD 周期最值的原生悬浮提示文本。 */
+  formatSpdExtremaTooltip(
+    label: string,
+    value: number | null | undefined,
+    unit: string,
+    deviceName: string | null | undefined,
+    parameter: string | null | undefined,
+    timestamp: number | null | undefined
+  ): string {
+    return buildSmartLightningExtremaTooltip(label, value, unit, deviceName, parameter, timestamp);
+  }
+
+  /** 雷电最大峰值展示格式化，空值显示占位符。 */
+  formatLightningPeak(value: number | null | undefined): string {
+    return formatSmartLightningMetric(value, SMART_LIGHTNING_UNITS.lightningCurrent);
+  }
+
+  /** 生成雷电流本周期告警数字的悬浮详情；后端已按告警类型数量降序返回。 */
+  formatLightningAlarmTooltip(summary: SmartLightningCurrentMonitoringSummary | null): string {
+    if (!summary) {
+      return '告警类型统计\n暂无数据';
+    }
+    const totals = summary.alarmTypeTotals || [];
+    if (!totals.length) {
+      return `告警类型统计\n周期内暂无告警（合计：${summary.alarmCount}次）`;
+    }
+    const lines = totals.map((item, index) => `${index + 1}. ${item.type}：${item.count}次`);
+    return `告警类型统计（合计：${summary.alarmCount}次）\n${lines.join('\n')}`;
+  }
+
+  /** 生成雷电最大峰值的原生悬浮提示文本。 */
+  formatLightningMaximumTooltip(summary: SmartLightningCurrentMonitoringSummary): string {
+    return buildSmartLightningMaximumTooltip(
+      '最大峰值',
+      summary.maxPeakCurrent,
+      SMART_LIGHTNING_UNITS.lightningCurrent,
+      summary.maxPeakDeviceName,
+      '极性',
+      summary.maxPeakPolarity,
+      summary.maxPeakTime
+    );
+  }
+
+  /** 生成雷电最小峰值的原生悬浮提示文本。 */
+  formatLightningMinimumTooltip(summary: SmartLightningCurrentMonitoringSummary): string {
+    return buildSmartLightningMaximumTooltip(
+      '最小峰值',
+      summary.minPeakCurrent,
+      SMART_LIGHTNING_UNITS.lightningCurrent,
+      summary.minPeakDeviceName,
+      '极性',
+      summary.minPeakPolarity,
+      summary.minPeakTime
+    );
+  }
+
+  /** 拉取最新告警列表：加载行上下文后写入告警表并刷新地图弹窗告警信息。 */
   loadLatestAlarms(): void {
+    const requestId = ++this.alarmLoadRequestId;
     this.alarmsLoading = true;
     this.alarmsLoadError = false;
-    this.alarmService.getAllAlarmsV2(createSmartLightningAlarmQuery()).pipe(
-      tap((pageData) => {
-        this.activeAlarmCount = pageData.totalElements;
-        this.activeAlarmTypeTotals = aggregateSmartLightningActiveAlarms(pageData.data);
+    this.monitoringApi.getLightningAlarms(createSmartLightningAlarmQuery()).pipe(
+      map((pageData): AlarmInfo[] => {
+        const sortedAlarms = pageData.data.map((alarm) => ({info: alarm, row: formatSmartLightningAlarm(alarm)}))
+          .sort((left, right) => compareSmartLightningAlarms(left.row, right.row))
+        // 地图告警状态必须基于全部当前告警，不能受表格只显示 10 条的限制。
+        this.updateActiveAlarmNames(sortedAlarms.map(({info}) => info));
+        return sortedAlarms.slice(0, SMART_LIGHTNING_ALARM_DISPLAY_LIMIT).map(({info}) => info);
       }),
-      map((pageData) => pageData.data.map((alarm) => ({info: alarm, row: formatSmartLightningAlarm(alarm)}))
-        .sort((left, right) => compareSmartLightningAlarms(left.row, right.row))
-        .slice(0, SMART_LIGHTNING_ALARM_DISPLAY_LIMIT)
-        .map(({info}) => info)),
       switchMap((alarms) => this.resolveAlarmRows(alarms)),
       takeUntil(this.destroy$)
     ).subscribe({
       next: (alarms) => {
+        // WebSocket 变化可能在请求完成前再次触发刷新，旧响应不能覆盖新列表。
+        if (!isLatestSmartLightningAlarmRequest(requestId, this.alarmLoadRequestId)) {
+          return;
+        }
         this.alarms = alarms;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
-        this.renderChart('alarm');
+        // 告警接口和设备接口是并行请求，告警先返回时也要刷新已经绘制的点位弹窗。
+        this.deviceMap?.refresh();
         this.cd.markForCheck();
-        if (this.realtimeAlarmCount !== null && this.realtimeAlarmCount !== this.activeAlarmCount) {
-          this.loadLatestAlarms();
-        }
       },
       error: () => {
+        // 旧请求失败时也不能清空新请求正在加载的结果。
+        if (!isLatestSmartLightningAlarmRequest(requestId, this.alarmLoadRequestId)) {
+          return;
+        }
         this.alarms = [];
+        this.activeAlarmNames.clear();
         this.activeAlarmCount = null;
-        this.activeAlarmTypeTotals = [];
+        this.alarmInformationItems = [];
         this.alarmsLoadError = true;
         this.alarmsLoading = false;
         this.initialAlarmLoadFinished = true;
-        this.renderChart('alarm');
+        this.deviceMap?.refresh();
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 告警统计由后端按当前用户可见防雷设备统一聚合，页面不再自行遍历告警记录。 */
+  private loadAlarmSummary(): void {
+    this.alarmSummaryLoading = true;
+    this.alarmSummaryLoadError = false;
+    this.monitoringApi.getLightningAlarmSummary().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (summary) => {
+        this.activeAlarmCount = summary.activeCount;
+        this.alarmInformationItems = summary.typeTotals.map((item) => ({
+          label: item.type,
+          count: item.count
+        }));
+        this.alarmSummaryLoading = false;
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.activeAlarmCount = null;
+        this.alarmInformationItems = [];
+        this.alarmSummaryLoading = false;
+        this.alarmSummaryLoadError = true;
         this.cd.markForCheck();
       }
     });
   }
 
   /**
-   * Subscribe to the server-side active-alarm count. The count update is used
-   * as a lightweight invalidation signal; the existing REST loader remains the
-   * single source of truth for rows and type aggregation.
+   * 订阅看板依赖的实时事件。
+   * 周期最值由当前可见设备的 WebSocket 增量更新；HTTP 继续提供首屏/周期基线、
+   * 设备上下文变化后的校准，以及告警统计和窗口边界校准。
    */
-  private subscribeToAlarmCount(): void {
-    const command = new AlarmCountCmd();
-    command.query = {
-      entityFilter: {
-        type: AliasFilterType.entityType,
-        entityType: EntityType.DEVICE
-      },
-      statusList: [AlarmSearchStatus.ACTIVE]
-    };
-
-    const subscriber = new TelemetrySubscriber(this.telemetryWebsocketService, this.ngZone);
-    subscriber.subscriptionCommands.push(command);
-    this.alarmRealtimeSubscriber = subscriber;
-    subscriber.alarmCount$.pipe(takeUntil(this.destroy$)).subscribe((update) => {
-      const previousCount = this.realtimeAlarmCount;
-      this.realtimeAlarmCount = update.count;
-      if (this.initialAlarmLoadFinished && shouldReloadSmartLightningAlarms(previousCount, update.count)) {
-        this.loadLatestAlarms();
+  private subscribeToRealtimeChanges(): void {
+    this.counterRefreshRequests$.pipe(
+      bufferTime(600),
+      filter((targets) => targets.length > 0),
+      takeUntil(this.destroy$)
+    ).subscribe((targets) => {
+      if (targets.includes('spd')) {
+        this.loadSpdSummary();
+      }
+      if (targets.includes('lightning')) {
+        this.loadLightningSummary();
       }
     });
-    subscriber.subscribe();
+    this.realtimeService.deviceTelemetryChanged$.pipe(
+      bufferTime(100),
+      filter((changes) => changes.length > 0),
+      takeUntil(this.destroy$)
+    ).subscribe((changes) => {
+      this.applyDashboardTelemetryChanges(changes);
+    });
+
+    // 完整首帧可能先于设备上下文 HTTP 到达；上下文加载完成后再从共享缓存补应用一次。
+    this.realtimeService.entitySnapshotReady$.pipe(
+      filter((ready) => ready),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.applyLatestTelemetrySnapshot());
+
+    // 只在设备业务属性/实体字段真正增量变化时重载上下文和服务端聚合。
+    this.realtimeService.deviceContextIncrementalChanged$.pipe(
+      auditTime(500),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.reloadDashboardSnapshots());
+
+    // 设备或资产集合数量发生变化时重新读取权限范围内的完整集合与聚合结果。
+    merge(
+      this.realtimeService.deviceMembershipChanged$,
+      this.realtimeService.assetMembershipChanged$
+    ).pipe(
+      auditTime(500),
+      takeUntil(this.destroy$)
+    ).subscribe(() => this.reloadDashboardSnapshots());
+
+    this.realtimeService.alarmChanged$.pipe(
+      auditTime(600),
+      takeUntil(this.destroy$)
+    ).subscribe((change) => {
+      // 告警字段（确认、派发、清除、备注）变化时数量可能不变，也必须刷新列表和统计。
+      if (change.source === 'data') {
+        if (!this.initialAlarmLoadFinished) {
+          return;
+        }
+      } else {
+        const count = change.count ?? 0;
+        const previousCount = this.realtimeAlarmCount;
+        this.realtimeAlarmCount = count;
+        if (!this.initialAlarmLoadFinished || !shouldReloadSmartLightningAlarms(previousCount, count)) {
+          return;
+        }
+        // 新增告警的数量通知可能早于告警明细事务提交；立即刷新用于快速响应，
+        // 仅对数量增加再安排一次延迟复读，避免读到落库前的旧列表。
+        if (shouldScheduleSmartLightningAlarmSettleRefresh(previousCount, count)) {
+          this.scheduleAlarmSettleRefresh();
+        }
+      }
+      this.loadLatestAlarms();
+      this.loadAlarmSummary();
+      // 分类卡片还包含周期告警数，告警变化后用原接口重新校准这些告警字段。
+      this.loadGroundSummary();
+      this.loadSpdSummary();
+      this.loadLightningSummary();
+    });
+
+    this.realtimeService.acquire();
   }
 
+  /** 设备业务上下文或可见设备范围变化后，沿用原接口刷新授权范围内的数据。 */
+  private reloadDashboardSnapshots(): void {
+    this.loadDeviceSummary();
+    this.loadGroundSummary();
+    this.loadSpdSummary();
+    this.loadLightningSummary();
+  }
+
+  /**
+   * 在告警创建通知后最多延迟复读一次列表。
+   * 新事件到达时取消旧计时器，防止多个计时器叠加请求。
+   */
+  private scheduleAlarmSettleRefresh(): void {
+    this.alarmSettleRefreshSubscription?.unsubscribe();
+    this.alarmSettleRefreshSubscription = timer(800).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.alarmSettleRefreshSubscription = undefined;
+      this.loadLatestAlarms();
+    });
+  }
+
+  /** 批量读取设备与 active 属性，计算顶部设备在线汇总并绘制地图点位。 */
   private loadDeviceSummary(): void {
     this.devicesLoading = true;
     this.devicesLoadError = false;
-    this.monitoringApi.getLightningDevices(MAX_SAFE_PAGE_SIZE, 0).pipe(
+    forkJoin({
+      devices: this.monitoringApi.getLightningDeviceContexts(MAX_SAFE_PAGE_SIZE, 0),
+      // 资产树只请求一次，用于把设备 ID 映射成根资产到设备的完整路径。
+      tree: this.monitoringApi.getTree().pipe(catchError(() => of({roots: []})))
+    }).pipe(
       map((pageData) => {
-        const activeValues: unknown[] = [];
-        for (const device of pageData.data) {
-          activeValues.push(device.active);
-        }
-        return activeValues;
+        // 同一次批量查询同时提供设备状态统计和地图绑定候选，避免再次逐台请求设备。
+        this.mapDevices = pageData.devices.data;
+        const assetTree = buildSmartLightningMonitoringAssetTreeFromRoots(pageData.tree.roots);
+        this.mapAssetPaths = getSmartLightningMonitoringAssetPaths(assetTree);
+        // 设备上下文已经包含 SERVER_SCOPE 经纬度，读取完成后立即恢复持久化点位。
+        this.deviceMap?.refresh();
+        return pageData.devices.data;
       }),
       takeUntil(this.destroy$)
     ).subscribe({
-      next: (activeValues) => {
-        this.deviceSummary = calculateSmartLightningDeviceSummary(activeValues);
+      next: (devices) => {
+        this.deviceSummary = calculateSmartLightningDeviceSummary(devices.map((device) =>
+          this.realtimeService.getLatestTelemetryValues(device.deviceId).get('active')?.value ?? device.active
+        ));
         this.devicesLoading = false;
+        // HTTP 与 WS 并发时，接口响应之后再应用最新缓存，避免首屏请求覆盖刚到达的实时值。
+        this.applyLatestTelemetrySnapshot();
         this.cd.markForCheck();
       },
       error: () => {
@@ -225,6 +681,361 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     });
   }
 
+  /** 读取地网模块的单个聚合接口，避免浏览器逐台读取属性、遥测和告警。 */
+  loadGroundSummary(): void {
+    this.groundLoading = true;
+    this.groundLoadError = false;
+    this.monitoringApi.getGroundMonitoringSummary(this.groundAlarmPeriod).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (summary) => {
+        this.groundSummary = summary;
+        this.groundLoading = false;
+        this.scheduleGroundExtremaRefresh();
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.groundSummary = null;
+        this.groundLoadError = true;
+        this.groundLoading = false;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 读取 SPD 监测聚合接口并更新卡片与图表。 */
+  loadSpdSummary(): void {
+    this.spdLoading = true;
+    this.spdLoadError = false;
+    this.monitoringApi.getSpdMonitoringSummary(this.chartPeriods.spd).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (summary) => {
+        this.spdSummary = summary;
+        this.spdLoading = false;
+        this.scheduleSpdExtremaRefresh();
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.spdSummary = null;
+        this.spdLoading = false;
+        this.spdLoadError = true;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /** 读取雷电流监测聚合接口并更新卡片与图表。 */
+  loadLightningSummary(): void {
+    this.lightningLoading = true;
+    this.lightningLoadError = false;
+    this.monitoringApi.getLightningCurrentMonitoringSummary(this.chartPeriods.lightning).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe({
+      next: (summary) => {
+        this.lightningSummary = summary;
+        this.lightningLoading = false;
+        this.scheduleLightningExtremaRefresh();
+        this.cd.markForCheck();
+      },
+      error: () => {
+        this.lightningSummary = null;
+        this.lightningLoading = false;
+        this.lightningLoadError = true;
+        this.cd.markForCheck();
+      }
+    });
+  }
+
+  /**
+   * 把当前已加载的可见设备及本次 WebSocket 遥测增量合并后更新周期极值。
+   * 未在当前设备上下文中的实体不会参与，权限/产品分类边界仍由原接口提供。
+   */
+  private applyDashboardTelemetryChanges(changes: readonly SmartLightningDeviceTelemetryChange[]): void {
+    if (!this.mapDevices.length || !changes.length) {
+      return;
+    }
+
+    const devicesById = new Map(this.mapDevices.map((device) => [device.deviceId, device]));
+    const activeUpdates = new Map<string, boolean>();
+    const groundSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const temperatureSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const leakageSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const voltageSamples: SmartLightningPeriodicExtremaSample[] = [];
+    const peakSamples: Array<SmartLightningPeriodicExtremaSample & {polarity?: string | null}> = [];
+    // 与后端周期温度统计一致，DEP4的Temp也参与实时极值更新。
+    const temperatureKeys = new Set(['Temp', 'Temp1', 'Temp2', 'Temp3', 'Temp4', 'AmbTemp', 'SpdTemp']);
+    const leakageKeys = new Set(['LeakCurrA', 'LeakCurrB', 'LeakCurrC']);
+    const voltageKeys = new Set(['PhAVolt', 'PhBVolt', 'PhCVolt']);
+    let mapCoordinatesChanged = false;
+
+    for (const change of changes) {
+      const device = devicesById.get(change.deviceId);
+      if (!device) {
+        continue;
+      }
+      if (change.values.has('Latitude') || change.values.has('Longitude')) {
+        mapCoordinatesChanged = true;
+      }
+      const latestValues = this.realtimeService.getLatestTelemetryValues(device.deviceId);
+      const active = this.parseActiveTelemetry(
+        change.values.has('active') ? latestValues.get('active')?.value : undefined
+      );
+      if (active !== undefined) {
+        activeUpdates.set(device.deviceId, active);
+      }
+
+      const functionCategory = String(device.functionCategory || '').trim().toLowerCase();
+      // 首条累计值只建立观测起点；后续上报后由后端重算，未知次数才能自动更新为已观测增量。
+      if (functionCategory === 'spd_monitor' && change.values.has('StrikeCnt')) {
+        this.counterRefreshRequests$.next('spd');
+      } else if (functionCategory === 'lightning_current'
+          && (change.values.has('StrikeCnt') || change.values.has('SurgeCnt'))) {
+        this.counterRefreshRequests$.next('lightning');
+      }
+      for (const [key, incoming] of change.values) {
+        // 服务层可能收到乱序帧；始终采用共享缓存中时间戳最新的该键。
+        const telemetry = latestValues.get(key) || incoming;
+        if (functionCategory === 'ground_resistance' && key === 'GndGridRes') {
+          const sample = this.createPeriodicSample(device.deviceName, key, telemetry);
+          if (sample) {
+            groundSamples.push(sample);
+          }
+        } else if (functionCategory === 'spd_monitor') {
+          const sample = this.createPeriodicSample(device.deviceName, key, telemetry);
+          if (!sample) {
+            continue;
+          }
+          if (temperatureKeys.has(key)) {
+            temperatureSamples.push(sample);
+          } else if (leakageKeys.has(key)) {
+            leakageSamples.push(sample);
+          } else if (voltageKeys.has(key)) {
+            voltageSamples.push(sample);
+          }
+        }
+      }
+
+      // M1AI与L2AI均按实际报文读取PeakCur，不回退旧峰值键。
+      const peakKey = 'PeakCur';
+      if (functionCategory === 'lightning_current' &&
+        (change.values.has(peakKey) || change.values.has('Polarity'))) {
+        // 峰值和极性可能分别到达；仅时间戳一致时才将极性绑定到该峰值，避免误配来源。
+        const peak = change.values.get(peakKey) || latestValues.get(peakKey);
+        const polarity = latestValues.get('Polarity');
+        if (peak && (change.values.has(peakKey) || change.values.has('Polarity'))) {
+          const sample = this.createPeriodicSample(device.deviceName, peakKey, peak);
+          if (sample) {
+            peakSamples.push({
+              ...sample,
+              polarity: polarity?.ts === peak.ts ? this.normalizeDashboardPolarity(polarity.value, device.deviceProfileName) : null
+            });
+          }
+        }
+      }
+    }
+
+    if (activeUpdates.size) {
+      this.mapDevices = this.mapDevices.map((device) => activeUpdates.has(device.deviceId)
+        ? {...device, active: activeUpdates.get(device.deviceId)}
+        : device);
+      this.deviceSummary = calculateSmartLightningDeviceSummary(this.mapDevices.map((device) => device.active));
+    }
+
+    let changed = activeUpdates.size > 0 || mapCoordinatesChanged;
+    if (groundSamples.length && this.groundSummary) {
+      const current = this.groundSummary.resistanceExtrema;
+      if (doesSmartLightningSampleInvalidateExtrema(
+        current, groundSamples, false, this.groundAlarmPeriod, Date.now()
+      )) {
+        this.loadGroundSummary();
+      } else {
+        const extrema = updateSmartLightningPeriodicExtrema(
+          current, groundSamples, this.groundAlarmPeriod, Date.now()
+        );
+        if (extrema !== current) {
+          this.groundSummary = {
+            ...this.groundSummary,
+            maxResistance: extrema.maximum,
+            minResistance: extrema.minimum,
+            resistanceExtrema: extrema
+          };
+          this.scheduleGroundExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if ((temperatureSamples.length || leakageSamples.length || voltageSamples.length) && this.spdSummary) {
+      const temperature = this.spdSummary.temperatureExtrema;
+      const leakage = this.spdSummary.leakageExtrema;
+      const voltage = this.spdSummary.voltageExtrema;
+      const sourceWasOverwritten =
+        doesSmartLightningSampleInvalidateExtrema(temperature, temperatureSamples, false, this.chartPeriods.spd, Date.now()) ||
+        doesSmartLightningSampleInvalidateExtrema(leakage, leakageSamples, true, this.chartPeriods.spd, Date.now()) ||
+        doesSmartLightningSampleInvalidateExtrema(voltage, voltageSamples, false, this.chartPeriods.spd, Date.now());
+      if (sourceWasOverwritten) {
+        this.loadSpdSummary();
+      } else {
+        const nextTemperature = updateSmartLightningPeriodicExtrema(
+          temperature, temperatureSamples, this.chartPeriods.spd, Date.now()
+        );
+        const nextLeakage = updateSmartLightningPeriodicExtrema(
+          leakage, leakageSamples, this.chartPeriods.spd, Date.now(), true
+        );
+        const nextVoltage = updateSmartLightningPeriodicExtrema(
+          voltage, voltageSamples, this.chartPeriods.spd, Date.now()
+        );
+        if (nextTemperature !== temperature || nextLeakage !== leakage || nextVoltage !== voltage) {
+          this.spdSummary = {
+            ...this.spdSummary,
+            temperatureExtrema: nextTemperature,
+            leakageExtrema: nextLeakage,
+            voltageExtrema: nextVoltage,
+            maxLeakage: nextLeakage.maximum,
+            maxLeakageDeviceName: nextLeakage.maximumDeviceName,
+            maxLeakageKey: nextLeakage.maximumParameter,
+            maxLeakagePhase: getSmartLightningPhaseLabel(nextLeakage.maximumParameter),
+            maxLeakageTime: nextLeakage.maximumTime
+          };
+          this.scheduleSpdExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if (peakSamples.length && this.lightningSummary) {
+      if (doesSmartLightningPeakSampleInvalidateExtrema(
+        this.lightningSummary, peakSamples, this.chartPeriods.lightning, Date.now()
+      )) {
+        this.loadLightningSummary();
+      } else {
+        const summary = updateSmartLightningPeakExtrema(
+          this.lightningSummary, peakSamples, this.chartPeriods.lightning, Date.now()
+        );
+        if (summary !== this.lightningSummary) {
+          this.lightningSummary = summary;
+          this.scheduleLightningExtremaRefresh();
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.cd.markForCheck();
+    }
+  }
+
+  /** 完整首帧或设备上下文响应较晚时，从共享实时缓存补应用当前设备快照。 */
+  private applyLatestTelemetrySnapshot(): void {
+    const changes = this.mapDevices.map((device) => ({
+      deviceId: device.deviceId,
+      values: this.realtimeService.getLatestTelemetryValues(device.deviceId)
+    }));
+    this.applyDashboardTelemetryChanges(changes);
+  }
+
+  /** 从原始 WebSocket 字符串解析有效数值，不进行小数截断或单位换算。 */
+  private createPeriodicSample(
+    deviceName: string,
+    parameter: string,
+    telemetry: {readonly ts: number; readonly value: string} | undefined
+  ): SmartLightningPeriodicExtremaSample | null {
+    if (!telemetry) {
+      return null;
+    }
+    const value = Number(String(telemetry.value ?? '').trim());
+    return Number.isFinite(value)
+      ? {value, deviceName, parameter, timestamp: telemetry.ts}
+      : null;
+  }
+
+  /** 统一解析设备 active 遥测，只接受明确的在线/离线编码。 */
+  private parseActiveTelemetry(value: string | undefined): boolean | undefined {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') {
+      return true;
+    }
+    if (normalized === 'false' || normalized === '0') {
+      return false;
+    }
+    return undefined;
+  }
+
+  /** 看板周期最值接口返回“正/负极性”，增量也统一为相同中文标签。 */
+  private normalizeDashboardPolarity(value: string, deviceProfileName?: string): string {
+    const normalized = String(value ?? '').trim();
+    const label = formatSmartLightningPolarityLabel(normalized, deviceProfileName);
+    if (label === '正极') {
+      return '正极性';
+    }
+    if (label === '负极') {
+      return '负极性';
+    }
+    return label;
+  }
+
+  /** 根据最值源时间计算滚动窗口过期时刻，到期后使用原聚合接口重新校准一次。 */
+  private scheduleExtremaRefresh(
+    target: 'ground' | 'spd' | 'lightning',
+    period: SmartLightningPeriod,
+    timestamps: Array<number | null | undefined>
+  ): void {
+    this.extremaRefreshSubscriptions.get(target)?.unsubscribe();
+    this.extremaRefreshSubscriptions.delete(target);
+    const duration = getSmartLightningPeriodDuration(period);
+    const sourceTimes = timestamps.filter((timestamp): timestamp is number =>
+      timestamp != null && Number.isFinite(timestamp)
+    );
+    if (duration == null || !sourceTimes.length) {
+      return;
+    }
+
+    const refreshAt = Math.min(...sourceTimes.map((timestamp) => timestamp + duration + 1));
+    const delay = Math.max(0, Math.min(refreshAt - Date.now(), 2_147_000_000));
+    const subscription = timer(delay).pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.extremaRefreshSubscriptions.delete(target);
+      if (Date.now() < refreshAt) {
+        // 月周期超过浏览器单次定时器上限时，分段等待到真实过期时间。
+        this.scheduleExtremaRefresh(target, period, sourceTimes);
+        return;
+      }
+      if (target === 'ground') {
+        this.loadGroundSummary();
+      } else if (target === 'spd') {
+        this.loadSpdSummary();
+      } else {
+        this.loadLightningSummary();
+      }
+    });
+    this.extremaRefreshSubscriptions.set(target, subscription);
+  }
+
+  /** 为地网周期阻值最值安排一次性滚动窗口校准。 */
+  private scheduleGroundExtremaRefresh(): void {
+    const extrema = this.groundSummary?.resistanceExtrema;
+    this.scheduleExtremaRefresh('ground', this.groundAlarmPeriod, [
+      extrema?.maximumTime, extrema?.minimumTime
+    ]);
+  }
+
+  /** 为 SPD 温度、漏电流、电压的周期最值安排一次性滚动窗口校准。 */
+  private scheduleSpdExtremaRefresh(): void {
+    const summary = this.spdSummary;
+    this.scheduleExtremaRefresh('spd', this.chartPeriods.spd, [
+      summary?.temperatureExtrema.maximumTime, summary?.temperatureExtrema.minimumTime,
+      summary?.leakageExtrema.maximumTime, summary?.leakageExtrema.minimumTime,
+      summary?.voltageExtrema.maximumTime, summary?.voltageExtrema.minimumTime
+    ]);
+  }
+
+  /** 为雷电流周期峰值最值安排一次性滚动窗口校准。 */
+  private scheduleLightningExtremaRefresh(): void {
+    this.scheduleExtremaRefresh('lightning', this.chartPeriods.lightning, [
+      this.lightningSummary?.maxPeakTime, this.lightningSummary?.minPeakTime
+    ]);
+  }
+
   private resolveAlarmRows(alarms: AlarmInfo[]): Observable<SmartLightningAlarmRow[]> {
     if (!alarms.length) {
       return of([]);
@@ -232,6 +1043,7 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return forkJoin(alarms.map((alarm) => this.resolveAlarmRow(alarm)));
   }
 
+  /** 补全单条告警的展示上下文（产品名、父级目录），返回可渲染的告警行。 */
   private resolveAlarmRow(alarm: AlarmInfo): Observable<SmartLightningAlarmRow> {
     if (alarm.originator?.entityType !== EntityType.DEVICE) {
       return of(formatSmartLightningAlarm(alarm));
@@ -257,35 +1069,25 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     }).pipe(map((context) => formatSmartLightningAlarm(alarm, context)));
   }
 
-  private initializeMap(): void {
-    const {center, zoom, token} = smartLightningTianDiTuMapConfig;
-    this.map = L.map(this.mapHost.nativeElement, {attributionControl: true, zoomControl: true}).setView(center, zoom);
-    const tileOptions: L.TileLayerOptions = {
-      subdomains: '01234567',
-      maxNativeZoom: 18,
-      maxZoom: 21,
-      attribution: '&copy; 天地图 Tianditu'
-    };
-    L.tileLayer(
-      'https://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + token,
-      tileOptions
-    ).addTo(this.map);
-    L.tileLayer(
-      'https://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + token,
-      tileOptions
-    ).addTo(this.map);
-
-    this.markers.forEach((marker) => {
-      L.circleMarker(marker.position, {
-        radius: 10,
-        color: '#ffffff',
-        weight: 3,
-        fillColor: this.markerColor(marker.status),
-        fillOpacity: 1
-      }).bindPopup(`<strong>${marker.name}</strong><br>${marker.detail}`).addTo(this.map!);
-    });
+  /** 将当前未清除告警按设备 ID 聚合告警名称，避免地图弹窗逐设备发起告警请求。 */
+  private updateActiveAlarmNames(alarms: AlarmInfo[]): void {
+    this.activeAlarmNames.clear();
+    for (const alarm of alarms) {
+      if (alarm.originator?.entityType !== EntityType.DEVICE ||
+        (alarm.status !== AlarmStatus.ACTIVE_UNACK && alarm.status !== AlarmStatus.ACTIVE_ACK)) {
+        continue;
+      }
+      const deviceId = alarm.originator.id;
+      const names = this.activeAlarmNames.get(deviceId) || [];
+      const alarmName = alarm.type?.trim() || '未命名告警';
+      if (!names.includes(alarmName)) {
+        names.push(alarmName);
+      }
+      this.activeAlarmNames.set(deviceId, names);
+    }
   }
 
+  /** 依次重绘所有 ECharts 图表面板。 */
   private renderCharts(): void {
     if (!this.chartHosts) {
       return;
@@ -299,44 +1101,34 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     });
   }
 
+  /** 按图表 ID 渲染单个图表，未注册容器时跳过。 */
   private renderChart(chartId: SmartLightningChartId, chartHost?: HTMLDivElement): void {
     const host = chartHost ?? this.chartHosts.find(item => item.nativeElement.dataset.chart === chartId)?.nativeElement;
     if (!host) {
       return;
     }
     const chart = this.getChart(chartId, host);
-    const data = buildSmartLightningMock(this.chartPeriods[chartId]);
     switch (chartId) {
       case 'ground':
-        chart.setOption(this.lineOption(data, data.groundSeries, 'Ω'));
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'spd':
-        chart.setOption(this.lineOption(data, data.spdSeries, 'mA'));
-        break;
-      case 'alarm':
-        chart.setOption(this.alarmOption());
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'orders':
-        chart.setOption(this.orderOption(data));
+        chart.setOption(this.emptyChartOption(), true);
         break;
       case 'lightning':
-        chart.setOption(this.lightningOption(data));
+        chart.setOption(this.emptyChartOption(), true);
         break;
     }
   }
 
   private isChartId(value: string | undefined): value is SmartLightningChartId {
-    return value === 'ground' || value === 'spd' || value === 'alarm' || value === 'orders' || value === 'lightning';
+    return value === 'ground' || value === 'spd' || value === 'orders' || value === 'lightning';
   }
 
-  private markerColor(status: StationMarker['status']): string {
-    switch (status) {
-      case 'normal': return '#2b9fe7';
-      case 'warning': return '#f59d1b';
-      case 'critical': return '#ef4444';
-    }
-  }
-
+  /** 获取或懒初始化指定容器的 ECharts 实例（SVG 渲染器）。 */
   private getChart(id: string, host: HTMLDivElement): ECharts {
     let chart = this.charts.get(id);
     if (!chart || chart.isDisposed()) {
@@ -346,88 +1138,14 @@ export class SmartLightningDashboardComponent implements AfterViewInit, OnDestro
     return chart;
   }
 
-  private lineOption(data: SmartLightningMock, series: SmartLightningMock['spdSeries'], unit: string): EChartsOption {
+  /** 未接入真实趋势数据时显示空态，避免把开发阶段样例值误认为设备数据。 */
+  private emptyChartOption(): EChartsOption {
     return {
-      animationDuration: 380,
-      animationEasing: 'cubicOut',
-      tooltip: {trigger: 'axis', confine: true, borderColor: '#dbe5ef', textStyle: {color: '#183653'}},
-      legend: {top: 0, right: 0, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 11, color: '#5f7488'}},
-      grid: {top: 34, right: 10, bottom: 24, left: 32, containLabel: true},
-      xAxis: {
-        type: 'category', boundaryGap: false, data: data.axisLabels,
-        axisLine: {lineStyle: {color: '#d7e0e9'}},
-        axisLabel: {color: '#7890a4', fontSize: 10}, axisTick: {show: false}
-      },
-      yAxis: {
-        type: 'value', name: unit, nameTextStyle: {color: '#7890a4', fontSize: 10},
-        splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}
-      },
-      series: series.map(item => ({
-        name: item.name, type: 'line', smooth: true, showSymbol: false, data: item.data,
-        lineStyle: {width: 2, color: item.color},
-        areaStyle: {color: item.color, opacity: 0.06},
-        emphasis: {focus: 'series'}
-      }))
+      title: {text: '暂无数据', left: 'center', top: 'middle', textStyle: {color: '#7890a4', fontSize: 12, fontWeight: 'normal'}},
+      xAxis: {type: 'category', show: false, data: []},
+      yAxis: {type: 'value', show: false},
+      series: []
     };
   }
 
-  private alarmOption(): EChartsOption {
-    const alarmTypeTotals = this.activeAlarmTypeTotals;
-    const emptyStateText = getSmartLightningAlarmChartMessage(
-      this.alarmsLoading,
-      this.alarmsLoadError,
-      alarmTypeTotals
-    );
-    return {
-      animationDuration: 380,
-      title: {text: emptyStateText || '', left: 'center', top: 'middle', textStyle: {color: '#7890a4', fontSize: 12, fontWeight: 'normal'}},
-      grid: {top: 20, right: 10, bottom: 25, left: 28},
-      tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
-      xAxis: {
-        type: 'category', data: alarmTypeTotals.map((item) => item.type),
-        axisLabel: {color: '#7890a4', fontSize: 10, rotate: 20, interval: 0}, axisLine: {lineStyle: {color: '#d7e0e9'}}, axisTick: {show: false}
-      },
-      yAxis: {type: 'value', minInterval: 1, splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}},
-      series: [{
-        type: 'bar', data: alarmTypeTotals.map((item) => item.count), barMaxWidth: 28,
-        itemStyle: {borderRadius: [5, 5, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          {offset: 0, color: '#22e466'}, {offset: 1, color: '#073d5c'}
-        ])}
-      }]
-    };
-  }
-
-  private orderOption(data: SmartLightningMock): EChartsOption {
-    return {
-      animationDuration: 380,
-      tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
-      legend: {top: 0, right: 0, itemWidth: 8, itemHeight: 8, textStyle: {fontSize: 11, color: '#5f7488'}},
-      grid: {top: 34, right: 8, bottom: 25, left: 28},
-      xAxis: {type: 'category', data: data.axisLabels, axisLabel: {color: '#7890a4', fontSize: 10}, axisTick: {show: false}},
-      yAxis: {type: 'value', splitLine: {lineStyle: {color: '#edf2f6'}}, axisLabel: {color: '#7890a4', fontSize: 10}},
-      series: data.workOrderSeries.map(item => ({
-        name: item.name, type: 'bar', data: item.data, barMaxWidth: 12,
-        itemStyle: {color: item.color, borderRadius: [3, 3, 0, 0]}
-      }))
-    };
-  }
-
-  private lightningOption(data: SmartLightningMock): EChartsOption {
-    return {
-      animationDuration: 380,
-      grid: {top: 10, right: 16, bottom: 8, left: 72},
-      xAxis: {type: 'value', max: 100, show: false},
-      yAxis: {
-        type: 'category', inverse: true, data: data.lightningMetrics.map(item => item.name),
-        axisTick: {show: false}, axisLine: {show: false}, axisLabel: {color: '#526a80', fontSize: 11}
-      },
-      series: [{
-        type: 'bar', data: data.lightningMetrics.map(item => item.value), barWidth: 18,
-        showBackground: true, backgroundStyle: {color: '#edf2f6', borderRadius: 9},
-        itemStyle: {borderRadius: 9, color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-          {offset: 0, color: '#0a4965'}, {offset: 1, color: '#20e66b'}
-        ])}, label: {show: true, position: 'right', color: '#567087', fontSize: 10, formatter: '{c}'}
-      }]
-    };
-  }
 }

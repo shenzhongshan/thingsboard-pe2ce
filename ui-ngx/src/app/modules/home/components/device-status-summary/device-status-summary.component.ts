@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { select, Store } from '@ngrx/store';
-import { filter, Subject, take, takeUntil } from 'rxjs';
+import { distinctUntilChanged, filter, map, retry, Subject, Subscription, takeUntil } from 'rxjs';
 import { AppState } from '@core/core.state';
-import { selectAuthUser } from '@core/auth/auth.selectors';
+import { selectAuth } from '@core/auth/auth.selectors';
 import { Authority } from '@shared/models/authority.enum';
 import { AuthUser } from '@shared/models/user.model';
 import { AlarmSearchStatus } from '@shared/models/alarm.models';
@@ -11,6 +11,7 @@ import { AlarmCountCmd, TelemetrySubscriber } from '@shared/models/telemetry/tel
 import { AliasFilterType } from '@shared/models/alias.models';
 import { TelemetryWebsocketService } from '@core/ws/telemetry-websocket.service';
 import { SmartLightningDeviceStatusSummary, SmartLightningMonitoringApiService } from '@home/pages/smart-lightning/monitoring/smart-lightning-monitoring-api.service';
+import { DeviceActiveStatusService } from '@core/services/device-active-status.service';
 
 @Component({
   selector: 'tb-device-status-summary',
@@ -28,6 +29,8 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
 
   private readonly destroy$ = new Subject<void>();
   private alarmCountSubscriber?: TelemetrySubscriber;
+  private activeStatusSubscriptionAcquired = false;
+  private activeStatusChangesSubscription?: Subscription;
   private initialAlarmCountReceived = false;
   private authUser?: AuthUser;
 
@@ -36,21 +39,32 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
     private readonly monitoringApi: SmartLightningMonitoringApiService,
     private readonly telemetryWebsocketService: TelemetryWebsocketService,
     private readonly ngZone: NgZone,
+    private readonly activeStatusService: DeviceActiveStatusService,
     private readonly cd: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     this.store.pipe(
-      select(selectAuthUser),
-      filter((authUser): authUser is AuthUser => !!authUser),
-      take(1),
+      // authUser 非空不代表登录初始化已经完成。必须等待 isUserLoaded，
+      // 并持续观察最终用户状态；令牌刷新期间的临时权限不能让卡片永久隐藏。
+      select(selectAuth),
+      filter((authState) => authState.isUserLoaded),
+      map((authState) => authState.authUser),
+      distinctUntilChanged((previousUser, currentUser) =>
+        previousUser?.userId === currentUser?.userId && previousUser?.authority === currentUser?.authority),
       takeUntil(this.destroy$)
-    ).subscribe((authUser) => {
+    ).subscribe((authState) => {
+      const authUser = authState as AuthUser | null;
       this.authUser = authUser;
-      this.visible = authUser.authority === Authority.TENANT_ADMIN || authUser.authority === Authority.CUSTOMER_USER;
+      this.visible = !!authUser && (authUser.authority === Authority.TENANT_ADMIN || authUser.authority === Authority.CUSTOMER_USER);
       if (this.visible) {
         this.loadSummary();
-        this.subscribeToAlarmChanges();
+        if (!this.alarmCountSubscriber) {
+          this.subscribeToAlarmChanges();
+        }
+        this.subscribeToActiveStatusChanges();
+      } else {
+        this.stopWebsocketSubscriptions();
       }
       this.cd.markForCheck();
     });
@@ -59,7 +73,19 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.stopWebsocketSubscriptions();
+  }
+
+  private stopWebsocketSubscriptions(): void {
     this.alarmCountSubscriber?.unsubscribe();
+    this.alarmCountSubscriber = undefined;
+    if (this.activeStatusSubscriptionAcquired) {
+      this.activeStatusChangesSubscription?.unsubscribe();
+      this.activeStatusChangesSubscription = undefined;
+      this.activeStatusService.release();
+      this.activeStatusSubscriptionAcquired = false;
+    }
+    this.initialAlarmCountReceived = false;
   }
 
   private loadSummary(): void {
@@ -68,7 +94,11 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
     }
     this.loading = true;
     this.loadError = false;
-    this.monitoringApi.getDeviceStatusSummary().pipe(takeUntil(this.destroy$)).subscribe({
+    this.monitoringApi.getDeviceStatusSummary().pipe(
+      // 后端刚启动、令牌刚刷新等短暂失败不要求用户手动刷新整个页面。
+      retry({count: 2, delay: 500}),
+      takeUntil(this.destroy$)
+    ).subscribe({
       next: (summary) => {
         this.summary = summary;
         this.loading = false;
@@ -98,5 +128,19 @@ export class DeviceStatusSummaryComponent implements OnInit, OnDestroy {
       this.initialAlarmCountReceived = true;
     });
     this.alarmCountSubscriber.subscribe();
+  }
+
+  /** 复用共享 active 遥测订阅；首帧或状态变化后仍由后端统一计算汇总数量。 */
+  private subscribeToActiveStatusChanges(): void {
+    if (this.activeStatusSubscriptionAcquired) {
+      return;
+    }
+    this.activeStatusSubscriptionAcquired = true;
+    this.activeStatusChangesSubscription = this.activeStatusService.activeStatusChanged$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.visible) {
+        this.loadSummary();
+      }
+    });
+    this.activeStatusService.acquire();
   }
 }

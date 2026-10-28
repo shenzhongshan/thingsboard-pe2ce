@@ -1,0 +1,18 @@
+<!-- 共享报警信息卡片：标题、图表、空状态和加载失败状态统一；右侧控件由页面投影。 -->
+<header class="alarm-information-header">
+  <h2>报警信息</h2>
+  <div class="alarm-information-actions">
+    <ng-content select="[alarm-information-actions]"></ng-content>
+  </div>
+</header>
+
+<div class="alarm-information-chart" [attr.aria-busy]="loading">
+  <div #chartHost class="alarm-information-chart-host" role="img" aria-label="报警信息柱状图"></div>
+  @if (loading) {
+    <div class="alarm-information-state" role="status" aria-live="polite">正在加载告警统计…</div>
+  } @else if (loadError) {
+    <div class="alarm-information-state error" role="alert">告警统计加载失败</div>
+  } @else if (!items.length) {
+    <div class="alarm-information-state" role="status" aria-live="polite">{{emptyMessage}}</div>
+  }
+</div>

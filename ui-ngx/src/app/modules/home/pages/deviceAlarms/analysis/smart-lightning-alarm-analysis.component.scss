@@ -1,0 +1,397 @@
+/* 文件职责：告警分析模块的 smart-lightning-alarm-analysis.component，负责页面局部布局、响应式与视觉样式。 */
+:host {
+  --analysis-blue: #195ce8;
+  --analysis-ink: #0a356a;
+  --analysis-green: #17e96c;
+  --analysis-canvas: #edf1f4;
+  display: block;
+  min-width: 0;
+}
+
+/* 告警分析页样式：顶部统计卡三列排布，下方排名与趋势图左右分栏。 */
+.alarm-analysis-page {
+  display: block;
+  min-height: calc(100vh - 96px);
+  padding: 0 14px 18px;
+  background: var(--analysis-canvas);
+  color: #3f5668;
+}
+
+.analysis-content {
+  min-width: 0;
+  padding-top: 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 0;
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  min-height: 98px;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #c8d3df;
+  background: #e7edff;
+}
+
+.summary-card.orange { background: #ffebe4; }
+.summary-card.teal { background: #dcf6f4; }
+.summary-icon { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 50%; color: #fff; background: #5f6f9e; font-size: 20px; }
+.orange .summary-icon { background: #a06a52; }
+.teal .summary-icon { background: #4e7a92; }
+.summary-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex: 1; gap: 12px; min-width: 0; }
+.summary-values span { display: block; color: #687687; font-size: 11px; white-space: nowrap; }
+.summary-values strong { display: block; margin-top: 7px; color: #485462; font-size: 20px; font-weight: 500; white-space: nowrap; }
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.28fr) minmax(360px, .92fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.surface { border: 1px solid #cfd8e0; background: #fff; box-shadow: 0 6px 16px rgba(35, 62, 83, .06); }
+.site-panel, .ranking-panel, .type-panel, .trend-panel, .severity-panel, .status-panel, .coverage-panel, .efficiency-panel { min-width: 0; overflow: hidden; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 70px; padding: 0 18px; border-bottom: 1px solid #e4eaf0; }
+.panel-heading.compact { min-height: 62px; }
+.panel-heading h2, .panel-heading p { margin: 0; }
+.panel-heading h2 { color: #29485f; font-size: 16px; font-weight: 700; }
+.panel-heading p { margin-top: 4px; color: #7c8d9c; font-size: 11px; }
+
+.site-table-wrap { overflow-x: auto; padding: 0 18px; }
+.site-table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.site-table th { height: 38px; color: #38536a; background: #dcecff; font-weight: 600; }
+.site-table td { height: 47px; border: 1px solid #e1e6eb; color: #536676; text-align: center; }
+.site-table th { border: 1px solid #cad9e8; }
+.site-table th:first-child, .site-table td:first-child { width: 54px; }
+.site-table th:nth-child(2), .site-table td:nth-child(2) { width: 28%; }
+.site-table th:nth-child(3), .site-table td:nth-child(3) { width: 34%; }
+.site-table th:nth-child(4), .site-table td:nth-child(4) { width: 84px; }
+.site-name { overflow: hidden; padding: 0 8px; text-overflow: ellipsis; white-space: nowrap; }
+.rate-cell { display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.rate-track { height: 10px; flex: 1; overflow: hidden; border-radius: 9px; background: #bec1c2; }
+.rate-track span { display: block; height: 100%; border-radius: inherit; background: var(--analysis-blue); }
+.table-footer { display: flex; justify-content: flex-end; gap: 16px; padding: 12px 18px; color: #7b8e9d; font-size: 11px; }
+
+.ranking-tabs, .period-tabs { display: flex; gap: 2px; padding: 4px; border-radius: 18px; background: #eef0f2; }
+.ranking-tabs button, .period-tabs button { min-width: 48px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 15px; color: #496176; background: transparent; cursor: pointer; font: inherit; font-size: 11px; }
+.ranking-tabs button.active, .period-tabs button.active { color: #064727; background: var(--analysis-green); font-weight: 700; }
+.site-panel-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ranking-chart { width: 100%; height: 368px; }
+
+.trend-panel { margin-top: 14px; }
+.trend-chart { width: 100%; height: 320px; }
+
+/* 严重程度分布使用真实告警 severity 统计，不把告警类型误当成严重程度。 */
+.severity-list { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 14px; padding: 18px 16px; }
+.severity-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) 36px; align-items: center; gap: 10px; }
+.severity-name { padding: 4px 5px; border-radius: 4px; font-size: 11px; text-align: center; }
+.severity-name.critical { color: #b4232e; background: #fff0f1; }
+.severity-name.major { color: #c65f13; background: #fff4e9; }
+.severity-name.minor { color: #95700c; background: #fff9dc; }
+.severity-name.warning { color: #3564b4; background: #edf4ff; }
+.severity-name.indeterminate { color: #64748b; background: #f1f4f6; }
+.severity-track { height: 9px; overflow: hidden; border-radius: 9px; background: #e8edf1; }
+.severity-fill { display: block; height: 100%; border-radius: inherit; }
+.severity-fill.critical { background: #ef5350; }
+.severity-fill.major { background: #ff9f43; }
+.severity-fill.minor { background: #f2c94c; }
+.severity-fill.warning { background: #4b83e8; }
+.severity-fill.indeterminate { background: #94a3b8; }
+.severity-row strong { color: #38536a; font-size: 12px; font-weight: 600; text-align: right; }
+
+/* 告警状态分布：四种确认/清除组合统一使用横向比例条。 */
+.status-list { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 12px; padding: 16px; }
+.status-row { display: grid; grid-template-columns: 84px minmax(0, 1fr) 30px; align-items: center; gap: 8px; }
+.status-name { padding: 4px 5px; border-radius: 4px; font-size: 10px; text-align: center; white-space: nowrap; }
+.status-name.active { color: #b4232e; background: #fff0f1; }
+.status-name.cleared { color: #3564b4; background: #edf4ff; }
+.status-track { height: 8px; overflow: hidden; border-radius: 8px; background: #e8edf1; }
+.status-fill { display: block; height: 100%; border-radius: inherit; }
+.status-fill.active { background: linear-gradient(90deg, #ef5350, #ff9f43); }
+.status-fill.cleared { background: linear-gradient(90deg, #4b83e8, #17e96c); }
+.status-row strong { color: #38536a; font-size: 12px; font-weight: 600; text-align: right; }
+
+/* 设备告警覆盖率：显示比例和三个去重后的设备数量。 */
+.coverage-content { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 14px; padding: 16px; }
+.coverage-highlight { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.coverage-highlight strong { color: var(--analysis-blue); font-size: 28px; font-weight: 600; }
+.coverage-highlight span { color: #6f8190; font-size: 11px; }
+.coverage-track { height: 12px; overflow: hidden; border-radius: 12px; background: #e8edf1; }
+.coverage-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #195ce8, #17e96c); }
+.coverage-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; color: #738696; font-size: 10px; }
+.coverage-stats span { display: flex; flex-direction: column; gap: 4px; }
+.coverage-stats strong { color: #38536a; font-size: 15px; font-weight: 600; }
+
+/* 新增分析模块只消费现有站点和告警类型统计，不改变原有接口数据。 */
+.derived-summary-card { background: #eef6ff; }
+.derived-summary-card .summary-icon { background: #2f73d9; }
+.derived-summary-card .summary-values { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.analysis-side-grid { min-width: 0; }
+.type-ranking-list, .risk-site-list { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 9px; padding: 12px 16px; }
+.type-ranking-row, .risk-site-row { display: grid; align-items: center; gap: 8px; min-width: 0; }
+.type-ranking-row { grid-template-columns: 22px minmax(66px, .8fr) minmax(52px, 1fr) 32px; }
+.risk-site-row { grid-template-columns: 22px minmax(0, 1fr) 48px; }
+.type-rank, .risk-rank { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: #fff; background: #5e87b8; font-size: 10px; }
+.risk-rank { background: #df7b55; }
+.type-name, .risk-name { overflow: hidden; color: #526a7c; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.type-track { height: 8px; overflow: hidden; border-radius: 8px; background: #e7edf2; }
+.type-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #195ce8, #17e96c); }
+.type-ranking-row strong, .risk-site-row strong { color: #38536a; font-size: 11px; font-weight: 600; text-align: right; white-space: nowrap; }
+.analysis-empty { align-self: center; color: #8a9aa8; font-size: 11px; }
+.efficiency-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px 16px 4px; }
+.efficiency-summary div { padding: 9px 10px; border: 1px solid #dce7f0; background: #f5f9fc; }
+.efficiency-summary span { display: block; color: #778998; font-size: 10px; }
+.efficiency-summary strong { display: block; margin-top: 5px; color: #195ce8; font-size: 18px; font-weight: 600; }
+.focus-device-list { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; gap: 7px; overflow-y: auto; padding: 10px 12px; }
+.focus-device-row { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .9fr) auto; align-items: center; gap: 8px; min-height: 43px; padding: 7px 9px; border: 1px solid #f2d7d8; border-left: 3px solid #ef5350; background: #fff8f8; }
+.focus-device-main { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.focus-device-main strong, .focus-alarm-type, .focus-duration { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-device-main strong { color: #38536a; font-size: 11px; font-weight: 600; }
+.focus-device-main span, .focus-alarm-type { color: #7b8d9b; font-size: 10px; }
+.focus-alarm-type { color: #b4232e; }
+.focus-duration { color: #c65f13; font-size: 10px; font-weight: 600; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+button:focus-visible { outline: 2px solid var(--analysis-blue); outline-offset: 2px; }
+
+@media (max-width: 1280px) {
+  .summary-grid { gap: 10px; }
+  .summary-card { gap: 10px; padding: 11px; }
+  .summary-icon { width: 42px; height: 42px; flex-basis: 42px; }
+  .summary-values { gap: 7px; }
+  .summary-values strong { font-size: 18px; }
+  .analysis-grid { grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 10px; }
+}
+
+@media (max-width: 980px) {
+  .alarm-analysis-page { padding-left: 0; padding-right: 0; }
+  .analysis-grid { grid-template-columns: 1fr; }
+  .ranking-chart { height: 320px; }
+}
+
+@media (max-width: 640px) {
+  .alarm-analysis-page { padding-right: 0; }
+  .summary-grid { grid-template-columns: 1fr; }
+  .summary-card { min-height: 82px; }
+  .derived-summary-card .summary-values { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
+  .panel-heading { align-items: start; flex-direction: column; padding: 12px; }
+  .panel-heading.compact { min-height: auto; }
+  .ranking-tabs, .period-tabs { align-self: stretch; justify-content: center; }
+  .site-table-wrap { padding: 0 12px; }
+  .table-footer { padding: 10px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ranking-tabs button, .period-tabs button { transition: none; }
+}
+
+/* 页面外边界与主要模块之间统一使用同一间距。 */
+.alarm-analysis-page {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.summary-grid,
+.analysis-grid {
+  gap: var(--tb-smart-page-spacing);
+}
+
+.analysis-grid,
+.trend-panel {
+  margin-top: var(--tb-smart-page-spacing);
+}
+
+/* 笔记本密度适配：仅缩小排名卡片和表格内部内容，不改变左右区域及卡片位置。 */
+@media (max-width: 1366px) and (min-width: 981px) {
+  .summary-card { gap: 8px; padding: 9px; }
+  .summary-icon { width: 38px; height: 38px; flex-basis: 38px; }
+  .summary-values { gap: 5px; }
+  .summary-values strong { font-size: 16px; }
+  .panel-heading { min-height: 58px; padding-right: 12px; padding-left: 12px; }
+  .panel-heading h2 { font-size: 14px; }
+  .site-table-wrap { padding-right: 12px; padding-left: 12px; }
+  .site-table { font-size: 11px; }
+  .site-table th { height: 34px; }
+  .site-table td { height: 42px; }
+  .rate-cell { gap: 6px; padding-right: 7px; padding-left: 7px; }
+  .ranking-tabs button,
+  .period-tabs button { min-width: 42px; padding-right: 7px; padding-left: 7px; font-size: 10px; }
+  .ranking-chart { height: 330px; }
+  .trend-chart { height: 290px; }
+}
+
+/* 桌面端布局：左侧排行与趋势独立占列，右侧四个分析模块组成 2×2 网格。 */
+@media (min-width: 981px) {
+  /* 顶部三张周期卡与新增分析摘要卡保持同一行，避免第四张卡掉到下一行。 */
+  .summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .alarm-analysis-page {
+    /* 顶部工具栏约 64px；页面自身保留一份底部间距，避免内容区提前结束。 */
+    height: calc(100vh - 64px);
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: var(--tb-smart-page-spacing);
+  }
+
+  .analysis-content {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .analysis-grid {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1.28fr) minmax(360px, .92fr);
+    grid-template-rows: minmax(0, 1fr) minmax(220px, .64fr);
+  }
+
+  .site-panel {
+    display: flex;
+    min-height: 0;
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: column;
+  }
+
+  .analysis-grid > .trend-panel {
+    display: flex;
+    min-height: 0;
+    margin-top: 0;
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: column;
+  }
+
+  .analysis-side-grid {
+    display: grid;
+    min-height: 0;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(250px, 1fr) minmax(220px, 1fr);
+    gap: var(--tb-smart-page-spacing);
+  }
+
+  .analysis-side-grid .ranking-panel,
+  .analysis-side-grid .type-panel,
+  .analysis-side-grid .severity-panel,
+  .analysis-side-grid .status-panel,
+  .analysis-side-grid .coverage-panel,
+  .analysis-side-grid .efficiency-panel {
+    display: flex;
+    min-height: 0;
+    margin-top: 0;
+    flex-direction: column;
+  }
+
+  .analysis-side-grid .severity-panel { grid-column: 1; grid-row: 1; }
+  .analysis-side-grid .status-panel { grid-column: 2; grid-row: 1; }
+  .analysis-side-grid .coverage-panel { grid-column: 1; grid-row: 2; }
+  .analysis-side-grid .efficiency-panel { grid-column: 2; grid-row: 2; }
+
+  .trend-panel {
+    min-height: 0;
+  }
+
+  .site-table-wrap {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  .ranking-chart,
+  .trend-chart {
+    min-height: 0;
+    height: auto;
+    flex: 1 1 auto;
+  }
+
+  /* 右侧排行榜固定为 Top 5，图表高度按五条数据收紧，避免柱条过度分散。 */
+  .ranking-chart {
+    flex: 0 0 286px;
+    height: 286px;
+  }
+
+  .trend-chart { min-height: 0; flex: 1 1 auto; height: auto; }
+}
+
+/* 窄屏恢复单列自然高度，避免桌面端的固定高度造成内容被裁切。 */
+@media (max-width: 980px) {
+  .alarm-analysis-page {
+    height: auto;
+    min-height: calc(100vh - 96px);
+    overflow: visible;
+  }
+
+  .analysis-content {
+    height: auto;
+  }
+
+  .analysis-grid {
+    grid-template-rows: auto;
+  }
+
+  .analysis-side-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: var(--tb-smart-page-spacing);
+  }
+
+  .site-panel,
+  .ranking-panel,
+  .type-panel,
+  .trend-panel,
+  .severity-panel,
+  .status-panel,
+  .coverage-panel,
+  .efficiency-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .analysis-side-grid .ranking-panel,
+  .analysis-side-grid .type-panel,
+  .analysis-side-grid .severity-panel,
+  .analysis-side-grid .status-panel,
+  .analysis-side-grid .coverage-panel,
+  .analysis-side-grid .efficiency-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .trend-panel {
+    margin-top: 0;
+  }
+
+  .site-table-wrap {
+    flex: initial;
+  }
+
+  .ranking-chart {
+    height: 320px;
+  }
+
+  .trend-chart {
+    height: 260px;
+  }
+
+  .severity-list { min-height: 220px; }
+
+  .status-list { min-height: 220px; }
+
+  .coverage-content { min-height: 220px; }
+
+  .efficiency-panel { min-height: 230px; }
+}

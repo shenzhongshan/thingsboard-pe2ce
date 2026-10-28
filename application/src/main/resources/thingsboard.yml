@@ -1158,13 +1158,13 @@ state:
   # which is responsible for detection of the stale device connection sessions.
   # The value of the session inactivity timeout parameter should be greater or equal to the device inactivity timeout.
   # Note that the session inactivity timeout is set in milliseconds while device inactivity timeout is in seconds.
-  defaultInactivityTimeoutInSec: "${DEFAULT_INACTIVITY_TIMEOUT:600}"
+  defaultInactivityTimeoutInSec: "${DEFAULT_INACTIVITY_TIMEOUT:300}"
   defaultStateCheckIntervalInSec: "${DEFAULT_STATE_CHECK_INTERVAL:60}" # Interval for checking the device state after a specified period. Time in seconds
   # Controls whether we store the device 'active' flag in attributes (default) or telemetry.
   # If you decide to change this parameter, you should re-create the device info view as one of the following:
   # If 'persistToTelemetry' is changed from 'false' to 'true': 'CREATE OR REPLACE VIEW device_info_view AS SELECT * FROM device_info_active_ts_view;'
   # If 'persistToTelemetry' is changed from 'true' to 'false': 'CREATE OR REPLACE VIEW device_info_view AS SELECT * FROM device_info_active_attribute_view;'
-  persistToTelemetry: "${PERSIST_STATE_TO_TELEMETRY:false}"
+  persistToTelemetry: true
   # Millisecond value defining time-to-live for device state telemetry data (e.g. 'active', 'lastActivityTime').
   # Used only when state.persistToTelemetry is set to 'true' and Cassandra is used for timeseries data.
   # 0 means time-to-live mechanism is disabled.
@@ -2280,61 +2280,144 @@ event:
 tb:
   # 设备创建后自动初始化产品分类相关的服务器属性。
   product-category:
-    # 细分功能分类：用于区分 SPD、接地电阻、雷电流、故障电弧等功能。
-    by-device-type:
-      DESA: spd_monitor
-      DES4: spd_monitor
-      DES9: spd_monitor
-      DEM2: spd_monitor
-      DEM4: spd_monitor
-      DEA2: spd_monitor
-      DEA4: spd_monitor
-      ESM0: spd_monitor
-      ESM3: spd_monitor
-      G1A3: ground_resistance
-      M1AI: lightning_current
-      L2AI: lightning_current
-      LDH1: arc_fault
-      FAP1: arc_fault
+    # 每个型号只维护一份映射，手动创建设备时统一写入三个服务器属性。
+    # product-category 为一级分类，function-category 为稳定的细分功能标签。
+    products:
+      # 防雷产品
+      DES4:
+        function-category: spd_monitor
+        product-name: FS防雷监测模块（四要素）
+        product-category: lightning
+      DES9:
+        function-category: spd_monitor
+        product-name: FS防雷监测模块（九要素）
+        product-category: lightning
+      DESA:
+        function-category: spd_monitor
+        product-name: FS防雷监测模块（全要素）
+        product-category: lightning
+      DEP4:
+        function-category: spd_monitor
+        product-name: FSP防雷监测底座
+        product-category: lightning
+      G1A3:
+        function-category: ground_resistance
+        product-name: FR接地电阻监测模块
+        product-category: lightning
+      # 型号清单中的导轨式接地电阻监测仪，按接地电阻功能归入防雷分类。
+      G2A3:
+        function-category: ground_resistance
+        product-name: 导轨式接地电阻监测仪
+        product-category: lightning
+      M1AI:
+        function-category: lightning_current
+        product-name: FL雷电流监测模块
+        product-category: lightning
+      L2AI:
+        function-category: lightning_current
+        product-name: FL瞬态电流监测模块
+        product-category: lightning
+      DEM2:
+        function-category: spd_monitor
+        product-name: FSS智能型电涌保护器（单相无漏流）
+        product-category: lightning
+      DEM4:
+        function-category: spd_monitor
+        product-name: FSS智能型电涌保护器（三相无漏流）
+        product-category: lightning
+      DEA2:
+        function-category: spd_monitor
+        product-name: FSS智能型电涌保护器（单相全电流）
+        product-category: lightning
+      DEA4:
+        function-category: spd_monitor
+        product-name: FSS智能型电涌保护器（三相全电流）
+        product-category: lightning
+      ESM0:
+        function-category: spd_monitor
+        product-name: ESM防雷监测模组（基础版）
+        product-category: lightning
+      ESM3:
+        function-category: spd_monitor
+        product-name: ESM防雷监测模组（旗舰版）
+        product-category: lightning
+      # 电气安全二级分类统一为电气火灾、安全用电、电力质量和故障电弧四类。
+      LDH1:
+        function-category: arc_fault
+        product-name: FA故障电弧监测模块
+        product-category: electrical_safety
+      FAP1:
+        function-category: arc_fault
+        product-name: FAP故障电弧探测器（一体式）
+        product-category: electrical_safety
+      ESF1:
+        function-category: electrical_fire
+        product-name: ESF电气火灾监测模组
+        product-category: electrical_safety
+      E1T2:
+        function-category: electrical_fire
+        product-name: EST温度监测模组（有线测温）
+        product-category: electrical_safety
+      E2C3:
+        function-category: electrical_fire
+        product-name: ESC漏电监测模组
+        product-category: electrical_safety
+      E1I2:
+        function-category: safe_electricity
+        product-name: ESI输入监测模组
+        product-category: electrical_safety
+      CBP4:
+        function-category: safe_electricity
+        product-name: FECB智能断路器（4P）
+        product-category: electrical_safety
+      CBP3:
+        function-category: safe_electricity
+        product-name: FECB智能断路器（3P）
+        product-category: electrical_safety
+      CBP2:
+        function-category: safe_electricity
+        product-name: FECB智能断路器（2P）
+        product-category: electrical_safety
+      CBP1:
+        function-category: safe_electricity
+        product-name: FECB智能断路器（1P）
+        product-category: electrical_safety
+      LDA1:
+        function-category: safe_electricity
+        product-name: FD市电监测模块
+        product-category: electrical_safety
+      E1B2:
+        function-category: power_quality
+        product-name: ESB三相不平衡监测器
+        product-category: electrical_safety
+      # SFB 与 ESB 型号仍保持独立设备类型；三相不平衡统一归入电力质量分类。
+      SFB:
+        function-category: power_quality
+        product-name: SFB三相不平衡测控模组
+        product-category: electrical_safety
+      E1P1:
+        function-category: safe_electricity
+        product-name: ESP零地电压监测器
+        product-category: electrical_safety
+      E1E2:
+        function-category: power_quality
+        product-name: ESE电能质量监测器
+        product-category: electrical_safety
+      SFE:
+        function-category: power_quality
+        product-name: SFE电能质量监测器
+        product-category: electrical_safety
+      # 型号清单中的 SFA 三相智能测控模组，归入电气安全分类。
+      SFA:
+        function-category: electrical_fire
+        product-name: SFA三相智能测控模组
+        product-category: electrical_safety
 
-    # Device Profile 名称对应的中文产品名。
-    # 配置文件名称使用稳定的编码，不使用导入后可能变化的 UUID。
-    product-name-by-device-profile:
-      DESA: FS防雷监测模块（全要素）
-      DES4: FS防雷监测模块（四要素）
-      DES9: FS防雷监测模块（九要素）
-      DEM2: FSS智能型电涌保护器（单相无漏流）
-      DEM4: FSS智能型电涌保护器（三相无漏流）
-      DEA2: FSS智能型电涌保护器（单相全电流）
-      DEA4: FSS智能型电涌保护器（三相全电流）
-      ESM0: ESM防雷监测模组（基础版）
-      ESM3: ESM防雷监测模组（旗舰版）
-      G1A3: FR接地电阻监测模块
-      M1AI: FL雷电流峰值监测模块
-      L2AI: FL瞬态电流监测模块
-      LDH1: FA故障电弧监测模块
-      FAP1: FAP故障电弧探测器（一体式）
-
-    # 产品大类：用于一级业务分类，例如防雷产品、电气安全产品。
-    # 当前文档中的这些型号均属于防雷产品，属性值写入 productCategory。
-    product-family-by-device-profile:
-      DESA: lightning
-      DES4: lightning
-      DES9: lightning
-      DEM2: lightning
-      DEM4: lightning
-      DEA2: lightning
-      DEA4: lightning
-      ESM0: lightning
-      ESM3: lightning
-      G1A3: lightning
-      M1AI: lightning
-      L2AI: lightning
-      LDH1: lightning
-      FAP1: lightning
-
-
-
+      # 能源监管产品：目前仅 ESA 智能电表（E1A2）归入此类。
+      E1A2:
+        function-category: energy_meter
+        product-name: ESA智能电表
+        product-category: energy_regulation
 service:
   type: "${TB_SERVICE_TYPE:monolith}" # monolith or tb-core or tb-rule-engine
   # Unique id for this service (autogenerated if empty)

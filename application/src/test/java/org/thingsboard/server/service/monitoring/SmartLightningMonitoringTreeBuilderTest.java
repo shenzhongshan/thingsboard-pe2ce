@@ -20,8 +20,11 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.relation.EntityRelation;
+import org.thingsboard.server.service.monitoring.service.impl.SmartLightningMonitoringTreeBuilder;
+import org.thingsboard.server.service.query.VisibleAssetTree;
 
 import java.util.List;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +60,7 @@ class SmartLightningMonitoringTreeBuilderTest {
                 assertThat(building.name()).isEqualTo("1号楼");
                 assertThat(building.children()).singleElement().satisfies(cabinet -> {
                     assertThat(cabinet.name()).isEqualTo("配电柜 A");
-                    assertThat(cabinet.children()).extracting(SmartLightningMonitoringTreeBuilder.TreeNode::name)
+                    assertThat(cabinet.children()).extracting(VisibleAssetTree.Node::name)
                             .containsExactly("防雷终端 A-01");
                 });
             });
@@ -71,6 +74,18 @@ class SmartLightningMonitoringTreeBuilderTest {
         var tree = treeBuilder.build(List.of(
                 new SmartLightningMonitoringTreeBuilder.VisibleEntity(assetId, "客户可见资产", EntityType.ASSET)
         ), List.of(new EntityRelation(new AssetId(assetId), new DeviceId(hiddenDeviceId), "Contains")));
+
+        assertThat(tree.roots()).singleElement().satisfies(asset -> assertThat(asset.children()).isEmpty());
+    }
+
+    @Test
+    void ignoresNullRelationEndpointsBeforeSorting() {
+        UUID assetId = UUID.randomUUID();
+        EntityRelation relationWithoutEndpoints = new EntityRelation();
+
+        var tree = treeBuilder.build(List.of(
+                new SmartLightningMonitoringTreeBuilder.VisibleEntity(assetId, "资产", EntityType.ASSET)
+        ), Arrays.asList(null, relationWithoutEndpoints));
 
         assertThat(tree.roots()).singleElement().satisfies(asset -> assertThat(asset.children()).isEmpty());
     }

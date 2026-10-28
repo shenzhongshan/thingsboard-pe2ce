@@ -40,4 +40,10 @@ rebuild-docker.sh
 .claude
 .planning
 /tools
-/.vscode/settings.json
+/.vscode
+/.md
+.md
+*.md
+*.codebuddy
+application/src/test
+.codex

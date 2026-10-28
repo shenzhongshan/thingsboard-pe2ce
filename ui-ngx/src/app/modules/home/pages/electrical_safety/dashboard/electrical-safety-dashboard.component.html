@@ -1,0 +1,270 @@
+<!-- 文件职责：按防雷看板布局展示真实电气安全设备、告警与地图，并为尚未接入的工单保留展示区域。 -->
+<main class="electrical-safety-page" aria-label="电气安全看板">
+  <section class="dashboard-grid" aria-label="电气安全监测总览">
+    <article class="panel device-summary" [attr.aria-busy]="deviceOverviewLoading">
+      <header class="panel-title"><h2>设备信息</h2></header>
+      <div class="summary-content">
+        <div class="availability-ring"
+             [class.is-unavailable]="deviceOverview.onlineRate === null"
+             [style.--online-rate]="(deviceOverview.onlineRate ?? 0) + '%'"
+             [attr.aria-label]="'设备在线率 ' + (deviceOverview.onlineRate === null ? '--' : deviceOverview.onlineRate + '%')">
+          <div><span>在线率</span><strong>{{deviceOverview.onlineRate === null ? '--' : deviceOverview.onlineRate + '%'}}</strong></div>
+        </div>
+        <dl class="summary-metrics">
+          <div><dt>设备总数</dt><dd class="blue">{{deviceOverview.total ?? '--'}}</dd></div>
+          <div><dt>在线设备</dt><dd class="green">{{deviceOverview.online ?? '--'}}</dd></div>
+          <div><dt>离线设备</dt><dd class="amber">{{deviceOverview.offline ?? '--'}}</dd></div>
+          <div><dt>报警设备</dt><dd class="red">{{deviceOverview.alarm ?? '--'}}</dd></div>
+        </dl>
+      </div>
+      <p *ngIf="deviceOverviewLoadError" class="overview-error" role="status">设备信息加载失败</p>
+      <div class="ring-legend"><span><i class="online"></i>在线</span><span><i class="offline"></i>离线</span></div>
+    </article>
+
+    <article class="panel map-panel">
+      <header class="map-toolbar">
+        <span><tb-icon>location_on</tb-icon>电气安全设备分布</span>
+        <div class="map-toolbar-actions">
+          <span class="map-hint">{{isAddingMapPoint ? '点击地图选择设备坐标' : mapLoading ? '正在加载设备位置' : mapLoadError ? '设备信息加载失败' : '已定位 ' + mapDevices.length + ' / ' + mapDeviceContextCount + ' 台'}}</span>
+          <button type="button" class="map-add-point" [class.active]="isAddingMapPoint"
+                  [disabled]="mapLoading || !availableMapDevices.length" (click)="toggleMapPointMode()">
+            <tb-icon>{{isAddingMapPoint ? 'close' : 'add_location_alt'}}</tb-icon>
+            {{isAddingMapPoint ? '取消选点' : '添加点位'}}
+          </button>
+        </div>
+      </header>
+      <div class="map-container" aria-label="电气安全设备地图" [attr.aria-busy]="mapLoading">
+        <tb-smart-lightning-device-map
+          #deviceMap
+          [devices]="mapDevices"
+          [includeDevice]="includeElectricalSafetyDevice"
+          [addingPoint]="isAddingMapPoint"
+          [draftPoint]="pendingMapPoint"
+          (mapClick)="onMapClick($event)">
+        </tb-smart-lightning-device-map>
+        <div *ngIf="mapLoading" class="map-state" role="status">正在加载设备地图…</div>
+        <div *ngIf="!mapLoading && mapLoadError" class="map-state error" role="alert">设备地图加载失败</div>
+        <div *ngIf="!mapLoading && !mapLoadError && !mapDevices.length" class="map-state" role="status">
+          {{mapEmptyMessage}}
+        </div>
+      </div>
+      @if (pendingMapPoint) {
+        <div class="map-point-binding-panel" role="dialog" aria-label="绑定电气安全地图点位">
+          <div class="map-point-binding-title">绑定设备</div>
+          <div class="map-point-binding-coordinates">
+            纬度 {{pendingMapPoint.latitude}}，经度 {{pendingMapPoint.longitude}}
+          </div>
+          <select [value]="selectedMapDeviceId" (change)="selectMapDevice($event)" aria-label="选择电气安全设备">
+            <option value="">请选择设备</option>
+            @for (device of availableMapDevices; track device.deviceId) {
+              <option [value]="device.deviceId">{{device.deviceName}}</option>
+            }
+            @if (availableMapDevices.length === 0) {
+              <option value="" disabled>暂无未绑定设备</option>
+            }
+          </select>
+          @if (mapPointSaveError) {
+            <div class="map-point-binding-error" role="alert">{{mapPointSaveError}}</div>
+          }
+          <div class="map-point-binding-actions">
+            <button type="button" class="map-point-cancel" (click)="cancelMapPointBinding()">取消</button>
+            <button type="button" class="map-point-confirm"
+                    [disabled]="!selectedMapDeviceId || mapPointSaving" (click)="saveMapPointBinding()">
+              {{mapPointSaving ? '保存中…' : '绑定设备'}}
+            </button>
+          </div>
+        </div>
+      }
+    </article>
+
+    <!-- 测点来源和原始遥测键仅放在原生 title 悬浮提示中，一级卡面保留指标名称与数值。 -->
+    <section class="monitoring-stack" aria-label="电气安全分类监测">
+      <article *ngFor="let card of monitoringCards; trackBy: trackByCategory"
+               class="panel monitoring-card" [ngClass]="card.key + '-panel'">
+        <header class="panel-title category-title">
+          <span class="category-icon"><tb-icon>{{card.icon}}</tb-icon></span>
+          <h2>{{card.title}}</h2>
+          <tb-smart-lightning-period-switcher
+            [activePeriod]="alarmPeriods[card.key]"
+            [ariaLabel]="card.title + '告警数量统计时间窗口'"
+            (periodChange)="selectAlarmPeriod(card.key, $event)">
+          </tb-smart-lightning-period-switcher>
+        </header>
+
+        <ng-container *ngIf="card.key === 'fire'; else nonFireMonitoringCard">
+          <div class="fire-card-content">
+            <section class="fire-device-strip" aria-label="火灾监测设备概况">
+              <div class="fire-device-stat">
+                <span class="label">设备总数</span>
+                <strong class="value blue">{{card.totalCount ?? '--'}}</strong>
+              </div>
+              <div class="fire-device-stat online">
+                <span class="label">在线</span>
+                <strong class="value green">{{card.onlineCount ?? '--'}}</strong>
+              </div>
+              <div class="fire-device-stat offline">
+                <span class="label">离线</span>
+                <strong class="value purple">{{card.offlineCount ?? '--'}}</strong>
+              </div>
+            </section>
+
+            <div class="category-highlight-row">
+              <div class="category-alarm-box" [attr.aria-busy]="alarmStatisticsLoading[card.key]">
+                <span class="label">{{getAlarmPeriodLabel(card.key)}}告警</span>
+                <strong class="value red">{{card.alarmEventCount ?? '--'}}<small>次</small></strong>
+                <span *ngIf="alarmStatisticsLoadError[card.key]" class="alarm-stat-error" role="status">统计读取失败</span>
+              </div>
+              <dl class="fire-measurement-grid" aria-label="火灾监测关键测点">
+                <div class="fire-measurement">
+                  <dt>最高温度</dt>
+                  <dd>
+                    <strong [attr.title]="fireRiskMeasurements.highestTemperature.value !== null
+                              ? formatFireRiskMetricTooltip('最高温度', fireRiskMeasurements.highestTemperature) : null"
+                            [attr.tabindex]="fireRiskMeasurements.highestTemperature.value !== null ? 0 : null"
+                            [class.has-source-tooltip]="fireRiskMeasurements.highestTemperature.value !== null">
+                      {{fireRiskMeasurements.highestTemperature.value ?? '--'}}
+                    </strong>
+                    <span *ngIf="fireRiskMeasurements.highestTemperature.unit">{{fireRiskMeasurements.highestTemperature.unit}}</span>
+                  </dd>
+                </div>
+                <div class="fire-measurement">
+                  <dt>最大剩余电流</dt>
+                  <dd>
+                    <strong [attr.title]="fireRiskMeasurements.residualCurrentMax.value !== null
+                              ? formatFireRiskMetricTooltip('最大剩余电流', fireRiskMeasurements.residualCurrentMax) : null"
+                            [attr.tabindex]="fireRiskMeasurements.residualCurrentMax.value !== null ? 0 : null"
+                            [class.has-source-tooltip]="fireRiskMeasurements.residualCurrentMax.value !== null">
+                      {{fireRiskMeasurements.residualCurrentMax.value ?? '--'}}
+                    </strong>
+                    <span *ngIf="fireRiskMeasurements.residualCurrentMax.unit">{{fireRiskMeasurements.residualCurrentMax.unit}}</span>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-template #nonFireMonitoringCard>
+          <ng-container *ngIf="card.key === 'arc-fault'; else standardMonitoringCard">
+            <div class="arc-fault-card-content">
+              <section class="fire-device-strip" aria-label="故障电弧设备概况">
+                <div class="fire-device-stat">
+                  <span class="label">设备总数</span>
+                  <strong class="value blue">{{card.totalCount ?? '--'}}</strong>
+                </div>
+                <div class="fire-device-stat online">
+                  <span class="label">在线</span>
+                  <strong class="value green">{{card.onlineCount ?? '--'}}</strong>
+                </div>
+                <div class="fire-device-stat offline">
+                  <span class="label">离线</span>
+                  <strong class="value purple">{{card.offlineCount ?? '--'}}</strong>
+                </div>
+              </section>
+              <div class="category-highlight-row">
+                <div class="category-alarm-box" [attr.aria-busy]="alarmStatisticsLoading[card.key]">
+                  <span class="label">{{getAlarmPeriodLabel(card.key)}}告警</span>
+                  <strong class="value red">{{card.alarmEventCount ?? '--'}}<small>次</small></strong>
+                  <span *ngIf="alarmStatisticsLoadError[card.key]" class="alarm-stat-error" role="status">统计读取失败</span>
+                </div>
+                <dl class="arc-fault-metrics" aria-label="故障电弧关键指标">
+                  <div>
+                    <dt>设备状态</dt>
+                    <dd class="arc-status-value" [attr.title]="card.arcFaultStatusTooltip" tabindex="0">
+                      <span class="green">正常 {{card.arcFaultNormalStatusCount ?? '--'}}</span>
+                      <span class="red">异常 {{card.arcFaultAbnormalStatusCount ?? '--'}}</span>
+                    </dd>
+                  </div>
+                  <div class="latest-report">
+                    <dt>最近上报</dt>
+                    <dd [attr.title]="card.latestArcFaultReportTooltip"
+                        [attr.tabindex]="card.latestArcFaultReportTooltip ? 0 : null"
+                        [class.has-source-tooltip]="!!card.latestArcFaultReportTooltip">
+                      {{formatElectricalSafetyActivityTime(card.latestArcFaultReportTime)}}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </ng-container>
+        </ng-template>
+
+        <ng-template #standardMonitoringCard>
+          <div class="category-card-content">
+            <section class="fire-device-strip" [attr.aria-label]="card.title + '设备概况'">
+              <div class="fire-device-stat">
+                <span class="label">设备总数</span>
+                <strong class="value blue">{{card.totalCount ?? '--'}}</strong>
+              </div>
+              <div class="fire-device-stat online">
+                <span class="label">在线</span>
+                <strong class="value green">{{card.onlineCount ?? '--'}}</strong>
+              </div>
+              <div class="fire-device-stat offline">
+                <span class="label">离线</span>
+                <strong class="value purple">{{card.offlineCount ?? '--'}}</strong>
+              </div>
+            </section>
+            <div class="category-highlight-row">
+              <div class="category-alarm-box" [attr.aria-busy]="alarmStatisticsLoading[card.key]">
+                <span class="label">{{getAlarmPeriodLabel(card.key)}}告警</span>
+                <strong class="value red">{{card.alarmEventCount ?? '--'}}<small>次</small></strong>
+                <span *ngIf="alarmStatisticsLoadError[card.key]" class="alarm-stat-error" role="status">统计读取失败</span>
+              </div>
+              <dl class="fire-measurement-grid" [attr.aria-label]="card.title + '关键测点'">
+                @for (measurement of card.measurements; track measurement.key) {
+                  <div class="fire-measurement">
+                    <dt>{{measurement.label}}</dt>
+                    <dd>
+                      <strong [attr.title]="measurement.tooltip"
+                              [attr.tabindex]="measurement.value !== null ? 0 : null"
+                              [class.has-source-tooltip]="measurement.value !== null">
+                        {{measurement.value ?? '--'}}
+                      </strong>
+                      <span *ngIf="measurement.value !== null && measurement.unit">{{measurement.unit}}</span>
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </div>
+          </div>
+        </ng-template>
+      </article>
+    </section>
+
+    <tb-device-alarm-information-chart
+      class="panel chart-panel alarm-panel"
+      [items]="alarmInformationItems"
+      [loading]="alarmInformationLoading"
+      [loadError]="alarmInformationLoadError"
+      emptyMessage="当前没有未清除告警">
+      <span alarm-information-actions class="period-readout">当前未清除</span>
+    </tb-device-alarm-information-chart>
+
+    <article class="panel chart-panel orders-panel">
+      <header class="panel-title">
+        <h2>运维工单</h2>
+      </header>
+      <div class="order-chart-wrap">
+        <div class="order-empty-state" role="status">
+          <tb-icon aria-hidden="true">assignment</tb-icon>
+          <span>工单数据暂未接入</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel records-panel">
+      <header class="panel-title">
+        <h2>告警记录</h2>
+      </header>
+      <tb-device-alarm-records
+        [alarms]="alarmRecords"
+        [loading]="alarmsLoading"
+        [loadError]="alarmsLoadError"
+        [columns]="alarmRecordColumns"
+        tableLabel="电气安全告警记录"
+        (retry)="retryLatestAlarms()">
+      </tb-device-alarm-records>
+    </article>
+  </section>
+</main>

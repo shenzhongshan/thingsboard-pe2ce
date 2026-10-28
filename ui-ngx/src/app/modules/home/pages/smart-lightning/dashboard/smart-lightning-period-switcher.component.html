@@ -1,4 +1,6 @@
-<nav class="period-switcher" aria-label="图表时间范围">
+<!-- 文件职责：看板模块的 smart-lightning-period-switcher.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!-- 日/周/月三段切换按钮；activePeriod 由宿主传入，点击派发 periodChange。 -->
+<nav class="period-switcher" [attr.aria-label]="ariaLabel">
   @for (period of periods; track period.value) {
     <button type="button" [class.active]="activePeriod === period.value" (click)="select(period.value)"
             [attr.aria-pressed]="activePeriod === period.value" [attr.aria-label]="'切换至' + period.label + '视图'">

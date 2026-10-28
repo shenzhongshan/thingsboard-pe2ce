@@ -39,7 +39,7 @@ public class ThingsboardServerApplication {
 
     private static long startTs;
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         startTs = System.currentTimeMillis();
         SpringApplication.run(ThingsboardServerApplication.class, updateArguments(args));
     }

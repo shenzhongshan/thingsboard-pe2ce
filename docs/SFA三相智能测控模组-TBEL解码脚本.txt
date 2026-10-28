@@ -1,0 +1,162 @@
+/*
+ * SFA 三相智能测控模组独立上行解码器（ThingsBoard TBEL）。
+ *
+ * 输入结构：
+ * {
+ *   "payload": {"PhAVolt": "185.5", "lon": "N/A", "lat": "N/A"},
+ *   "client": "KSDSFAD261014002,/SFAD"
+ * }
+ *
+ * 注意：实际交给解码器的 MQTT payload 必须是有效 JSON，client 值必须带双引号；
+ * 日志文本中未加引号的显示形式不能直接由 decodeToJson 解析。
+ * 仅处理 client 末尾为 AD 或 A8 的设备。
+ * 完整 client 字符串（包含逗号及其后内容）作为设备名；型号取 KSD 后的三个字符。
+ * payload 中的遥测键依据 SFA 字段映射表的“后端规范键”转换。
+ */
+var json = decodeToJson(payload);
+
+if (json == null || json.payload == null || json.client == null) {
+    // 缺少设备标识或测点对象时无法生成合法的上行数据。
+    return null;
+}
+
+var rawClient = json.client;
+if (rawClient.length < 2) {
+    return null;
+}
+
+var clientSuffix = rawClient.substring(rawClient.length - 2);
+if (clientSuffix != "AD" && clientSuffix != "A8") {
+    // 只接收 client 末尾为 AD 或 A8 的设备，其它设备不进入此解码器。
+    return null;
+}
+
+// 逗号后的内容也是设备名称的一部分，因此保留完整 client 字符串。
+var deviceName = rawClient;
+
+if (deviceName.length < 6 || deviceName.substring(0, 3) != "KSD") {
+    // SFA 设备编号至少包含 KSD 前缀和三位型号。
+    return null;
+}
+
+var deviceType = deviceName.substring(3, 6);
+
+if (deviceType != "SFA") {
+    // 此独立解码器只接收型号为 SFA 的设备。
+    return null;
+}
+
+var data = json.payload;
+var telemetry = {};
+var attributes = {
+    // 产品元数据与 application/src/main/resources/thingsboard.yml 中的 SFA 配置一致。
+    "productCategory": "electrical_safety",
+    "functionCategory": "electrical_fire",
+    "productName": "SFA三相智能测控模组"
+};
+
+/*
+ * SFA 字段表中的后端规范键映射。
+ * 同名字段保持原键；总量别名和三相电流矢量和按表转换。
+ * 表中记录的功率及剩余电流单位差异尚未确认，因此这里只转换键名和数值类型，
+ * 不对测量值进行比例或单位换算。
+ */
+var pointMap = {
+    "PhAVolt": "PhAVolt",
+    "PhBVolt": "PhBVolt",
+    "PhCVolt": "PhCVolt",
+    "LineVoltAB": "LineVoltAB",
+    "LineVoltBC": "LineVoltBC",
+    "LineVoltCA": "LineVoltCA",
+    "Freq": "Freq",
+    "PhACurr": "PhACurr",
+    "PhBCurr": "PhBCurr",
+    "PhCCurr": "PhCCurr",
+    "ZeroSeqCurr": "CurrVecSum",
+    "ResCurr": "ResCurr",
+    "ActPwrA": "ActPwrA",
+    "ActPwrB": "ActPwrB",
+    "ActPwrC": "ActPwrC",
+    "ActPwrTot": "ActPwrTot",
+    "RctPwrA": "RctPwrA",
+    "RctPwrB": "RctPwrB",
+    "RctPwrC": "RctPwrC",
+    "RctPwrTot": "RctPwrTot",
+    "AppPwrA": "AppPwrA",
+    "AppPwrB": "AppPwrB",
+    "AppPwrC": "AppPwrC",
+    "AppPwrTot": "AppPwrTot",
+    "PwrFactA": "PwrFactA",
+    "PwrFactB": "PwrFactB",
+    "PwrFactC": "PwrFactC",
+    "PwrFactTot": "PwrFactT",
+    "FwdActEA": "FwdActEA",
+    "FwdActEB": "FwdActEB",
+    "FwdActEC": "FwdActEC",
+    "FwdActETot": "FwdActET",
+    "RevRctEA": "RevRctEA",
+    "RevRctEB": "RevRctEB",
+    "RevRctEC": "RevRctEC",
+    "RevRctETot": "RevRctET",
+    "FwdRctEA": "FwdRctEA",
+    "FwdRctEB": "FwdRctEB",
+    "FwdRctEC": "FwdRctEC",
+    "FwdRctETot": "FwdRctET"
+};
+
+foreach (entry : data.entrySet()) {
+    var sourceKey = entry.getKey();
+    var sourceValue = entry.getValue();
+
+    // 坐标单独写入服务器属性，不作为普通遥测；N/A、空值和 null 不写入。
+    if (sourceKey != "lon" && sourceKey != "lat" && sourceValue != null) {
+        var targetKey = pointMap[sourceKey];
+
+        if (targetKey == null) {
+            // 未在 SFA 字段表中列出的业务字段保留原键和值，不猜测映射。
+            telemetry[sourceKey] = sourceValue;
+        } else if (sourceValue == "" || sourceValue == "N/A") {
+            // 异常占位值保留原文，避免转换失败或静默丢失。
+            telemetry[targetKey] = sourceValue;
+        } else {
+            // 遥测样本以数字字符串上报，转换为数值以便 ThingsBoard 数值查询和图表使用。
+            telemetry[targetKey] = parseDouble(sourceValue);
+        }
+    }
+}
+
+var rawLongitude = data.lon;
+if (rawLongitude != null && rawLongitude != "" && rawLongitude != "N/A" && rawLongitude.length > 1) {
+    var longitudeDirection = rawLongitude.substring(0, 1);
+    if (longitudeDirection == "E" || longitudeDirection == "W") {
+        var longitudeValue = parseDouble(rawLongitude.substring(1));
+        if (longitudeDirection == "W") {
+            longitudeValue = 0.0 - longitudeValue;
+        }
+        attributes["longitude"] = longitudeValue;
+    }
+}
+
+var rawLatitude = data.lat;
+if (rawLatitude != null && rawLatitude != "" && rawLatitude != "N/A" && rawLatitude.length > 1) {
+    var latitudeDirection = rawLatitude.substring(0, 1);
+    if (latitudeDirection == "N" || latitudeDirection == "S") {
+        var latitudeValue = parseDouble(rawLatitude.substring(1));
+        if (latitudeDirection == "S") {
+            latitudeValue = 0.0 - latitudeValue;
+        }
+        attributes["latitude"] = latitudeValue;
+    }
+}
+
+if (telemetry.size() == 0) {
+    // 只有坐标属性、没有遥测测点时不提交空遥测对象。
+    return null;
+}
+
+return {
+    "deviceName": deviceName,
+    "deviceType": deviceType,
+    "telemetry": telemetry,
+    "attributes": attributes
+};

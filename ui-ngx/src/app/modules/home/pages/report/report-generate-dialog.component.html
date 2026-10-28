@@ -1,0 +1,60 @@
+<!-- 文件职责：独立报表生成弹窗的结构与交互。 -->
+<div class="tb-report-dialog">
+  <header class="tb-report-dialog-header">
+    <div class="tb-report-dialog-icon"><mat-icon>insert_chart</mat-icon></div>
+    <div>
+      <h2>{{ 'report.generate-report' | translate }}</h2>
+      <p>{{ 'report.report-template' | translate }}</p>
+    </div>
+    <button mat-icon-button type="button" class="tb-report-dialog-close"
+            (click)="cancel()" [attr.aria-label]="'action.close' | translate">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  <div class="tb-report-dialog-content">
+    <form [formGroup]="form" (ngSubmit)="generate()">
+      <mat-form-field appearance="outline" class="tb-report-dialog-field">
+        <mat-label translate>report.report-template</mat-label>
+        <mat-select formControlName="reportTemplateId" required>
+          @if (loadingTemplates) {
+            <mat-option disabled translate>common.loading</mat-option>
+          }
+          @for (template of templates; track template.id.id) {
+            <mat-option [value]="template.id.id">{{ template.name }}</mat-option>
+          }
+          @if (!loadingTemplates && !templates.length) {
+            <mat-option disabled translate>report.no-report-templates-text</mat-option>
+          }
+        </mat-select>
+        @if (form.get('reportTemplateId').hasError('required') && form.get('reportTemplateId').touched) {
+          <mat-error translate>report.report-template-required</mat-error>
+        }
+      </mat-form-field>
+
+      <tb-timezone-select formControlName="timezone" required></tb-timezone-select>
+
+      <div class="tb-report-dialog-hint">
+        <mat-icon>info_outline</mat-icon>
+        <span>{{ 'report.generate-report' | translate }}</span>
+      </div>
+
+      <footer class="tb-report-dialog-actions">
+        <button mat-stroked-button type="button" (click)="cancel()" [disabled]="generating">
+          {{ 'action.cancel' | translate }}
+        </button>
+        <button mat-flat-button class="tb-report-dialog-submit" type="submit"
+                [disabled]="generating || loadingTemplates">
+          @if (generating) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            <span class="tb-report-dialog-submit-label">
+              <mat-icon>play_arrow</mat-icon>
+              {{ 'report.generate' | translate }}
+            </span>
+          }
+        </button>
+      </footer>
+    </form>
+  </div>
+</div>

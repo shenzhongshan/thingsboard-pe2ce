@@ -31,6 +31,7 @@ import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.ReportTemplateId;
+import org.thingsboard.server.common.data.security.Authority;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.report.ReportTemplate;
@@ -61,7 +62,8 @@ public class ReportTemplateController extends BaseController {
     private final ReportTemplateService reportTemplateService;
 
     @ApiOperation(value = "Get Report Template (getReportTemplateById)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    // 客户用户可以读取本客户或租户公共模板，但不能通过此接口修改模板。
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/reportTemplate/{reportTemplateId}"})
     public ReportTemplate getReportTemplateById(
             @Parameter(description = "A string value representing the report template id", required = true)
@@ -73,6 +75,7 @@ public class ReportTemplateController extends BaseController {
     }
 
     @ApiOperation(value = "Save Report Template (saveReportTemplate)")
+    // 模板创建和编辑仍然只允许租户管理员，客户用户仅能读取模板。
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @PostMapping(value = {"/reportTemplate"})
     public ReportTemplate saveReportTemplate(
@@ -87,7 +90,8 @@ public class ReportTemplateController extends BaseController {
     }
 
     @ApiOperation(value = "Get Report Template Infos (getReportTemplateInfos)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    // 客户用户可读取自己的模板和租户公共模板；模板写入仍只允许租户管理员。
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/reportTemplate/infos"}, params = {"pageSize", "page"})
     public PageData<ReportTemplateInfo> getReportTemplateInfos(
             @Parameter(description = PAGE_SIZE_DESCRIPTION, required = true) @RequestParam int pageSize,
@@ -103,6 +107,14 @@ public class ReportTemplateController extends BaseController {
         accessControlService.checkPermission(getCurrentUser(), Resource.REPORT_TEMPLATE, Operation.READ);
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         CustomerId customerIdFilter = customerId != null ? new CustomerId(toUUID(customerId)) : null;
+        if (Authority.CUSTOMER_USER.equals(getCurrentUser().getAuthority())) {
+            // 正常客户用户一定关联客户；缺少客户归属时返回空结果，避免把租户模板泄露给孤立账号。
+            if (getCurrentUser().getCustomerId() == null || getCurrentUser().getCustomerId().isNullUid()) {
+                return new PageData<>(java.util.List.of(), 0, 0, false);
+            }
+            return reportTemplateService.findReportTemplateInfosForCustomer(
+                    getTenantId(), getCurrentUser().getCustomerId(), pageLink);
+        }
         return reportTemplateService.findReportTemplateInfos(getTenantId(), customerIdFilter, pageLink);
     }
 
@@ -124,6 +136,13 @@ public class ReportTemplateController extends BaseController {
         if (!getCurrentUser().getTenantId().equals(reportTemplate.getTenantId())) {
             throw new ThingsboardException("You don't have permission to perform this operation!",
                     ThingsboardErrorCode.PERMISSION_DENIED);
+        }
+        // 客户用户只能读取当前客户的模板，避免通过模板详情接口越权读取其他客户配置。
+        if (Authority.CUSTOMER_USER.equals(getCurrentUser().getAuthority())
+                && reportTemplate.getCustomerId() != null
+                && (getCurrentUser().getCustomerId() == null
+                || !getCurrentUser().getCustomerId().equals(reportTemplate.getCustomerId()))) {
+            throw new ThingsboardException("你无权访问其他客户的报告模板!", ThingsboardErrorCode.PERMISSION_DENIED);
         }
         return reportTemplate;
     }

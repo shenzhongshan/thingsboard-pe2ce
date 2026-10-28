@@ -46,6 +46,14 @@ public interface ReportTemplateRepository extends JpaRepository<ReportTemplateEn
                                                             @Param("searchText") String searchText,
                                                             Pageable pageable);
 
+    @Query("SELECT t FROM ReportTemplateEntity t WHERE t.tenantId = :tenantId " +
+            "AND (t.customerId = :customerId OR t.customerId IS NULL) " +
+            "AND (:searchText IS NULL OR ilike(t.name, CONCAT('%', :searchText, '%')) = true)")
+    Page<ReportTemplateEntity> findByTenantIdAndCustomerIdOrPublic(@Param("tenantId") UUID tenantId,
+                                                                    @Param("customerId") UUID customerId,
+                                                                    @Param("searchText") String searchText,
+                                                                    Pageable pageable);
+
     @Query("SELECT t.id FROM ReportTemplateEntity t WHERE t.tenantId = :tenantId")
     List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
 

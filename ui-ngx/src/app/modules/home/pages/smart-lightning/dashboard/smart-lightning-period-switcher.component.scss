@@ -1,3 +1,5 @@
+/* 文件职责：看板模块的 smart-lightning-period-switcher.component，负责页面局部布局、响应式与视觉样式。 */
+/* 周期切换按钮条样式：三段式小按钮，选中态使用主题蓝色。 */
 :host { display: inline-flex; }
 
 .period-switcher {

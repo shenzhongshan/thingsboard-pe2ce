@@ -147,10 +147,25 @@ export interface SingleEntityFilter {
   singleEntity: AliasEntityId;
 }
 
+// Device-group scope, mapped 1:1 onto PE's EntityGroupFilter (backend EntityFilter
+// @JsonSubTypes name "entityGroup"; fields groupType/entityGroup verified against
+// common/data/.../query/EntityGroupFilter.java). The group is stored by UUID so group
+// renames don't break templates. The engine resolves the group's owner from the
+// generating user's context (ReportQueryUtils.buildAliasBasedFilter), so no ownerId here.
+// The engine renders group-scoped tables by paging through every member entity
+// (AbstractReportService.fetchEntityDataByQuery, PageDataIterable, 1024/page).
+export interface EntityGroupFilter {
+  type: 'entityGroup';
+  groupType: 'DEVICE';
+  entityGroup: string;
+}
+
+export type ReportEntityFilter = SingleEntityFilter | EntityGroupFilter;
+
 export interface EntityAlias {
   id: string;
   alias: string;
-  filter: SingleEntityFilter;
+  filter: ReportEntityFilter;
 }
 
 export interface DataKey {
@@ -325,7 +340,9 @@ export function buildDataSource(entityId: EntityId, aliasId: string,
   return { type: 'entity', entityAliasId: aliasId };
 }
 
-/** Reverses buildDataSource: resolves a DataSource back to the entity the UI should show as picked. */
+/** Reverses buildDataSource: resolves a DataSource back to the entity the UI should show as picked.
+ *  Group-scoped aliases resolve to null (there is no single backing entity; the editor's group
+ *  dropdown reads the uuid straight off the filter instead). */
 export function resolveDataSourceEntity(ds: DataSource, aliases: EntityAlias[]): EntityId {
   if (!ds) {
     return null;
@@ -334,8 +351,13 @@ export function resolveDataSourceEntity(ds: DataSource, aliases: EntityAlias[]):
     return ds.deviceId ? { entityType: 'DEVICE', id: ds.deviceId } as EntityId : null;
   }
   const alias = (aliases || []).find((a) => a.id === ds.entityAliasId);
-  const target = alias?.filter?.singleEntity;
+  const target = alias?.filter?.type === 'singleEntity' ? alias.filter.singleEntity : undefined;
   return target ? { entityType: target.entityType, id: target.id } as EntityId : null;
+}
+
+/** Builds the alias filter for a device-group-scoped component row. */
+export function toEntityGroupFilter(groupId: string): EntityGroupFilter {
+  return { type: 'entityGroup', groupType: 'DEVICE', entityGroup: groupId };
 }
 
 /**

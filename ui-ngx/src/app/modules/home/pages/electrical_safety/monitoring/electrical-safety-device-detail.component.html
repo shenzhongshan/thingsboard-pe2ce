@@ -1,0 +1,185 @@
+<!-- 文件职责：沿用防雷详情页的资产树、摘要、实时数据、趋势图和告警布局。 -->
+<main class="device-detail-page" aria-label="电气安全设备详情">
+  <aside class="asset-panel">
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="true"
+      [showUnselectedAlarmMarkers]="true"
+      [selectableIds]="selectableAssetIds"
+      searchPlaceholder="搜索资产名称"
+      treeAriaLabel="电气安全资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
+  </aside>
+
+  <section class="detail-content">
+    @if (deviceLoading) {
+      <section class="surface detail-page-state" role="status">正在读取设备详情…</section>
+    } @else if (deviceLoadError) {
+      <section class="surface detail-page-state error" role="alert">未找到当前可访问的电气安全设备</section>
+    } @else {
+      <section class="detail-grid">
+        <article class="surface device-summary">
+          <div class="summary-top">
+            <div class="device-mark"><tb-icon>electric_meter</tb-icon></div>
+            <div class="summary-identity">
+              <strong [title]="deviceName">{{deviceName}}</strong>
+              <span [title]="productName">{{productName}}</span>
+              <span class="summary-connection" [class.offline]="!deviceActive">{{deviceActive ? '在线' : '离线'}}</span>
+            </div>
+          </div>
+          <dl class="device-fields">
+            <div><dt>设备名称</dt><dd [title]="deviceName">{{deviceName}}</dd></div>
+            <div><dt>设备位置</dt><dd [title]="deviceLocation">{{deviceLocation}}</dd></div>
+            <div><dt>产品名称</dt><dd [title]="productName">{{productName}}</dd></div>
+            <div><dt>产品型号</dt><dd [title]="deviceModel">{{deviceModel}}</dd></div>
+            <div><dt>设备协议</dt><dd [title]="deviceProtocol">{{deviceProtocol}}</dd></div>
+            <div><dt>最近活跃</dt><dd [title]="lastActivityTime">{{lastActivityTime}}</dd></div>
+          </dl>
+        </article>
+
+        <article class="surface realtime-panel">
+          <header><h2>实时数据</h2><time>{{realtimeUpdatedAt}}</time></header>
+          @if (telemetryLoading && !metrics.length) {
+            <div class="detail-inline-state" role="status">正在读取设备遥测…</div>
+          } @else if (telemetryLoadError) {
+            <div class="detail-inline-state error" role="alert">实时数据读取失败</div>
+          } @else if (!metrics.length) {
+            <div class="detail-inline-state" role="status">当前设备暂无遥测数据</div>
+          } @else {
+            <div class="metric-grid">
+              @for (metric of metrics; track metric.key) {
+                <div class="metric" [title]="metric.key">
+                  <span [title]="metric.label">{{metric.label}}</span>
+                  <!-- 数值和单位作为整体适配可用宽度，遥测更新与窗口缩放后均重新测量。 -->
+                  <strong class="metric-value"
+                          [tbTelemetryFitValue]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')"
+                          [title]="metric.value + (metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : '')">{{metric.value}}{{metric.unit && metric.unit !== '无' && metric.value !== '--' ? ' ' + metric.unit : ''}}</strong>
+                </div>
+              }
+            </div>
+          }
+        </article>
+
+        <!-- 主区域只放前四张真实数值趋势图；其余图卡通过“更多参数”查看。 -->
+        @if (!showAllChartsDialog) {
+          <section class="chart-grid" aria-label="设备趋势图">
+            @if (allChartDefinitions.length > chartDefinitions.length) {
+              <div class="chart-grid-toolbar">
+                <button type="button" class="chart-more-button" (click)="openAllChartsDialog()">更多参数</button>
+              </div>
+            }
+            @if (telemetryLoading && !chartDefinitions.length) {
+              <div class="chart-state" role="status">正在读取设备遥测参数…</div>
+            } @else if (telemetryLoadError) {
+              <div class="chart-state error" role="alert">趋势参数读取失败</div>
+            } @else if (!chartDefinitions.length) {
+              <div class="chart-state" role="status">当前设备暂无可绘制的数值遥测</div>
+            } @else {
+              @for (chart of chartDefinitions; track chart.id) {
+                <article #chartCard class="surface chart-card"
+                         [class.chart-card-fullscreen]="fullscreenChartCard === chartCard"
+                         [attr.data-chart-card]="chart.id">
+                  <header>
+                    <h2>{{chart.title}}</h2>
+                    <div class="chart-header-actions">
+                      <button type="button" class="chart-fullscreen-button"
+                              [attr.aria-label]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              [attr.title]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              (click)="toggleChartFullscreen(chartCard)">
+                        <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
+                      </button>
+                      <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                        @for (period of chartPeriodOptions; track period.value) {
+                          <button type="button" [class.active]="selectedChartPeriods[chart.id] === period.value"
+                                  [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                                  (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                        }
+                      </div>
+                    </div>
+                  </header>
+                  <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                </article>
+              }
+            }
+          </section>
+        }
+      </section>
+
+      @if (showAllChartsDialog) {
+        <div class="chart-dialog-backdrop" role="presentation" (click)="closeAllChartsDialog()">
+          <section class="chart-dialog" role="dialog" aria-modal="true" aria-labelledby="electrical-safety-all-charts-title"
+                   (click)="$event.stopPropagation()">
+            <header class="chart-dialog-header">
+              <h2 id="electrical-safety-all-charts-title">全部参数趋势</h2>
+              <button type="button" class="chart-dialog-close" aria-label="关闭更多参数"
+                      (click)="closeAllChartsDialog()">×</button>
+            </header>
+            <div class="chart-dialog-grid">
+              @for (chart of allChartDefinitions; track chart.id) {
+                <article #chartCard class="surface chart-card"
+                         [class.chart-card-fullscreen]="fullscreenChartCard === chartCard"
+                         [attr.data-chart-card]="chart.id">
+                  <header>
+                    <h2>{{chart.title}}</h2>
+                    <div class="chart-header-actions">
+                      <button type="button" class="chart-fullscreen-button"
+                              [attr.aria-label]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              [attr.title]="fullscreenChartCard === chartCard ? '退出全屏' : '全屏显示'"
+                              (click)="toggleChartFullscreen(chartCard)">
+                        <tb-icon>{{fullscreenChartCard === chartCard ? 'fullscreen_exit' : 'fullscreen'}}</tb-icon>
+                      </button>
+                      <div class="chart-period-tabs" role="group" [attr.aria-label]="chart.title + '时间范围'">
+                        @for (period of chartPeriodOptions; track period.value) {
+                          <button type="button" [class.active]="selectedChartPeriods[chart.id] === period.value"
+                                  [attr.aria-pressed]="selectedChartPeriods[chart.id] === period.value"
+                                  (click)="setChartPeriod(chart.id, period.value)">{{period.label}}</button>
+                        }
+                      </div>
+                    </div>
+                  </header>
+                  <div #chartHost [attr.data-chart]="chart.id" class="chart-host"></div>
+                </article>
+              }
+            </div>
+          </section>
+        </div>
+      }
+
+      <section class="surface alarms-panel">
+        <header><div><h2>报警信息</h2></div></header>
+        <div class="alarm-table-wrap">
+          <table>
+            <thead><tr><th>序号</th><th>告警名称</th><th>告警等级</th><th>告警状态</th><th>发生时间</th></tr></thead>
+            <tbody>
+              @if (alarmsLoading) {
+                <tr><td class="alarm-state" colspan="5">正在读取当前设备告警…</td></tr>
+              } @else if (alarmsLoadError) {
+                <tr><td class="alarm-state error" colspan="5">告警信息读取失败</td></tr>
+              } @else if (!alarms.length) {
+                <tr><td class="alarm-state" colspan="5">当前设备暂无告警</td></tr>
+              } @else {
+                @for (alarm of alarms; track $index; let index = $index) {
+                  <tr>
+                    <td>{{index + 1}}</td><td>{{alarm.item}}</td>
+                    <td><span class="tag" [class.critical]="alarm.severity === '严重'">{{alarm.severity}}</span></td>
+                    <td><span class="tag" [class.done]="alarm.status === '已清除'">{{alarm.status}}</span></td>
+                    <td>{{alarm.time}}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </section>
+</main>

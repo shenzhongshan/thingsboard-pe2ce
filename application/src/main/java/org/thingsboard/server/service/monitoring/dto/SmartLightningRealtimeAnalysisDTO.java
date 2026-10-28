@@ -1,0 +1,26 @@
+/**
+ * Copyright © 2016-2026 The Thingsboard Authors
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ */
+package org.thingsboard.server.service.monitoring.dto;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * 数据监测实时分析的服务层聚合传输对象。
+ *
+ * <p>五个板块使用同一资产范围和同一次最新遥测快照；不包含日、周、月历史统计。</p>
+ */
+@Getter
+@RequiredArgsConstructor
+public class SmartLightningRealtimeAnalysisDTO {
+
+    private final SmartLightningRealtimeOverallDTO overall;
+    private final SmartLightningRealtimeSpdDTO spd;
+    private final SmartLightningRealtimeGroundDTO ground;
+    private final SmartLightningRealtimeCurrentDTO lightningCurrent;
+    private final SmartLightningRealtimeArcFaultDTO arcFault;
+}

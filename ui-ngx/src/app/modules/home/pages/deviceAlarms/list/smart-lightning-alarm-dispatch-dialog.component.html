@@ -1,0 +1,20 @@
+<!-- 文件职责：告警列表模块的 smart-lightning-alarm-dispatch-dialog.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!-- 告警派发弹窗：复用原生 tb-alarm-assignee 受理人组件，选择后立即调用原生派发接口。 -->
+<section class="alarm-dispatch-dialog" aria-label="派发告警">
+  <header>
+    <div><h2>派发告警</h2><p>选择本条告警的受理人</p></div>
+    <button type="button" aria-label="关闭" (click)="close()">×</button>
+  </header>
+  @if (loading) {
+    <div class="dialog-state">正在读取告警信息…</div>
+  } @else if (loadError) {
+    <div class="dialog-state error">告警信息读取失败，请关闭后重试。</div>
+  } @else if (alarm) {
+    <div class="dispatch-content">
+      <div class="alarm-source">{{alarm.originatorLabel || alarm.originatorDisplayName || alarm.originatorName || '未命名来源'}} · {{alarm.type}}</div>
+      <tb-alarm-assignee [alarm]="alarm" [allowAssign]="true" (alarmReassigned)="close(true)"></tb-alarm-assignee>
+      <p class="dispatch-hint">在受理人输入框中搜索并选择用户，选择后将立即完成派发。</p>
+    </div>
+  }
+  <footer><button type="button" (click)="close()">取消</button></footer>
+</section>

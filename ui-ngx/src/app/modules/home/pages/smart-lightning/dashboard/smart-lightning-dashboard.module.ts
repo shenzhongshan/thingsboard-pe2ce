@@ -1,18 +1,27 @@
+/** 文件职责：看板模块的 smart-lightning-dashboard.module，声明 Angular 模块、组件与依赖导入。 */
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SharedModule } from '@app/shared/shared.module';
 import { SmartLightningDashboardComponent } from './smart-lightning-dashboard.component';
 import { SmartLightningDashboardRoutingModule } from './smart-lightning-dashboard-routing.module';
-import { SmartLightningPeriodSwitcherComponent } from './smart-lightning-period-switcher.component';
+import { SmartLightningPeriodSwitcherModule } from './smart-lightning-period-switcher.module';
 import { SmartLightningMonitoringComponent } from '../monitoring/smart-lightning-monitoring.component';
 import { SmartLightningDeviceDetailComponent } from '../monitoring/smart-lightning-device-detail.component';
 import { SmartLightningDataQueryComponent } from '../query/smart-lightning-data-query.component';
-import { SmartLightningHistoryReviewDialogComponent } from '../query/smart-lightning-history-review-dialog.component';
+import {SmartLightningHistoryReviewDialogModule} from '../query/smart-lightning-history-review-dialog.module';
 import { SmartLightningRootAssetFilterComponent } from '../smart-lightning-root-asset-filter.component';
+import { SmartLightningAssetTreeModule } from '../shared/asset-tree/smart-lightning-asset-tree.module';
+import { SmartLightningDeviceMapModule } from '../shared/map/smart-lightning-device-map.module';
+import { LogModule } from '../../log/log.module';
+import { DeviceAlarmRecordsModule } from '../../deviceAlarms/shared/alarm-list/device-alarm-records.module';
+import { DeviceAlarmInformationChartModule } from '../../deviceAlarms/shared/alarm-information/device-alarm-information-chart.module';
+
+// 两个模块共用同一个字号适配指令，避免只修改一侧。
+import {TelemetryFitValueDirective} from '../shared/telemetry/telemetry-fit-value.directive';
 
 @NgModule({
-  declarations: [SmartLightningDashboardComponent, SmartLightningPeriodSwitcherComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent, SmartLightningHistoryReviewDialogComponent],
-  imports: [CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningRootAssetFilterComponent]
+  declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent],
+  imports: [TelemetryFitValueDirective, CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
 })
 export class SmartLightningDashboardModule {}

@@ -1,0 +1,104 @@
+<!-- 文件职责：自定义平台首页布局模板；不复用原生首页内容，保留系统外层导航栏。 -->
+<section class="home-overview-page">
+  <div class="metric-grid">
+    <article class="metric-card"><div class="metric-icon">⌂</div><div><span>总资产数</span><strong>{{ stats.assetTotal }}</strong><small>可见资产</small></div></article>
+    <article class="metric-card"><div class="metric-icon">▣</div><div><span>设备数量</span><strong>{{ stats.deviceTotal }}</strong><small>当前用户可见</small></div></article>
+    <article class="metric-card"><div class="metric-icon healthy">↗</div><div><span>当前在线</span><strong>{{ stats.onlineTotal }}</strong><small>在线设备</small></div><em class="metric-side">离线 {{ stats.offlineTotal }}</em></article>
+    <article class="metric-card"><div class="metric-icon critical">!</div><div><span>未清除告警</span><strong>{{ stats.alarmDeviceTotal }}</strong><small>告警设备</small></div><em class="metric-side">未配置 {{ stats.unconfiguredTotal }}</em></article>
+  </div>
+
+  <div class="analysis-grid">
+    <article class="panel distribution-panel">
+      <header>
+        <div>
+          <h2>设备分类统计</h2>
+          <span>{{ selectedCategory ? selectedCategoryLabel + ' · 二级功能分类' : '按一级产品分类统计设备数量' }}</span>
+        </div>
+        <button *ngIf="selectedCategory" class="filter-reset" type="button" (click)="clearCategoryFilter()">全部分类</button>
+      </header>
+      <div class="category-filters" role="group" aria-label="一级产品分类筛选">
+
+
+        <button *ngFor="let option of categoryOptions" class="category-filter" type="button"
+                [class.active]="selectedCategory === option.key" (click)="selectCategory(option.key)">
+          <span>{{ option.label }}</span><b>{{ categoryCount(option.key) }}</b>
+        </button>
+      </div>
+      <div class="distribution-content">
+        <div class="donut">
+          <svg class="donut-svg" viewBox="0 0 200 200" role="img" [attr.aria-label]="distributionDonutAriaLabel()"
+               (mousemove)="onDistributionDonutMove($event)" (mouseleave)="clearHoveredDonutSlice('distribution')">
+            <circle *ngIf="!activeDistribution.length || !activeDistributionTotal" class="donut-empty-track" cx="100" cy="100" r="99"></circle>
+            <path *ngFor="let segment of distributionDonutSegments()" class="donut-slice"
+                  [class.highlighted]="hoveredDonutSliceId === segment.id"
+                  [style.transform]="hoveredDonutSliceId === segment.id ? 'translate(' + segment.offsetX + 'px, ' + segment.offsetY + 'px)' : null"
+                  [attr.d]="segment.path" [attr.fill]="segment.color" fill-rule="evenodd"></path>
+            <circle class="donut-hole" cx="100" cy="100" r="51"></circle>
+          </svg>
+          <div class="donut-center-info distribution-center" *ngIf="distributionDonutCenterInfo() as info"
+               aria-live="polite" aria-atomic="true">
+            <span>{{ info.label }}</span>
+            <strong>{{ info.value }}台</strong>
+            <small>占 {{ info.percentage | number:'1.0-1' }}%</small>
+          </div>
+        </div>
+        <div class="distribution-list">
+          <button *ngFor="let item of activeDistribution" class="distribution-item" type="button"
+                  [class.selected]="!!selectedCategory && selectedFunctionCategory === item.key"
+                  (focus)="focusDistributionItem(item)" (blur)="clearHoveredDonutSlice('distribution')"
+                  (click)="selectedCategory ? selectFunctionCategory(item.key) : selectCategory(item.key)">
+            <i [style.background]="item.color"></i><span>{{ item.name }}</span><b>{{ item.value }}</b>
+          </button>
+          <div class="empty-text" *ngIf="!activeDistribution.length">暂无设备数据</div>
+        </div>
+      </div>
+      <div class="filter-summary" *ngIf="selectedCategory">
+        当前显示：{{ selectedCategoryLabel }} · {{ selectedFunctionLabel || '全部二级分类' }} · {{ visibleDevices.length }} 台
+      </div>
+    </article>
+
+    <article class="panel status-panel">
+      <header><h2>设备状态统计</h2><span>在线、离线与未配置</span></header>
+      <div class="status-content">
+        <div class="status-ring" *ngFor="let item of statusCharts">
+          <div class="ring">
+            <svg class="donut-svg" viewBox="0 0 200 200" role="img" tabindex="0"
+                 [attr.aria-label]="statusDonutAriaLabel(item)"
+                 (focus)="focusStatusDonut(item)" (blur)="clearHoveredDonutSlice('status:' + item.id)"
+                 (mousemove)="onStatusDonutMove($event, item)" (mouseleave)="clearHoveredDonutSlice('status:' + item.id)">
+              <circle *ngIf="!devices.length" class="donut-empty-track" cx="100" cy="100" r="99"></circle>
+              <path *ngFor="let segment of statusDonutSegments(item)" class="donut-slice"
+                    [class.highlighted]="hoveredDonutSliceId === segment.id"
+                    [style.transform]="hoveredDonutSliceId === segment.id ? 'translate(' + segment.offsetX + 'px, ' + segment.offsetY + 'px)' : null"
+                    [attr.d]="segment.path" [attr.fill]="segment.color" fill-rule="evenodd"></path>
+              <circle class="donut-hole" cx="100" cy="100" r="76"></circle>
+            </svg>
+            <div class="donut-center-info status-center" *ngIf="statusDonutCenterInfo(item) as info"
+                 aria-live="polite" aria-atomic="true">
+              <span>{{ info.label }}</span>
+              <strong>{{ info.value }}台</strong>
+              <small>占 {{ info.percentage | number:'1.0-1' }}%</small>
+            </div>
+            <strong *ngIf="!statusDonutCenterInfo(item)">
+              {{ devices.length ? (item.value / devices.length * 100 | number:'1.0-0') : 0 }}%
+            </strong>
+          </div>
+          <span>{{ item.label }}</span>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <article class="panel map-panel">
+    <header>
+      <h2>设备地图</h2>
+      <span>{{ selectedCategory ? selectedCategoryLabel + (selectedFunctionLabel ? ' · ' + selectedFunctionLabel : '') : '全部分类' }} · {{ visibleDevices.length }} 台 · 红色告警 · 灰色离线 · 绿色在线</span>
+    </header>
+    <div class="overview-map">
+      <tb-smart-lightning-device-map
+        [devices]="visibleDevices"
+        [assetPaths]="deviceAssetPaths">
+      </tb-smart-lightning-device-map>
+    </div>
+  </article>
+</section>

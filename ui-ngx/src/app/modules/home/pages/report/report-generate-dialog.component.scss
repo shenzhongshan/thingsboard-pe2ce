@@ -1,0 +1,25 @@
+/* 文件职责：独立报表生成弹窗的视觉样式，不覆盖系统原生报表弹窗。 */
+:host { display: block; }
+.tb-report-dialog { min-width: min(500px, 86vw); overflow: hidden; border-radius: 12px; background: #fff; color: #173753; }
+.tb-report-dialog-header { display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: linear-gradient(135deg, #edf6ff, #f8fbff); border-bottom: 1px solid #dce8f2; }
+.tb-report-dialog-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 11px; color: #fff; background: #195ce8; }
+.tb-report-dialog-icon mat-icon { margin: 0; }
+.tb-report-dialog-header h2 { margin: 0; color: #0a356a; font-size: 19px; font-weight: 700; line-height: 1.25; }
+.tb-report-dialog-header p { margin: 4px 0 0; color: #718397; font-size: 12px; }
+.tb-report-dialog-close { width: 34px !important; height: 34px !important; margin-left: auto; color: #56728c; }
+.tb-report-dialog-content { padding: 22px 20px 18px; }
+.tb-report-dialog-content form { display: grid; gap: 14px; }
+.tb-report-dialog-field { width: 100%; }
+.tb-report-dialog-hint { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 11px; border-radius: 6px; color: #58728a; background: #f1f7fc; font-size: 12px; }
+.tb-report-dialog-hint mat-icon { width: 18px; height: 18px; color: #195ce8; font-size: 18px; }
+.tb-report-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 5px; }
+.tb-report-dialog-actions button { min-width: 88px; min-height: 38px; }
+.tb-report-dialog-submit { border: 0; color: #06315f; background: #17e878; }
+.tb-report-dialog-submit-label { display: inline-flex; align-items: center; gap: 3px; }
+.tb-report-dialog-submit-label mat-icon { width: 18px; height: 18px; font-size: 18px; }
+.tb-report-dialog-submit mat-spinner { display: inline-block; }
+@media (max-width: 560px) {
+  .tb-report-dialog { min-width: 0; }
+  .tb-report-dialog-header { padding: 15px; }
+  .tb-report-dialog-content { padding: 17px 15px 15px; }
+}

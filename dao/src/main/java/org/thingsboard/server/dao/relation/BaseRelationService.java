@@ -312,6 +312,25 @@ class BaseRelationService implements RelationService {
                 relations -> RelationCacheValue.builder().relations(relations).build(), false);
     }
 
+    /** 批量读取同一实体类型的出边关系，不写入单实体缓存，避免缓存键组合爆炸。 */
+    @Override
+    public List<EntityRelation> findByFrom(TenantId tenantId, List<? extends EntityId> fromEntities,
+                                           RelationTypeGroup typeGroup) {
+        validateTypeGroup(typeGroup);
+        if (fromEntities == null || fromEntities.isEmpty()) {
+            return List.of();
+        }
+        EntityId first = fromEntities.get(0);
+        validate(first);
+        for (EntityId entity : fromEntities) {
+            validate(entity);
+            if (entity.getEntityType() != first.getEntityType()) {
+                throw new IllegalArgumentException("批量关系查询要求所有实体类型一致");
+            }
+        }
+        return relationDao.findAllByFrom(tenantId, fromEntities, typeGroup);
+    }
+
     @Override
     public ListenableFuture<List<EntityRelation>> findByFromAsync(TenantId tenantId, EntityId from, RelationTypeGroup typeGroup) {
         log.trace("Executing findByFrom [{}][{}]", from, typeGroup);

@@ -19,21 +19,33 @@ import { CommonModule } from '@angular/common';
 import { SharedModule } from '@shared/shared.module';
 import { HomeDialogsModule } from '../../dialogs/home-dialogs.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
+import { SharedHomeComponentsModule } from '@home/components/shared-home-components.module';
 import { AlarmRoutingModule } from '@home/pages/alarm/alarm-routing.module';
 import { AlarmRulesTabsComponent } from '@home/pages/alarm/alarm-rules-tabs.component';
 import { SmartLightningAlarmListComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-list.component';
+import { SmartLightningAlarmDetailsDialogComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-details-dialog.component';
+import { SmartLightningAlarmDispatchDialogComponent } from '@home/pages/deviceAlarms/list/smart-lightning-alarm-dispatch-dialog.component';
+import { SmartLightningAlarmAnalysisComponent } from '@home/pages/deviceAlarms/analysis/smart-lightning-alarm-analysis.component';
 import { SmartLightningRootAssetFilterComponent } from '@home/pages/smart-lightning/smart-lightning-root-asset-filter.component';
+import { SmartLightningAssetTreeModule } from '@home/pages/smart-lightning/shared/asset-tree/smart-lightning-asset-tree.module';
+import { SmartLightningPeriodSwitcherModule } from '@home/pages/smart-lightning/dashboard/smart-lightning-period-switcher.module';
 
 @NgModule({
   declarations: [
     AlarmRulesTabsComponent,
-    SmartLightningAlarmListComponent
+    SmartLightningAlarmListComponent,
+    SmartLightningAlarmDetailsDialogComponent,
+    SmartLightningAlarmDispatchDialogComponent,
+    SmartLightningAlarmAnalysisComponent
   ],
   imports: [
     CommonModule,
     SharedModule,
+    SmartLightningPeriodSwitcherModule,
     SmartLightningRootAssetFilterComponent,
+    SmartLightningAssetTreeModule,
     HomeComponentsModule,
+    SharedHomeComponentsModule,
     HomeDialogsModule,
     AlarmRoutingModule
   ]

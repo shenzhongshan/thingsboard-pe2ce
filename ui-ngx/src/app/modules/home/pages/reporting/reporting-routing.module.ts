@@ -21,8 +21,20 @@ import { MenuId } from '@core/services/menu.models';
 import { ReportTemplatesComponent } from '@home/pages/reporting/report-template/report-templates.component';
 import { ReportScheduleComponent } from '@home/pages/reporting/schedule/report-schedule.component';
 import { ReportsComponent } from '@home/pages/reporting/report/reports.component';
+import { ReportCreateComponent } from '@home/pages/report/report-create.component';
 
 const routes: Routes = [
+  {
+    path: 'report/create',
+    component: ReportCreateComponent,
+    data: {
+      auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+      title: 'report.reports',
+      breadcrumb: {
+        menuId: MenuId.reports
+      }
+    }
+  },
   {
     path: 'reporting',
     data: {

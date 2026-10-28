@@ -1,6 +1,7 @@
+/* 文件职责：智能防雷页面公共层模块的 smart-lightning-root-asset-filter.component，负责页面局部布局、响应式与视觉样式。 */
+/* 根资产筛选下拉样式：贴合资产树顶部，窄屏自适应宽度。 */
 :host { display: block; }
 
-.root-asset-filter { display: flex; align-items: center; gap: 7px; min-height: 34px; margin: 0 0 10px; padding: 0 8px 0 0; color: #3d5367; font-size: 12px; }
-.root-asset-filter span { flex: 0 0 auto; white-space: nowrap; }
+.root-asset-filter { display: block; min-height: 34px; margin: 0 0 var(--tb-smart-page-spacing); color: #3d5367; font-size: 12px; }
 .root-asset-filter select { min-width: 0; width: 100%; height: 32px; padding: 0 7px; border: 1px solid #bfcbd5; border-radius: 5px; color: #344f65; background: #fff; font: inherit; font-size: 12px; outline: 0; }
 .root-asset-filter select:focus-visible { border-color: #195ce8; box-shadow: 0 0 0 2px rgba(25, 92, 232, .15); }

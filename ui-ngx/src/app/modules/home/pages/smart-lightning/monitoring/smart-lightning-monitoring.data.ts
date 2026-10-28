@@ -1,7 +1,12 @@
-import { AssetInfo } from '@shared/models/asset.models';
+  /** 文件职责：数据监测模块的 smart-lightning-monitoring.data，定义数据模型、接口结果映射与纯函数。 */
 import { DeviceInfo } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
-import { EntityRelation } from '@shared/models/relation.models';
+import {
+  formatSmartLightningRealtimeMetricValue,
+  getSmartLightningRealtimeMetricDefinitions,
+  resolveSmartLightningDeviceModel,
+  SmartLightningRealtimeMetricDefinition
+} from './smart-lightning-device-detail.data';
 
 export interface SmartLightningMonitoringAssetNode {
   id: string;
@@ -15,81 +20,48 @@ export interface SmartLightningMonitoringAssetTree {
   nodes: Map<string, SmartLightningMonitoringAssetNode>;
 }
 
-export interface SmartLightningAnalysisMetric {
-  label: string;
+/** 格式化实时分析数值；null/undefined 表示没有遥测，数值小数位保持原样。 */
+export const formatSmartLightningRealtimeValue = (
+  value: number | null | undefined,
+  unit = ''
+): string => value == null || !Number.isFinite(value) ? '--' : `${value}${unit}`;
+
+/** 设备总览卡片仅使用当前用户可见设备与 active 最新遥测，不伪造告警状态。 */
+export interface SmartLightningMonitoringTelemetryValue {
+  ts: number;
   value: string;
 }
 
-export interface SmartLightningAnalysisCard {
-  id: 'spd' | 'ground' | 'current' | 'voltage';
+/** 卡片固定显示的实时遥测项；title 中保留测点键和上报时间便于悬浮查看。 */
+export interface SmartLightningMonitoringRealtimeMetric {
+  key: string;
+  label: string;
+  value: string;
   title: string;
-  visual: SmartLightningAnalysisCard['id'];
-  icon: string;
-  primaryMetric: string;
-  primaryMetricLabel: string;
-  caption: string;
-  metrics?: readonly SmartLightningAnalysisMetric[];
+  abnormal: boolean;
 }
 
-/** 顶部能力卡使用的演示数据；接入接口后只替换这组配置，不影响设备和告警统计。 */
-export const SMART_LIGHTNING_ANALYSIS_CARDS: readonly SmartLightningAnalysisCard[] = [
-  {
-    id: 'spd',
-    title: '浪涌防护系统能力评估',
-    visual: 'spd',
-    icon: 'bolt',
-    primaryMetric: '8',
-    primaryMetricLabel: '监测数量',
-    caption: '当前选中资产 · SPD 防护能力',
-    metrics: [
-      {label: '监测数量', value: '8'},
-      {label: '动作次数', value: '—'},
-      {label: '劣化值', value: '—'},
-      {label: '动作次数', value: '1'}
-    ]
-  },
-  {
-    id: 'ground',
-    title: '接地电阻雷电流AI分析',
-    visual: 'ground',
-    icon: 'device_hub',
-    primaryMetric: '0.35Ω',
-    primaryMetricLabel: '当前接地电阻',
-    caption: '地网采样稳定 · 接地状态正常'
-  },
-  {
-    id: 'current',
-    title: '雷电防护电流分析',
-    visual: 'current',
-    icon: 'electric_meter',
-    primaryMetric: '32.8kA',
-    primaryMetricLabel: '监测峰值',
-    caption: '近 7 日峰值趋势 · 雷击计数 6 次'
-  },
-  {
-    id: 'voltage',
-    title: '雷电/过电压能力监测评估',
-    visual: 'voltage',
-    icon: 'show_chart',
-    primaryMetric: '2.5kV',
-    primaryMetricLabel: '峰值电压',
-    caption: 'A/B/C 相电压在线 · 越限 0 次'
-  }
-];
-
-/** 设备总览卡片仅使用当前用户可见设备与服务器属性 active，不伪造告警状态。 */
 export interface SmartLightningMonitoringDeviceCard {
   id: string;
   name: string;
   category: string;
   status: '正常' | '报警' | '离线';
   icon: string;
+  assetPath: string;
   productName: string;
   productType: string;
   lastActiveTime: string;
+  realtimeMetrics: SmartLightningMonitoringRealtimeMetric[];
 }
 
-/** 当前设备卡片需要的服务器属性。functionCategory 是业务分类，不使用设备型号替代。 */
+/** 设备总览卡片的业务排序：报警优先，其次离线，最后正常。 */
+const smartLightningDeviceStatusOrder: Record<SmartLightningMonitoringDeviceCard['status'], number> = {
+  报警: 0,
+  离线: 1,
+  正常: 2
+};
+
+/** 当前设备卡片需要的状态和业务属性。functionCategory 是业务分类，不使用设备型号替代。 */
 export interface SmartLightningMonitoringDeviceAttributes {
   active?: unknown;
   functionCategory?: unknown;
@@ -101,10 +73,10 @@ export interface SmartLightningMonitoringDeviceAttributes {
 const smartLightningFunctionCategoryLabels: Record<string, string> = {
   spd_monitor: 'SPD监测',
   ground_resistance: '接地电阻监测',
-  lightning_current: '雷电流监测',
-  arc_fault: '故障电弧监测'
+  lightning_current: '雷电流监测'
 };
 
+/** 把后端功能分类枚举值映射为中文标签；未配置或未知值原样展示。 */
 export const getSmartLightningFunctionCategoryLabel = (value: unknown): string => {
   if (typeof value !== 'string' || !value.trim()) {
     return '未分类';
@@ -125,15 +97,133 @@ export const formatSmartLightningMonitoringLastActivityTime = (value: unknown): 
     `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
 
-/** 仅统计选中资产子树内设备产生的告警，避免把其他项目的告警混入当前节点。 */
-export interface SmartLightningMonitoringAlarmSummary {
-  active: number;
-  todayTotal: number;
-  unhandled: number;
-  assigned: number;
-  handled: number;
-}
+/**
+ * 设备卡片只挑选职责相关的少量测点；每种型号最多显示三项。
+ * 直接测点沿用详情页测点定义，复合项仅用于把同类状态合并为一个摘要。
+ */
+type SmartLightningCardMetricLayout =
+  | {kind: 'key'; key: string}
+  | {kind: 'maximum'; keys: readonly string[]; label: string}
+  | {kind: 'all-status'; keys: readonly string[]; label: string};
 
+const cardMetric = (key: string): SmartLightningCardMetricLayout => ({kind: 'key', key});
+const cardMaximum = (keys: readonly string[], label: string): SmartLightningCardMetricLayout =>
+  ({kind: 'maximum', keys, label});
+const cardCombinedStatus = (keys: readonly string[], label: string): SmartLightningCardMetricLayout =>
+  ({kind: 'all-status', keys, label});
+
+const SMART_LIGHTNING_CARD_METRICS: Readonly<Record<string, readonly SmartLightningCardMetricLayout[]>> = {
+  DES4: [cardMetric('RemoteSig'), cardMetric('McbStatus'), cardMetric('GndStatus')],
+  DES9: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流')],
+  DESA: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
+  DEM2: [cardMetric('GndStatus'), cardCombinedStatus(['TripSW1', 'TripSW2'], '脱扣状态'), cardMetric('SPD_RUL')],
+  DEM4: [cardMetric('GndStatus'), cardCombinedStatus(['TripSW1', 'TripSW2', 'TripSW3', 'TripSW4'], '脱扣状态'), cardMetric('SPD_RUL')],
+  DEA2: [cardMetric('GndStatus'), cardMetric('LeakCurrA'), cardMetric('SPD_RUL')],
+  DEA4: [cardMetric('GndStatus'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
+  ESM0: [cardMetric('RemoteSig'), cardMetric('GndStatus'), cardMetric('StrikeCnt')],
+  ESM3: [cardMetric('RemoteSig'), cardMaximum(['LeakCurrA', 'LeakCurrB', 'LeakCurrC'], '最大漏流'), cardMetric('SPD_RUL')],
+  DEP4: [cardMetric('RemoteSig'), cardMetric('StrikeCnt'), cardMetric('Temp')],
+  G1A3: [cardMetric('GndGridRes')],
+  M1AI: [cardMetric('PeakCur'), cardMetric('StrikeCnt'), cardMetric('Polarity')],
+  L2AI: [cardMetric('PeakCur'), cardMetric('SurgeCnt'), cardMetric('Polarity')],
+};
+
+/** 将遥测记录转为卡片提示文本，同时保留原始键、原始值与时间戳。 */
+const getCardMetricTooltip = (
+  entries: Array<{definition: SmartLightningRealtimeMetricDefinition; sample?: SmartLightningMonitoringTelemetryValue}>
+): string => entries.map(({definition, sample}) =>
+  '测点：' + definition.key + '；原始值：' + (sample?.value ?? '--') +
+  '；时间：' + formatSmartLightningMonitoringLastActivityTime(sample?.ts)
+).join('\n');
+
+/** 按设备型号读取最多三项职责相关的实时指标，不改变 WebSocket 中的原始值。 */
+const buildSmartLightningCardRealtimeMetrics = (
+  deviceProfileName: string,
+  latestValues: ReadonlyMap<string, SmartLightningMonitoringTelemetryValue>
+): SmartLightningMonitoringRealtimeMetric[] => {
+  const model = resolveSmartLightningDeviceModel(deviceProfileName);
+  const layout = model ? SMART_LIGHTNING_CARD_METRICS[model] : undefined;
+  if (!layout?.length) {
+    return [];
+  }
+  const definitions = getSmartLightningRealtimeMetricDefinitions(deviceProfileName);
+  const definitionByKey = new Map(definitions.map((definition) => [definition.key, definition]));
+  const result: SmartLightningMonitoringRealtimeMetric[] = [];
+
+  layout.forEach((item) => {
+    if (item.kind === 'key') {
+      const definition = definitionByKey.get(item.key);
+      if (!definition) {
+        return;
+      }
+      const sample = latestValues.get(item.key);
+      const value = formatSmartLightningRealtimeMetricValue(definition, sample?.value);
+      result.push({
+        key: item.key,
+        label: definition.label,
+        value,
+        title: getCardMetricTooltip([{definition, sample}]),
+        abnormal: definition.valueType === 'status' && value === '异常'
+      });
+      return;
+    }
+
+    const entries = item.keys
+      .map((key) => ({definition: definitionByKey.get(key), sample: latestValues.get(key)}))
+      .filter((entry): entry is {definition: SmartLightningRealtimeMetricDefinition; sample: SmartLightningMonitoringTelemetryValue} =>
+        !!entry.definition && !!entry.sample);
+
+    if (item.kind === 'maximum') {
+      const maximum = entries
+        .filter((entry) => Number.isFinite(Number(entry.sample.value)))
+        .reduce<{definition: SmartLightningRealtimeMetricDefinition; sample: SmartLightningMonitoringTelemetryValue} | undefined>(
+          (current, entry) => !current || Number(entry.sample.value) > Number(current.sample.value) ? entry : current,
+          undefined
+        );
+      const displayEntry = maximum || entries[0];
+      const definition = displayEntry?.definition || definitionByKey.get(item.keys[0]);
+      if (!definition) {
+        return;
+      }
+      result.push({
+        key: displayEntry?.definition.key || definition.key,
+        label: item.label,
+        value: displayEntry ? formatSmartLightningRealtimeMetricValue(definition, displayEntry.sample.value) : '--',
+        title: getCardMetricTooltip(displayEntry ? [displayEntry] : [{definition}]),
+        abnormal: false
+      });
+      return;
+    }
+
+    const definitionsForGroup = item.keys
+      .map((key) => definitionByKey.get(key))
+      .filter((definition): definition is SmartLightningRealtimeMetricDefinition => !!definition);
+    const abnormal = entries.some((entry) =>
+      formatSmartLightningRealtimeMetricValue(entry.definition, entry.sample.value) === '异常');
+    const complete = entries.length === item.keys.length;
+    const value = abnormal ? '异常' : complete ? '正常' : entries.length ? '数据不全' : '--';
+    result.push({
+      key: item.keys.join(', '),
+      label: item.label,
+      value,
+      title: getCardMetricTooltip(entries.length
+        ? entries
+        : definitionsForGroup.map((definition) => ({definition}))),
+      abnormal
+    });
+  });
+
+  return result.slice(0, 3);
+};
+
+/** 兼容 active 遥测返回的布尔值、数字值和字符串值，并回退到设备实体状态。 */
+export const isSmartLightningDeviceActive = (value: unknown, fallbackValue?: unknown): boolean => {
+  const candidate = value === undefined || value === null ? fallbackValue : value;
+  if (candidate === true || candidate === 1) {
+    return true;
+  }
+  return typeof candidate === 'string' && ['true', '1'].includes(candidate.trim().toLowerCase());
+};
 /** 与 AlarmInfo 对应的最小字段集，保持统计函数可脱离 Angular 服务单独测试。 */
 export interface SmartLightningMonitoringAlarmRecord {
   originator?: {id: string; entityType: EntityType | string};
@@ -144,6 +234,90 @@ export interface SmartLightningMonitoringAlarmRecord {
   clearTs: number;
 }
 
+/**
+ * 从告警结果中提取当前资产树范围内仍处于活动状态的设备 ID。
+ * 资产树只负责展示，告警状态由页面的公共数据层统一计算，避免各页面重复实现筛选条件。
+ */
+export const getSmartLightningActiveAlarmDeviceIds = (
+  alarms: ReadonlyArray<Pick<SmartLightningMonitoringAlarmRecord, 'originator' | 'status'>>,
+  visibleDeviceIds: ReadonlySet<string>
+): Set<string> => {
+  const activeDeviceIds = new Set<string>();
+  alarms.forEach((alarm) => {
+    const deviceId = alarm.originator?.id;
+    if (deviceId && visibleDeviceIds.has(deviceId) &&
+      alarm.originator?.entityType === EntityType.DEVICE &&
+      (alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK')) {
+      activeDeviceIds.add(deviceId);
+    }
+  });
+  return activeDeviceIds;
+};
+
+/**
+ * 返回存在未清除告警设备的资产及其全部上级资产。
+ * 此函数只计算资产节点标记；设备自身的标记由共享树组件直接使用告警设备 ID 判断。
+ */
+export const getSmartLightningAlarmAssetIds = (
+  tree: SmartLightningMonitoringAssetTree,
+  alarmDeviceIds: ReadonlySet<string>
+): Set<string> => {
+  const alarmAssetIds = new Set<string>();
+  const visiting = new Set<string>();
+  const hasAlarmDescendant = (node: SmartLightningMonitoringAssetNode): boolean => {
+    if (visiting.has(node.id)) {
+      return false;
+    }
+    visiting.add(node.id);
+    let containsAlarm = false;
+    // 必须遍历全部子分支：Array.some() 会在第一个告警分支返回 true 后提前停止，
+    // 导致同级后续资产（例如测试电柜-010）没有被计算告警标记。
+    for (const childId of node.childIds) {
+      const child = tree.nodes.get(childId);
+      if (!child) {
+        continue;
+      }
+      const childContainsAlarm = child.entityType === EntityType.DEVICE
+        ? alarmDeviceIds.has(child.id)
+        : hasAlarmDescendant(child);
+      if (childContainsAlarm) {
+        containsAlarm = true;
+      }
+    }
+    if (node.entityType === EntityType.ASSET && containsAlarm) {
+      alarmAssetIds.add(node.id);
+    }
+    visiting.delete(node.id);
+    return containsAlarm;
+  };
+  tree.roots.forEach((root) => hasAlarmDescendant(root));
+  return alarmAssetIds;
+};
+
+/** 默认只展开前两层资产，设备和更深层级保持收起。 */
+export const getSmartLightningDefaultExpandedAssetIds = (
+  tree: SmartLightningMonitoringAssetTree,
+  visibleLevels = 2
+): Set<string> => {
+  const expandedIds = new Set<string>();
+  const visit = (node: SmartLightningMonitoringAssetNode, level: number): void => {
+    if (node.entityType !== EntityType.ASSET) {
+      return;
+    }
+    if (level < visibleLevels && node.childIds.some((childId) => tree.nodes.get(childId)?.entityType === EntityType.ASSET)) {
+      expandedIds.add(node.id);
+    }
+    node.childIds.forEach((childId) => {
+      const child = tree.nodes.get(childId);
+      if (child) {
+        visit(child, level + 1);
+      }
+    });
+  };
+  tree.roots.forEach((root) => visit(root, 1));
+  return expandedIds;
+};
+
 /** 与后端 /api/smart-lightning/monitoring/tree 对应的轻量树节点。 */
 export interface SmartLightningMonitoringTreeResponseNode {
   id: string;
@@ -151,58 +325,6 @@ export interface SmartLightningMonitoringTreeResponseNode {
   entityType: EntityType.ASSET | EntityType.DEVICE;
   children: SmartLightningMonitoringTreeResponseNode[];
 }
-
-/** Builds a cycle-safe hierarchy with asset branches and their device leaves. */
-export const buildSmartLightningMonitoringAssetTree = (
-  assets: AssetInfo[],
-  devices: DeviceInfo[],
-  relations: EntityRelation[]
-): SmartLightningMonitoringAssetTree => {
-  const nodes = new Map<string, SmartLightningMonitoringAssetNode>();
-  const childToParent = new Map<string, string>();
-  assets.forEach((asset) => {
-    if (asset.id?.id) {
-      nodes.set(asset.id.id, {id: asset.id.id, name: asset.name, entityType: EntityType.ASSET, childIds: []});
-    }
-  });
-  devices.forEach((device) => {
-    if (device.id?.id) {
-      nodes.set(device.id.id, {id: device.id.id, name: device.name, entityType: EntityType.DEVICE, childIds: []});
-    }
-  });
-
-  const wouldCreateCycle = (parentId: string, childId: string): boolean => {
-    let ancestorId: string | undefined = parentId;
-    while (ancestorId) {
-      if (ancestorId === childId) {
-        return true;
-      }
-      ancestorId = childToParent.get(ancestorId);
-    }
-    return false;
-  };
-
-  relations.forEach((relation) => {
-    const parentId = relation.from?.id;
-    const childId = relation.to?.id;
-    if (relation.type !== 'Contains' || relation.from?.entityType !== EntityType.ASSET ||
-      (relation.to?.entityType !== EntityType.ASSET && relation.to?.entityType !== EntityType.DEVICE) || !parentId || !childId || parentId === childId ||
-      !nodes.has(parentId) || !nodes.has(childId) || childToParent.has(childId) || wouldCreateCycle(parentId, childId)) {
-      return;
-    }
-    nodes.get(parentId)?.childIds.push(childId);
-    childToParent.set(childId, parentId);
-  });
-
-  nodes.forEach((node) => node.childIds.sort((left, right) =>
-    (nodes.get(left)?.name || '').localeCompare(nodes.get(right)?.name || '')
-  ));
-  const roots = [...nodes.values()]
-    .filter((node) => !childToParent.has(node.id))
-    .sort((left, right) => left.name.localeCompare(right.name));
-  return {roots, nodes};
-};
-
 /**
  * 将专用接口的嵌套响应转为组件使用的索引树。
  * 后端已完成权限过滤；前端仍保留环路保护，以免异常历史关系导致页面递归卡死。
@@ -238,7 +360,30 @@ export const buildSmartLightningMonitoringAssetTreeFromRoots = (
   return {roots, nodes};
 };
 
-/** Returns the selected asset plus every known descendant, once each. */
+/** 返回每个资产/设备从根节点开始的完整层级地址，用于设备总览卡片展示。 */
+export const getSmartLightningMonitoringAssetPaths = (
+  tree: SmartLightningMonitoringAssetTree
+): Map<string, string> => {
+  const paths = new Map<string, string>();
+  const visit = (node: SmartLightningMonitoringAssetNode, ancestors: string[]): void => {
+    if (paths.has(node.id)) {
+      return;
+    }
+    const name = node.name.trim() || node.id;
+    const path = [...ancestors, name];
+    paths.set(node.id, path.join('/'));
+    node.childIds.forEach((childId) => {
+      const child = tree.nodes.get(childId);
+      if (child) {
+        visit(child, path);
+      }
+    });
+  };
+  tree.roots.forEach((root) => visit(root, []));
+  return paths;
+};
+
+/** 返回选中节点及其全部已知后代节点，每个节点只出现一次。 */
 export const getSmartLightningMonitoringSelectedAssetIds = (
   nodes: Map<string, SmartLightningMonitoringAssetNode>,
   selectedId: string
@@ -289,14 +434,16 @@ export const getSmartLightningMonitoringRootAssetIds = (
 };
 
 /**
- * 由设备实体信息和 active 服务器属性生成节点设备卡片。
+ * 由设备实体信息和 active 最新遥测生成节点设备卡片。
  * selectedIds 由资产树递归计算得出，因此选中资产会自然包含其全部下属设备。
  */
 export const buildSmartLightningMonitoringDeviceCards = (
   devices: DeviceInfo[],
   selectedIds: Set<string>,
   attributesByDeviceId: Map<string, SmartLightningMonitoringDeviceAttributes>,
-  activeAlarmDeviceIds: Set<string> = new Set()
+  activeAlarmDeviceIds: Set<string> = new Set(),
+  assetPathByDeviceId: ReadonlyMap<string, string> = new Map(),
+  telemetryByDeviceId: ReadonlyMap<string, ReadonlyMap<string, SmartLightningMonitoringTelemetryValue>> = new Map()
 ): SmartLightningMonitoringDeviceCard[] => devices
   .filter((device) => !!device.id?.id && selectedIds.has(device.id.id))
   .map((device) => {
@@ -305,49 +452,33 @@ export const buildSmartLightningMonitoringDeviceCards = (
     const attributes = attributesByDeviceId.get(id);
     const active = attributes?.active;
     const functionCategory = getSmartLightningFunctionCategoryLabel(attributes?.functionCategory);
-    const isOnline = active === true || active === 'true';
-    const status: SmartLightningMonitoringDeviceCard['status'] = !isOnline
-      ? '离线'
-      : activeAlarmDeviceIds.has(id) ? '报警' : '正常';
+    const isOnline = isSmartLightningDeviceActive(active, device.active);
+    const hasActiveAlarm = activeAlarmDeviceIds.has(id);
+    const status: SmartLightningMonitoringDeviceCard['status'] = hasActiveAlarm
+      ? '报警'
+      : isOnline ? '正常' : '离线';
     return {
       id,
       name: device.name || '未命名设备',
       category: functionCategory,
       status,
       icon: 'electric_meter',
+      assetPath: assetPathByDeviceId.get(id) || '--',
       productName: typeof attributes?.productName === 'string' && attributes.productName.trim()
         ? attributes.productName.trim()
         : '--',
       productType: deviceProfileName,
-      lastActiveTime: formatSmartLightningMonitoringLastActivityTime(attributes?.lastActivityTime)
+      lastActiveTime: formatSmartLightningMonitoringLastActivityTime(attributes?.lastActivityTime),
+      realtimeMetrics: buildSmartLightningCardRealtimeMetrics(
+        deviceProfileName,
+        telemetryByDeviceId.get(id) || new Map()
+      )
     };
   })
-  .sort((left, right) => left.name.localeCompare(right.name));
-
-/**
- * 通过 ThingsBoard 原生告警字段形成设备节点统计。
- * 未处理 = ACTIVE_UNACK；已派发 = 当前活动且已有 assignTs；已处理 = 当天已清除。
- */
-export const calculateSmartLightningMonitoringAlarmSummary = (
-  alarms: SmartLightningMonitoringAlarmRecord[],
-  selectedDeviceIds: Set<string>,
-  startOfToday: number
-): SmartLightningMonitoringAlarmSummary => {
-  const nodeAlarms = alarms.filter((alarm) =>
-    alarm.originator?.entityType === EntityType.DEVICE && selectedDeviceIds.has(alarm.originator.id)
-  );
-  const activeAlarms = nodeAlarms.filter((alarm) =>
-    alarm.status === 'ACTIVE_UNACK' || alarm.status === 'ACTIVE_ACK'
-  );
-  return {
-    active: activeAlarms.length,
-    todayTotal: nodeAlarms.filter((alarm) => alarm.startTs >= startOfToday).length,
-    unhandled: activeAlarms.filter((alarm) => alarm.status === 'ACTIVE_UNACK').length,
-    assigned: activeAlarms.filter((alarm) => alarm.assignTs > 0).length,
-    handled: nodeAlarms.filter((alarm) => alarm.cleared && alarm.clearTs >= startOfToday).length
-  };
-};
-
+  .sort((left, right) => {
+    const statusOrder = smartLightningDeviceStatusOrder[left.status] - smartLightningDeviceStatusOrder[right.status];
+    return statusOrder || left.name.localeCompare(right.name);
+  });
 /** 前端分页统一钳制页码，筛选后页数减少时不会落入空白页。 */
 export const getSmartLightningMonitoringPage = <T>(items: T[], requestedPage: number, pageSize: number) => {
   const safePageSize = Math.max(1, pageSize);

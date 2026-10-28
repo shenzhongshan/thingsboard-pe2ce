@@ -1,3 +1,5 @@
+/* 文件职责：数据查询模块的 smart-lightning-data-query.component，负责页面局部布局、响应式与视觉样式。 */
+/* 数据查询页样式：左树右内容双栏，筛选区与表格区独立响应式适配。 */
 :host { display: block; min-height: 100%; }
 
 .data-query-page {
@@ -14,6 +16,34 @@
   color: #263c50;
   background: #edf1f4;
   font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+/* 资产树统一交互：未选中不显示标记，选中只保留加宽的左侧竖条。 */
+.asset-node {
+  border-left-width: 12px !important;
+}
+
+.asset-node.selected {
+  color: #063b79 !important;
+  background: transparent !important;
+  border-left-color: var(--green) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.asset-node.selected .asset-icon,
+.asset-node.selected .tree-toggle {
+  color: inherit !important;
+}
+
+/* 未选中的设备不显示状态条；选中后显示绿色状态条。
+   数据查询页不加载告警数据，因此不绑定告警红色标记。 */
+.asset-node.device-node {
+  border-left-color: transparent !important;
+}
+
+.asset-node.device-node.selected {
+  border-left-color: var(--green) !important;
 }
 
 .asset-panel,
@@ -47,7 +77,8 @@
 .asset-icon { margin-right: 6px; color: #4e88cf; font-size: 16px; }
 
 .query-content { min-width: 0; }
-.filter-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; padding: 21px; }
+/* 三项筛选与重置按钮保持同一行；每项均分并填满自己的列，避免控件过窄。 */
+.filter-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: center; gap: 10px 12px; padding: 16px; }
 .filter-panel label { display: flex; align-items: center; min-width: 0; height: 33px; margin: 0; padding: 0 10px; border: 1px solid #bfcbd5; border-radius: 5px; color: #3d5367; background: #fff; font-size: 12px; }
 .filter-panel label { gap: 8px; }
 .filter-panel label > span { flex: 0 0 auto; }
@@ -55,14 +86,12 @@
 .filter-panel input { min-width: 0; flex: 1; border: 0; outline: 0; color: #536b7f; background: transparent; font: inherit; font-size: 12px; }
 .filter-panel select { cursor: pointer; }
 .keyword-input tb-icon { color: #6a8093; font-size: 18px; }
-.filter-actions { grid-column: 1 / -1; display: flex; justify-content: end; gap: 8px; }
+.filter-actions { display: flex; align-items: center; justify-content: start; gap: 8px; }
 .filter-actions button,
 .export-button,
 .trace-button,
 .detail-button { min-height: 32px; padding: 0 14px; border: 0; border-radius: 5px; color: #fff; font: inherit; font-size: 12px; }
-.query-button { background: #12d950; cursor: pointer; }
 .reset-button { background: #195ce8; cursor: pointer; }
-.query-button:hover { background: #0dbd43; }
 .reset-button:hover { background: #114abd; }
 
 .result-panel { margin-top: 12px; }
@@ -95,9 +124,9 @@
 .table-wrap th:nth-child(8) { width: 138px; }
 .product-cell { white-space: normal !important; line-height: 1.35; }
 .status-tag { display: inline-block; min-width: 42px; padding: 3px 7px; border: 1px solid; border-radius: 3px; font-size: 11px; }
-.status-tag.在线 { border-color: #13b654; color: #07843b; background: #edfff4; }
+.status-tag.报警 { border-color: #f04444; color: #d52626; background: #fff0f0; font-weight: 700; }
+.status-tag.正常 { border-color: #13b654; color: #07843b; background: #edfff4; }
 .status-tag.离线 { border-color: #9ba9b5; color: #6e7c89; background: #edf0f2; }
-.status-tag.未连接 { border-color: #f2a52b; color: #c77900; background: #fff8e8; }
 .operation-cell { overflow: visible !important; white-space: nowrap !important; }
 .trace-button,
 .detail-button { display: inline-flex; min-height: 29px; align-items: center; justify-content: center; margin: 0 3px; padding: 0 9px; border: 1px solid #195ce8; color: #195ce8; background: #fff; text-decoration: none; }
@@ -113,7 +142,7 @@
 .pagination button.active { color: #fff; border-color: #195ce8; background: #195ce8; }
 
 @media (max-width: 1180px) {
-  .filter-panel { grid-template-columns: 1fr; }
+  .filter-panel { grid-template-columns: repeat(3, minmax(120px, 1fr)) auto; }
   .result-toolbar { grid-template-columns: 1fr; padding: 12px 16px; }
   .status-tabs { justify-self: start; order: -1; }
   .toolbar-tail { justify-self: start; }
@@ -148,7 +177,8 @@
 /* 平板和手机：筛选区单列化，表格仅在自身区域保留横向滚动。 */
 @media (max-width: 900px) {
   .data-query-page { gap: 10px; }
-  .filter-panel { gap: 9px; padding: 13px; }
+  .filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding: 13px; }
+  .filter-actions { grid-column: 1 / -1; }
   .result-panel { margin-top: 10px; }
   .result-toolbar { min-height: 58px; gap: 9px; padding: 10px 12px; }
   .table-wrap table { min-width: 760px; font-size: 11px; }
@@ -160,11 +190,42 @@
   .data-query-page { padding-right: 6px; }
   .filter-panel { padding: 10px; }
   .filter-panel label { height: 30px; font-size: 11px; }
-  .filter-actions { justify-content: stretch; }
-  .filter-actions button { flex: 1; }
+  .filter-panel { grid-template-columns: 1fr; }
+  .filter-actions { grid-column: auto; justify-content: start; }
   .status-tabs { width: 100%; justify-content: space-between; }
   .status-tabs button { min-width: 0; flex: 1; padding: 7px 5px; }
   .toolbar-tail { width: 100%; }
   .selected-asset { max-width: 100%; }
   .table-wrap table { min-width: 700px; font-size: 10px; }
+}
+
+/* 页面外边界、左右栏和主要面板统一使用同一间距。 */
+.data-query-page {
+  gap: var(--tb-smart-page-spacing);
+  margin: 0;
+  padding: var(--tb-smart-page-spacing);
+}
+
+.data-query-page > .asset-panel {
+  padding: var(--tb-smart-page-spacing);
+}
+
+.result-panel {
+  margin-top: var(--tb-smart-page-spacing);
+}
+
+/* 笔记本密度适配：压缩筛选、状态栏和表格文字，保留原有双栏与表格结构。 */
+@media (max-width: 1366px) and (min-width: 901px) {
+  .filter-panel { gap: 8px 9px; padding: 12px; }
+  .filter-panel label,
+  .filter-panel select,
+  .filter-panel input,
+  .filter-actions button { font-size: 11px; }
+  .filter-panel label { height: 30px; padding-right: 7px; padding-left: 7px; }
+  .result-toolbar { min-height: 58px; gap: 8px; padding-right: 12px; padding-left: 12px; }
+  .status-tabs button { min-width: 48px; padding: 6px 7px; font-size: 10px; }
+  .table-wrap table { font-size: 10px; }
+  .table-wrap th,
+  .table-wrap td { padding: 7px 4px; }
+  .pagination { gap: 4px; padding: 10px 12px; font-size: 10px; }
 }

@@ -18,6 +18,7 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { AbstractControl, UntypedFormArray, UntypedFormBuilder, UntypedFormGroup, Validators } from '@angular/forms';
 import { ReportTemplateService } from '@core/http/report-template.service';
+import { EntityGroupService } from '@core/http/entity-group.service';
 import { PageLink } from '@shared/models/page/page-link';
 import { EntityType } from '@shared/models/entity-type.models';
 import { EntityId } from '@shared/models/id/entity-id';
@@ -29,8 +30,9 @@ import {
   DEFAULT_REPORT_NAME_PATTERN,
   REPORT_NAME_DATE_TOKEN,
   EntityAlias,
+  EntityGroupFilter,
+  DataKey,
   Insets,
-  isLatestSnapshotComponent,
   keysToDataKeys,
   pageMarginsToNumber,
   ReportComponentConfig,
@@ -42,6 +44,7 @@ import {
   ReportTemplateType,
   resolveDataSourceEntity,
   TbReportFormat,
+  toEntityGroupFilter,
   usesTimeseriesKeys
 } from '@shared/models/report.models';
 
@@ -86,6 +89,8 @@ export class ReportTemplateEditorComponent implements OnInit {
   nameDateToken = REPORT_NAME_DATE_TOKEN;
 
   otherTemplates: ReportTemplateInfo[] = [];
+  // Tenant device groups for group-scoped components (batch tables). Id/name pairs only.
+  deviceGroups: Array<{ id: string; name: string }> = [];
 
   private template: ReportTemplate;
   // Aliases carried over untouched from the loaded template, plus any this editing session
@@ -99,10 +104,12 @@ export class ReportTemplateEditorComponent implements OnInit {
   constructor(@Inject(MAT_DIALOG_DATA) public data: ReportTemplateEditorData,
               private dialogRef: MatDialogRef<ReportTemplateEditorComponent, boolean>,
               private reportTemplateService: ReportTemplateService,
+              private entityGroupService: EntityGroupService,
               private fb: UntypedFormBuilder) {
   }
 
   ngOnInit() {
+    this.loadDeviceGroups();
     this.reportTemplateService.getReportTemplate(this.data.reportTemplateId).subscribe((template) => {
       this.template = template;
       this.entityAliases = [...(template.configuration?.entityAliases || [])];
@@ -139,7 +146,24 @@ export class ReportTemplateEditorComponent implements OnInit {
 
   private buildComponentRow(c: ReportComponentConfig, rowId: string): UntypedFormGroup {
     const ds: DataSource = c.type === ReportComponentType.ALARM_TABLE ? c.alarmSource : c.dataSources?.[0];
-    const keys = c.type === ReportComponentType.ALARM_TABLE ? ds?.dataKeys : (ds?.dataKeys || ds?.latestDataKeys);
+    // ENTITY_TABLE splits its columns across two inputs (attributes/entity fields + latest
+    // telemetry); every other data-driven type keeps the single keys list.
+    let keys: string[];
+    let tsKeys: string[] = [];
+    if (c.type === ReportComponentType.ENTITY_TABLE) {
+      const all = ds?.dataKeys || [];
+      keys = all.filter((k) => k.type !== 'timeseries')
+        .map((k) => (k.type === 'entityField' ? 'field:' : '') + k.name + (k.label && k.label !== k.name ? `|${k.label}` : ''));
+      tsKeys = all.filter((k) => k.type === 'timeseries')
+        .map((k) => k.name + (k.label && k.label !== k.name ? `|${k.label}` : ''));
+    } else {
+      keys = dataKeysToKeys(c.type === ReportComponentType.ALARM_TABLE ? ds?.dataKeys : (ds?.dataKeys || ds?.latestDataKeys));
+    }
+    // A data source pointing at an entity-group alias is round-tripped back as group scope so
+    // re-saving a hand-written (API-created) batch template no longer flattens it to singleEntity.
+    const alias = ds?.type === 'entity'
+      ? this.entityAliases.find((a) => a.id === ds.entityAliasId) : null;
+    const groupFilter = alias?.filter?.type === 'entityGroup' ? alias.filter as EntityGroupFilter : null;
     return this.fb.group({
       rowId: [rowId],
       type: [c.type],
@@ -150,8 +174,11 @@ export class ReportTemplateEditorComponent implements OnInit {
       level: [1],
       html: [c.type === ReportComponentType.RICH_TEXT ? (c.value || '') : ''],
       url: [c.imageUrl || ''],
+      scope: [groupFilter ? 'group' : 'entity'],
       entityId: [resolveDataSourceEntity(ds, this.entityAliases)],
-      keys: [dataKeysToKeys(keys)],
+      entityGroupId: [groupFilter?.entityGroup || null],
+      keys: [keys],
+      tsKeys: [tsKeys],
       lastMs: [c.timewindow?.history?.interval ?? DEFAULT_ALARM_WINDOW_MS],
       chartType: [c.chartType || 'BAR'],
       reportTemplateId: [c.templateId?.id || null]
@@ -188,6 +215,23 @@ export class ReportTemplateEditorComponent implements OnInit {
     return this.dataDrivenTypes.includes(type);
   }
 
+  /** Only flat-row renderers (tables) can consume a multi-entity group source. Charts plot
+   *  per-entity series and keep single-entity scope. */
+  groupCapable(type: ReportComponentType): boolean {
+    return type === ReportComponentType.ENTITY_TABLE || type === ReportComponentType.ALARM_TABLE;
+  }
+
+  private loadDeviceGroups() {
+    this.entityGroupService.getEntityGroupsByType(EntityType.DEVICE, new PageLink(200)).subscribe({
+      next: (page) => {
+        this.deviceGroups = page.data.map((g) => ({ id: g.id.id, name: g.name }));
+      },
+      error: () => {
+        this.deviceGroups = [];
+      }
+    });
+  }
+
   private newRowId(): string {
     return 'row-' + Math.random().toString(36).slice(2);
   }
@@ -210,6 +254,7 @@ export class ReportTemplateEditorComponent implements OnInit {
   }
 
   save(): void {
+    this.validateGroupScopes();
     if (!this.form.valid) {
       this.form.markAllAsTouched();
       return;
@@ -274,7 +319,7 @@ export class ReportTemplateEditorComponent implements OnInit {
         break;
       case ReportComponentType.ALARM_TABLE: {
         c.title = row.title;
-        const ds = buildDataSource(row.entityId, row.rowId, ensureAlias);
+        const ds = this.buildRowDataSource(row, ensureAlias);
         // 'entityField' matches the shape verified against the running backend for alarm tables;
         // unlike the other data-driven types, this has not been confirmed with 'timeseries' keys.
         ds.dataKeys = keysToDataKeys(row.keys, 'entityField');
@@ -286,9 +331,16 @@ export class ReportTemplateEditorComponent implements OnInit {
       default: {
         // ENTITY_TABLE, TIME_SERIES_TABLE, TIME_SERIES_CHART, LATEST_CHART
         c.title = row.title;
-        const ds = buildDataSource(row.entityId, row.rowId, ensureAlias);
-        const dataKeys = keysToDataKeys(row.keys, usesTimeseriesKeys(row.type) ? 'timeseries' : 'attribute');
-        if (isLatestSnapshotComponent(row.type)) {
+        const ds = this.buildRowDataSource(row, ensureAlias);
+        // ENTITY_TABLE columns must land in dataKeys: the CSV renderer reads dataKeys only
+        // (AbstractCsvComponentRenderer.getColumns) and both the fetch and the row mapping
+        // (AbstractReportService.collectEntityDatas) key off dataKeys; the PDF renderer merges
+        // dataKeys + latestDataKeys, so dataKeys works for both formats. LATEST_CHART is
+        // PDF-only and its chart path reads latestDataKeys - it stays there.
+        const dataKeys = row.type === ReportComponentType.ENTITY_TABLE
+          ? this.parseEntityTableKeys(row.keys, row.tsKeys)
+          : keysToDataKeys(row.keys, usesTimeseriesKeys(row.type) ? 'timeseries' : 'attribute');
+        if (row.type === ReportComponentType.LATEST_CHART) {
           ds.latestDataKeys = dataKeys;
         } else {
           ds.dataKeys = dataKeys;
@@ -300,6 +352,61 @@ export class ReportTemplateEditorComponent implements OnInit {
       }
     }
     return c;
+  }
+
+  /** Builds the data source for a data-driven row: single-entity (existing path) or
+   *  device-group alias (batch tables). Group aliases are keyed by the same rowId so
+   *  re-saving reuses the row's alias instead of accumulating new ones. */
+  private buildRowDataSource(row: any, ensureAlias: (id: string, target: EntityId) => void): DataSource {
+    if (row.scope === 'group' && row.entityGroupId) {
+      const aliasId = row.rowId;
+      const alias: EntityAlias = { id: aliasId, alias: aliasId, filter: toEntityGroupFilter(row.entityGroupId) };
+      const existing = this.entityAliases.find((a) => a.id === aliasId && a.filter?.type === 'entityGroup');
+      if (existing) {
+        Object.assign(existing, alias);
+      } else {
+        this.entityAliases.push(alias);
+      }
+      return { type: 'entity', entityAliasId: aliasId };
+    }
+    return buildDataSource(row.entityId, row.rowId, ensureAlias);
+  }
+
+  /** Group-scoped rows must carry a group; flips the error on the group control so the
+   *  standard form.valid check catches it. */
+  private validateGroupScopes(): void {
+    for (const control of this.componentsArray.controls) {
+      const row = control.value;
+      const groupCtrl = control.get('entityGroupId');
+      if (row.scope === 'group' && !row.entityGroupId) {
+        groupCtrl.setErrors({ required: true });
+      } else if (groupCtrl.hasError('required')) {
+        groupCtrl.setErrors(null);
+      }
+    }
+  }
+
+  /** Parses ENTITY_TABLE column entries into typed DataKeys.
+   *  Entry syntax: "[field:]name[|columnLabel]" - "field:" marks an entity field (e.g. the
+   *  device name), "name|标题" sets a custom column header; plain entries are server-scope
+   *  attributes. Telemetry entries come from the separate tsKeys list (latest value per key). */
+  private parseEntityTableKeys(keys: string[], tsKeys: string[]): DataKey[] {
+    const parse = (raw: string, type: DataKey['type']): DataKey | null => {
+      if (!raw || !raw.trim()) {
+        return null;
+      }
+      const [rawName, customLabel] = raw.split('|').map((s) => s.trim());
+      let name = rawName;
+      if (type === 'attribute' && rawName.startsWith('field:')) {
+        type = 'entityField';
+        name = rawName.slice('field:'.length);
+      }
+      return { name, type, label: customLabel || name };
+    };
+    return [
+      ...(keys || []).map((k) => parse(k, 'attribute')),
+      ...(tsKeys || []).map((k) => parse(k, 'timeseries'))
+    ].filter((k): k is DataKey => k !== null);
   }
 
   /**

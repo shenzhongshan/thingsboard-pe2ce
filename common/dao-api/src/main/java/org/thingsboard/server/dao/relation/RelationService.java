@@ -56,6 +56,10 @@ public interface RelationService {
 
     List<EntityRelation> findByFrom(TenantId tenantId, EntityId from, RelationTypeGroup typeGroup);
 
+    /** 按同一实体类型批量读取出边关系，避免资产树产生 N+1 查询。 */
+    List<EntityRelation> findByFrom(TenantId tenantId, List<? extends EntityId> fromEntities,
+                                    RelationTypeGroup typeGroup);
+
     ListenableFuture<List<EntityRelation>> findByFromAsync(TenantId tenantId, EntityId from, RelationTypeGroup typeGroup);
 
     ListenableFuture<List<EntityRelationInfo>> findInfoByFrom(TenantId tenantId, EntityId from, RelationTypeGroup typeGroup);

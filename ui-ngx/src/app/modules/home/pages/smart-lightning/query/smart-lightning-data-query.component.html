@@ -1,3 +1,7 @@
+<!-- 文件职责：数据查询模块的 smart-lightning-data-query.component，负责页面结构、状态与交互控件的模板渲染。 -->
+<!--
+  智能防雷数据查询模板：左共享资产树，右筛选表单 + 设备表格（三态状态、CSV 导出、回顾弹窗、详情）。
+-->
 <main class="data-query-page" aria-label="智能防雷数据查询">
   <aside class="asset-panel">
     <tb-smart-lightning-root-asset-filter
@@ -5,74 +9,57 @@
       [selectedRootAssetId]="selectedRootAssetId"
       (rootAssetChange)="selectRootAsset($event)">
     </tb-smart-lightning-root-asset-filter>
-    <div class="asset-panel-title">
-      <h2>项目 / 资产</h2>
-      <span>当前用户可见</span>
-    </div>
-    <label class="asset-search">
-      <tb-icon>search</tb-icon>
-      <input [(ngModel)]="assetSearch" placeholder="输入项目或设备名称" aria-label="搜索项目或设备名称">
-    </label>
-    @if (assetsLoading) {
-      <div class="asset-state">正在读取资产…</div>
-    } @else if (assetsLoadError) {
-      <div class="asset-state error">资产树读取失败</div>
-    } @else if (!assetTree.roots.length) {
-      <div class="asset-state">当前没有可见资产</div>
-    } @else {
-      <div class="asset-tree" role="tree">
-        @for (item of visibleAssetNodes; track item.node.id) {
-          <button type="button" class="asset-node" [class.selected]="selectedAssetIds.has(item.node.id)"
-                  [style.--depth]="item.depth" (click)="selectAssetNode(item.node)" role="treeitem"
-                  [attr.aria-expanded]="item.node.childIds.length ? expandedAssetIds.has(item.node.id) : null">
-            @if (item.node.childIds.length) {
-              <span class="tree-toggle" (click)="toggleAssetNode($event, item.node)">
-                <tb-icon>{{expandedAssetIds.has(item.node.id) ? 'expand_more' : 'chevron_right'}}</tb-icon>
-              </span>
-            } @else {
-              <span class="tree-toggle spacer"></span>
-            }
-            <tb-icon class="asset-icon">{{item.node.entityType === 'DEVICE' ? 'devices' : 'domain'}}</tb-icon>
-            <span>{{item.node.name}}</span>
-          </button>
-        }
-      </div>
-    }
+    <tb-smart-lightning-asset-tree
+      [tree]="assetTree"
+      [selectedIds]="selectedAssetIds"
+      [expandedIds]="expandedAssetIds"
+      [rootAssetId]="selectedRootAssetId"
+      [alarmDeviceIds]="activeAlarmDeviceIds"
+      [showDeviceNodes]="false"
+      [search]="assetSearch"
+      [loading]="assetsLoading"
+      [loadError]="assetsLoadError"
+      searchPlaceholder="输入资产名称"
+      treeAriaLabel="资产层级"
+      (searchChange)="assetSearch = $event"
+      (selectNode)="selectAssetNode($event)"
+      (selectAllNodes)="selectAllAssets()"
+      (toggleNode)="toggleAssetNode($event)">
+    </tb-smart-lightning-asset-tree>
   </aside>
 
   <section class="query-content">
-    <form class="filter-panel" novalidate (ngSubmit)="query()">
+    <div class="filter-panel" role="search" aria-label="设备筛选">
       <label>
         <span>产品名称</span>
         <select [(ngModel)]="productNameFilter" name="productName">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (productName of productNames; track productName) {<option [value]="productName">{{productName}}</option>}
         </select>
       </label>
       <label>
         <span>功能</span>
         <select [(ngModel)]="functionType" name="functionType">
-          <option value="">请选择</option>
+          <option value="">全部</option>
           @for (category of functionCategories; track category) {<option [value]="category">{{category}}</option>}
         </select>
       </label>
       <label class="keyword-input">
-        <span>名称</span>
+        <span>关键词</span>
         <input [(ngModel)]="keyword" name="keyword" placeholder="请输入设备名称、类型或产品名称" aria-label="设备名称搜索">
         <tb-icon>search</tb-icon>
       </label>
       <div class="filter-actions">
-        <button type="submit" class="query-button">查询</button>
         <button type="button" class="reset-button" (click)="reset()">重置</button>
       </div>
-    </form>
+    </div>
 
     <section class="result-panel">
       <header class="result-toolbar">
         <button type="button" class="export-button" (click)="exportRows()" [disabled]="!filteredRows.length">
           <tb-icon>download</tb-icon>导出
         </button>
-        <div class="status-tabs" role="tablist" aria-label="设备连接状态">
+        <div class="status-tabs" role="tablist" aria-label="设备状态">
           @for (status of statuses; track status) {
             <button type="button" [class.active]="activeStatus === status" (click)="setStatus(status)" role="tab">
               {{status}}
@@ -115,7 +102,12 @@
                 <td [title]="row.assetPath">{{row.deviceName}}</td>
                 <td [title]="row.deviceType">{{row.deviceType}}</td>
                 <td [title]="row.protocol">{{row.protocol}}</td>
-                <td><span [class]="'status-tag ' + row.status">{{row.status}}</span></td>
+                <td>
+                  <span [class]="'status-tag ' + row.status"
+                        [title]="row.alarmSeverity ? '未处理告警：' + row.alarmSeverity : row.status">
+                    {{row.status}}
+                  </span>
+                </td>
                 <td class="product-cell" [title]="row.productName">{{row.productName}}</td>
                 <td class="operation-cell">
                   <button type="button" class="trace-button" (click)="openHistoryReview(row)" title="查看历史遥测数据">回顾</button>
