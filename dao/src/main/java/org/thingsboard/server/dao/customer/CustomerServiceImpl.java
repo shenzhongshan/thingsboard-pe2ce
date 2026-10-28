@@ -196,6 +196,8 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
                 if (newParentId != null) {
                     entityGroupService.ensureAllGroupMembership(savedCustomer.getTenantId(), newParentId, EntityType.CUSTOMER, savedCustomer.getId());
                 }
+                entityGroupService.createDefaultCustomerEntityGroups(savedCustomer.getTenantId(),
+                        savedCustomer.getId(), savedCustomer.isPublic());
             } else if (!Objects.equals(oldParentId, newParentId)) {
                 entityGroupService.moveAllGroupMembership(savedCustomer.getTenantId(), oldParentId, newParentId, EntityType.CUSTOMER, savedCustomer.getId());
             }

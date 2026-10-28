@@ -50,8 +50,9 @@ const routes: Routes = [
     path: 'customers',
     component: RouterTabsComponent,
     data: {
-      // 'groups'/'hierarchy'/the per-customer management sub-routes below stay TENANT_ADMIN-only
-      // (tenant-wide views); 'all' is PE parity for a customer user's own sub-customers —
+      // 'groups'/'hierarchy' below are also open to a customer user, scoped to their own
+      // sub-customers (PE parity); the remaining per-customer management sub-routes stay
+      // TENANT_ADMIN-only. 'all' is PE parity for a customer user's own sub-customers —
       // CustomersTableConfigResolver branches to CustomerController#getCustomerChildren for them.
       auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       showMainLoadingBar: false,
@@ -111,7 +112,10 @@ const routes: Routes = [
       {
         path: 'groups',
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          // PE parity: a customer admin organizes its own sub-customers into groups the same
+          // way a tenant admin organizes top-level customers — listEntityGroups() on the backend
+          // already scopes CUSTOMER_USER callers to their own owner chain.
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             label: 'entity-group.group-type-customer',
             icon: 'workspaces'
@@ -122,7 +126,7 @@ const routes: Routes = [
             path: '',
             component: EntityGroupsComponent,
             data: {
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'entity-group.group-type-customer',
               groupType: EntityType.CUSTOMER
             }
@@ -130,7 +134,7 @@ const routes: Routes = [
           {
             path: ':entityGroupId',
             data: {
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               breadcrumb: {
                 labelFunction: groupMembersPageBreadcrumbLabelFunction,
                 icon: 'view_list'
@@ -141,7 +145,7 @@ const routes: Routes = [
                 path: '',
                 component: GroupMembersPageComponent,
                 data: {
-                  auth: [Authority.TENANT_ADMIN],
+                  auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
                   title: 'entity-group.group-type-customer',
                   groupType: EntityType.CUSTOMER
                 },
@@ -158,7 +162,7 @@ const routes: Routes = [
                     labelFunction: entityDetailsPageBreadcrumbLabelFunction,
                     icon: 'supervisor_account'
                   } as BreadCrumbConfig<EntityDetailsPageComponent>,
-                  auth: [Authority.TENANT_ADMIN],
+                  auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
                   title: 'customer.customers',
                   groupType: EntityType.CUSTOMER
                 },
@@ -174,7 +178,7 @@ const routes: Routes = [
         path: 'hierarchy',
         component: CustomerHierarchyComponent,
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: 'customer.hierarchy',
           breadcrumb: {
             label: 'customer.hierarchy',

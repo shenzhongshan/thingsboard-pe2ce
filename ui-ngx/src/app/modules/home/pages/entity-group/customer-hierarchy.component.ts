@@ -245,6 +245,10 @@ export class CustomerHierarchyComponent extends PageComponent implements OnInit 
         // (a group's own customer members can have further sub-customers/type-folders under
         // them, matching PE's arbitrarily-deep hierarchy) — every other group type is a leaf.
         const isCustomerGroup = node.groupType === EntityType.CUSTOMER;
+        // node.customerId may be a descendant of the caller's own customer (one level deeper in
+        // the tree), not the caller itself — listEntityGroups() on the backend validates that via
+        // checkCustomerId (own customer or below) rather than silently substituting the caller's
+        // own id, so this works correctly for a CUSTOMER_USER drilling into a sub-customer too.
         this.entityGroupService.getEntityGroupsByType(node.groupType, this.pageLink(), node.customerId).subscribe((page) => {
           node.children = page.data.map(group => ({
             kind: 'entityGroup' as NodeKind,

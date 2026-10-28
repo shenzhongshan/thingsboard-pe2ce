@@ -111,8 +111,11 @@ public class EntityGroupController extends BaseController {
                 getTenantId(), new EntityGroupId(toUUID(strEntityGroupId)))));
     }
 
-    @ApiOperation(value = "Save Entity Group (saveEntityGroup)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @ApiOperation(value = "Save Entity Group (saveEntityGroup)",
+            notes = "A customer user may create/edit groups of their own — the owner is always forced to the " +
+                    "caller's own customer (the submitted ownerId, if any, is ignored) so a customer user can " +
+                    "never create a tenant-owned group or reparent one of its groups to another owner.")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/entityGroup"})
     public EntityGroup saveEntityGroup(
             @Parameter(description = "A JSON value representing the entity group", required = true)
@@ -122,12 +125,16 @@ public class EntityGroupController extends BaseController {
         if (entityGroup.getId() != null) {
             checkAccess(checkNotNull(entityGroupService.findEntityGroupById(getTenantId(), entityGroup.getId())), Operation.WRITE);
         }
+        if (Authority.CUSTOMER_USER.equals(getCurrentUser().getAuthority())) {
+            entityGroup.setOwnerId(getCurrentUser().getCustomerId());
+        }
         return entityGroupService.saveEntityGroup(getTenantId(), entityGroup);
     }
 
     @ApiOperation(value = "Get Entity Groups by type (getEntityGroupsByType)",
-            notes = "Lists the tenant's entity groups of the given type (USER, CUSTOMER, DEVICE, ASSET, ENTITY_VIEW or DASHBOARD). The 'All' group is created automatically.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+            notes = "Lists the tenant's entity groups of the given type (USER, CUSTOMER, DEVICE, ASSET, ENTITY_VIEW or DASHBOARD). The 'All' group is created automatically. " +
+                    "A customer user lists its own groups instead (optionally one of its descendant customers', via the customerId param).")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @GetMapping(value = {"/entityGroups/{groupType}"}, params = {"pageSize", "page"})
     public PageData<EntityGroup> getEntityGroupsByType(
             @Parameter(description = "Entity group type", required = true, schema = @Schema(allowableValues = {"USER", "CUSTOMER", "DEVICE", "ASSET", "ENTITY_VIEW", "DASHBOARD"}))
@@ -150,10 +157,9 @@ public class EntityGroupController extends BaseController {
      * <p>
      * The owner scoping lives here rather than in the endpoint because getEntityGroupInfosByType —
      * which CUSTOMER_USERs may call — reaches this logic through an in-class Java call, and Spring
-     * Security only intercepts proxied calls, so getEntityGroupsByType's own
-     * {@code @PreAuthorize("hasAuthority('TENANT_ADMIN')")} does NOT apply on that path. Relying on
-     * the annotation alone let a customer user enumerate every entity group in the tenant,
-     * including other customers' (confirmed live, then fixed here).
+     * Security only intercepts proxied calls, so getEntityGroupsByType's own {@code @PreAuthorize}
+     * does NOT apply on that path. Relying on the annotation alone let a customer user enumerate
+     * every entity group in the tenant, including other customers' (confirmed live, then fixed here).
      */
     private PageData<EntityGroup> listEntityGroups(String strGroupType, int pageSize, int page, String textSearch,
                                                    String sortProperty, String sortOrder, String customerId) throws ThingsboardException {
@@ -163,10 +169,13 @@ public class EntityGroupController extends BaseController {
         PageLink pageLink = createPageLink(pageSize, page, textSearch, sortProperty, sortOrder);
         CustomerId ownerId;
         if (Authority.CUSTOMER_USER.equals(getCurrentUser().getAuthority())) {
-            // A customer user may only enumerate their own customer's groups; the requested
-            // customerId is ignored rather than honoured. Groups another owner shared with them are
-            // served separately by getSharedEntityGroupsByType.
-            ownerId = getCurrentUser().getCustomerId();
+            if (StringUtils.isNotBlank(customerId)) {
+                // A customer user may drill into a descendant customer's groups (hierarchy view) —
+                // checkCustomerId enforces "own customer or below", never a sibling or the tenant.
+                ownerId = checkCustomerId(new CustomerId(toUUID(customerId)), Operation.READ).getId();
+            } else {
+                ownerId = getCurrentUser().getCustomerId();
+            }
         } else {
             ownerId = StringUtils.isNotBlank(customerId) ? new CustomerId(toUUID(customerId)) : null;
         }
@@ -410,7 +419,7 @@ public class EntityGroupController extends BaseController {
 
     @ApiOperation(value = "Delete Entity Group (deleteEntityGroup)",
             notes = "Deletes the entity group and its membership relations. The 'All' group cannot be deleted.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @DeleteMapping(value = {"/entityGroup/{entityGroupId}"})
     public void deleteEntityGroup(
             @Parameter(description = "A string value representing the entity group id", required = true)
@@ -423,7 +432,7 @@ public class EntityGroupController extends BaseController {
     }
 
     @ApiOperation(value = "Add entities to Entity Group (addEntitiesToEntityGroup)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/addEntities"})
     public void addEntitiesToEntityGroup(
             @Parameter(description = "A string value representing the entity group id", required = true)
@@ -441,7 +450,7 @@ public class EntityGroupController extends BaseController {
     }
 
     @ApiOperation(value = "Remove entities from Entity Group (removeEntitiesFromEntityGroup)")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/deleteEntities"})
     public void removeEntitiesFromEntityGroup(
             @Parameter(description = "A string value representing the entity group id", required = true)
@@ -519,7 +528,7 @@ public class EntityGroupController extends BaseController {
     @ApiOperation(value = "Make Entity Group public (makeEntityGroupPublic)",
             notes = "Makes the group available to public (non-authorized) users and stores the public flag. " +
                     "Only ASSET, DEVICE, ENTITY_VIEW, EDGE and DASHBOARD groups can be public.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/makePublic"})
     public EntityGroup makeEntityGroupPublic(
             @Parameter(description = "A string value representing the entity group id", required = true)
@@ -742,7 +751,7 @@ public class EntityGroupController extends BaseController {
     @ApiOperation(value = "Make Entity Group private (makeEntityGroupPrivate)",
             notes = "Removes the public group permission and clears the public flag. " +
                     "Only ASSET, DEVICE, ENTITY_VIEW, EDGE and DASHBOARD groups can be public.")
-    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('TENANT_ADMIN', 'CUSTOMER_USER')")
     @PostMapping(value = {"/entityGroup/{entityGroupId}/makePrivate"})
     public EntityGroup makeEntityGroupPrivate(
             @Parameter(description = "A string value representing the entity group id", required = true)

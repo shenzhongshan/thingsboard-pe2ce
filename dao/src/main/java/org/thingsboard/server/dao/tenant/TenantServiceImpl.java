@@ -172,6 +172,7 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
             apiUsageStateService.createDefaultApiUsageState(tenantId, null);
             notificationSettingsService.createDefaultNotificationConfigs(tenantId);
             encryptionService.createEncryptionKey(tenantId);
+            entityGroupService.createDefaultTenantEntityGroups(tenantId);
         }
 
         return savedTenant;
