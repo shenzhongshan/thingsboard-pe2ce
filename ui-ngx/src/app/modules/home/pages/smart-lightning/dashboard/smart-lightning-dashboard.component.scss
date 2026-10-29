@@ -755,7 +755,7 @@ h2, p { margin: 0; }
   }
 }
 
-/* 与其他业务看板共用动态工作区高度；网格吸收全屏增加的空间。 */
+/* 桌面端限制在实际工作区内；取消旧面板的最小高度，避免普通窗口被内容撑高。 */
 .lightning-page {
   display: flex;
   flex-direction: column;
@@ -764,6 +764,12 @@ h2, p { margin: 0; }
 }
 .dashboard-grid { flex: 1; }
 @media (min-width: 1351px) {
-  .dashboard-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 1.1fr); }
+  :host { min-height: 0; }
+  .lightning-page { height: var(--tb-dashboard-min-height, auto); min-height: 0; }
+  .dashboard-grid { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+  .dashboard-grid > .panel { min-height: 0; overflow: auto; }
   .records-panel { height: auto; max-height: none; }
+  .dashboard-grid > .map-panel { overflow: hidden; }
+  .tianditu-map { min-height: 0; }
+  .chart-panel .chart { min-height: 0; }
 }

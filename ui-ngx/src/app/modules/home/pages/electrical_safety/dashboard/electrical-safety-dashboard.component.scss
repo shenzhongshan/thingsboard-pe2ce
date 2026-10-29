@@ -639,7 +639,7 @@ dl {
   .order-bars i { transition: none; }
 }
 
-/* 与其他业务看板共用动态工作区高度；网格吸收全屏增加的空间。 */
+/* 桌面端限制在实际工作区内；取消旧面板的最小高度，避免普通窗口被内容撑高。 */
 .electrical-safety-page {
   display: flex;
   flex-direction: column;
@@ -648,6 +648,16 @@ dl {
 }
 .dashboard-grid { flex: 1; }
 @media (min-width: 1351px) {
-  .dashboard-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 1.1fr); }
+  :host { min-height: 0; }
+  .electrical-safety-page { height: var(--tb-dashboard-min-height, auto); min-height: 0; }
+  .dashboard-grid { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+  .dashboard-grid > .panel { min-height: 0; overflow: auto; }
   .records-panel { height: auto; max-height: none; }
+  .dashboard-grid > .map-panel { overflow: hidden; }
+  .map-container { min-height: 0; }
+  .monitoring-stack,
+  .monitoring-stack .monitoring-card:not(.fire-panel),
+  .monitoring-stack .monitoring-card.arc-fault-panel,
+  .monitoring-stack .monitoring-card.fire-panel { min-height: 0; }
+  .monitoring-stack .monitoring-card { overflow: auto; }
 }

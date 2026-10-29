@@ -53,3 +53,15 @@
 
 /* 明确工作区最小高度，使全屏后的剩余高度进入三行网格分配。 */
 .energy-dashboard { min-height: var(--tb-dashboard-min-height, 100%); }
+
+/* 普通窗口与全屏均按工作区限高，只有卡片内容过多时内部滚动。 */
+@media (min-width: 1351px) {
+  :host { flex: 0 0 auto; min-height: 0; }
+  .energy-dashboard { height: var(--tb-dashboard-min-height, auto); min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+  .overview-grid { min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+  .overview-grid > .panel { min-height: 0; overflow: auto; }
+  .overview-grid > .map-panel { overflow: hidden; }
+  .map-host tb-smart-lightning-device-map { min-height: 0; }
+  .chart-host, .compact-chart, .energy-chart-content { min-height: 0; }
+  .panel-heading { flex-shrink: 0; }
+}
