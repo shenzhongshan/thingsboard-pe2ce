@@ -24,6 +24,25 @@
     }
   }
 
+  .tb-cm-title {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    .tb-cm-scope {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 16px;
+      letter-spacing: .4px;
+      color: rgba(0, 0, 0, .54);
+      background: rgba(0, 0, 0, .06);
+      white-space: nowrap;
+    }
+  }
+
   .tb-cm-list {
     display: flex;
     flex-direction: column;

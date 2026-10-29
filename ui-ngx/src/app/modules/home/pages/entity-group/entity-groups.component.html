@@ -99,16 +99,15 @@
                   <mat-icon>edit</mat-icon>
                 </button>
               } @else {
-              @if (groupType === EntityType.USER) {
-                <button mat-icon-button type="button" (click)="openPermissions($event, g)"
-                        matTooltip="{{ 'entity-group.permissions' | translate }}" matTooltipPosition="above">
-                  <mat-icon>security</mat-icon>
+              <!-- 用户组不参与"共享实体"：共享的语义是把一组实体授权给某个用户组，用户组本身
+                   不是被共享的对象。PE 的用户组列表只有"实体组详情"和"删除"两个行操作，角色
+                   则在详情面板的"角色"页里维护，不在列表上另开快捷入口。 -->
+              @if (groupType !== EntityType.USER) {
+                <button mat-icon-button type="button" (click)="shareGroup($event, g)"
+                        matTooltip="{{ 'entity-group.share-group' | translate }}" matTooltipPosition="above">
+                  <mat-icon>contact_page</mat-icon>
                 </button>
               }
-              <button mat-icon-button type="button" (click)="shareGroup($event, g)"
-                      matTooltip="{{ 'entity-group.share-group' | translate }}" matTooltipPosition="above">
-                <mat-icon>contact_page</mat-icon>
-              </button>
               @if (canBePublic(g)) {
                 @if (!isPublicGroup(g)) {
                   <button mat-icon-button type="button" (click)="togglePublic($event, g, true)"
@@ -122,9 +121,10 @@
                   </button>
                 }
               }
+              <!-- "All" 组的名称/描述是系统生成的，但它的列、设置、操作、角色等都可维护，
+                   所以详情入口对它同样开放（PE 亦然）——只有删除是禁止的。 -->
               <button mat-icon-button type="button" (click)="editGroup($event, g)"
-                      [disabled]="isGroupAll(g)"
-                      matTooltip="{{ 'action.edit' | translate }}" matTooltipPosition="above">
+                      matTooltip="{{ 'entity-group.group-details' | translate }}" matTooltipPosition="above">
                 <mat-icon>edit</mat-icon>
               </button>
               <button mat-icon-button type="button" (click)="deleteGroup($event, g)"

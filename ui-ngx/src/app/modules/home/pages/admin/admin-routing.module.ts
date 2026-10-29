@@ -29,7 +29,7 @@ import { WhiteLabelingComponent } from '@home/pages/admin/white-labeling.compone
 import { LoginWhiteLabelingComponent } from '@home/pages/admin/login-white-labeling.component';
 import { MailTemplatesComponent } from '@home/pages/admin/mail-templates.component';
 import { SelfRegistrationComponent } from '@home/pages/admin/self-registration.component';
-import { RolesComponent } from '@home/pages/entity-group/roles.component';
+import { RolesTableConfigResolver } from '@home/pages/entity-group/roles-table-config.resolver';
 import { SecretsComponent } from '@home/pages/admin/secrets.component';
 import { CustomMenuComponent } from '@home/pages/admin/custom-menu.component';
 import { CustomMenuListComponent } from '@home/pages/admin/custom-menu-list.component';
@@ -406,7 +406,9 @@ const routes: Routes = [
   {
     path: 'security-settings',
     data: {
-      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+      // Only the 'roles' leaf is reachable for CUSTOMER_USER (general/2fa/self-registration/secrets/
+      // auditLogs stay TENANT_ADMIN+ only — the backend has no customer-scoped support for those).
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       breadcrumb: {
         menuId: MenuId.security_settings
       }
@@ -416,10 +418,11 @@ const routes: Routes = [
         path: '',
         children: [],
         data: {
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           redirectTo: {
             SYS_ADMIN: '/security-settings/general',
-            TENANT_ADMIN: '/security-settings/auditLogs'
+            TENANT_ADMIN: '/security-settings/auditLogs',
+            CUSTOMER_USER: '/security-settings/roles'
           }
         }
       },
@@ -461,14 +464,40 @@ const routes: Routes = [
       },
       {
         path: 'roles',
-        component: RolesComponent,
         data: {
-          auth: [Authority.TENANT_ADMIN],
-          title: 'role.roles',
           breadcrumb: {
             menuId: MenuId.roles
           }
-        }
+        },
+        children: [
+          {
+            path: '',
+            component: EntitiesTableComponent,
+            data: {
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'role.roles'
+            },
+            resolve: {
+              entitiesTableConfig: RolesTableConfigResolver
+            }
+          },
+          {
+            path: ':entityId',
+            component: EntityDetailsPageComponent,
+            canDeactivate: [ConfirmOnExitGuard],
+            data: {
+              breadcrumb: {
+                labelFunction: entityDetailsPageBreadcrumbLabelFunction,
+                icon: 'security'
+              } as BreadCrumbConfig<EntityDetailsPageComponent>,
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
+              title: 'role.roles'
+            },
+            resolve: {
+              entitiesTableConfig: RolesTableConfigResolver
+            }
+          }
+        ]
       },
       {
         path: 'secrets',
@@ -575,7 +604,7 @@ const routes: Routes = [
       {
         path: 'custom-menu',
         data: {
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             menuId: MenuId.custom_menu
           }
@@ -585,7 +614,7 @@ const routes: Routes = [
             path: '',
             component: CustomMenuListComponent,
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'custom-menu.custom-menu'
             }
           },
@@ -594,7 +623,7 @@ const routes: Routes = [
             component: CustomMenuComponent,
             canDeactivate: [ConfirmOnExitGuard],
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'custom-menu.custom-menu',
               breadcrumb: {
                 label: 'custom-menu.edit-menu-items',
@@ -614,7 +643,8 @@ const routes: Routes = [
   providers: [
     ResourcesLibraryTableConfigResolver,
     JsLibraryTableConfigResolver,
-    QueuesTableConfigResolver
+    QueuesTableConfigResolver,
+    RolesTableConfigResolver
   ]
 })
 export class AdminRoutingModule { }

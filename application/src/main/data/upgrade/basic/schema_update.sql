@@ -113,3 +113,10 @@ ALTER TABLE edge ADD COLUMN IF NOT EXISTS cloud_endpoint varchar(255);
 -- edge 模板位：模板只存不跑，不计配额，随 edge 同步下发。
 ALTER TABLE converter ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
 ALTER TABLE integration ADD COLUMN IF NOT EXISTS is_edge_template BOOLEAN DEFAULT false;
+
+-- 自定义菜单的所有者由 (tenant_id, customer_id) 构成：CUSTOMER 范围的菜单归某个客户所有，
+-- 系统/租户范围的菜单用 NULL_UUID 哨兵（相等匹配，不能用 SQL NULL）。
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS customer_id UUID NOT NULL DEFAULT '13814000-1dd2-11b2-8080-808080808080';
+
+-- USER_GROUPS 分配类型：按用户组名称匹配（而非 id），因为同名组在每个客户下都会重建。
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS user_group_names TEXT[];

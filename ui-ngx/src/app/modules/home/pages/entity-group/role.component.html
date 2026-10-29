@@ -1,0 +1,121 @@
+<!--
+
+    Copyright © 2016-2026 The Thingsboard Authors
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<div class="tb-details-buttons xs:flex xs:flex-col">
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'open')"
+          [class.!hidden]="isEdit || isDetailsPage">
+    {{'common.open-details-page' | translate }}
+  </button>
+  <button mat-raised-button color="primary"
+          [disabled]="(isLoading$ | async)"
+          (click)="onEntityAction($event, 'delete')"
+          [class.!hidden]="hideDelete() || isEdit">
+    {{'role.delete' | translate }}
+  </button>
+  <div class="flex flex-row xs:flex-col">
+    <button mat-raised-button
+            ngxClipboard
+            (cbOnSuccess)="onRoleIdCopied()"
+            [cbContent]="entity?.id?.id"
+            [disabled]="(isLoading$ | async)"
+            [class.!hidden]="isEdit">
+      <mat-icon svgIcon="mdi:clipboard-arrow-left"></mat-icon>
+      <span translate>role.copyId</span>
+    </button>
+  </div>
+</div>
+<div class="mat-padding flex flex-col">
+  <form [formGroup]="entityForm">
+    <fieldset [disabled]="(isLoading$ | async) || !isEdit" class="flex flex-col gap-2">
+      <mat-form-field class="mat-block" appearance="outline">
+        <mat-label translate>role.name</mat-label>
+        <input matInput formControlName="name" required maxlength="255">
+        @if (entityForm.get('name').hasError('required')) {
+          <mat-error>{{ 'role.name-required' | translate }}</mat-error>
+        }
+        @if (entityForm.get('name').hasError('maxlength')) {
+          <mat-error>{{ 'role.name-max-length' | translate }}</mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field class="mat-block" appearance="outline">
+        <mat-label translate>role.role-type</mat-label>
+        <mat-select formControlName="type" required>
+          <mat-option [value]="RoleType.GENERIC">{{ 'role.type-generic' | translate }}</mat-option>
+          <mat-option [value]="RoleType.GROUP">{{ 'role.type-group' | translate }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <div formGroupName="additionalInfo">
+        <mat-form-field class="mat-block" appearance="outline">
+          <mat-label translate>role.description</mat-label>
+          <textarea matInput formControlName="description" rows="2"></textarea>
+        </mat-form-field>
+      </div>
+      <mat-expansion-panel [expanded]="true">
+        <mat-expansion-panel-header>
+          <mat-panel-title translate>role.permissions</mat-panel-title>
+        </mat-expansion-panel-header>
+        @if (roleType === RoleType.GENERIC) {
+          <div formArrayName="genericPermissions" class="flex flex-col gap-1">
+            @for (row of genericPermissionsArray.controls; track row; let i = $index) {
+              <div [formGroupName]="i" class="flex flex-row items-baseline gap-2">
+                <mat-form-field class="flex-1">
+                  <mat-label translate>role.resource</mat-label>
+                  <mat-select formControlName="resource" required
+                              (selectionChange)="onResourceChanged($any(row))">
+                    @for (res of resourceOptions(row.get('resource').value); track res) {
+                      <mat-option [value]="res">{{ roleResourceTranslation(res) | translate }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field class="flex-1">
+                  <mat-label translate>role.operations</mat-label>
+                  <mat-select formControlName="operations" multiple required
+                              [disabled]="!row.get('resource').value"
+                              (selectionChange)="onOperationsChanged(row.get('operations'))">
+                    @for (op of operationsFor(row.get('resource').value, row.get('operations').value); track op) {
+                      <mat-option [value]="op">{{ roleOperationTranslation(op) | translate }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <button mat-icon-button type="button" (click)="removePermissionRow(i)" [class.!hidden]="!isEdit">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+            <div [class.!hidden]="!isEdit">
+              <button mat-stroked-button type="button" (click)="addPermissionRow()">
+                <mat-icon>add</mat-icon>{{ 'role.add-permission' | translate }}
+              </button>
+            </div>
+          </div>
+        } @else {
+          <mat-form-field class="mat-block">
+            <mat-label translate>role.operations</mat-label>
+            <mat-select formControlName="groupOperations" multiple
+                        (selectionChange)="onOperationsChanged(entityForm.get('groupOperations'))">
+              @for (op of groupOperationsFor(entityForm.get('groupOperations').value); track op) {
+                <mat-option [value]="op">{{ roleOperationTranslation(op) | translate }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+      </mat-expansion-panel>
+    </fieldset>
+  </form>
+</div>

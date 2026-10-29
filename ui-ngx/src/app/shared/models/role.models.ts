@@ -37,6 +37,25 @@ export const roleTypeTranslations = new Map<RoleType, string>([
   [RoleType.GROUP, 'role.type-group']
 ]);
 
+/** The operations a user holds on one specific target entity group, granted through a GROUP-type
+ * role. Mirrors backend MergedGroupPermissionInfo. */
+export interface MergedGroupPermissionInfo {
+  entityType: string;
+  operations: string[];
+}
+
+/**
+ * The effective, precomputed permission set for the current user — backend MergedUserPermissions,
+ * serialized as-is. `groupPermissions` is keyed by the bare entity group UUID (Jackson's default
+ * map-key serialization: EntityGroupId.toString()).
+ */
+export interface MergedUserPermissions {
+  /** resource name -> granted operations, from GENERIC-type roles */
+  genericPermissions: {[resource: string]: string[]};
+  /** entity group id -> granted operations on that group, from GROUP-type roles */
+  groupPermissions: {[entityGroupId: string]: MergedGroupPermissionInfo};
+}
+
 /**
  * Shape of GET /api/permissions/allowedPermissions. The role editor is driven entirely by this:
  * the backend's Resource.operationsByResource / Operation.allowedForGroupRoleOperations are the
@@ -51,7 +70,7 @@ export interface AllowedPermissionsInfo {
   allowedForGroupOwnerOnlyGroupOperations: string[];
   /** resources this authority may be granted at all */
   allowedResources: string[];
-  userPermissions?: any;
+  userPermissions?: MergedUserPermissions;
   userOwnerId?: {entityType: string; id: string};
 }
 
@@ -81,6 +100,8 @@ export interface GroupPermissionInfo extends GroupPermission {
   roleName?: string;
   roleType?: string;
   entityGroupName?: string;
+  // 'tenant' | 'customer' — which kind of owner the target entity group belongs to.
+  entityGroupOwnerName?: string;
   userGroupName?: string;
   // 'tenant' | 'customer' — which kind of owner the granting user group belongs to.
   userGroupOwnerName?: string;

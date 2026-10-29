@@ -1277,7 +1277,10 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
           {id: MenuId.entity_views}
         ]
       },
+      {id: MenuId.customers},
+      {id: MenuId.users},
       {id: MenuId.edge_instances},
+      {id: MenuId.scheduler},
       {
         id: MenuId.resources,
         pages: [
@@ -1295,7 +1298,14 @@ const defaultUserMenuMap = new Map<Authority, MenuReference[]>([
         id: MenuId.white_labeling,
         pages: [
           {id: MenuId.white_labeling_general},
-          {id: MenuId.white_labeling_login}
+          {id: MenuId.white_labeling_login},
+          {id: MenuId.custom_menu}
+        ]
+      },
+      {
+        id: MenuId.security_settings,
+        pages: [
+          {id: MenuId.roles}
         ]
       }
     ]
@@ -1407,6 +1417,20 @@ export const buildUserMenu = (authState: AuthState): Array<MenuSection> => {
   return (references || []).map(ref => referenceToMenuSection(authState, ref)).filter(section => !!section);
 };
 
+/**
+ * The built-in menu of an authority, with no permission filtering applied.
+ *
+ * The custom menu editor configures the menu of the *scope* being edited, which is usually not
+ * the authority of the user doing the editing — a system administrator editing the "Tenant
+ * default menu" must be shown the tenant-admin menu, and none of the system administrator's own
+ * entries. Passing the editor's own AuthState through {@link buildUserMenu} does exactly the
+ * wrong thing, so this deliberately ignores it.
+ */
+export const buildAuthorityMenu = (authority: Authority): Array<MenuSection> => {
+  const references = defaultUserMenuMap.get(authority);
+  return (references || []).map(ref => referenceToUnfilteredMenuSection(ref)).filter(section => !!section);
+};
+
 export const buildUserHome = (authState: AuthState, availableMenuSections: MenuSection[]): Array<HomeSection> => {
   const references = defaultHomeSectionMap.get(authState.authUser.authority);
   return (references || []).map(ref =>
@@ -1429,6 +1453,18 @@ const referenceToMenuSection = (authState: AuthState, reference: MenuReference):
   } else {
     return undefined;
   }
+};
+
+const referenceToUnfilteredMenuSection = (reference: MenuReference): MenuSection | undefined => {
+  const section = menuSectionMap.get(reference.id);
+  if (!section) {
+    return undefined;
+  }
+  const result = deepClone(section);
+  if (reference.pages?.length) {
+    result.pages = reference.pages.map(page => referenceToUnfilteredMenuSection(page)).filter(page => !!page);
+  }
+  return result;
 };
 
 const filterMenuReference = (authState: AuthState, reference: MenuReference): boolean => {

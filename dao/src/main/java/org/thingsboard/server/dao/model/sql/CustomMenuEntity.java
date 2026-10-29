@@ -16,6 +16,7 @@
 package org.thingsboard.server.dao.model.sql;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.hypersistence.utils.hibernate.type.array.StringArrayType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -24,8 +25,10 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.Type;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.menu.CMAssigneeType;
 import org.thingsboard.server.common.data.menu.CMScope;
@@ -48,6 +51,9 @@ public final class CustomMenuEntity extends BaseSqlEntity<CustomMenu> implements
     @Column(name = ModelConstants.CUSTOM_MENU_TENANT_ID_PROPERTY)
     private UUID tenantId;
 
+    @Column(name = ModelConstants.CUSTOM_MENU_CUSTOMER_ID_PROPERTY)
+    private UUID customerId;
+
     @Column(name = ModelConstants.CUSTOM_MENU_NAME_PROPERTY)
     private String name;
 
@@ -58,6 +64,10 @@ public final class CustomMenuEntity extends BaseSqlEntity<CustomMenu> implements
     @Enumerated(EnumType.STRING)
     @Column(name = ModelConstants.CUSTOM_MENU_ASSIGNEE_TYPE_PROPERTY)
     private CMAssigneeType assigneeType;
+
+    @Type(StringArrayType.class)
+    @Column(name = ModelConstants.CUSTOM_MENU_USER_GROUP_NAMES_PROPERTY, columnDefinition = "text[]")
+    private String[] userGroupNames;
 
     @Convert(converter = JsonConverter.class)
     @Column(name = ModelConstants.CUSTOM_MENU_CONFIG_PROPERTY)
@@ -73,9 +83,13 @@ public final class CustomMenuEntity extends BaseSqlEntity<CustomMenu> implements
         }
         this.setCreatedTime(customMenu.getCreatedTime());
         this.tenantId = customMenu.getTenantId().getId();
+        // NULL_UUID sentinel, not SQL NULL: the owner lookup is an equality match.
+        this.customerId = customMenu.getCustomerId() != null
+                ? customMenu.getCustomerId().getId() : CustomerId.NULL_UUID;
         this.name = customMenu.getName();
         this.scope = customMenu.getScope();
         this.assigneeType = customMenu.getAssigneeType();
+        this.userGroupNames = customMenu.getUserGroupNames();
         if (customMenu.getConfig() != null) {
             this.config = JacksonUtil.valueToTree(customMenu.getConfig());
         }
@@ -86,9 +100,11 @@ public final class CustomMenuEntity extends BaseSqlEntity<CustomMenu> implements
         CustomMenu customMenu = new CustomMenu(new CustomMenuId(id));
         customMenu.setCreatedTime(createdTime);
         customMenu.setTenantId(TenantId.fromUUID(tenantId));
+        customMenu.setCustomerId(new CustomerId(customerId != null ? customerId : CustomerId.NULL_UUID));
         customMenu.setName(name);
         customMenu.setScope(scope);
         customMenu.setAssigneeType(assigneeType);
+        customMenu.setUserGroupNames(userGroupNames);
         if (config != null) {
             customMenu.setConfig(JacksonUtil.treeToValue(config, CustomMenuConfig.class));
         }
@@ -99,9 +115,11 @@ public final class CustomMenuEntity extends BaseSqlEntity<CustomMenu> implements
         CustomMenuInfo info = new CustomMenuInfo(new CustomMenuId(id));
         info.setCreatedTime(createdTime);
         info.setTenantId(TenantId.fromUUID(tenantId));
+        info.setCustomerId(new CustomerId(customerId != null ? customerId : CustomerId.NULL_UUID));
         info.setName(name);
         info.setScope(scope);
         info.setAssigneeType(assigneeType);
+        info.setUserGroupNames(userGroupNames);
         return info;
     }
 

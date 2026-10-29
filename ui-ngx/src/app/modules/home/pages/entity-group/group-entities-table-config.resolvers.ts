@@ -24,7 +24,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { DialogService } from '@core/services/dialog.service';
-import { EntityTableColumn, EntityTableConfig } from '@home/models/entity/entities-table-config.models';
+import { chipsCell, EntityTableColumn, EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { AddEntityDialogData } from '@home/models/entity/entity-component.models';
 import { EntityGroupService } from '@core/http/entity-group.service';
 import { EntityGroup, EntityGroupSettings, isGroupAll } from '@shared/models/entity-group.models';
@@ -35,9 +35,9 @@ import { AssetInfo } from '@shared/models/asset.models';
 import { EdgeInfo } from '@shared/models/edge.models';
 import { Customer } from '@shared/models/customer.model';
 import { User, UserInfo } from '@shared/models/user.model';
-import { Authority } from '@shared/models/authority.enum';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { CustomerId } from '@shared/models/id/customer-id';
+import { Authority } from '@shared/models/authority.enum';
 import { UserService } from '@core/http/user.service';
 import { DeviceService } from '@core/http/device.service';
 import { AssetService } from '@core/http/asset.service';
@@ -456,32 +456,57 @@ abstract class TenantUsersTableConfigResolver extends GroupEntitiesTableConfigRe
     config.tableTitle = this.translate.instant('user.users');
     config.componentsData = config.componentsData || {};
     config.componentsData.includeCustomerEntities = true;
-    config.headerComponent = UserTableHeaderComponent;
-    // Not sortable: groups is stitched in after the query (UserServiceImpl.toUserInfos), so it is
-    // not a queryable property — sortProperty=groups would blow up in the JPQL.
-    config.columns.push(new EntityTableColumn<UserInfo>('groups', 'user.groups', '25%',
-      entity => entity.groups ?? '', () => ({}), false));
+    // this.authority (set by the base UsersTableConfigResolver from a :tenantId route param that
+    // doesn't exist on /users/all) is NOT the real caller's authority — read that from the store.
+    const isCustomerUser = getCurrentAuthUser(this.store).authority === Authority.CUSTOMER_USER;
+    // The toggle calls getTenantAdmins(), a TENANT_ADMIN-only endpoint; a customer user has no
+    // "tenant admins" to toggle to, so the header (and the toggle it renders) is skipped for them.
+    config.headerComponent = isCustomerUser ? undefined : UserTableHeaderComponent;
+    // Neither ownerName nor groups is sortable: both are stitched in after the query
+    // (UserServiceImpl.toUserInfos), so they are not queryable properties — a sortProperty of
+    // either would blow up in the JPQL.
+    config.columns.push(
+      new EntityTableColumn<UserInfo>('ownerName', 'user.owner-name', '20%',
+        entity => entity.ownerName ?? '', () => ({}), false),
+      new EntityTableColumn<UserInfo>('groups', 'user.groups', '25%',
+        entity => chipsCell(entity.groups), () => ({}), false));
     // "包含客户实体" ON (default) = tenant admins + all customer users (getUsers already merges both
-    // for a TENANT_ADMIN caller); OFF = tenant admins only, via the same endpoint UsersTableConfigResolver uses.
-    config.entitiesFetchFunction = pageLink => config.componentsData.includeCustomerEntities === false ?
+    // for a TENANT_ADMIN caller); OFF = tenant admins only, via the same endpoint UsersTableConfigResolver
+    // uses. A customer user always gets its own customer's users (getUsers branches server-side on
+    // caller authority) — the toggle never applies to them, so it's ignored even if somehow set.
+    config.entitiesFetchFunction = pageLink => (!isCustomerUser && config.componentsData.includeCustomerEntities === false) ?
       this.userService.getTenantAdmins(getCurrentAuthUser(this.store).tenantId, pageLink) :
       this.userService.getUsers(pageLink);
     config.saveEntity = user => this.userService.saveUser(user);
     config.addEntity = () => this.addUser();
+    if (isCustomerUser) {
+      // "Manage owner and groups" calls an entity-group lookup that's TENANT_ADMIN-only
+      // (GET /api/entityGroups/forEntity/...); "login as" (impersonation) is opt-in via role grant
+      // and not something a customer user should default into. Drop both — "open" (view/edit) still
+      // works, since getUserById/saveUser are already customer-scoped.
+      config.cellActionDescriptors = [];
+      // deleteUser is TENANT_ADMIN/SYS_ADMIN-only on the backend; hide the action rather than let
+      // a customer user hit a 403 after confirming the delete dialog.
+      config.deleteEnabled = () => false;
+      config.entitySelectionEnabled = () => false;
+    }
     return config;
   }
 
   /** Users created in a customer-owned group become customer users of that customer. */
   protected addUser(customerOwnerId?: string): Observable<User> {
     const authUser = getCurrentAuthUser(this.store);
+    // A customer user may only ever create users under its own customer — never pass through an
+    // arbitrary id, and never default to NULL_UUID (a tenant-level user), which the backend would
+    // reject for them anyway.
+    const defaultCustomerId = authUser.authority === Authority.CUSTOMER_USER ? authUser.customerId : NULL_UUID;
     return this.dialog.open<AddUserDialogComponent, AddUserDialogData, User>(
       AddUserDialogComponent, {
         disableClose: true,
         panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
         data: {
           tenantId: authUser.tenantId,
-          customerId: customerOwnerId ?? NULL_UUID,
-          authority: customerOwnerId ? Authority.CUSTOMER_USER : Authority.TENANT_ADMIN
+          customerId: customerOwnerId ?? defaultCustomerId
         }
       }).afterClosed();
   }

@@ -16,14 +16,15 @@
 package org.thingsboard.server.dao.menu;
 
 import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.common.data.menu.CMAssigneeType;
 import org.thingsboard.server.common.data.menu.CMScope;
 import org.thingsboard.server.common.data.menu.CustomMenu;
 import org.thingsboard.server.common.data.menu.CustomMenuInfo;
 import org.thingsboard.server.common.data.page.PageData;
 import org.thingsboard.server.common.data.page.PageLink;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CustomMenuDao {
@@ -34,9 +35,14 @@ public interface CustomMenuDao {
 
     CustomMenuInfo findInfoById(TenantId tenantId, CustomMenuId id);
 
-    PageData<CustomMenuInfo> findInfosByTenantId(TenantId tenantId, CMScope scope, PageLink pageLink);
+    /** Menus owned by the given (tenant, customer) pair; {@code scope} is an optional filter. */
+    PageData<CustomMenuInfo> findInfosByOwner(TenantId tenantId, CustomerId customerId, CMScope scope, PageLink pageLink);
 
-    Optional<CustomMenu> findDefaultByTenantIdAndScope(TenantId tenantId, CMScope scope);
+    /** The owner's ALL-assignee menu for the scope — i.e. the default menu of that scope. */
+    Optional<CustomMenu> findDefaultByOwnerAndScope(TenantId tenantId, CustomerId customerId, CMScope scope);
+
+    /** Every USER_GROUPS-assignee menu owned by (tenant, customer) at the given scope, oldest first. */
+    List<CustomMenu> findUserGroupMenusByOwnerAndScope(TenantId tenantId, CustomerId customerId, CMScope scope);
 
     void removeById(TenantId tenantId, CustomMenuId id);
 

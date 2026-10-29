@@ -1099,11 +1099,18 @@ CREATE TABLE IF NOT EXISTS custom_menu (
     id UUID NOT NULL CONSTRAINT custom_menu_pkey PRIMARY KEY,
     created_time BIGINT NOT NULL,
     tenant_id UUID NOT NULL,
+    customer_id UUID NOT NULL DEFAULT '13814000-1dd2-11b2-8080-808080808080',
     name VARCHAR(255) NOT NULL,
     scope VARCHAR(16) NOT NULL,
     assignee_type VARCHAR(16) NOT NULL,
+    user_group_names TEXT[],
     config VARCHAR(10000000)
 );
+
+-- Pre-existing installs created custom_menu without customer_id (menus were tenant-owned only).
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS customer_id UUID NOT NULL DEFAULT '13814000-1dd2-11b2-8080-808080808080';
+-- Pre-existing installs created custom_menu before the USER_GROUPS assignee type existed.
+ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS user_group_names TEXT[];
 
 CREATE INDEX IF NOT EXISTS idx_customer_tenant_id_parent_customer_id ON customer(tenant_id, parent_customer_id);
 

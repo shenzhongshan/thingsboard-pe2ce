@@ -80,6 +80,7 @@ import { TimewindowPanelComponent } from '@shared/components/time/timewindow-pan
 import { TimeintervalComponent } from '@shared/components/time/timeinterval.component';
 import { DatetimePeriodComponent } from '@shared/components/time/datetime-period.component';
 import { EnumToArrayPipe } from '@shared/pipe/enum-to-array.pipe';
+import { HasGenericPermissionPipe } from '@shared/pipe/has-generic-permission.pipe';
 import { ClipboardModule } from 'ngx-clipboard';
 import { ValueInputComponent } from '@shared/components/value-input.component';
 import { MarkdownModule, MARKED_OPTIONS } from 'ngx-markdown';
@@ -264,6 +265,7 @@ import {
     SelectableColumnsPipe,
     MillisecondsToTimeStringPipe,
     EnumToArrayPipe,
+    HasGenericPermissionPipe,
     HighlightPipe,
     TruncatePipe,
     TbJsonPipe,
@@ -423,6 +425,7 @@ import {
     NospacePipe,
     MillisecondsToTimeStringPipe,
     EnumToArrayPipe,
+    HasGenericPermissionPipe,
     HighlightPipe,
     TruncatePipe,
     TbJsonPipe,
@@ -705,6 +708,7 @@ import {
     NospacePipe,
     MillisecondsToTimeStringPipe,
     EnumToArrayPipe,
+    HasGenericPermissionPipe,
     HighlightPipe,
     TruncatePipe,
     TbJsonPipe,

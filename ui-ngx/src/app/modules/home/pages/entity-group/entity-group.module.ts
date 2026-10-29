@@ -21,9 +21,8 @@ import { HomeComponentsModule } from '@modules/home/components/home-components.m
 import { EntityGroupsComponent } from '@home/pages/entity-group/entity-groups.component';
 import { EntityGroupDialogComponent } from '@home/pages/entity-group/entity-group-dialog.component';
 import { AddGroupEntitiesDialogComponent } from '@home/pages/entity-group/add-group-entities-dialog.component';
-import { GroupPermissionsDialogComponent } from '@home/pages/entity-group/group-permissions-dialog.component';
-import { RolesComponent } from '@home/pages/entity-group/roles.component';
-import { RoleDialogComponent } from '@home/pages/entity-group/role-dialog.component';
+import { GroupPermissionDialogComponent } from '@home/pages/entity-group/group-permission-dialog.component';
+import { RoleComponent } from '@home/pages/entity-group/role.component';
 import { CustomerHierarchyComponent } from '@home/pages/entity-group/customer-hierarchy.component';
 import { GroupMembersPageComponent } from '@home/pages/entity-group/group-members-page.component';
 import { GroupEntityTableHeaderComponent } from '@home/pages/entity-group/group-entity-table-header.component';
@@ -33,18 +32,19 @@ import { EntityGroupColumnsTabComponent } from '@home/pages/entity-group/entity-
 import { EntityGroupSettingsTabComponent } from '@home/pages/entity-group/entity-group-settings-tab.component';
 import { EntityGroupActionsTabComponent } from '@home/pages/entity-group/entity-group-actions-tab.component';
 import { EntityGroupPermissionsTabComponent } from '@home/pages/entity-group/entity-group-permissions-tab.component';
+import { EntityGroupRolesTabComponent } from '@home/pages/entity-group/entity-group-roles-tab.component';
 import { EntityGroupPermissionDialogComponent } from '@home/pages/entity-group/entity-group-permission-dialog.component';
 import { EntityGroupActionDialogComponent } from '@home/pages/entity-group/entity-group-action-dialog.component';
 import { EntityGroupShareDialogComponent } from '@home/pages/entity-group/entity-group-share-dialog.component';
+import { RoleViewDialogComponent } from '@home/pages/entity-group/role-view-dialog.component';
 
 @NgModule({
   declarations: [
     EntityGroupsComponent,
     EntityGroupDialogComponent,
     AddGroupEntitiesDialogComponent,
-    GroupPermissionsDialogComponent,
-    RolesComponent,
-    RoleDialogComponent,
+    GroupPermissionDialogComponent,
+    RoleComponent,
     CustomerHierarchyComponent,
     GroupMembersPageComponent,
     GroupEntityTableHeaderComponent,
@@ -54,9 +54,11 @@ import { EntityGroupShareDialogComponent } from '@home/pages/entity-group/entity
     EntityGroupSettingsTabComponent,
     EntityGroupActionsTabComponent,
     EntityGroupPermissionsTabComponent,
+    EntityGroupRolesTabComponent,
     EntityGroupPermissionDialogComponent,
     EntityGroupActionDialogComponent,
-    EntityGroupShareDialogComponent
+    EntityGroupShareDialogComponent,
+    RoleViewDialogComponent
   ],
   imports: [
     CommonModule,
@@ -65,7 +67,6 @@ import { EntityGroupShareDialogComponent } from '@home/pages/entity-group/entity
   ],
   exports: [
     EntityGroupsComponent,
-    RolesComponent,
     CustomerHierarchyComponent,
     GroupMembersPageComponent
   ]

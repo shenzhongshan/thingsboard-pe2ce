@@ -17,8 +17,10 @@ package org.thingsboard.server.common.data.menu;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.thingsboard.server.common.data.BaseData;
+import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasTenantId;
 import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
@@ -26,13 +28,20 @@ import org.thingsboard.server.common.data.validation.NoXss;
 /**
  * Lightweight metadata for a named custom menu (no config payload) — used for the menu
  * management list page. {@link CustomMenu} extends this with the actual menu item tree.
+ *
+ * <p>Ownership is the (tenantId, customerId) pair: system menus belong to
+ * {@link TenantId#SYS_TENANT_ID} with a null-uid customerId, tenant menus to the tenant with a
+ * null-uid customerId, and customer-owned menus to (tenant, customer). Only CUSTOMER scope
+ * menus may carry a real customerId.
  */
 @Schema
-public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantId {
+public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantId, HasCustomerId {
 
     private static final long serialVersionUID = 1L;
 
     private TenantId tenantId;
+
+    private CustomerId customerId;
 
     @NoXss
     @Length(fieldName = "name")
@@ -45,6 +54,10 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
     @Schema(description = "Who this menu is assigned to")
     private CMAssigneeType assigneeType;
 
+    @Schema(description = "Entity-group names this menu is assigned to, when assigneeType is USER_GROUPS",
+            example = "[\"Customer Administrators\", \"Customer Users\"]")
+    private String[] userGroupNames;
+
     public CustomMenuInfo() {
         super();
     }
@@ -56,9 +69,11 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
     public CustomMenuInfo(CustomMenuInfo other) {
         super(other);
         this.tenantId = other.getTenantId();
+        this.customerId = other.getCustomerId();
         this.name = other.getName();
         this.scope = other.getScope();
         this.assigneeType = other.getAssigneeType();
+        this.userGroupNames = other.getUserGroupNames();
     }
 
     @Schema(description = "The Id of the Custom Menu, auto-generated, UUID")
@@ -80,6 +95,16 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
 
     public void setTenantId(TenantId tenantId) {
         this.tenantId = tenantId;
+    }
+
+    @Schema(description = "JSON object with Customer Id. Null-uid for system and tenant owned menus.", accessMode = Schema.AccessMode.READ_ONLY)
+    @Override
+    public CustomerId getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(CustomerId customerId) {
+        this.customerId = customerId;
     }
 
     public String getName() {
@@ -106,10 +131,19 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
         this.assigneeType = assigneeType;
     }
 
+    public String[] getUserGroupNames() {
+        return userGroupNames;
+    }
+
+    public void setUserGroupNames(String[] userGroupNames) {
+        this.userGroupNames = userGroupNames;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
+        result = prime * result + ((customerId == null) ? 0 : customerId.hashCode());
         result = prime * result + ((name == null) ? 0 : name.hashCode());
         result = prime * result + ((scope == null) ? 0 : scope.hashCode());
         result = prime * result + ((assigneeType == null) ? 0 : assigneeType.hashCode());
@@ -128,6 +162,13 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
             return false;
         }
         CustomMenuInfo other = (CustomMenuInfo) obj;
+        if (customerId == null) {
+            if (other.customerId != null) {
+                return false;
+            }
+        } else if (!customerId.equals(other.customerId)) {
+            return false;
+        }
         if (name == null) {
             if (other.name != null) {
                 return false;
@@ -143,7 +184,7 @@ public class CustomMenuInfo extends BaseData<CustomMenuId> implements HasTenantI
 
     @Override
     public String toString() {
-        return "CustomMenuInfo [tenantId=" + tenantId + ", name=" + name + ", scope=" + scope
-                + ", assigneeType=" + assigneeType + "]";
+        return "CustomMenuInfo [tenantId=" + tenantId + ", customerId=" + customerId + ", name=" + name
+                + ", scope=" + scope + ", assigneeType=" + assigneeType + "]";
     }
 }

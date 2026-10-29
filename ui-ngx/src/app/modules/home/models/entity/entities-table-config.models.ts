@@ -285,3 +285,29 @@ export class EntityTableConfig<T extends BaseData<HasId>, P extends PageLink = P
 
 export const checkBoxCell =
   (value: boolean): string => `<mat-icon class="material-icons mat-icon">${value ? 'check_box' : 'check_box_outline_blank'}</mat-icon>`;
+
+/**
+ * Renders a comma-separated name list as chips (PE parity: its user list shows group membership as
+ * badges rather than running text).
+ *
+ * The table feeds cell content through `bypassSecurityTrustHtml`, so nothing downstream escapes
+ * this — and group names are free text typed by tenant users. Escaping here is what keeps a group
+ * named `<img src=x onerror=...>` from executing for everyone who opens the list.
+ */
+export const chipsCell = (value: string): string => {
+  if (!value) {
+    return '';
+  }
+  return value.split(',')
+    .map(name => name.trim())
+    .filter(name => !!name)
+    .map(name => `<span class="tb-cell-chip">${escapeHtml(name)}</span>`)
+    .join('');
+};
+
+const escapeHtml = (value: string): string =>
+  value.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');

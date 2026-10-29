@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 import org.thingsboard.server.common.data.id.CustomMenuId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.menu.CMAssigneeType;
 import org.thingsboard.server.common.data.menu.CMScope;
@@ -33,6 +34,7 @@ import org.thingsboard.server.dao.util.SqlDao;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @SqlDao
@@ -60,18 +62,27 @@ public class JpaCustomMenuDao implements CustomMenuDao {
     }
 
     @Override
-    public PageData<CustomMenuInfo> findInfosByTenantId(TenantId tenantId, CMScope scope, PageLink pageLink) {
+    public PageData<CustomMenuInfo> findInfosByOwner(TenantId tenantId, CustomerId customerId, CMScope scope, PageLink pageLink) {
+        UUID customerUuid = toCustomerUuid(customerId);
         Page<CustomMenuEntity> page = scope == null
-                ? customMenuRepository.findByTenantId(tenantId.getId(), DaoUtil.toPageable(pageLink))
-                : customMenuRepository.findByTenantIdAndScope(tenantId.getId(), scope, DaoUtil.toPageable(pageLink));
+                ? customMenuRepository.findByTenantIdAndCustomerId(tenantId.getId(), customerUuid, DaoUtil.toPageable(pageLink))
+                : customMenuRepository.findByTenantIdAndCustomerIdAndScope(tenantId.getId(), customerUuid, scope, DaoUtil.toPageable(pageLink));
         List<CustomMenuInfo> infos = page.getContent().stream().map(CustomMenuEntity::toInfo).toList();
         return new PageData<>(infos, page.getTotalPages(), page.getTotalElements(), page.hasNext());
     }
 
     @Override
-    public Optional<CustomMenu> findDefaultByTenantIdAndScope(TenantId tenantId, CMScope scope) {
-        return customMenuRepository.findByTenantIdAndScopeAndAssigneeType(tenantId.getId(), scope, CMAssigneeType.ALL)
+    public Optional<CustomMenu> findDefaultByOwnerAndScope(TenantId tenantId, CustomerId customerId, CMScope scope) {
+        return customMenuRepository.findByTenantIdAndCustomerIdAndScopeAndAssigneeType(
+                        tenantId.getId(), toCustomerUuid(customerId), scope, CMAssigneeType.ALL)
                 .map(CustomMenuEntity::toData);
+    }
+
+    @Override
+    public List<CustomMenu> findUserGroupMenusByOwnerAndScope(TenantId tenantId, CustomerId customerId, CMScope scope) {
+        return customMenuRepository.findByTenantIdAndCustomerIdAndScopeAndAssigneeTypeOrderByCreatedTimeAsc(
+                        tenantId.getId(), toCustomerUuid(customerId), scope, CMAssigneeType.USER_GROUPS)
+                .stream().map(CustomMenuEntity::toData).toList();
     }
 
     @Override
@@ -82,6 +93,12 @@ public class JpaCustomMenuDao implements CustomMenuDao {
     @Override
     public void removeByTenantId(TenantId tenantId) {
         customMenuRepository.deleteByTenantId(tenantId.getId());
+    }
+
+    // The column is NOT NULL with the NULL_UUID sentinel as default, so a missing/absent
+    // customer must be translated to the sentinel rather than to SQL NULL.
+    private static UUID toCustomerUuid(CustomerId customerId) {
+        return customerId == null ? CustomerId.NULL_UUID : customerId.getId();
     }
 
 }

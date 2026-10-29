@@ -41,6 +41,7 @@ import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.eventsourcing.DeleteEntityEvent;
 import org.thingsboard.server.dao.eventsourcing.SaveEntityEvent;
 import org.thingsboard.server.dao.group.EntityGroupService;
+import org.thingsboard.server.dao.menu.CustomMenuService;
 import org.thingsboard.server.dao.mobile.QrCodeSettingService;
 import org.thingsboard.server.dao.notification.NotificationSettingsService;
 import org.thingsboard.server.dao.role.RoleService;
@@ -100,6 +101,9 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
     @Autowired
     @Lazy
     private RoleService roleService;
+    @Autowired
+    @Lazy
+    private CustomMenuService customMenuService;
 
     @Override
     @TransactionalEventListener
@@ -168,6 +172,7 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
             apiUsageStateService.createDefaultApiUsageState(tenantId, null);
             notificationSettingsService.createDefaultNotificationConfigs(tenantId);
             encryptionService.createEncryptionKey(tenantId);
+            entityGroupService.createDefaultTenantEntityGroups(tenantId);
         }
 
         return savedTenant;
@@ -190,6 +195,9 @@ public class TenantServiceImpl extends AbstractCachedEntityService<TenantId, Ten
         // membership relations with them; roles go last, because the permissions reference them.
         entityGroupService.deleteEntityGroupsByTenantId(tenantId);
         roleService.deleteRolesByTenantId(tenantId);
+        // Custom menus are not an EntityType either, so they also need an explicit sweep —
+        // otherwise every deleted tenant leaves its menu rows behind forever.
+        customMenuService.deleteByTenantId(tenantId);
 
         tenantDao.removeById(tenantId, tenantId.getId());
         publishEvictEvent(new TenantEvictEvent(tenantId, true));

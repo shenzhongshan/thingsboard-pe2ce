@@ -47,7 +47,9 @@ const routes: Routes = [
         path: 'scheduler',
         component: SchedulerEventsComponent,
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          // SchedulerEventController already fully supports CUSTOMER_USER (PE parity); otaUpdates/
+          // vc/tasks siblings and the bare 'features' redirect above stay TENANT_ADMIN-only.
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           title: 'scheduler.scheduler',
           breadcrumb: {
             menuId: MenuId.scheduler

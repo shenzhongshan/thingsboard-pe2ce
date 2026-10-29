@@ -32,10 +32,6 @@ import {
   EntityGroupDialogData
 } from '@home/pages/entity-group/entity-group-dialog.component';
 import {
-  GroupPermissionsDialogComponent,
-  GroupPermissionsDialogData
-} from '@home/pages/entity-group/group-permissions-dialog.component';
-import {
   EntityGroupShareDialogComponent,
   EntityGroupShareDialogData
 } from '@home/pages/entity-group/entity-group-share-dialog.component';
@@ -274,16 +270,6 @@ export class EntityGroupsComponent extends PageComponent implements OnInit, OnCh
     } else {
       this.router.navigate([group.id.id], {relativeTo: this.route});
     }
-  }
-
-  openPermissions($event: Event, group: EntityGroup) {
-    $event?.stopPropagation();
-    this.dialog.open<GroupPermissionsDialogComponent, GroupPermissionsDialogData>(
-      GroupPermissionsDialogComponent, {
-        disableClose: true,
-        panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
-        data: { userGroup: group }
-      });
   }
 
   shareGroup($event: Event, group: EntityGroup) {

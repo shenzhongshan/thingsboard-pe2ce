@@ -26,10 +26,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.common.util.ThingsBoardThreadFactory;
+import org.thingsboard.server.common.data.Customer;
+import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.id.TenantId;
+import org.thingsboard.server.common.data.page.PageDataIterable;
 import org.thingsboard.server.common.data.widget.WidgetTypeDetails;
 import org.thingsboard.server.common.data.widget.WidgetsBundle;
+import org.thingsboard.server.dao.customer.CustomerService;
+import org.thingsboard.server.dao.group.EntityGroupService;
 import org.thingsboard.server.dao.resource.ImageService;
+import org.thingsboard.server.dao.tenant.TenantService;
 import org.thingsboard.server.dao.widget.WidgetTypeService;
 import org.thingsboard.server.dao.widget.WidgetsBundleService;
 import org.thingsboard.server.queue.util.TbCoreComponent;
@@ -68,12 +74,17 @@ public class SystemPatchApplier {
 
     private static final long ADVISORY_LOCK_ID = 7536891047216478431L;
 
+    private static final int DEFAULT_PAGE_SIZE = 1024;
+
     private final JdbcTemplate jdbcTemplate;
     private final InstallScripts installScripts;
     private final DatabaseSchemaSettingsService schemaSettingsService;
     private final WidgetTypeService widgetTypeService;
     private final WidgetsBundleService widgetsBundleService;
     private final ImageService imageService;
+    private final TenantService tenantService;
+    private final CustomerService customerService;
+    private final EntityGroupService entityGroupService;
 
     @PostConstruct
     private void init() {
@@ -119,12 +130,51 @@ public class SystemPatchApplier {
             // and the offline upgrade path never runs for a bump inside the same LTS family.
             installScripts.updateMailTemplates();
 
+            int backfilled = backfillDefaultUserGroups();
+            log.info("Default user groups backfilled for {} owners", backfilled);
+
             schemaSettingsService.updateSchemaVersion();
             log.info("System data patch update completed successfully");
 
         } finally {
             releaseAdvisoryLock();
         }
+    }
+
+    /**
+     * Creates the default user groups and their role bindings for tenants/customers that predate
+     * them. Before PE parity these were created lazily when the first user appeared, so a tenant
+     * created but never populated ended up with no user groups and no roles at all; tenants created
+     * earlier are also missing the "Tenant Users" group, which only exists since this change.
+     * <p>
+     * Both entry points are idempotent find-or-create, so re-running is harmless — which matters
+     * because this runs on every version bump, not once.
+     *
+     * @return the number of owners (tenants + customers) processed
+     */
+    private int backfillDefaultUserGroups() {
+        int processed = 0;
+        for (Tenant tenant : new PageDataIterable<>(tenantService::findTenants, DEFAULT_PAGE_SIZE)) {
+            try {
+                entityGroupService.createDefaultTenantEntityGroups(tenant.getId());
+                processed++;
+            } catch (Exception e) {
+                log.warn("[{}] Failed to backfill default tenant user groups", tenant.getId(), e);
+                continue;
+            }
+            for (Customer customer : new PageDataIterable<>(
+                    pageLink -> customerService.findCustomersByTenantId(tenant.getId(), pageLink), DEFAULT_PAGE_SIZE)) {
+                try {
+                    entityGroupService.createDefaultCustomerEntityGroups(
+                            tenant.getId(), customer.getId(), customer.isPublic());
+                    processed++;
+                } catch (Exception e) {
+                    log.warn("[{}][{}] Failed to backfill default customer user groups",
+                            tenant.getId(), customer.getId(), e);
+                }
+            }
+        }
+        return processed;
     }
 
     private boolean isVersionChanged() {

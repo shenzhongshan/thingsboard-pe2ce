@@ -25,7 +25,6 @@ import org.thingsboard.server.common.data.edge.EdgeEventActionType;
 import org.thingsboard.server.common.data.edge.EdgeEventType;
 import org.thingsboard.server.common.data.id.CustomMenuId;
 import org.thingsboard.server.common.data.id.TenantId;
-import org.thingsboard.server.common.data.menu.CMScope;
 import org.thingsboard.server.common.data.menu.CustomMenu;
 import org.thingsboard.server.common.data.menu.CustomMenuInfo;
 import org.thingsboard.server.common.data.page.PageData;
@@ -52,7 +51,7 @@ public class SystemCustomMenuEdgeEventFetcher implements EdgeEventFetcher {
 
     @Override
     public PageData<EdgeEvent> fetchEdgeEvents(TenantId tenantId, Edge edge, PageLink pageLink) {
-        PageData<CustomMenuInfo> infos = customMenuService.findCustomMenuInfos(TenantId.SYS_TENANT_ID, CMScope.SYSTEM, pageLink);
+        PageData<CustomMenuInfo> infos = customMenuService.findCustomMenuInfos(TenantId.SYS_TENANT_ID, null, null, pageLink);
         List<EdgeEvent> events = new ArrayList<>();
         for (CustomMenuInfo cm : infos.getData()) {
             CustomMenu customMenu = customMenuService.findCustomMenuById(cm.getTenantId(), new CustomMenuId(cm.getUuidId()));

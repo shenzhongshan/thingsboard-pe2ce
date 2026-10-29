@@ -41,7 +41,10 @@ const routes: Routes = [
     path: 'users',
     component: RouterTabsComponent,
     data: {
-      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+      // 'groups' below is also open to a customer user, scoped to their own sub-users (PE
+      // parity); 'all' is PE parity for a customer user's own sub-users — UserController already
+      // scopes getUsers/saveUser correctly per caller authority.
+      auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
       showMainLoadingBar: false,
       useChildrenRoutesForTabs: true,
       breadcrumb: {
@@ -53,14 +56,14 @@ const routes: Routes = [
         path: '',
         children: [],
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           redirectTo: '/users/all'
         }
       },
       {
         path: 'all',
         data: {
-          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+          auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             label: 'entity-group.all-entities',
             icon: 'account_circle'
@@ -71,7 +74,7 @@ const routes: Routes = [
             path: '',
             component: EntitiesTableComponent,
             data: {
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'user.users'
             },
             resolve: {
@@ -87,7 +90,7 @@ const routes: Routes = [
                 labelFunction: entityDetailsPageBreadcrumbLabelFunction,
                 icon: 'account_circle'
               } as BreadCrumbConfig<EntityDetailsPageComponent>,
-              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN],
+              auth: [Authority.SYS_ADMIN, Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'user.user'
             },
             resolve: {
@@ -99,7 +102,10 @@ const routes: Routes = [
       {
         path: 'groups',
         data: {
-          auth: [Authority.TENANT_ADMIN],
+          // PE parity: a customer admin organizes its own sub-users into groups the same way a
+          // tenant admin does — listEntityGroups() on the backend already scopes CUSTOMER_USER
+          // callers to their own owner chain.
+          auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
           breadcrumb: {
             label: 'entity-group.group-type-user',
             icon: 'workspaces'
@@ -110,7 +116,7 @@ const routes: Routes = [
             path: '',
             component: EntityGroupsComponent,
             data: {
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               title: 'entity-group.group-type-user',
               groupType: EntityType.USER
             }
@@ -118,7 +124,7 @@ const routes: Routes = [
           {
             path: ':entityGroupId',
             data: {
-              auth: [Authority.TENANT_ADMIN],
+              auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
               breadcrumb: {
                 labelFunction: groupMembersPageBreadcrumbLabelFunction,
                 icon: 'view_list'
@@ -129,7 +135,7 @@ const routes: Routes = [
                 path: '',
                 component: GroupMembersPageComponent,
                 data: {
-                  auth: [Authority.TENANT_ADMIN],
+                  auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
                   title: 'entity-group.group-type-user',
                   groupType: EntityType.USER
                 },
@@ -146,7 +152,7 @@ const routes: Routes = [
                     labelFunction: entityDetailsPageBreadcrumbLabelFunction,
                     icon: 'account_circle'
                   } as BreadCrumbConfig<EntityDetailsPageComponent>,
-                  auth: [Authority.TENANT_ADMIN],
+                  auth: [Authority.TENANT_ADMIN, Authority.CUSTOMER_USER],
                   title: 'user.user',
                   groupType: EntityType.USER
                 },

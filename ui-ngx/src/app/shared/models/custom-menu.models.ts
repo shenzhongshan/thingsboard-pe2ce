@@ -16,7 +16,9 @@
 
 import { BaseData } from '@shared/models/base-data';
 import { CustomMenuId } from '@shared/models/id/custom-menu-id';
+import { CustomerId } from '@shared/models/id/customer-id';
 import { TenantId } from '@shared/models/id/tenant-id';
+import { Authority } from '@shared/models/authority.enum';
 
 export enum MenuItemType {
   HOME = 'HOME',
@@ -77,34 +79,89 @@ export interface CustomMenuConfig {
 
 export enum CMScope {
   SYSTEM = 'SYSTEM',
-  TENANT = 'TENANT'
+  TENANT = 'TENANT',
+  CUSTOMER = 'CUSTOMER'
 }
 
 export enum CMAssigneeType {
   NO_ASSIGN = 'NO_ASSIGN',
   ALL = 'ALL',
   CUSTOMERS = 'CUSTOMERS',
-  USERS = 'USERS'
+  USERS = 'USERS',
+  USER_GROUPS = 'USER_GROUPS'
 }
 
 export const cmScopeTranslations = new Map<CMScope, string>([
   [CMScope.SYSTEM, 'custom-menu.scope-system'],
-  [CMScope.TENANT, 'custom-menu.scope-tenant']
+  [CMScope.TENANT, 'custom-menu.scope-tenant'],
+  [CMScope.CUSTOMER, 'custom-menu.scope-customer']
+]);
+
+/**
+ * Each scope is the override of exactly one authority's built-in menu. This mapping is what makes
+ * the editor show the right item list: the menu being edited belongs to the scope, not to the
+ * user editing it.
+ */
+export const cmScopeAuthority = new Map<CMScope, Authority>([
+  [CMScope.SYSTEM, Authority.SYS_ADMIN],
+  [CMScope.TENANT, Authority.TENANT_ADMIN],
+  [CMScope.CUSTOMER, Authority.CUSTOMER_USER]
 ]);
 
 export const cmAssigneeTypeTranslations = new Map<CMAssigneeType, string>([
   [CMAssigneeType.NO_ASSIGN, 'custom-menu.assignee-type-no-assign'],
   [CMAssigneeType.ALL, 'custom-menu.assignee-type-all'],
   [CMAssigneeType.CUSTOMERS, 'custom-menu.assignee-type-customers'],
-  [CMAssigneeType.USERS, 'custom-menu.assignee-type-users']
+  [CMAssigneeType.USERS, 'custom-menu.assignee-type-users'],
+  [CMAssigneeType.USER_GROUPS, 'custom-menu.assignee-type-user-groups']
 ]);
+
+// "Assigned to everyone" means a different set of people per scope, so it gets a scope-specific
+// label ("All tenant users" / "All customer users") the way PE labels it.
+export const cmAssigneeTypeTranslation = (assigneeType: CMAssigneeType, scope: CMScope): string => {
+  if (assigneeType === CMAssigneeType.ALL) {
+    if (scope === CMScope.TENANT) {
+      return 'custom-menu.assignee-type-all-tenant';
+    }
+    if (scope === CMScope.CUSTOMER) {
+      return 'custom-menu.assignee-type-all-customer';
+    }
+  }
+  return cmAssigneeTypeTranslations.get(assigneeType) || assigneeType;
+};
+
+/** Scopes the given authority is allowed to create menus for. */
+export const cmAllowedScopes = (authority: Authority): CMScope[] => {
+  switch (authority) {
+    case Authority.SYS_ADMIN:
+      return [CMScope.SYSTEM, CMScope.TENANT, CMScope.CUSTOMER];
+    case Authority.TENANT_ADMIN:
+      return [CMScope.TENANT, CMScope.CUSTOMER];
+    default:
+      return [CMScope.CUSTOMER];
+  }
+};
+
+/**
+ * Assignee types available for a scope. A TENANT scope menu is the tenant-admin menu, so it can
+ * never be handed to a customer — the backend validator rejects that combination.
+ */
+export const cmAllowedAssigneeTypes = (scope: CMScope): CMAssigneeType[] =>
+  scope === CMScope.CUSTOMER
+    ? [CMAssigneeType.NO_ASSIGN, CMAssigneeType.ALL, CMAssigneeType.USERS, CMAssigneeType.USER_GROUPS, CMAssigneeType.CUSTOMERS]
+    : [CMAssigneeType.NO_ASSIGN, CMAssigneeType.ALL, CMAssigneeType.USERS, CMAssigneeType.USER_GROUPS];
 
 // Metadata of a named custom menu (list page row); CustomMenu adds the item tree.
 export interface CustomMenuInfo extends BaseData<CustomMenuId> {
   tenantId?: TenantId;
+  customerId?: CustomerId;
   name: string;
   scope: CMScope;
   assigneeType: CMAssigneeType;
+  // Entity-group names this menu is assigned to, when assigneeType is USER_GROUPS. Matched by
+  // name rather than id: the same name ("Customer Administrators", "Customer Users") is reused
+  // by every customer, so a single menu can target "all admins of any customer" at once.
+  userGroupNames?: string[];
 }
 
 export interface CustomMenu extends CustomMenuInfo {

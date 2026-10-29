@@ -21,6 +21,7 @@ import { UserComponent } from '@modules/home/pages/user/user.component';
 import { UserRoutingModule } from '@modules/home/pages/user/user-routing.module';
 import { AddUserDialogComponent } from '@modules/home/pages/user/add-user-dialog.component';
 import { ActivationLinkDialogComponent } from '@modules/home/pages/user/activation-link-dialog.component';
+import { UserOwnerGroupsDialogComponent } from '@modules/home/pages/user/user-owner-groups-dialog.component';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { UserTabsComponent } from '@home/pages/user/user-tabs.component';
 import { UserTableHeaderComponent } from '@modules/home/pages/user/user-table-header.component';
@@ -31,6 +32,7 @@ import { UserTableHeaderComponent } from '@modules/home/pages/user/user-table-he
     UserTabsComponent,
     AddUserDialogComponent,
     ActivationLinkDialogComponent,
+    UserOwnerGroupsDialogComponent,
     UserTableHeaderComponent
   ],
   imports: [

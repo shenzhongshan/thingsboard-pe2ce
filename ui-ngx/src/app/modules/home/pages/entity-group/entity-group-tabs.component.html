@@ -26,9 +26,15 @@
     <tb-entity-group-actions-tab [entity]="entity" [isEdit]="isEdit" [detailsForm]="detailsForm"></tb-entity-group-actions-tab>
   </mat-tab>
   @if (!isEdit) {
-    <mat-tab label="{{ 'entity-group.tab-permissions' | translate }}">
-      <tb-entity-group-permissions-tab [entity]="entity"></tb-entity-group-permissions-tab>
-    </mat-tab>
+    @if (entity.type === entityType.USER) {
+      <mat-tab label="{{ 'entity-group.tab-roles' | translate }}">
+        <tb-entity-group-roles-tab [entity]="entity"></tb-entity-group-roles-tab>
+      </mat-tab>
+    } @else {
+      <mat-tab label="{{ 'entity-group.tab-permissions' | translate }}">
+        <tb-entity-group-permissions-tab [entity]="entity"></tb-entity-group-permissions-tab>
+      </mat-tab>
+    }
     <mat-tab label="{{ 'attribute.attributes' | translate }}" #attributesTab="matTab">
       <tb-attribute-table [defaultAttributeScope]="attributeScopes.SERVER_SCOPE"
                           [active]="attributesTab.isActive"

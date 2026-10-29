@@ -33,26 +33,32 @@ import org.thingsboard.server.common.data.page.PageLink;
 import java.util.List;
 
 /**
- * Custom Menu management: multiple named menus per scope (SYSTEM/TENANT), each optionally
- * assigned (ALL/CUSTOMERS/USERS) to override the effective navigation menu for the users it
- * applies to. CE port of PE's custom menu feature — see CMScope/CMAssigneeType for the
- * dropped-in-CE concepts (CUSTOMER scope, USER_GROUPS assignee type, sub-customer fallback).
+ * Custom Menu management: multiple named menus per scope (SYSTEM/TENANT/CUSTOMER), each
+ * optionally assigned (ALL/CUSTOMERS/USERS/USER_GROUPS) to override the effective navigation
+ * menu for the users it applies to. A menu is owned by a (tenantId, customerId) pair; the
+ * install seeds one ALL-assignee default per scope at the system level, which every tenant and
+ * customer inherits until it configures its own.
  */
 public interface CustomMenuService {
 
-    CustomMenu createCustomMenu(TenantId tenantId, CustomMenuInfo info, List<EntityId> assignToList, boolean force);
+    /** userGroupNames on {@code info} is only read when {@code info.getAssigneeType() == USER_GROUPS}. */
+    CustomMenu createCustomMenu(TenantId tenantId, CustomerId customerId, CustomMenuInfo info,
+                                List<EntityId> assignToList, boolean force);
 
     CustomMenu updateCustomMenuConfig(TenantId tenantId, CustomMenuId id, CustomMenuConfig config);
 
     CustomMenu updateCustomMenuName(TenantId tenantId, CustomMenuId id, String name);
 
-    void updateAssigneeList(TenantId tenantId, CustomMenuId id, CMAssigneeType newAssigneeType, List<EntityId> newList, boolean force);
+    /** newUserGroupNames is only read when {@code newAssigneeType == USER_GROUPS}; pass null otherwise. */
+    void updateAssigneeList(TenantId tenantId, CustomMenuId id, CMAssigneeType newAssigneeType,
+                            List<EntityId> newList, String[] newUserGroupNames, boolean force);
 
     CustomMenu findCustomMenuById(TenantId tenantId, CustomMenuId id);
 
     CustomMenuInfo findCustomMenuInfoById(TenantId tenantId, CustomMenuId id);
 
-    PageData<CustomMenuInfo> findCustomMenuInfos(TenantId tenantId, CMScope scope, PageLink pageLink);
+    /** Menus owned by the given (tenant, customer) pair — what the current user may manage. */
+    PageData<CustomMenuInfo> findCustomMenuInfos(TenantId tenantId, CustomerId customerId, CMScope scope, PageLink pageLink);
 
     List<EntityInfo> findCustomMenuAssigneeList(TenantId tenantId, CustomMenuId id);
 
@@ -60,13 +66,23 @@ public interface CustomMenuService {
 
     void deleteByTenantId(TenantId tenantId);
 
-    /**
-     * Resolution algorithm (CE-adapted, see plan doc): current user's own override, then
-     * (customer users only) their customer's override, then the tenant's own ALL-type default,
-     * then the SYS_TENANT_ID-owned TENANT-scope fallback default, then built-in (empty items).
-     */
+    /** Seeds the per-scope system default menus if they are missing. Idempotent. */
+    void createDefaultCustomMenus();
+
+    /** SYS_ADMIN: the system-level SYSTEM-scope default menu. */
     CustomMenuConfig resolveSystemAdminMenu();
 
-    CustomMenuConfig resolveUserMenu(TenantId tenantId, CustomerId customerId, UserId userId);
+    /**
+     * Tenant user: the user's own assigned menu, then the tenant's TENANT-scope default, then the
+     * system-level TENANT-scope default.
+     */
+    CustomMenuConfig resolveTenantUserMenu(TenantId tenantId, UserId userId);
+
+    /**
+     * Customer user: the user's own assigned menu, then the customer hierarchy (the customer's
+     * CUSTOMER-scope default, its directly assigned menu, then the same walk up its parents),
+     * then the tenant's CUSTOMER-scope default, then the system-level CUSTOMER-scope default.
+     */
+    CustomMenuConfig resolveCustomerUserMenu(TenantId tenantId, CustomerId customerId, UserId userId);
 
 }

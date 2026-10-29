@@ -154,6 +154,19 @@ public interface EntityGroupService {
     void ensureDefaultUserRoleMembership(TenantId tenantId, CustomerId ownerId, UserId userId, boolean tenantAdmin);
 
     /**
+     * Pre-creates the tenant's default user groups ("Tenant Administrators"/"Tenant Users") and
+     * binds each to its default role. PE parity: these exist from the moment the tenant is created,
+     * not only once its first user appears.
+     */
+    void createDefaultTenantEntityGroups(TenantId tenantId);
+
+    /**
+     * Pre-creates a customer's default user groups and binds each to its default role. A public
+     * customer gets only the "Public Users" group instead — PE parity.
+     */
+    void createDefaultCustomerEntityGroups(TenantId tenantId, CustomerId customerId, boolean isPublic);
+
+    /**
      * Moves entityId's "All"-group membership from oldOwnerId's group to newOwnerId's group for
      * groupType (either may be null for tenant-owned). No-op if oldOwnerId equals newOwnerId.
      */

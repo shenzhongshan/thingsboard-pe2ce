@@ -15,21 +15,24 @@
 ///
 
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Store } from '@ngrx/store';
 import { AppState } from '@core/core.state';
-import { getCurrentAuthState } from '@core/auth/auth.selectors';
 import { PageComponent } from '@shared/components/page.component';
 import { HasConfirmForm } from '@core/guards/confirm-on-exit.guard';
 import { UntypedFormBuilder, UntypedFormGroup } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { TranslateService } from '@ngx-translate/core';
-import { buildUserMenu, MenuSection } from '@core/services/menu.models';
+import { buildAuthorityMenu, MenuSection } from '@core/services/menu.models';
 import { CustomMenuService } from '@core/http/custom-menu.service';
 import { MenuService } from '@core/services/menu.service';
+import { Authority } from '@shared/models/authority.enum';
 import {
   CMItemType,
+  CMScope,
+  cmScopeAuthority,
+  cmScopeTranslations,
   CustomMenuConfig,
   CustomMenuItem,
   DefaultMenuItem,
@@ -76,6 +79,9 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
 
   customMenuId: string;
   menuName = '';
+  scope: CMScope;
+
+  cmScopeTranslations = cmScopeTranslations;
 
   constructor(protected store: Store<AppState>,
               private customMenuService: CustomMenuService,
@@ -83,6 +89,7 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
               private translate: TranslateService,
               private dialog: MatDialog,
               private route: ActivatedRoute,
+              private router: Router,
               public fb: UntypedFormBuilder) {
     super(store);
   }
@@ -90,12 +97,14 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
   ngOnInit() {
     this.dirtyForm = this.fb.group({});
     this.customMenuId = this.route.snapshot.paramMap.get('customMenuId');
+    // The item list depends on the menu's scope, so it can only be built once the info is in.
     this.customMenuService.getCustomMenuInfoById(this.customMenuId).subscribe(
       (info) => {
         this.menuName = info.name;
+        this.scope = info.scope;
+        this.load();
       }
     );
-    this.load();
   }
 
   private load() {
@@ -107,8 +116,17 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
     );
   }
 
+  goBack() {
+    this.router.navigate(['..'], {relativeTo: this.route});
+  }
+
+  /**
+   * The built-in menu this configuration overrides. Keyed by the menu's SCOPE, never by the
+   * editing user's authority: a system administrator configuring the tenant or customer default
+   * menu has to be shown the tenant/customer entries.
+   */
   private baseSections(): MenuSection[] {
-    return buildUserMenu(getCurrentAuthState(this.store));
+    return buildAuthorityMenu(cmScopeAuthority.get(this.scope) || Authority.TENANT_ADMIN);
   }
 
   private sectionToEditorItem(section: MenuSection): EditorMenuItem {
@@ -154,21 +172,22 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
         }
       }
     }
-    // Base entries not mentioned in the config (e.g. features added after the config was saved)
-    // are inserted at their natural position, after the nearest preceding base sibling.
+    // Built-in entries the saved configuration does not mention — typically platform features
+    // added after it was saved. They are appended HIDDEN, as PE does: a configured menu is an
+    // exhaustive list (the navigation renders exactly what it contains), so silently switching a
+    // new entry on would change what users see without the administrator ever deciding to.
     for (const missing of remaining) {
-      const baseIdx = base.indexOf(missing);
-      let insertAt = result.length;
-      for (let i = baseIdx - 1; i >= 0; i--) {
-        const pos = result.findIndex((r) => r.id === base[i].id && r.type === MenuItemType.DEFAULT);
-        if (pos >= 0) {
-          insertAt = pos + 1;
-          break;
-        }
-      }
-      result.splice(insertAt, 0, missing);
+      this.hideRecursively(missing);
+      result.push(missing);
     }
     return result;
+  }
+
+  private hideRecursively(row: EditorMenuItem) {
+    if (!row.isHome) {
+      row.visible = false;
+    }
+    row.pages.forEach((child) => this.hideRecursively(child));
   }
 
   private customToEditorItem(item: CustomMenuItem): EditorMenuItem {
@@ -294,14 +313,49 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
     this.dirtyForm.markAsDirty();
   }
 
-  // Reset the editor to the built-in menu (local only — takes effect on save).
+  /**
+   * Reset the whole editor to the built-in menu of this menu's scope. A no-op when the current
+   * state already is the default, so the button cannot make a pristine menu dirty.
+   */
   reset() {
+    if (this.isDefault(this.items)) {
+      return;
+    }
     this.items = this.baseSections().map((s) => this.sectionToEditorItem(s));
     this.dirtyForm.markAsDirty();
   }
 
   cancel() {
     this.load();
+  }
+
+  /**
+   * Whether the edited tree is exactly the built-in menu of this scope: same entries, same order,
+   * all visible, nothing renamed or re-iconed, no custom entries. Drives both the no-op reset and
+   * the "save as empty" normalisation below.
+   */
+  private isDefault(items: EditorMenuItem[]): boolean {
+    return this.equalsBase(items, this.baseSections().map((s) => this.sectionToEditorItem(s)));
+  }
+
+  private equalsBase(items: EditorMenuItem[], base: EditorMenuItem[]): boolean {
+    if (items.length !== base.length) {
+      return false;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const ref = base[i];
+      if (item.type !== MenuItemType.DEFAULT || item.id !== ref.id) {
+        return false;
+      }
+      if (!item.visible || !!item.name || item.icon !== ref.icon) {
+        return false;
+      }
+      if (!this.equalsBase(item.pages, ref.pages)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private editorItemToCustom(row: EditorMenuItem): CustomMenuItem {
@@ -337,9 +391,12 @@ export class CustomMenuComponent extends PageComponent implements OnInit, HasCon
   }
 
   save() {
-    const config: CustomMenuConfig = {
-      items: this.items.map((row) => this.editorItemToConfigItem(row))
-    };
+    // An empty item list means "no override, use the built-in menu of this scope". Persisting the
+    // materialised default instead would freeze today's menu: the saved list is exhaustive, so
+    // features added later would never show up for anyone inheriting this menu.
+    const config: CustomMenuConfig = this.isDefault(this.items)
+      ? { items: [] }
+      : { items: this.items.map((row) => this.editorItemToConfigItem(row)) };
     this.customMenuService.updateCustomMenuConfig(this.customMenuId, config).subscribe(
       () => {
         this.dirtyForm.markAsPristine();

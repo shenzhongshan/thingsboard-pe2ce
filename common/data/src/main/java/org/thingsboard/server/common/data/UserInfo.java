@@ -30,6 +30,9 @@ public class UserInfo extends User {
     @Schema(description = "Comma-separated names of the Entity Groups this user belongs to.", accessMode = Schema.AccessMode.READ_ONLY)
     private String groups;
 
+    @Schema(description = "Title of the owning Customer; absent for tenant-level users.", accessMode = Schema.AccessMode.READ_ONLY)
+    private String ownerName;
+
     public UserInfo() {
         super();
     }
