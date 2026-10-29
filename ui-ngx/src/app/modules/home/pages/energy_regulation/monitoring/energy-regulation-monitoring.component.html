@@ -27,6 +27,20 @@
 
   <section class="monitoring-content">
     <span *ngIf="statisticsLoadError" role="alert" class="visually-hidden">能源统计读取失败</span>
+    <section class="monitoring-panel scope-panel" aria-label="当前资产运行统计">
+      <header class="scope-heading"><h2>{{ selectedAssetName }}</h2><span>资产运行概况</span></header>
+      <dl class="scope-metrics">
+        <div><dt>设备总数</dt><dd>{{ assetSummary.total }}<small>台</small></dd></div>
+        <div><dt>正常</dt><dd class="value-good">{{ assetSummary.normal }}<small>台</small></dd></div>
+        <div><dt>在线</dt><dd>{{ assetSummary.online }}<small>台</small></dd></div>
+        <div><dt>告警设备</dt><dd class="value-warning">{{ assetSummary.alarming }}<small>台</small></dd></div>
+        <div><dt>离线</dt><dd class="value-muted">{{ assetSummary.offline }}<small>台</small></dd></div>
+        <div><dt>告警总数</dt><dd>{{ assetSummary.alarmTotal }}<small>条</small></dd></div>
+        <div><dt>未处理</dt><dd class="value-warning">{{ assetSummary.unprocessedAlarms }}<small>条</small></dd></div>
+        <div><dt>已处理</dt><dd>{{ assetSummary.processedAlarms }}<small>条</small></dd></div>
+      </dl>
+    </section>
+
     <section class="monitoring-top-grid" aria-label="能源监测与电能质量">
       <article class="monitoring-panel indicator-panel">
         <header class="panel-heading">
@@ -69,20 +83,6 @@
           <div><span>频率偏差</span><strong>{{ (ENERGY_MONITORING_QUALITY[qualityPeriod].frequencyDeviationHz) ?? '__' }}<small>Hz</small></strong></div>
         </div>
       </article>
-    </section>
-
-    <section class="monitoring-panel scope-panel" aria-label="当前资产运行统计">
-      <header class="scope-heading"><h2>{{ selectedAssetName }}</h2><span>资产运行概况</span></header>
-      <dl class="scope-metrics">
-        <div><dt>设备总数</dt><dd>{{ assetSummary.total }}<small>台</small></dd></div>
-        <div><dt>正常</dt><dd class="value-good">{{ assetSummary.normal }}<small>台</small></dd></div>
-        <div><dt>在线</dt><dd>{{ assetSummary.online }}<small>台</small></dd></div>
-        <div><dt>告警设备</dt><dd class="value-warning">{{ assetSummary.alarming }}<small>台</small></dd></div>
-        <div><dt>离线</dt><dd class="value-muted">{{ assetSummary.offline }}<small>台</small></dd></div>
-        <div><dt>告警总数</dt><dd>{{ assetSummary.alarmTotal }}<small>条</small></dd></div>
-        <div><dt>未处理</dt><dd class="value-warning">{{ assetSummary.unprocessedAlarms }}<small>条</small></dd></div>
-        <div><dt>已处理</dt><dd>{{ assetSummary.processedAlarms }}<small>条</small></dd></div>
-      </dl>
     </section>
 
     <section class="device-overview" aria-label="设备总览">
