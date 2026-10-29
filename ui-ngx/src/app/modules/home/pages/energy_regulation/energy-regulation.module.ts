@@ -1,3 +1,4 @@
+import {DashboardFillDirective} from '@shared/layout/dashboard-fill.directive';
 import {EnergyVisualFullscreenButtonComponent} from './shared/energy-visual-fullscreen-button.component';
 /** 文件职责：能源监管前端模块，注册看板、用能概况、监测、数据查询路由及共享依赖。 */
 import {CommonModule} from '@angular/common';
@@ -11,7 +12,7 @@ import {EnergyRegulationRoutingModule} from './energy-regulation-routing.module'
 
 @NgModule({
   declarations: [EnergyRegulationDashboardComponent],
-  imports: [EnergyVisualFullscreenButtonComponent, CommonModule, FormsModule, SharedModule, EnergyRegulationRoutingModule, SmartLightningDeviceMapModule,
+  imports: [DashboardFillDirective, EnergyVisualFullscreenButtonComponent, CommonModule, FormsModule, SharedModule, EnergyRegulationRoutingModule, SmartLightningDeviceMapModule,
     DeviceAlarmRecordsModule]
 })
 export class EnergyRegulationModule {}

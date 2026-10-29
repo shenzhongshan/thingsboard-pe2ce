@@ -638,3 +638,16 @@ dl {
 @media (prefers-reduced-motion: reduce) {
   .order-bars i { transition: none; }
 }
+
+/* 与其他业务看板共用动态工作区高度；网格吸收全屏增加的空间。 */
+.electrical-safety-page {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: var(--tb-dashboard-min-height, 100%);
+}
+.dashboard-grid { flex: 1; }
+@media (min-width: 1351px) {
+  .dashboard-grid { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(300px, 1.1fr); }
+  .records-panel { height: auto; max-height: none; }
+}

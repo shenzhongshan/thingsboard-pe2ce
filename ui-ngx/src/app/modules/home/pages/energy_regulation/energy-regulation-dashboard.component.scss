@@ -50,3 +50,6 @@
 .headline-card strong, .energy-primary strong, .energy-secondary b, .summary-side b { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 
 @include energyVisualFullscreen.layout;
+
+/* 明确工作区最小高度，使全屏后的剩余高度进入三行网格分配。 */
+.energy-dashboard { min-height: var(--tb-dashboard-min-height, 100%); }

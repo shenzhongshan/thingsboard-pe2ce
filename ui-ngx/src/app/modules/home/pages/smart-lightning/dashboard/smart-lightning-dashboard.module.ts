@@ -1,3 +1,4 @@
+import {DashboardFillDirective} from '@shared/layout/dashboard-fill.directive';
 /** 文件职责：看板模块的 smart-lightning-dashboard.module，声明 Angular 模块、组件与依赖导入。 */
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
@@ -22,6 +23,6 @@ import {TelemetryFitValueDirective} from '../shared/telemetry/telemetry-fit-valu
 
 @NgModule({
   declarations: [SmartLightningDashboardComponent, SmartLightningMonitoringComponent, SmartLightningDeviceDetailComponent, SmartLightningDataQueryComponent],
-  imports: [TelemetryFitValueDirective, CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
+  imports: [DashboardFillDirective, TelemetryFitValueDirective, CommonModule, FormsModule, SharedModule, SmartLightningDashboardRoutingModule, SmartLightningPeriodSwitcherModule, SmartLightningRootAssetFilterComponent, SmartLightningAssetTreeModule, SmartLightningDeviceMapModule, DeviceAlarmRecordsModule, DeviceAlarmInformationChartModule, SmartLightningHistoryReviewDialogModule, LogModule]
 })
 export class SmartLightningDashboardModule {}

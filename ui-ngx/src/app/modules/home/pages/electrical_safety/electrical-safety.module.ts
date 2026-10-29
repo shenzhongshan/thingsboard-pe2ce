@@ -1,3 +1,4 @@
+import {DashboardFillDirective} from '@shared/layout/dashboard-fill.directive';
 /** 文件职责：声明电气安全看板、监测、设备详情和查询页面及共享组件依赖。 */
 import {CommonModule} from '@angular/common';
 import {NgModule} from '@angular/core';
@@ -25,6 +26,7 @@ import {ElectricalSafetyDataQueryComponent} from './query/electrical-safety-data
     ElectricalSafetyDataQueryComponent
   ],
   imports: [
+    DashboardFillDirective,
     CommonModule,
     TelemetryFitValueDirective,
     FormsModule,
