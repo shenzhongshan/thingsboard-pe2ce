@@ -710,7 +710,10 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         String permissionQuery = this.buildPermissionQuery(ctx, entityFilter);
         String entityFilterQuery = this.buildEntityFilterQuery(ctx, entityFilter);
         String entityFieldsQuery = EntityKeyMapping.buildQuery(ctx, entityFieldsFilters, entityFilter.getType());
-        String result = permissionQuery;
+        // permissionQuery may itself be an OR (owner scope vs. group grant) - parenthesize it as a
+        // unit so the entity filter/fields clauses below apply to the whole permission check, not
+        // just its last AND-bound disjunct.
+        String result = "(" + permissionQuery + ")";
         if (!entityFilterQuery.isEmpty()) {
             result += " and (" + entityFilterQuery + ")";
         }
