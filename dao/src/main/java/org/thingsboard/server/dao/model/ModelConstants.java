@@ -489,6 +489,7 @@ public class ModelConstants {
     public static final String MOBILE_APP_BUNDLE_DESCRIPTION_PROPERTY = "description";
     public static final String MOBILE_APP_BUNDLE_ANDROID_APP_ID_PROPERTY = "android_app_id";
     public static final String MOBILE_APP_BUNDLE_IOS_APP_ID_PROPERTY = "ios_app_id";
+    public static final String MOBILE_APP_BUNDLE_WECHAT_APP_ID_PROPERTY = "wechat_app_id";
     public static final String MOBILE_APP_BUNDLE_LAYOUT_CONFIG_PROPERTY = "layout_config";
     public static final String MOBILE_APP_BUNDLE_OAUTH2_ENABLED_PROPERTY = "oauth2_enabled";
 

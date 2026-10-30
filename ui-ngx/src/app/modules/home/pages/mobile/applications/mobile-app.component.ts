@@ -20,10 +20,16 @@ import { AppState } from '@core/core.state';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
 import { TranslateService } from '@ngx-translate/core';
 import { Store } from '@ngrx/store';
-import { FormBuilder, FormGroup, UntypedFormControl, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, UntypedFormControl, ValidatorFn, Validators } from '@angular/forms';
 import { randomAlphanumeric } from '@core/utils';
 import { EntityType } from '@shared/models/entity-type.models';
-import { MobileApp, MobileAppStatus, mobileAppStatusTranslations } from '@shared/models/mobile-app.models';
+import {
+  MOBILE_PKG_NAME_REGEX,
+  MobileApp,
+  MobileAppStatus,
+  mobileAppStatusTranslations,
+  WECHAT_APP_ID_REGEX
+} from '@shared/models/mobile-app.models';
 import { PlatformType, platformTypeTranslations } from '@shared/models/oauth2.models';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatIconButton } from '@angular/material/button';
@@ -40,7 +46,7 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
 
   entityType = EntityType;
 
-  platformTypes = [PlatformType.ANDROID, PlatformType.IOS];
+  platformTypes = [PlatformType.ANDROID, PlatformType.IOS, PlatformType.WECHAT_MINIPROGRAM];
 
   MobileAppStatus = MobileAppStatus;
   PlatformType = PlatformType;
@@ -64,8 +70,7 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
 
   buildForm(entity: MobileApp): FormGroup {
     const form = this.fb.group({
-      pkgName: [entity?.pkgName ?? '', [Validators.required, Validators.maxLength(255),
-        Validators.pattern(/^[a-zA-Z][a-zA-Z\d_]*(?:\.[a-zA-Z][a-zA-Z\d_]*)+$/)]],
+      pkgName: [entity?.pkgName ?? '', this.pkgNameValidators(entity?.platformType ?? PlatformType.ANDROID)],
       title: [entity?.title ?? '', [Validators.maxLength(255)]],
       platformType: [entity?.platformType ?? PlatformType.ANDROID],
       appSecret: [entity?.appSecret ? entity.appSecret : btoa(randomAlphanumeric(64)), [Validators.required, this.base64Format]],
@@ -88,6 +93,14 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
     form.get('platformType').valueChanges.pipe(
       takeUntilDestroyed()
     ).subscribe((value: PlatformType) => {
+      form.get('pkgName').setValidators(this.pkgNameValidators(value));
+      form.get('pkgName').updateValueAndValidity({emitEvent: false});
+      if (value === PlatformType.WECHAT_MINIPROGRAM) {
+        // mini programs are published through WeChat: no app store information
+        form.get('storeInfo').disable({emitEvent: false});
+        return;
+      }
+      form.get('storeInfo').enable({emitEvent: false});
       if (value === PlatformType.ANDROID) {
         form.get('storeInfo.sha256CertFingerprints').enable({emitEvent: false});
         form.get('storeInfo.appId').disable({emitEvent: false});
@@ -103,7 +116,7 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
     form.get('status').valueChanges.pipe(
       takeUntilDestroyed()
     ).subscribe((value: MobileAppStatus) => {
-      if (value === MobileAppStatus.PUBLISHED) {
+      if (value === MobileAppStatus.PUBLISHED && form.get('platformType').value !== PlatformType.WECHAT_MINIPROGRAM) {
         form.get('storeInfo.storeLink').addValidators(Validators.required);
         form.get('storeInfo.sha256CertFingerprints')
           .addValidators(Validators.required);
@@ -123,6 +136,9 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
 
   updateForm(entity: MobileApp) {
     this.entityForm.patchValue(entity, {emitEvent: false});
+    // patchValue does not emit, so apply the platform-specific validation explicitly
+    this.entityForm.get('pkgName').setValidators(this.pkgNameValidators(entity?.platformType ?? PlatformType.ANDROID));
+    this.entityForm.get('pkgName').updateValueAndValidity({emitEvent: false});
   }
 
   override updateFormState(): void {
@@ -131,7 +147,9 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
       this.entityForm.get('status').updateValueAndValidity({onlySelf: true});
       this.entityForm.get('platformType').updateValueAndValidity({onlySelf: true});
       this.entityForm.get('platformType').disable({emitEvent: false});
-      if (this.entityForm.get('platformType').value === PlatformType.ANDROID) {
+      if (this.entityForm.get('platformType').value === PlatformType.WECHAT_MINIPROGRAM) {
+        this.entityForm.get('storeInfo').disable({emitEvent: false});
+      } else if (this.entityForm.get('platformType').value === PlatformType.ANDROID) {
         this.entityForm.get('storeInfo.appId').disable({emitEvent: false});
       } else if (this.entityForm.get('platformType').value === PlatformType.IOS) {
         this.entityForm.get('storeInfo.sha256CertFingerprints').disable({emitEvent: false});
@@ -143,8 +161,17 @@ export class MobileAppComponent extends EntityComponent<MobileApp> {
   }
 
   override prepareFormValue(value: MobileApp): MobileApp {
-    value.storeInfo = this.entityForm.get('storeInfo').value;
+    value.storeInfo = this.isWechatMiniProgram ? null : this.entityForm.get('storeInfo').value;
     return super.prepareFormValue(value);
+  }
+
+  get isWechatMiniProgram(): boolean {
+    return this.entityForm?.get('platformType').value === PlatformType.WECHAT_MINIPROGRAM;
+  }
+
+  private pkgNameValidators(platformType: PlatformType): ValidatorFn[] {
+    return [Validators.required, Validators.maxLength(255),
+      Validators.pattern(platformType === PlatformType.WECHAT_MINIPROGRAM ? WECHAT_APP_ID_REGEX : MOBILE_PKG_NAME_REGEX)];
   }
 
   generateAppSecret($event: Event) {

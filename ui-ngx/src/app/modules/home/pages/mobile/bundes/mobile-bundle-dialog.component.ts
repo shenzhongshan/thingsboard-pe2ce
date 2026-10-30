@@ -68,6 +68,7 @@ export class MobileBundleDialogComponent extends DialogComponent<MobileBundleDia
     title: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(255)]],
     androidAppId: [null],
     iosAppId: [null],
+    wechatAppId: [null],
     description: [''],
   });
 

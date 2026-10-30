@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Slf4j
@@ -107,7 +108,7 @@ public class MobileAppBundleControllerTest extends AbstractControllerTest {
 
         MobileAppBundle savedAppBundle = doPost("/api/mobile/bundle", mobileAppBundle, MobileAppBundle.class);
         MobileAppBundleInfo retrievedMobileAppBundleInfo = doGet("/api/mobile/bundle/info/{id}", MobileAppBundleInfo.class, savedAppBundle.getId().getId());
-        assertThat(retrievedMobileAppBundleInfo).isEqualTo(new MobileAppBundleInfo(savedAppBundle, null, null, false,
+        assertThat(retrievedMobileAppBundleInfo).isEqualTo(new MobileAppBundleInfo(savedAppBundle, null, null, null, false,
                 Collections.emptyList()));
     }
 
@@ -130,14 +131,14 @@ public class MobileAppBundleControllerTest extends AbstractControllerTest {
         doPut("/api/mobile/bundle/" + savedAppBundle.getId() + "/oauth2Clients", List.of(savedOAuth2Client.getId().getId(), savedOAuth2Client2.getId().getId()));
 
         MobileAppBundleInfo retrievedMobileAppBundleInfo = doGet("/api/mobile/bundle/info/{id}", MobileAppBundleInfo.class, savedAppBundle.getId().getId());
-        assertThat(retrievedMobileAppBundleInfo).isEqualTo(new MobileAppBundleInfo(savedAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), false,
+        assertThat(retrievedMobileAppBundleInfo).isEqualTo(new MobileAppBundleInfo(savedAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), null, false,
                 Stream.of(new OAuth2ClientInfo(savedOAuth2Client), new OAuth2ClientInfo(savedOAuth2Client2))
                         .sorted(Comparator.comparing(OAuth2ClientInfo::getTitle)).collect(Collectors.toList())
         ));
 
         doPut("/api/mobile/bundle/" + savedAppBundle.getId() + "/oauth2Clients", List.of(savedOAuth2Client2.getId().getId()));
         MobileAppBundleInfo retrievedMobileAppInfo2 = doGet("/api/mobile/bundle/info/{id}", MobileAppBundleInfo.class, savedAppBundle.getId().getId());
-        assertThat(retrievedMobileAppInfo2).isEqualTo(new MobileAppBundleInfo(savedAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), false, List.of(new OAuth2ClientInfo(savedOAuth2Client2))));
+        assertThat(retrievedMobileAppInfo2).isEqualTo(new MobileAppBundleInfo(savedAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), null, false, List.of(new OAuth2ClientInfo(savedOAuth2Client2))));
     }
 
     @Test
@@ -153,7 +154,47 @@ public class MobileAppBundleControllerTest extends AbstractControllerTest {
         MobileAppBundle savedMobileAppBundle = doPost("/api/mobile/bundle?oauth2ClientIds=" + savedOAuth2Client.getId().getId(), mobileAppBundle, MobileAppBundle.class);
 
         MobileAppBundleInfo retrievedMobileAppInfo = doGet("/api/mobile/bundle/info/{id}", MobileAppBundleInfo.class, savedMobileAppBundle.getId().getId());
-        assertThat(retrievedMobileAppInfo).isEqualTo(new MobileAppBundleInfo(savedMobileAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), false, List.of(new OAuth2ClientInfo(savedOAuth2Client))));
+        assertThat(retrievedMobileAppInfo).isEqualTo(new MobileAppBundleInfo(savedMobileAppBundle, androidApp.getPkgName(), iosApp.getPkgName(), null, false, List.of(new OAuth2ClientInfo(savedOAuth2Client))));
+    }
+
+    @Test
+    public void testSaveMobileAppBundleWithWechatMiniProgram() throws Exception {
+        MobileApp wechatApp = doPost("/api/mobile/app", validMobileApp(TenantId.SYS_TENANT_ID, "wx0123456789abcdef", PlatformType.WECHAT_MINIPROGRAM), MobileApp.class);
+
+        MobileAppBundle mobileAppBundle = new MobileAppBundle();
+        mobileAppBundle.setTitle("Test bundle");
+        mobileAppBundle.setAndroidAppId(androidApp.getId());
+        mobileAppBundle.setWechatAppId(wechatApp.getId());
+
+        MobileAppBundle savedAppBundle = doPost("/api/mobile/bundle", mobileAppBundle, MobileAppBundle.class);
+        assertThat(savedAppBundle.getWechatAppId()).isEqualTo(wechatApp.getId());
+
+        MobileAppBundleInfo info = doGet("/api/mobile/bundle/info/{id}", MobileAppBundleInfo.class, savedAppBundle.getId().getId());
+        assertThat(info.getWechatPkgName()).isEqualTo("wx0123456789abcdef");
+        assertThat(info.getAndroidPkgName()).isEqualTo(androidApp.getPkgName());
+
+        // /api/mobile resolves the bundle by the mini program AppID and platform
+        doGet("/api/mobile?pkgName=wx0123456789abcdef&platform=WECHAT_MINIPROGRAM").andExpect(status().isOk());
+    }
+
+    @Test
+    public void testSaveMobileAppBundleWithWrongWechatApp() throws Exception {
+        MobileAppBundle mobileAppBundle = new MobileAppBundle();
+        mobileAppBundle.setTitle("Test bundle");
+        mobileAppBundle.setWechatAppId(androidApp.getId());
+
+        doPost("/api/mobile/bundle", mobileAppBundle)
+                .andExpect(status().isBadRequest())
+                .andExpect(statusReason(containsString("wrong WeChat mini program")));
+    }
+
+    @Test
+    public void testOauth2ClientCannotTargetWechatMiniProgram() throws Exception {
+        OAuth2Client oAuth2Client = createOauth2Client(TenantId.SYS_TENANT_ID, "test wechat client");
+        oAuth2Client.setPlatforms(List.of(PlatformType.WECHAT_MINIPROGRAM));
+        doPost("/api/oauth2/client", oAuth2Client)
+                .andExpect(status().isBadRequest())
+                .andExpect(statusReason(containsString("OAuth2 is not supported for WeChat mini programs")));
     }
 
     private MobileApp validMobileApp(TenantId tenantId, String mobileAppName, PlatformType platformType) {

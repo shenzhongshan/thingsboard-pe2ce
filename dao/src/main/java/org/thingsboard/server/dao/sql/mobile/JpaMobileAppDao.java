@@ -55,6 +55,7 @@ public class JpaMobileAppDao extends JpaAbstractDao<MobileAppEntity, MobileApp> 
         return switch (platformType) {
             case ANDROID -> DaoUtil.getData(mobileAppRepository.findAndroidAppByBundleId(mobileAppBundleId.getId()));
             case IOS -> DaoUtil.getData(mobileAppRepository.findIOSAppByBundleId(mobileAppBundleId.getId()));
+            case WECHAT_MINIPROGRAM -> DaoUtil.getData(mobileAppRepository.findWechatAppByBundleId(mobileAppBundleId.getId()));
             default -> null;
         };
     }

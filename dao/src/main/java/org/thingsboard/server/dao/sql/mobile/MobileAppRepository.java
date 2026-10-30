@@ -50,4 +50,7 @@ public interface MobileAppRepository extends JpaRepository<MobileAppEntity, UUID
     @Query("SELECT a FROM MobileAppEntity a LEFT JOIN MobileAppBundleEntity b ON b.iosAppID = a.id WHERE b.id = :bundleId")
     MobileAppEntity findIOSAppByBundleId(@Param("bundleId") UUID bundleId);
 
+    @Query("SELECT a FROM MobileAppEntity a LEFT JOIN MobileAppBundleEntity b ON b.wechatAppId = a.id WHERE b.id = :bundleId")
+    MobileAppEntity findWechatAppByBundleId(@Param("bundleId") UUID bundleId);
+
 }

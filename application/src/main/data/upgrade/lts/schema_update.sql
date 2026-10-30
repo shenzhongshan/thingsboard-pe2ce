@@ -149,3 +149,11 @@ ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS customer_id UUID NOT NULL DEFAU
 -- USER_GROUPS 分配类型：按用户组名称匹配（而非 id），因为同名组在每个客户下都会重建。
 -- 与 dao/schema-entities.sql、upgrade/basic 刻意重复 —— 三条路径都要落地。
 ALTER TABLE custom_menu ADD COLUMN IF NOT EXISTS user_group_names TEXT[];
+
+-- MOBILE APP BUNDLE WECHAT MINI PROGRAM START
+-- 移动中心支持微信小程序平台（PlatformType.WECHAT_MINIPROGRAM）：应用包增加小程序应用槽位。
+-- 约束写在列定义上：ADD COLUMN IF NOT EXISTS 在列已存在时整条跳过，可重复执行，无需 DO 块。
+ALTER TABLE mobile_app_bundle ADD COLUMN IF NOT EXISTS wechat_app_id uuid
+    CONSTRAINT mobile_app_bundle_wechat_app_id_key UNIQUE
+    CONSTRAINT fk_wechat_app_id REFERENCES mobile_app(id) ON DELETE SET NULL;
+-- MOBILE APP BUNDLE WECHAT MINI PROGRAM END

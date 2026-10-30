@@ -17,7 +17,7 @@
 -->
 <section class="mat-padding tb-form-panel outlined" [formGroup]="entityForm">
   <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label translate>mobile.mobile-package</mat-label>
+    <mat-label>{{ (isWechatMiniProgram ? 'mobile.wechat-app-id' : 'mobile.mobile-package') | translate }}</mat-label>
     <input matInput required formControlName="pkgName">
     <tb-copy-button
       matSuffix
@@ -27,7 +27,7 @@
       tooltipPosition="above"
       icon="content_copy">
     </tb-copy-button>
-    <mat-hint> </mat-hint>
+    <mat-hint>{{ isWechatMiniProgram ? ('mobile.wechat-app-id-hint' | translate) : ' ' }}</mat-hint>
     @if (entityForm.get('pkgName').hasError('required')) {
       <mat-error>
         {{ 'mobile.mobile-package-required' | translate }}
@@ -40,7 +40,7 @@
     }
     @if (entityForm.get('pkgName').hasError('pattern')) {
       <mat-error>
-        {{ 'mobile.mobile-package-pattern' | translate }}
+        {{ (isWechatMiniProgram ? 'mobile.wechat-app-id-pattern' : 'mobile.mobile-package-pattern') | translate }}
       </mat-error>
     }
   </mat-form-field>
@@ -150,6 +150,7 @@
       </section>
     </section>
   </section>
+  @if (!isWechatMiniProgram) {
   <section class="tb-form-panel stroked no-padding-bottom" formGroupName="storeInfo">
     <div class="tb-form-panel-title" translate>mobile.store-information</div>
     <section class="flex flex-col">
@@ -227,4 +228,5 @@
       }
     </section>
   </section>
+  }
 </section>

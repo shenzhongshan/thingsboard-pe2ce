@@ -50,7 +50,7 @@ public class MobileApp extends BaseData<MobileAppId> implements HasTenantId, Has
     @NotEmpty
     @Length(fieldName = "appSecret", min = 16, max = 2048, message = "must be at least 16 and max 2048 characters")
     private String appSecret;
-    @Schema(description = "Application platform type: ANDROID or IOS", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Application platform type: ANDROID, IOS or WECHAT_MINIPROGRAM", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull
     private PlatformType platformType;
     @Schema(description = "Application status: PUBLISHED, DEPRECATED, SUSPENDED, DRAFT", requiredMode = Schema.RequiredMode.REQUIRED)

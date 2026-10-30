@@ -37,6 +37,9 @@ public class Oauth2ClientDataValidator extends DataValidator<OAuth2Client> {
 
     @Override
     protected void validateDataImpl(TenantId tenantId, OAuth2Client oAuth2Client) {
+        if (oAuth2Client.getPlatforms() != null && oAuth2Client.getPlatforms().stream().anyMatch(p -> p != null && !p.isOAuth2Supported())) {
+            throw new DataValidationException("OAuth2 is not supported for WeChat mini programs!");
+        }
         OAuth2MapperConfig mapperConfig = oAuth2Client.getMapperConfig();
         MapperType type = mapperConfig.getType();
         if (type == MapperType.BASIC || type == MapperType.GITHUB || type == MapperType.APPLE) {

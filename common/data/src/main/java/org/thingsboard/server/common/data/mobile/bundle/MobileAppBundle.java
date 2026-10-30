@@ -52,6 +52,8 @@ public class MobileAppBundle extends BaseData<MobileAppBundleId> implements HasT
     private MobileAppId androidAppId;
     @Schema(description = "IOS application id")
     private MobileAppId iosAppId;
+    @Schema(description = "WeChat mini program application id")
+    private MobileAppId wechatAppId;
     @Schema(description = "Application layout configuration")
     @Valid
     private MobileLayoutConfig layoutConfig;
@@ -73,6 +75,7 @@ public class MobileAppBundle extends BaseData<MobileAppBundleId> implements HasT
         this.description = mobile.description;
         this.androidAppId = mobile.androidAppId;
         this.iosAppId = mobile.iosAppId;
+        this.wechatAppId = mobile.wechatAppId;
         this.layoutConfig = mobile.layoutConfig;
         this.oauth2Enabled = mobile.oauth2Enabled;
     }

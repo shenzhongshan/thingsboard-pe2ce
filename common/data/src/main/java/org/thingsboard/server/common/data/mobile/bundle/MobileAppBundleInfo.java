@@ -32,22 +32,26 @@ public class MobileAppBundleInfo extends MobileAppBundle {
     private String androidPkgName;
     @Schema(description = "IOS package name")
     private String iosPkgName;
+    @Schema(description = "WeChat mini program AppID")
+    private String wechatPkgName;
     @Schema(description = "List of available oauth2 clients")
     private List<OAuth2ClientInfo> oauth2ClientInfos;
     @Schema(description = "Indicates if qr code is available for bundle")
     private boolean qrCodeEnabled;
 
-    public MobileAppBundleInfo(MobileAppBundle mobileApp, String androidPkgName, String iosPkgName, boolean qrCodeEnabled) {
+    public MobileAppBundleInfo(MobileAppBundle mobileApp, String androidPkgName, String iosPkgName, String wechatPkgName, boolean qrCodeEnabled) {
         super(mobileApp);
         this.androidPkgName = androidPkgName;
         this.iosPkgName = iosPkgName;
+        this.wechatPkgName = wechatPkgName;
         this.qrCodeEnabled = qrCodeEnabled;
     }
 
-    public MobileAppBundleInfo(MobileAppBundle mobileApp, String androidPkgName, String iosPkgName, boolean qrCodeEnabled, List<OAuth2ClientInfo> oauth2ClientInfos) {
+    public MobileAppBundleInfo(MobileAppBundle mobileApp, String androidPkgName, String iosPkgName, String wechatPkgName, boolean qrCodeEnabled, List<OAuth2ClientInfo> oauth2ClientInfos) {
         super(mobileApp);
         this.androidPkgName = androidPkgName;
         this.iosPkgName = iosPkgName;
+        this.wechatPkgName = wechatPkgName;
         this.qrCodeEnabled = qrCodeEnabled;
         this.oauth2ClientInfos = oauth2ClientInfos;
     }

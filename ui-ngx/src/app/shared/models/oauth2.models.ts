@@ -38,8 +38,12 @@ export const domainSchemaTranslations = new Map<DomainSchema, string>(
 export enum PlatformType {
   WEB = 'WEB',
   ANDROID = 'ANDROID',
-  IOS = 'IOS'
+  IOS = 'IOS',
+  WECHAT_MINIPROGRAM = 'WECHAT_MINIPROGRAM'
 }
+
+// WeChat mini programs cannot follow OAuth2 redirects, so OAuth2 clients can only target these platforms
+export const oauth2PlatformTypes = [PlatformType.WEB, PlatformType.ANDROID, PlatformType.IOS];
 
 export interface OAuth2ClientRegistrationTemplate extends OAuth2RegistrationInfo {
   comment: string;
@@ -146,7 +150,8 @@ export const platformTypeTranslations = new Map<PlatformType, string>(
   [
     [PlatformType.WEB, 'admin.oauth2.platform-web'],
     [PlatformType.ANDROID, 'admin.oauth2.platform-android'],
-    [PlatformType.IOS, 'admin.oauth2.platform-ios']
+    [PlatformType.IOS, 'admin.oauth2.platform-ios'],
+    [PlatformType.WECHAT_MINIPROGRAM, 'admin.oauth2.platform-wechat-miniprogram']
   ]
 );
 

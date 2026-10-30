@@ -79,11 +79,12 @@ export class MobileBundleTableConfigResolver {
       new EntityChipsEntityTableColumn<MobileAppBundleInfo>('oauth2ClientInfos', 'mobile.oauth-clients', '35%'),
       new EntityChipsEntityTableColumn<MobileAppBundleInfo>('androidPkg', 'mobile.android-app', '20%'),
       new EntityChipsEntityTableColumn<MobileAppBundleInfo>('iosPkg', 'mobile.ios-app', '20%'),
+      new EntityChipsEntityTableColumn<MobileAppBundleInfo>('wechatPkg', 'mobile.wechat-app', '20%'),
       new EntityTableColumn<MobileAppBundleInfo>('oauth2Enabled', 'mobile.enable-oauth', '140px',
         entity => checkBoxCell(entity.oauth2Enabled))
     )
 
-    this.config.deleteEnabled = bundle => !(bundle.iosAppId || bundle.androidAppId);
+    this.config.deleteEnabled = bundle => !(bundle.iosAppId || bundle.androidAppId || bundle.wechatAppId);
     this.config.deleteEntityTitle = (bundle) => this.translate.instant('mobile.delete-applications-bundle-title', {bundleName: bundle.name});
     this.config.deleteEntityContent = () => this.translate.instant('mobile.delete-applications-bundle-text');
     this.config.deleteEntity = id => this.mobileAppService.deleteMobileAppBundle(id.id);
@@ -96,6 +97,12 @@ export class MobileBundleTableConfigResolver {
               id: data.androidAppId,
               name: data.androidPkgName
             }
+          }
+          if (data.wechatPkgName) {
+            data.wechatPkg = {
+              id: data.wechatAppId,
+              name: data.wechatPkgName
+            };
           }
           if (data.iosPkgName) {
             data.iosPkg = {
@@ -171,7 +178,8 @@ export class MobileBundleTableConfigResolver {
     }
     const task = {
       androidApp: entity.androidAppId ? this.mobileAppService.getMobileAppInfoById(entity.androidAppId.id) : of(null),
-      iosApp: entity.iosAppId ? this.mobileAppService.getMobileAppInfoById(entity.iosAppId.id) : of(null)
+      iosApp: entity.iosAppId ? this.mobileAppService.getMobileAppInfoById(entity.iosAppId.id) : of(null),
+      wechatApp: entity.wechatAppId ? this.mobileAppService.getMobileAppInfoById(entity.wechatAppId.id) : of(null)
     };
     forkJoin(task).subscribe(data => {
       this.dialog.open<MobileAppConfigurationDialogComponent, MobileAppConfigurationDialogData,
@@ -182,6 +190,7 @@ export class MobileBundleTableConfigResolver {
           afterAdd,
           androidApp: data.androidApp,
           iosApp: data.iosApp,
+          wechatApp: data.wechatApp,
           bundle: entity
         }
       }).afterClosed()

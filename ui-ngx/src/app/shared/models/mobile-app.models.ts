@@ -21,6 +21,11 @@ import { OAuth2ClientInfo, PlatformType } from '@shared/models/oauth2.models';
 import { MobileAppBundleId } from '@shared/models/id/mobile-app-bundle-id';
 import { deepClone, isNotEmptyStr } from '@core/utils';
 
+// Android/iOS package name, e.g. org.thingsboard.app
+export const MOBILE_PKG_NAME_REGEX = /^[a-zA-Z][a-zA-Z\d_]*(?:\.[a-zA-Z][a-zA-Z\d_]*)+$/;
+// WeChat mini program AppID, e.g. wx0123456789abcdef
+export const WECHAT_APP_ID_REGEX = /^wx[0-9a-f]{16}$/;
+
 export const WEB_URL_REGEX = /^(https?:\/\/)?(localhost|([\p{L}\p{M}\w-]+\.)+[\p{L}\p{M}\w-]+)(:\d+)?(\/[\w\-._~:/?#[\]@!$&'()*+,;=%\p{L}\p{N}]*)?$/u;
 
 export interface QrCodeSettings extends HasTenantId {
@@ -147,6 +152,7 @@ export interface MobileAppBundle extends Omit<BaseData<MobileAppBundleId>, 'labe
   description?: string;
   androidAppId?: MobileAppId;
   iosAppId?: MobileAppId;
+  wechatAppId?: MobileAppId;
   layoutConfig?: MobileLayoutConfig;
   oauth2Enabled: boolean;
 }
@@ -162,6 +168,11 @@ export interface MobileAppBundleInfo extends MobileAppBundle {
     name: string;
     id: MobileAppId
   }
+  wechatPkgName?: string;
+  wechatPkg?: {
+    name: string;
+    id: MobileAppId
+  };
   oauth2ClientInfos?: Array<OAuth2ClientInfo>;
   qrCodeEnabled: boolean;
 }

@@ -97,6 +97,27 @@ public class MobileAppControllerTest extends AbstractControllerTest {
         assertThat(androidPageData.getData()).containsExactlyInAnyOrder(androidApp, androidApp2);
     }
 
+    @Test
+    public void testSaveWechatMiniProgram() throws Exception {
+        MobileApp wechatApp = validMobileApp("wx0123456789abcdef", PlatformType.WECHAT_MINIPROGRAM);
+        // mini programs are published through WeChat, so a published app needs no store info
+        wechatApp.setStatus(MobileAppStatus.PUBLISHED);
+        MobileApp savedApp = doPost("/api/mobile/app", wechatApp, MobileApp.class);
+        assertThat(savedApp.getPlatformType()).isEqualTo(PlatformType.WECHAT_MINIPROGRAM);
+
+        PageData<MobileApp> wechatPageData = doGetTypedWithPageLink("/api/mobile/app?platformType=WECHAT_MINIPROGRAM&", PAGE_DATA_MOBILE_APP_TYPE_REF, new PageLink(10, 0));
+        assertThat(wechatPageData.getData()).containsExactly(savedApp);
+
+        doGet("/api/noauth/mobile?pkgName=wx0123456789abcdef&platform=WECHAT_MINIPROGRAM").andExpect(status().isOk());
+    }
+
+    @Test
+    public void testSaveWechatMiniProgramWithInvalidAppId() throws Exception {
+        doPost("/api/mobile/app", validMobileApp("my.android.package", PlatformType.WECHAT_MINIPROGRAM))
+                .andExpect(status().isBadRequest())
+                .andExpect(statusReason(containsString("WeChat mini program AppID must start with 'wx'")));
+    }
+
     private MobileApp validMobileApp(String mobileAppName, PlatformType platformType) {
         MobileApp mobileApp = new MobileApp();
         mobileApp.setPkgName(mobileAppName);

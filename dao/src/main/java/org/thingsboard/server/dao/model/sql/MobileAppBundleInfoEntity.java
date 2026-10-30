@@ -25,21 +25,24 @@ public class MobileAppBundleInfoEntity extends AbstractMobileAppBundleEntity<Mob
 
     private String androidPkgName;
     private String iosPkgName;
+    private String wechatPkgName;
     private boolean qrCodeEnabled;
 
     public MobileAppBundleInfoEntity() {
         super();
     }
 
-    public MobileAppBundleInfoEntity(MobileAppBundleEntity mobileAppBundleEntity, String androidPkgName, String iosPkgName, boolean qrCodeEnabled) {
+    public MobileAppBundleInfoEntity(MobileAppBundleEntity mobileAppBundleEntity, String androidPkgName, String iosPkgName,
+                                     String wechatPkgName, boolean qrCodeEnabled) {
         super(mobileAppBundleEntity);
         this.androidPkgName = androidPkgName;
         this.iosPkgName = iosPkgName;
+        this.wechatPkgName = wechatPkgName;
         this.qrCodeEnabled = qrCodeEnabled;
     }
 
     @Override
     public MobileAppBundleInfo toData() {
-        return new MobileAppBundleInfo(super.toMobileAppBundle(), androidPkgName, iosPkgName, qrCodeEnabled);
+        return new MobileAppBundleInfo(super.toMobileAppBundle(), androidPkgName, iosPkgName, wechatPkgName, qrCodeEnabled);
     }
 }

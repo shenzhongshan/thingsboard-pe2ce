@@ -25,6 +25,7 @@ import {
   OAuth2ClientRegistrationTemplate,
   OAuth2CustomMapperConfig,
   OAuth2MapperConfig,
+  oauth2PlatformTypes,
   PlatformType,
   platformTypeTranslations,
   TenantNameStrategyType
@@ -85,7 +86,7 @@ export class ClientComponent extends EntityComponent<OAuth2Client, PageLink, OAu
   mapperType = MapperType;
   mapperTypes = Object.keys(MapperType);
   tenantNameStrategies = Object.keys(TenantNameStrategyType);
-  platformTypes = Object.values(PlatformType);
+  platformTypes = [...oauth2PlatformTypes];
   platformTypeTranslations = platformTypeTranslations;
   generalSettingsMode = true;
   advancedExpanded = false;

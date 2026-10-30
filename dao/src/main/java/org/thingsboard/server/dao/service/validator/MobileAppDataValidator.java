@@ -24,12 +24,23 @@ import org.thingsboard.server.common.data.oauth2.PlatformType;
 import org.thingsboard.server.exception.DataValidationException;
 import org.thingsboard.server.dao.service.DataValidator;
 
+import java.util.regex.Pattern;
+
 @Component
 @AllArgsConstructor
 public class MobileAppDataValidator extends DataValidator<MobileApp> {
 
+    private static final Pattern WECHAT_APP_ID_PATTERN = Pattern.compile("^wx[0-9a-f]{16}$");
+
     @Override
     protected void validateDataImpl(TenantId tenantId, MobileApp mobileApp) {
+        if (mobileApp.getPlatformType() == PlatformType.WECHAT_MINIPROGRAM) {
+            // WeChat mini programs are identified by their AppID and published through WeChat, not an app store
+            if (mobileApp.getPkgName() == null || !WECHAT_APP_ID_PATTERN.matcher(mobileApp.getPkgName()).matches()) {
+                throw new DataValidationException("WeChat mini program AppID must start with 'wx' followed by 16 hexadecimal characters");
+            }
+            return;
+        }
         if (mobileApp.getStatus() == MobileAppStatus.PUBLISHED) {
             if (mobileApp.getStoreInfo() == null) {
                 throw new DataValidationException("Store info is required for published apps");

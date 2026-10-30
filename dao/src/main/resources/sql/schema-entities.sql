@@ -711,10 +711,12 @@ CREATE TABLE IF NOT EXISTS mobile_app_bundle (
     description varchar(1024),
     android_app_id uuid UNIQUE,
     ios_app_id uuid UNIQUE,
+    wechat_app_id uuid UNIQUE,
     layout_config varchar(16384),
     oauth2_enabled boolean,
     CONSTRAINT fk_android_app_id FOREIGN KEY (android_app_id) REFERENCES mobile_app(id) ON DELETE SET NULL,
-    CONSTRAINT fk_ios_app_id FOREIGN KEY (ios_app_id) REFERENCES mobile_app(id) ON DELETE SET NULL
+    CONSTRAINT fk_ios_app_id FOREIGN KEY (ios_app_id) REFERENCES mobile_app(id) ON DELETE SET NULL,
+    CONSTRAINT fk_wechat_app_id FOREIGN KEY (wechat_app_id) REFERENCES mobile_app(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS domain_oauth2_client (

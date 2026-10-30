@@ -81,7 +81,7 @@ public class MobileAppController extends BaseController {
     @GetMapping(value = "/noauth/mobile")
     public LoginMobileInfo getLoginMobileInfo(@Parameter(description = "Mobile application package name")
                                               @RequestParam String pkgName,
-                                              @Parameter(description = "Platform type", schema = @Schema(allowableValues = {"ANDROID", "IOS"}))
+                                              @Parameter(description = "Platform type", schema = @Schema(allowableValues = {"ANDROID", "IOS", "WECHAT_MINIPROGRAM"}))
                                               @RequestParam PlatformType platform) {
         List<OAuth2ClientLoginInfo> oauth2Clients = oAuth2ClientService.findOAuth2ClientLoginInfosByMobilePkgNameAndPlatformType(pkgName, platform);
         MobileApp mobileApp = mobileAppService.findMobileAppByPkgNameAndPlatformType(pkgName, platform);
@@ -95,7 +95,7 @@ public class MobileAppController extends BaseController {
     @GetMapping(value = "/mobile")
     public UserMobileInfo getUserMobileInfo(@Parameter(description = "Mobile application package name")
                                             @RequestParam String pkgName,
-                                            @Parameter(description = "Platform type", schema = @Schema(allowableValues = {"ANDROID", "IOS"}))
+                                            @Parameter(description = "Platform type", schema = @Schema(allowableValues = {"ANDROID", "IOS", "WECHAT_MINIPROGRAM"}))
                                             @RequestParam PlatformType platform) throws ThingsboardException, JsonProcessingException {
         SecurityUser securityUser = getCurrentUser();
         User user = userService.findUserById(securityUser.getTenantId(), securityUser.getId());

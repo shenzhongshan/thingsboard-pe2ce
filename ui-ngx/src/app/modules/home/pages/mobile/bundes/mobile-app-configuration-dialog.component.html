@@ -24,6 +24,7 @@
   </button>
 </mat-toolbar>
 <div mat-dialog-content class="flex flex-col gap-4 xs:gap-2 gt-xs:max-h-[80vh]">
+  @if (hasFlutterApp) {
   <div class="tb-form-panel stroked">
     <div class="tb-form-panel-title" translate>mobile.configuration-step.prepare-environment-title</div>
     <div class="flex gap-4">
@@ -69,6 +70,19 @@
       </a>
     </div>
   </div>
+  }
+  @if (wechatAppId) {
+  <div class="tb-form-panel stroked">
+    <div class="tb-form-panel-title" translate>mobile.configuration-step.wechat-title</div>
+    <div>{{ 'mobile.configuration-step.wechat-source-text' | translate }}</div>
+    <tb-markdown usePlainMarkdown containerClass="tb-command-code"
+                 [data]=createMarkDownCommand(wechatSourceCommand)></tb-markdown>
+    <div>{{ 'mobile.configuration-step.wechat-build-text' | translate }}</div>
+    <tb-markdown usePlainMarkdown containerClass="tb-command-code"
+                 [data]=createMarkDownCommand(wechatBuildCommand)></tb-markdown>
+    <div>{{ 'mobile.configuration-step.wechat-domain-text' | translate: {origin: serverOrigin} }}</div>
+  </div>
+  }
 </div>
 <div mat-dialog-actions class="tb-dialog-actions gap-2">
   <mat-slide-toggle [class.!hidden]="!showDontShowAgain" [(ngModel)]="notShowAgain">{{ 'action.dont-show-again' | translate}}</mat-slide-toggle>

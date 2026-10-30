@@ -29,6 +29,7 @@ export interface MobileAppConfigurationDialogData {
   afterAdd: boolean;
   androidApp: MobileApp;
   iosApp: MobileApp;
+  wechatApp?: MobileApp;
   bundle: MobileAppBundleInfo;
 }
 
@@ -48,6 +49,12 @@ export class MobileAppConfigurationDialogComponent extends DialogComponent<Mobil
   gitRepositoryLink = 'git clone -b master https://github.com/thingsboard/flutter_thingsboard_app.git';
   flutterRunCommand = `flutter run --dart-define-from-file ${this.fileName}.json`;
 
+  hasFlutterApp: boolean;
+  wechatAppId: string;
+  wechatSourceCommand = 'git clone https://github.com/shenzhongshan/flutter_thingsboard_pe_app.git\ncd flutter_thingsboard_pe_app/taro_thingsboard_app && npm install';
+  wechatBuildCommand: string;
+  serverOrigin = window.location.origin;
+
   constructor(protected store: Store<AppState>,
               protected router: Router,
               @Inject(MAT_DIALOG_DATA) private data: MobileAppConfigurationDialogData,
@@ -56,6 +63,12 @@ export class MobileAppConfigurationDialogComponent extends DialogComponent<Mobil
               ) {
     super(store, router, dialogRef);
     this.showDontShowAgain = this.data.afterAdd;
+    this.hasFlutterApp = !!this.data.androidApp || !!this.data.iosApp || !this.data.wechatApp;
+    if (this.data.wechatApp) {
+      this.wechatAppId = this.data.wechatApp.pkgName;
+      // the mini program reads its own AppID at runtime and queries the WECHAT_MINIPROGRAM platform by default
+      this.wechatBuildCommand = `TB_API_ENDPOINT=${window.location.origin} npm run build:weapp`;
+    }
   }
 
   close(): void {

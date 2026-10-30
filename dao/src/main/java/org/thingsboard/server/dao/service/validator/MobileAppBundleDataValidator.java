@@ -56,5 +56,15 @@ public class MobileAppBundleDataValidator extends DataValidator<MobileAppBundle>
                 throw new DataValidationException("Mobile app bundle refers to wrong ios app! Platform type of specified app is " + iosApp.getPlatformType());
             }
         }
+        MobileAppId wechatAppId = mobileAppBundle.getWechatAppId();
+        if (wechatAppId != null) {
+            MobileApp wechatApp = mobileAppDao.findById(tenantId, wechatAppId.getId());
+            if (wechatApp == null) {
+                throw new DataValidationException("Mobile app bundle refers to non-existing WeChat mini program!");
+            }
+            if (wechatApp.getPlatformType() != PlatformType.WECHAT_MINIPROGRAM) {
+                throw new DataValidationException("Mobile app bundle refers to wrong WeChat mini program! Platform type of specified app is " + wechatApp.getPlatformType());
+            }
+        }
     }
 }

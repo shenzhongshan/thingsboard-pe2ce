@@ -16,5 +16,13 @@
 package org.thingsboard.server.common.data.oauth2;
 
 public enum PlatformType {
-    WEB, ANDROID, IOS
+    WEB, ANDROID, IOS, WECHAT_MINIPROGRAM;
+
+    /**
+     * Platforms that support OAuth2 login. WeChat mini programs cannot follow
+     * OAuth2 redirects, so they are excluded.
+     */
+    public boolean isOAuth2Supported() {
+        return this != WECHAT_MINIPROGRAM;
+    }
 }

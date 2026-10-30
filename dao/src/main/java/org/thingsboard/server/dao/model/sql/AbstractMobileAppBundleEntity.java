@@ -54,6 +54,9 @@ public abstract class AbstractMobileAppBundleEntity<T extends MobileAppBundle> e
     @Column(name = ModelConstants.MOBILE_APP_BUNDLE_IOS_APP_ID_PROPERTY)
     private UUID iosAppID;
 
+    @Column(name = ModelConstants.MOBILE_APP_BUNDLE_WECHAT_APP_ID_PROPERTY)
+    private UUID wechatAppId;
+
     @Convert(converter = JsonConverter.class)
     @Column(name = ModelConstants.MOBILE_APP_BUNDLE_LAYOUT_CONFIG_PROPERTY)
     private JsonNode layoutConfig;
@@ -72,6 +75,7 @@ public abstract class AbstractMobileAppBundleEntity<T extends MobileAppBundle> e
         this.description = mobileAppBundleEntity.getDescription();
         this.androidAppId = mobileAppBundleEntity.getAndroidAppId();
         this.iosAppID = mobileAppBundleEntity.getIosAppID();
+        this.wechatAppId = mobileAppBundleEntity.getWechatAppId();
         this.layoutConfig = mobileAppBundleEntity.getLayoutConfig();
         this.oauth2Enabled = mobileAppBundleEntity.getOauth2Enabled();
     }
@@ -88,6 +92,9 @@ public abstract class AbstractMobileAppBundleEntity<T extends MobileAppBundle> e
         }
         if (mobileAppBundle.getIosAppId() != null) {
             this.iosAppID = mobileAppBundle.getIosAppId().getId();
+        }
+        if (mobileAppBundle.getWechatAppId() != null) {
+            this.wechatAppId = mobileAppBundle.getWechatAppId().getId();
         }
         this.layoutConfig = toJson(mobileAppBundle.getLayoutConfig());
         this.oauth2Enabled = mobileAppBundle.getOauth2Enabled();
@@ -106,6 +113,9 @@ public abstract class AbstractMobileAppBundleEntity<T extends MobileAppBundle> e
         }
         if (iosAppID != null) {
             mobileAppBundle.setIosAppId(new MobileAppId(iosAppID));
+        }
+        if (wechatAppId != null) {
+            mobileAppBundle.setWechatAppId(new MobileAppId(wechatAppId));
         }
         mobileAppBundle.setLayoutConfig(fromJson(layoutConfig, MobileLayoutConfig.class));
         mobileAppBundle.setOauth2Enabled(oauth2Enabled);
