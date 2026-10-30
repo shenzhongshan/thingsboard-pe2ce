@@ -156,3 +156,26 @@ See `ui-ngx/structure.md` for full route-to-source mapping and component catalog
 The `docker/` directory contains docker-compose files for local development with all infrastructure dependencies (PostgreSQL, Kafka/Confluent, Cassandra, Valkey/Redis, Prometheus/Grafana). Configure via `docker/.env` (`DATABASE`, `TB_QUEUE_TYPE`, `CACHE`).
 
 CI uses Docker-in-Docker. Packaging produces `.deb` (via Gradle Maven plugin), `.rpm`, `.zip`, and Docker images. Docker images are multi-arch (amd64/arm64) using Docker buildx. Set `DOCKER_BUILDKIT=0` for local Docker builds.
+
+## Related Repositories
+
+- `shenzhongshan/thingsboard`: unmodified ThingsBoard CE. Use it only as a reference for upstream behaviour.
+- `shenzhongshan/thingsboard-pe2ce` (this repo): CE 4.4 with most PE features ported (RBAC / `AccessControlService`, `/api/permissions/allowedPermissions`, entity groups, white labeling, integrations, etc.). `/api/system/info` still reports `"type":"CE"`. Day-to-day development happens on the `mydev-pe` branch.
+- `shenzhongshan/flutter_thingsboard_pe_app`: the Flutter mobile app plus the WeChat mini program in `taro_thingsboard_app/` (Taro + React), which talks to this server.
+
+## Mobile Center: WeChat Mini Programs
+
+The mobile center supports `PlatformType.WECHAT_MINIPROGRAM` in addition to Android/iOS. WeChat login is not implemented.
+
+- **App**: the package name is the mini program AppID, validated as `^wx[0-9a-f]{16}$` (`MobileAppDataValidator`). A published mini program needs no store info. Version info (min/latest) drives the mini program's update check.
+- **Bundle**: `mobile_app_bundle.wechat_app_id` (unique, FK to `mobile_app`, `ON DELETE SET NULL`). It is defined in `schema-entities.sql` and added by idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` blocks in both `upgrade/basic` and `upgrade/lts` `schema_update.sql`. Bundle queries join `androidAppId OR iosAppID OR wechatAppId`.
+- **Tenant isolation**: each tenant registers and publishes its own mini program. In `MobileAppController#getUserMobileInfo`, a mini program owned by a tenant returns 403 "Mobile application belongs to another tenant" to users of other tenants; a mini program owned by the system administrator serves every tenant. Android/iOS apps keep upstream behaviour. `MobileAppBundleDataValidator` only accepts a mini program from the bundle's own tenant.
+- **OAuth2**: `PlatformType.isOAuth2Supported()` is false for mini programs. `Oauth2ClientDataValidator` rejects clients that target them, and the UI offers only `oauth2PlatformTypes` (WEB/ANDROID/IOS).
+- **UI**: `ui-ngx/src/app/modules/home/pages/mobile/` (app form, bundle dialog/table, configuration dialog with the mini program build steps). Translations exist in `en_US` and `zh_CN`.
+- **Tests**: `MobileAppControllerTest` and `MobileAppBundleControllerTest`.
+
+## Known Build Issues (outside the mobile center)
+
+- `bouncycastle.version` is 1.84, but `org.bouncycastle:bcprov-ext-jdk18on` stops at 1.78.1 on Maven Central, so `integration-tuya` only resolves from a repository or local cache that has it.
+- `application/src/test/.../client/NotificationApiClientTest.java` (lines 171-172) fails to compile: calls to `markAllNotificationsAsRead` and `getUnreadNotificationsCount` are ambiguous between overloads of the generated `ThingsboardApi`.
+- `ui-ngx` depends on `echarts`/`zrender` GitHub archive tarballs; environments that block GitHub archive downloads need them fetched another way (`git clone` of the `5.5.2-TB` / `5.5.0-TB` tags works).
