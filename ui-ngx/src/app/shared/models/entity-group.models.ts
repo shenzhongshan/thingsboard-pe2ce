@@ -90,18 +90,22 @@ export interface EntityGroupColumn {
   hideOnMobile?: boolean;
 }
 
-// Default 实体字段 (ENTITY_FIELD) column choices per group type — matches each type's real
-// EntityTableColumn key/label pairs (devices-table-config.resolver.ts etc.), used both to
-// pre-populate the 列 tab's default rows and as the 值 dropdown options for ENTITY_FIELD columns.
+// Default 实体字段 (ENTITY_FIELD) column choices per group type. The labels mirror each type's
+// real EntityTableColumn labels (devices-table-config.resolver.ts etc.), but the keys are
+// entity-data-query field names (EntityKeyMapping.allowedEntityFieldMap), NOT the REST *Info
+// DTO property names those resolvers use — the two namespaces differ for the profile column,
+// where the query engine's name is 'type' and the DTO's is 'deviceProfileName'. A key outside
+// the whitelist is not rejected: EntityKeyMapping.toSelection emits "'' as aliasN", so the
+// column would silently render blank on every row.
 export const entityGroupDefaultFields: {[type: string]: {key: string; label: string}[]} = {
   DEVICE: [
     {key: 'name', label: 'device.name'},
-    {key: 'deviceProfileName', label: 'device-profile.device-profile'},
+    {key: 'type', label: 'device-profile.device-profile'},
     {key: 'label', label: 'device.label'}
   ],
   ASSET: [
     {key: 'name', label: 'asset.name'},
-    {key: 'assetProfileName', label: 'asset-profile.asset-profile'},
+    {key: 'type', label: 'asset-profile.asset-profile'},
     {key: 'label', label: 'asset.label'}
   ],
   CUSTOMER: [
