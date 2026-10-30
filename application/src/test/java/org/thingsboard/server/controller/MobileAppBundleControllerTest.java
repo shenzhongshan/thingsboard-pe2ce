@@ -189,6 +189,48 @@ public class MobileAppBundleControllerTest extends AbstractControllerTest {
     }
 
     @Test
+    public void testTenantMiniProgramServesOnlyItsTenant() throws Exception {
+        String appUrl = "/api/mobile?pkgName=wx1111111111111111&platform=WECHAT_MINIPROGRAM";
+        loginTenantAdmin();
+        MobileApp tenantApp = doPost("/api/mobile/app", validMobileApp(tenantId, "wx1111111111111111", PlatformType.WECHAT_MINIPROGRAM), MobileApp.class);
+        MobileAppBundle bundle = new MobileAppBundle();
+        bundle.setTitle("Tenant mini program bundle");
+        bundle.setWechatAppId(tenantApp.getId());
+        bundle = doPost("/api/mobile/bundle", bundle, MobileAppBundle.class);
+
+        doGet(appUrl).andExpect(status().isOk());
+        loginCustomerUser();
+        doGet(appUrl).andExpect(status().isOk());
+
+        loginDifferentTenant();
+        doGet(appUrl)
+                .andExpect(status().isForbidden())
+                .andExpect(statusReason(containsString("Mobile application belongs to another tenant")));
+        // another tenant cannot reuse the mini program in its own bundle either
+        MobileAppBundle foreignBundle = new MobileAppBundle();
+        foreignBundle.setTitle("Foreign bundle");
+        foreignBundle.setWechatAppId(tenantApp.getId());
+        doPost("/api/mobile/bundle", foreignBundle)
+                .andExpect(status().isBadRequest())
+                .andExpect(statusReason(containsString("WeChat mini program of another tenant")));
+
+        loginTenantAdmin();
+        doDelete("/api/mobile/bundle/" + bundle.getId().getId()).andExpect(status().isOk());
+        doDelete("/api/mobile/app/" + tenantApp.getId().getId()).andExpect(status().isOk());
+        loginSysAdmin();
+    }
+
+    @Test
+    public void testSystemMiniProgramServesAllTenants() throws Exception {
+        doPost("/api/mobile/app", validMobileApp(TenantId.SYS_TENANT_ID, "wx2222222222222222", PlatformType.WECHAT_MINIPROGRAM), MobileApp.class);
+        loginTenantAdmin();
+        doGet("/api/mobile?pkgName=wx2222222222222222&platform=WECHAT_MINIPROGRAM").andExpect(status().isOk());
+        loginDifferentTenant();
+        doGet("/api/mobile?pkgName=wx2222222222222222&platform=WECHAT_MINIPROGRAM").andExpect(status().isOk());
+        loginSysAdmin();
+    }
+
+    @Test
     public void testOauth2ClientCannotTargetWechatMiniProgram() throws Exception {
         OAuth2Client oAuth2Client = createOauth2Client(TenantId.SYS_TENANT_ID, "test wechat client");
         oAuth2Client.setPlatforms(List.of(PlatformType.WECHAT_MINIPROGRAM));

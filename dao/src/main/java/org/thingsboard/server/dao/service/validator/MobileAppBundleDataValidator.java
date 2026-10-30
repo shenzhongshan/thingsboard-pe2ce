@@ -65,6 +65,10 @@ public class MobileAppBundleDataValidator extends DataValidator<MobileAppBundle>
             if (wechatApp.getPlatformType() != PlatformType.WECHAT_MINIPROGRAM) {
                 throw new DataValidationException("Mobile app bundle refers to wrong WeChat mini program! Platform type of specified app is " + wechatApp.getPlatformType());
             }
+            // the mini program's tenant decides who may use it (see MobileAppController#getUserMobileInfo)
+            if (!wechatApp.getTenantId().equals(tenantId)) {
+                throw new DataValidationException("Mobile app bundle refers to WeChat mini program of another tenant!");
+            }
         }
     }
 }

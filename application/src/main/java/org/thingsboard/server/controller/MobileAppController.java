@@ -35,8 +35,10 @@ import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.common.data.HomeDashboardInfo;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.Views;
+import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.MobileAppId;
+import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.mobile.LoginMobileInfo;
 import org.thingsboard.server.common.data.mobile.UserMobileInfo;
 import org.thingsboard.server.common.data.mobile.app.MobileApp;
@@ -100,8 +102,9 @@ public class MobileAppController extends BaseController {
         SecurityUser securityUser = getCurrentUser();
         User user = userService.findUserById(securityUser.getTenantId(), securityUser.getId());
         HomeDashboardInfo homeDashboardInfo = securityUser.isSystemAdmin() ? null : getHomeDashboardInfo(securityUser, user.getAdditionalInfo());
-        MobileAppBundle mobileAppBundle = mobileAppBundleService.findMobileAppBundleByPkgNameAndPlatform(securityUser.getTenantId(), pkgName, platform);
         MobileApp mobileApp = mobileAppService.findMobileAppByPkgNameAndPlatformType(pkgName, platform);
+        checkMiniProgramTenant(securityUser, mobileApp);
+        MobileAppBundle mobileAppBundle = mobileAppBundleService.findMobileAppBundleByPkgNameAndPlatform(securityUser.getTenantId(), pkgName, platform);
         StoreInfo storeInfo = Optional.ofNullable(mobileApp).map(MobileApp::getStoreInfo).orElse(null);
         MobileAppVersionInfo versionInfo = Optional.ofNullable(mobileApp).map(MobileApp::getVersionInfo).orElse(null);
         return new UserMobileInfo(user, storeInfo, versionInfo, homeDashboardInfo, getVisiblePages(mobileAppBundle));
@@ -172,4 +175,22 @@ public class MobileAppController extends BaseController {
         }
     }
 
+
+    /**
+     * WeChat mini programs are registered and published by each tenant under its own AppID, so a mini program
+     * owned by a tenant only serves that tenant's users. Mini programs owned by the system administrator serve
+     * every tenant. Android/iOS apps keep the default behaviour.
+     */
+    private void checkMiniProgramTenant(SecurityUser securityUser, MobileApp mobileApp) throws ThingsboardException {
+        if (mobileApp == null || mobileApp.getPlatformType() != PlatformType.WECHAT_MINIPROGRAM) {
+            return;
+        }
+        TenantId ownerTenantId = mobileApp.getTenantId();
+        if (ownerTenantId == null || ownerTenantId.isSysTenantId()) {
+            return;
+        }
+        if (!ownerTenantId.equals(securityUser.getTenantId())) {
+            throw new ThingsboardException("Mobile application belongs to another tenant", ThingsboardErrorCode.PERMISSION_DENIED);
+        }
+    }
 }
