@@ -1019,9 +1019,6 @@ const menuFilters = new Map<MenuId, MenuFilter>([
   ],
   // CE upstream hides the whole Advanced features group; re-enabled for the PE feature port
   // (OTA updates / version control / scheduler / task manager live under it, per PE navigation).
-  [
-    MenuId.mobile_center, () => false
-  ],
   // White labeling is hidden for tenants/customers it was revoked from
   // (Tenant additionalInfo.allowWhiteLabeling), exactly as PE filters its menu.
   [
